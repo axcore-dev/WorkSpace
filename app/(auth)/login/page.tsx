@@ -51,7 +51,7 @@ export default function LoginPage() {
               "radial-gradient(520px 340px at 12% 8%, rgba(56,102,255,0.18), transparent), radial-gradient(600px 420px at 88% 100%, rgba(10,80,255,0.14), transparent)",
           }}
         />
-        <Logo variant="white" height={26} className="relative" />
+        <Logo variant="white" height={26} className="relative self-start" />
         <div className="relative max-w-md">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary-400">
             AX Manufacturing Platform
