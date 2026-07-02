@@ -1,0 +1,52 @@
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css");
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+
+  /* Brand — AXCORE Electric Blue (#0A50FF) */
+  --color-primary-50: #eef3ff;
+  --color-primary-100: #dbe5ff;
+  --color-primary-200: #c0d2ff;
+  --color-primary-300: #96b5ff;
+  --color-primary-400: #6490ff;
+  --color-primary-500: #3866ff;
+  --color-primary-600: #0a50ff;
+  --color-primary-700: #0840d6;
+  --color-primary-800: #0632a8;
+  --color-primary-900: #05267f;
+  --color-primary-950: #03144c;
+}
+
+body {
+  @apply bg-slate-100 text-slate-900 font-sans antialiased;
+  font-feature-settings: "tnum";
+}
+
+::selection {
+  background: var(--color-primary-200);
+}
+
+/* Thin, unobtrusive scrollbars for panel-heavy layouts */
+.thin-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+.thin-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.thin-scroll::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
