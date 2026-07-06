@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Modal } from "@/components/modal";
-import { Button, Toggle } from "@/components/ui";
+import { Button, FIELD, Toggle } from "@/components/ui";
 import { IconCheckCircle, IconShield } from "@/components/icons";
 import { MODULES } from "@/data/modules";
 
@@ -29,9 +29,6 @@ export function InviteModal({ open, onClose }: { open: boolean; onClose: () => v
     setSent(false);
     onClose();
   }
-
-  const FIELD =
-    "w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 transition-colors focus:border-slate-400 focus:outline-2 focus:outline-slate-300/60";
 
   return (
     <Modal
@@ -64,7 +61,9 @@ export function InviteModal({ open, onClose }: { open: boolean; onClose: () => v
           <IconCheckCircle size={40} className="text-emerald-600" />
           <p className="mt-3 text-sm font-semibold text-slate-900">초대를 보냈습니다</p>
           <p className="mt-1 max-w-sm text-sm text-slate-500">
-            {email || "구성원"} 님에게 초대 메일을 발송했습니다. 수락 시 지정한 기능으로 워크스페이스에 참여합니다.
+            {email || "구성원"} 님에게 초대 메일을 발송했습니다.
+            <br />
+            수락 시 지정한 기능으로 워크스페이스에 참여합니다.
           </p>
           <Button className="mt-5" onClick={close}>
             확인

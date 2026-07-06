@@ -138,7 +138,8 @@ export const ROW_DETAILS: Record<string, Record<string, DetailRecord[]>> = {
       {
         title: "CS-2607-06 · 한빛모터스",
         subtitle: "AS 요청 · 접수 2026-07-02",
-        status: { label: "우선순위 높음", tone: "red" },
+        status: { label: "높음", tone: "red" },
+        statusLabel: "우선순위",
         fields: [
           { label: "제품", value: "샤프트 어셈블리 (로트 L-26058)" },
           { label: "증상", value: "조립 후 이음(소음) 발생" },
@@ -151,7 +152,8 @@ export const ROW_DETAILS: Record<string, Record<string, DetailRecord[]>> = {
       {
         title: "CS-2607-05 · 세진전자",
         subtitle: "문의 · 접수 2026-07-02",
-        status: { label: "우선순위 보통", tone: "slate" },
+        status: { label: "보통", tone: "slate" },
+        statusLabel: "우선순위",
         fields: [
           { label: "문의 내용", value: "브래킷 도금 사양 변경 가능 여부" },
           { label: "요청 유형", value: "기술 문의" },
@@ -162,7 +164,8 @@ export const ROW_DETAILS: Record<string, Record<string, DetailRecord[]>> = {
       {
         title: "CS-2607-04 · 대륙기계",
         subtitle: "AS 요청 · 접수 2026-07-01",
-        status: { label: "우선순위 보통", tone: "amber" },
+        status: { label: "보통", tone: "amber" },
+        statusLabel: "우선순위",
         fields: [
           { label: "제품", value: "감속 기어 2 EA" },
           { label: "증상", value: "백래시 과다 (규격 초과)" },
@@ -174,7 +177,8 @@ export const ROW_DETAILS: Record<string, Record<string, DetailRecord[]>> = {
       {
         title: "CS-2607-03 · 글로벌AT",
         subtitle: "불만 · 접수 2026-07-01",
-        status: { label: "우선순위 높음", tone: "red" },
+        status: { label: "높음", tone: "red" },
+        statusLabel: "우선순위",
         fields: [
           { label: "내용", value: "납품 포장 파손 재발 (2회차)" },
           { label: "요청 유형", value: "재발 방지 대책 요청" },
@@ -282,3 +286,40 @@ export const HR_MEMBERS: Record<string, Member[]> = {
     { name: "김하늘", rank: "사원", phone: "010-1000-0092", email: "hnkim@democompany.co.kr", joined: "2023-05-22" },
   ],
 };
+
+/**
+ * 조직도(module-pages)의 팀별 인원수와 상세보기 명단 수를 일치시킨다.
+ * 대표 인물은 위에 수기로 두고, 나머지는 결정적(비랜덤)으로 생성해
+ * SSR/CSR 하이드레이션이 어긋나지 않게 한다. 총 128명.
+ */
+const TEAM_SIZES: Record<string, number> = {
+  "생산1팀 (CNC 가공)": 28,
+  "생산2팀 (프레스)": 22,
+  품질관리팀: 14,
+  설비보전팀: 10,
+  인사총무팀: 8,
+  재무회계팀: 9,
+  구매자재팀: 14,
+  국내영업팀: 12,
+  해외영업팀: 6,
+  고객지원팀: 5,
+};
+
+const FAMILY_NAMES = ["김", "이", "박", "최", "정", "강", "조", "윤", "장", "임", "한", "오", "서", "신", "권", "황", "안", "송", "전", "홍"];
+const GIVEN_NAMES = ["민준", "서연", "도윤", "지우", "하준", "서현", "은우", "지민", "수아", "예준", "시우", "하은", "지호", "유진", "준서", "채원"];
+
+Object.entries(TEAM_SIZES).forEach(([teamName, size], teamIdx) => {
+  const list = HR_MEMBERS[teamName];
+  if (!list) return;
+  for (let i = list.length; i < size; i++) {
+    const seed = teamIdx * 31 + i;
+    const ratio = i / size;
+    list.push({
+      name: FAMILY_NAMES[(seed * 3) % FAMILY_NAMES.length] + GIVEN_NAMES[(seed * 5) % GIVEN_NAMES.length],
+      rank: ratio < 0.25 ? "책임" : ratio < 0.5 ? "선임" : ratio < 0.75 ? "주임" : "사원",
+      phone: `010-${String(2100 + teamIdx).padStart(4, "0")}-${String(1000 + i)}`,
+      email: `member${teamIdx}${String(i).padStart(2, "0")}@democompany.co.kr`,
+      joined: `${2014 + (seed % 11)}-${String((seed % 12) + 1).padStart(2, "0")}-${String((seed % 27) + 1).padStart(2, "0")}`,
+    });
+  }
+});

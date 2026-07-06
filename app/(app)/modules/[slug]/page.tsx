@@ -17,5 +17,6 @@ export default async function ModulePage({
   const page = MODULE_PAGES[slug];
   if (!mod || !page) notFound();
 
-  return <ModuleView mod={mod} page={page} />;
+  // 모듈 전환 시 탭 순서·편집 모드 등 내부 상태를 초기화하기 위해 slug로 리마운트
+  return <ModuleView key={slug} mod={mod} page={page} />;
 }

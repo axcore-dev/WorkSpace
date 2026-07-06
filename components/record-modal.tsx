@@ -1,28 +1,18 @@
 "use client";
 
 import { Modal } from "@/components/modal";
-import { Badge, DataTable } from "@/components/ui";
-import type { DetailRecord, Member, Tone } from "@/data/types";
+import { Badge, DataTable, TONE_TEXT } from "@/components/ui";
+import type { DetailRecord, Member } from "@/data/types";
 
-const TONE_TEXT: Record<Tone, string> = {
-  green: "text-emerald-600",
-  amber: "text-amber-600",
-  red: "text-red-600",
-  violet: "text-slate-600",
-  blue: "text-slate-600",
-  slate: "text-slate-700",
-};
-
-/** 테이블 행 상세 팝업 */
+/** 테이블 행 상세 팝업 — 상태는 급여 관리 팝업과 동일하게 본문 하단 중앙에 표시 */
 export function RecordModal({ record, onClose }: { record: DetailRecord | null; onClose: () => void }) {
   return (
     <Modal
       open={!!record}
       onClose={onClose}
-      size="md"
+      size="lg"
       title={record?.title}
       desc={record?.subtitle}
-      headerAccessory={record?.status ? <Badge tone={record.status.tone}>{record.status.label}</Badge> : undefined}
     >
       {record && (
         <div className="space-y-5 p-5">
@@ -41,6 +31,14 @@ export function RecordModal({ record, onClose }: { record: DetailRecord | null; 
               )}
               <DataTable data={record.table} dense />
             </div>
+          )}
+          {record.status && (
+            <p className="flex items-center justify-center gap-1.5 border-t border-slate-100 pt-4 text-center text-sm">
+              <span className="text-slate-400">{record.statusLabel ?? "상태"}</span>
+              <Badge tone={record.status.tone} className="!text-sm">
+                {record.status.label}
+              </Badge>
+            </p>
           )}
         </div>
       )}

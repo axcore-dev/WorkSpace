@@ -4,10 +4,8 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Logo } from "@/components/logo";
+import { FIELD, isPersonalEmail } from "@/components/ui";
 import { DEMO_USER } from "@/data/org";
-
-const FIELD =
-  "w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 transition-colors focus:border-slate-400 focus:outline-2 focus:outline-slate-300/60";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -100,10 +98,16 @@ export default function LoginPage() {
                     id="email"
                     type="email"
                     autoComplete="email"
+                    placeholder="name@company.co.kr"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className={FIELD}
                   />
+                  {isPersonalEmail(email) && (
+                    <p className="mt-1.5 text-xs text-amber-600">
+                      개인 메일 주소예요. 회사에서 발급한 업무용 이메일 사용을 권장해요.
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-slate-700">

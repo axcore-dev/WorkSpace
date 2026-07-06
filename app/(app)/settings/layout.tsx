@@ -6,7 +6,7 @@ import { IconSettings, IconShield, IconUser } from "@/components/icons";
 
 const TABS = [
   { href: "/settings/account", label: "계정", icon: IconUser, desc: "프로필·비밀번호·2단계 인증" },
-  { href: "/settings/admin", label: "관리", icon: IconShield, desc: "사용자·권한(RBAC)·감사 로그" },
+  { href: "/settings/admin", label: "관리", icon: IconShield, desc: "사용자·권한(RBAC)" },
   { href: "/settings/workspace", label: "설정", icon: IconSettings, desc: "모듈·연동·알림" },
 ];
 
@@ -16,7 +16,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
     <div className="mx-auto max-w-6xl px-6 py-6 lg:px-8">
       <h1 className="text-xl font-bold tracking-tight text-slate-900">설정 및 관리</h1>
       <p className="mt-0.5 text-sm text-slate-500">
-        모든 설정 변경은 감사 로그에 기록됩니다. (프로필 메뉴에서 팝업으로도 열 수 있습니다.)
+        계정·권한·워크스페이스 설정을 한 곳에서 관리할 수 있어요. (프로필 메뉴에서 팝업으로도 열 수 있습니다.)
       </p>
       <nav className="mt-5 flex flex-wrap gap-2" aria-label="설정 메뉴">
         {TABS.map((tab) => {

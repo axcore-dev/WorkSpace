@@ -53,7 +53,7 @@ export function SettingsModal({
         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
           <div>
             <h2 className="text-base font-bold text-slate-900">설정 및 관리</h2>
-            <p className="mt-0.5 text-xs text-slate-500">모든 설정 변경은 감사 로그에 기록됩니다.</p>
+            <p className="mt-0.5 text-xs text-slate-500">계정·권한·워크스페이스 설정을 한 곳에서 관리합니다.</p>
           </div>
           <button
             type="button"

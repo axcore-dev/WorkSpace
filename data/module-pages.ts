@@ -1,3 +1,4 @@
+import { CHART } from "@/lib/palette";
 import type { ModulePageData } from "./types";
 
 /**
@@ -6,16 +7,25 @@ import type { ModulePageData } from "./types";
  */
 export const MODULE_PAGES: Record<string, ModulePageData> = {
   management: {
+    // 실무자 관점 순서: 당장 처리할 승인 → 다가오는 지급 → 손익 → 인원
     stats: [
-      { label: "재직 인원", value: "128명", delta: "+3", deltaTone: "green", sub: "이번 달 입사 3명" },
-      { label: "이번 달 급여 지급액", value: "4.2억원", sub: "지급 예정일 7/25" },
-      { label: "미결 구매 요청", value: "14건", delta: "+5", deltaTone: "amber", sub: "승인 대기 포함" },
+      {
+        label: "미결 구매 요청",
+        value: "14건",
+        delta: "+5",
+        deltaTone: "amber",
+        sub: "승인 대기 포함",
+        cta: { label: "승인하기", tabId: "purchasing" },
+      },
+      { label: "이번 달 급여 지급액", value: "4.2억원", sub: "지급 예정일 7/25", dday: "D-19" },
       { label: "월 손익 (6월)", value: "+1.8억원", delta: "+12%", deltaTone: "green", sub: "전월 대비" },
+      { label: "재직 인원", value: "128명", delta: "+3", deltaTone: "green", sub: "이번 달 입사 3명" },
     ],
     tabs: [
       {
         id: "hr",
         label: "인사 관리",
+        actions: ["export", "create"],
         description: "Tree 형태의 조직도로 조직별 인원을 확인하고 구성원 연락처를 공유합니다.",
         tree: [
           {
@@ -57,6 +67,7 @@ export const MODULE_PAGES: Record<string, ModulePageData> = {
       {
         id: "payroll",
         label: "급여 관리",
+        actions: ["export"],
         description: "원클릭 급상여 처리와 전표 작성을 지원합니다.",
         table: {
           columns: ["처리 회차", "대상", "지급 총액", "공제 총액", "전표", "상태"],
@@ -72,6 +83,7 @@ export const MODULE_PAGES: Record<string, ModulePageData> = {
       {
         id: "materials",
         label: "자재 관리",
+        actions: ["filter", "create"],
         description: "자재 기준정보와 소요량(BOM 연계), 단가 이력을 관리합니다.",
         table: {
           columns: ["품목 코드", "품명", "규격", "단위", "공급처", "최근 단가", "단가 추이"],
@@ -87,14 +99,16 @@ export const MODULE_PAGES: Record<string, ModulePageData> = {
       {
         id: "accounting",
         label: "회계 관리",
+        actions: ["filter", "export"],
         description: "매입/매출 전표와 계정과목, 월별 손익 요약을 조회합니다.",
         chart: {
           type: "bar",
           title: "월별 손익 요약",
+          valueUnit: "억",
           labels: ["1월", "2월", "3월", "4월", "5월", "6월"],
           series: [
-            { name: "매출", color: "#0a50ff", values: [18.2, 17.5, 19.8, 21.3, 20.6, 22.4] },
-            { name: "매입·비용", color: "#cbd5e1", values: [15.9, 15.8, 17.2, 18.4, 18.1, 20.6] },
+            { name: "매출", color: CHART.primary, values: [18.2, 17.5, 19.8, 21.3, 20.6, 22.4] },
+            { name: "매입·비용", color: CHART.neutral, values: [15.9, 15.8, 17.2, 18.4, 18.1, 20.6] },
           ],
         },
         table: {
@@ -110,6 +124,7 @@ export const MODULE_PAGES: Record<string, ModulePageData> = {
       {
         id: "purchasing",
         label: "구매 관리",
+        actions: ["filter", "create"],
         description: "공급업체·구매 요청·견적을 관리합니다. AI대화의 발주서 OCR 반영 제안을 수신합니다.",
         table: {
           columns: ["요청번호", "품목", "수량", "공급처", "요청자", "납기", "상태"],
@@ -136,6 +151,7 @@ export const MODULE_PAGES: Record<string, ModulePageData> = {
       {
         id: "drawings",
         label: "도면 관리",
+        actions: ["filter", "create"],
         description: "제품 도면의 업로드·버전 관리·검색·다운로드를 지원합니다.",
         table: {
           columns: ["도면번호", "도면명", "버전", "작성자", "수정일", "상태"],
@@ -151,6 +167,7 @@ export const MODULE_PAGES: Record<string, ModulePageData> = {
       {
         id: "specs",
         label: "설계 관리",
+        actions: ["create"],
         description: "설계 문서·시방서를 관리하고 도면·BOM·사양의 변경 이력을 추적합니다.",
         table: {
           columns: ["변경번호", "대상", "변경 내용", "요청자", "일자", "상태"],
@@ -166,6 +183,7 @@ export const MODULE_PAGES: Record<string, ModulePageData> = {
       {
         id: "bom",
         label: "BOM 관리",
+        actions: ["export"],
         description: "부품 목록의 계층 구조와 대체재를 관리합니다.",
         tree: [
           {
@@ -201,14 +219,15 @@ export const MODULE_PAGES: Record<string, ModulePageData> = {
       {
         id: "monitoring",
         label: "모니터링",
+        actions: ["export"],
         description: "설비 상태와 생산 실적을 실시간으로 모니터링하고 계획 대비 실적을 비교합니다.",
         chart: {
           type: "line",
           title: "시간대별 생산량 (계획 vs 실적)",
           labels: ["08시", "10시", "12시", "14시", "16시", "18시", "20시"],
           series: [
-            { name: "계획", color: "#cbd5e1", values: [1800, 1800, 1200, 1800, 1800, 1800, 1600] },
-            { name: "실적", color: "#0a50ff", values: [1740, 1815, 1180, 1752, 1691, 1788, 1514] },
+            { name: "계획", color: CHART.neutral, values: [1800, 1800, 1200, 1800, 1800, 1800, 1600] },
+            { name: "실적", color: CHART.primary, values: [1740, 1815, 1180, 1752, 1691, 1788, 1514] },
           ],
         },
         table: {
@@ -225,6 +244,7 @@ export const MODULE_PAGES: Record<string, ModulePageData> = {
       {
         id: "workorders",
         label: "작업지시",
+        actions: ["filter", "create"],
         description: "작업 지시의 생성·배분·추적·완료 처리와 단기 생산 계획을 관리합니다.",
         table: {
           columns: ["지시번호", "품목", "수량", "라인", "납기", "진척", "상태"],
@@ -241,13 +261,15 @@ export const MODULE_PAGES: Record<string, ModulePageData> = {
       {
         id: "bottleneck",
         label: "공정병목 분석",
+        actions: ["export"],
         description: "공정별 처리량·대기시간을 분석해 병목 구간과 개선 우선순위를 제시합니다.",
         chart: {
           type: "bar",
           title: "공정별 평균 대기시간 (분)",
+          valueUnit: "분",
           labels: ["원자재 투입", "CNC 가공", "열처리", "연마", "검사", "포장"],
           series: [
-            { name: "평균 대기시간", color: "#0a50ff", values: [4, 12, 38, 9, 21, 6] },
+            { name: "평균 대기시간", color: CHART.primary, values: [4, 12, 38, 9, 21, 6] },
           ],
         },
         table: {
@@ -274,6 +296,7 @@ export const MODULE_PAGES: Record<string, ModulePageData> = {
         id: "predict",
         label: "정비 예측",
         ai: true,
+        actions: ["export"],
         description: "센서 데이터(온도·진동·전력) 기반으로 고장 위험을 예측하고 정비 시점을 권고합니다. AI진단 허브와 예측 엔진을 공유합니다.",
         table: {
           columns: ["설비", "예측 유형", "고장 확률", "예측 근거", "권고 조치", "위험도"],
@@ -289,14 +312,15 @@ export const MODULE_PAGES: Record<string, ModulePageData> = {
           title: "CNC-07 스핀들 진동 추이 (RMS, mm/s)",
           labels: ["6/18", "6/21", "6/24", "6/27", "6/30", "7/2"],
           series: [
-            { name: "진동 RMS", color: "#ef4444", values: [2.1, 2.4, 2.9, 3.6, 4.4, 5.1] },
-            { name: "경고 임계치", color: "#f59e0b", values: [4.5, 4.5, 4.5, 4.5, 4.5, 4.5] },
+            { name: "진동 RMS", color: CHART.red, values: [2.1, 2.4, 2.9, 3.6, 4.4, 5.1] },
+            { name: "경고 임계치", color: CHART.amber, values: [4.5, 4.5, 4.5, 4.5, 4.5, 4.5] },
           ],
         },
       },
       {
         id: "maintenance",
         label: "정비 관리",
+        actions: ["filter", "create"],
         description: "설비별 가동 기록·유지보수 이력·부품 교체를 통합 관리하고 정기 정비 일정을 추적합니다.",
         table: {
           columns: ["정비번호", "설비", "유형", "내용", "담당", "일정", "상태"],
@@ -322,16 +346,17 @@ export const MODULE_PAGES: Record<string, ModulePageData> = {
       {
         id: "defects",
         label: "불량 분석",
+        actions: ["export"],
         description: "불량 데이터를 유형·공정·원인별로 분석하고 시정 조치를 추적합니다.",
         chart: {
           type: "donut",
           title: "불량 유형 분포 (최근 30일)",
           segments: [
-            { name: "치수 불량", value: 38, color: "#0a50ff" },
-            { name: "표면 흠집", value: 27, color: "#6490ff" },
-            { name: "가공 누락", value: 17, color: "#96b5ff" },
-            { name: "조립 불량", value: 11, color: "#c0d2ff" },
-            { name: "기타", value: 7, color: "#e2e8f0" },
+            { name: "치수 불량", value: 38, color: CHART.primary },
+            { name: "표면 흠집", value: 27, color: CHART.primary400 },
+            { name: "가공 누락", value: 17, color: CHART.primary300 },
+            { name: "조립 불량", value: 11, color: CHART.primary200 },
+            { name: "기타", value: 7, color: CHART.muted },
           ],
         },
         table: {
@@ -346,6 +371,7 @@ export const MODULE_PAGES: Record<string, ModulePageData> = {
       {
         id: "control",
         label: "품질 관리",
+        actions: ["filter", "create"],
         description: "제품·공정별 검사 항목을 정의하고 검사 수행·결과를 기록합니다.",
         table: {
           columns: ["검사 로트", "품목", "검사 항목", "표본", "결과", "검사원"],
@@ -371,6 +397,7 @@ export const MODULE_PAGES: Record<string, ModulePageData> = {
       {
         id: "stock",
         label: "현재 재고",
+        actions: ["filter", "export"],
         description: "품목·창고별 실시간 재고 현황과 재고 예측을 제공합니다.",
         table: {
           columns: ["품목", "창고", "현재고", "가용 재고", "30일 예측 소요", "상태"],
@@ -386,6 +413,7 @@ export const MODULE_PAGES: Record<string, ModulePageData> = {
       {
         id: "safety",
         label: "안전 재고",
+        actions: ["export"],
         description: "품목별 안전 재고 기준과 미달 알림, 최적 주문량을 산출합니다.",
         table: {
           columns: ["품목", "안전 재고 기준", "현재고", "충족률", "최적 주문량 (EOQ)", "상태"],
@@ -401,6 +429,7 @@ export const MODULE_PAGES: Record<string, ModulePageData> = {
       {
         id: "receiving",
         label: "입출고 검수",
+        actions: ["filter", "create"],
         description: "입고 검수와 자재 출고, 로트 추적, 입출고 기록을 관리합니다.",
         table: {
           columns: ["전표", "구분", "품목", "수량", "로트", "검수 결과", "일시"],
@@ -426,6 +455,7 @@ export const MODULE_PAGES: Record<string, ModulePageData> = {
       {
         id: "orders",
         label: "수주 관리",
+        actions: ["filter", "create"],
         description: "고객사 계약 조건과 수주 정보를 관리하고 생산 계획으로 연계합니다.",
         table: {
           columns: ["수주번호", "고객사", "품목", "수량", "금액", "납기", "상태"],
@@ -442,17 +472,17 @@ export const MODULE_PAGES: Record<string, ModulePageData> = {
         id: "forecast",
         label: "수요 예측",
         ai: true,
+        actions: ["export"],
         description: "과거 수주·판매 데이터와 계절성을 분석해 품목별 수요를 예측합니다.",
         chart: {
           type: "line",
           title: "월별 수요 실적 및 예측 (천 EA)",
           compact: true,
-          showValues: true,
           valueUnit: "천 EA",
           labels: ["3월", "4월", "5월", "6월", "7월", "8월", "9월"],
           series: [
-            { name: "실적", color: "#0a50ff", values: [26.4, 27.8, 28.9, 29.6, 0, 0, 0] },
-            { name: "AI 예측", color: "#f59e0b", values: [26.1, 27.2, 29.3, 29.9, 30.7, 31.8, 30.2] },
+            { name: "실적", color: CHART.primary, values: [26.4, 27.8, 28.9, 29.6, 0, 0, 0] },
+            { name: "AI 예측", color: CHART.amber, values: [26.1, 27.2, 29.3, 29.9, 30.7, 31.8, 30.2] },
           ],
         },
         note: "예측 결과는 생산관리 단기 계획과 재고·물류 안전 재고 산정에 활용됩니다.",
@@ -460,6 +490,7 @@ export const MODULE_PAGES: Record<string, ModulePageData> = {
       {
         id: "quotes",
         label: "단가 견적",
+        actions: ["filter", "create"],
         description: "자재비·공정 원가 기반으로 제품 단가를 산출하고 견적서를 관리합니다.",
         table: {
           columns: ["견적번호", "고객사", "품목", "산출 단가", "제출 단가", "마진", "상태"],
@@ -485,6 +516,7 @@ export const MODULE_PAGES: Record<string, ModulePageData> = {
       {
         id: "tickets",
         label: "AS 접수",
+        actions: ["filter", "create"],
         description: "고객의 AS 요청·문의·불만을 접수하고 티켓으로 생성합니다.",
         table: {
           columns: ["티켓번호", "고객사", "유형", "내용", "접수일", "우선순위"],
@@ -499,6 +531,7 @@ export const MODULE_PAGES: Record<string, ModulePageData> = {
       {
         id: "tracking",
         label: "AS 트래킹",
+        actions: ["filter"],
         description: "접수→할당→진행→완료 처리 과정을 추적하고 고객에게 상태를 안내합니다.",
         table: {
           columns: ["티켓번호", "담당", "현재 단계", "경과", "다음 액션", "상태"],
@@ -513,16 +546,17 @@ export const MODULE_PAGES: Record<string, ModulePageData> = {
       {
         id: "voc",
         label: "VOC 분석",
+        actions: ["export"],
         description: "고객 요청·불만·만족도 데이터를 유형별로 분석해 개선 인사이트를 도출합니다.",
         chart: {
           type: "donut",
           title: "VOC 유형 분포 (최근 90일)",
           segments: [
-            { name: "품질 (소음·치수)", value: 34, color: "#0a50ff" },
-            { name: "납기·물류", value: 26, color: "#6490ff" },
-            { name: "포장 상태", value: 18, color: "#96b5ff" },
-            { name: "문서·사양 문의", value: 14, color: "#c0d2ff" },
-            { name: "기타", value: 8, color: "#e2e8f0" },
+            { name: "품질 (소음·치수)", value: 34, color: CHART.primary },
+            { name: "납기·물류", value: 26, color: CHART.primary400 },
+            { name: "포장 상태", value: 18, color: CHART.primary300 },
+            { name: "문서·사양 문의", value: 14, color: CHART.primary200 },
+            { name: "기타", value: 8, color: CHART.muted },
           ],
         },
         note: "포장 상태 VOC가 90일 연속 증가 추세입니다. 완충재 사양 개선안이 검토 중입니다.",

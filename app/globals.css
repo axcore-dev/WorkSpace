@@ -20,7 +20,8 @@
 }
 
 body {
-  @apply bg-slate-100 text-slate-900 font-sans antialiased;
+  /* v3: 사이드 패널 ↔ 본문 배경 교체 — 본문은 화이트, 사이드는 slate-100 */
+  @apply bg-white text-slate-900 font-sans antialiased;
   font-feature-settings: "tnum";
 }
 
@@ -40,6 +41,38 @@ body {
 .thin-scroll::-webkit-scrollbar-thumb {
   background: #cbd5e1;
   border-radius: 3px;
+}
+
+/* 탭 편집 모드 — iOS 홈화면식 흔들림 */
+@keyframes tab-wiggle {
+  0%,
+  100% {
+    transform: rotate(-1.2deg);
+  }
+  50% {
+    transform: rotate(1.2deg);
+  }
+}
+.tab-wiggle {
+  animation: tab-wiggle 0.28s ease-in-out infinite;
+}
+
+/* 추론 로딩 — 텍스트 위로 그라데이션이 흐르는 쉬머 */
+.shimmer-text {
+  background: linear-gradient(90deg, #94a3b8 20%, #0f172a 50%, #94a3b8 80%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer-sweep 1.8s linear infinite;
+}
+@keyframes shimmer-sweep {
+  0% {
+    background-position: 180% 0;
+  }
+  100% {
+    background-position: -180% 0;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -7,7 +7,29 @@ import { IconArrowDownRight, IconArrowUpRight } from "@/components/icons";
  * - 상태/심각도는 '옅은 색 텍스트'로만 구분 (배경 채움·알약 없음).
  * - 아이콘/배지에 컬러 배경을 넣지 않는다.
  */
-const TONE_TEXT: Record<Tone, string> = {
+/** 공용 입력 필드 클래스 — 로그인/설정/모달 등 폼 전반에서 공유 */
+export const FIELD =
+  "w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 transition-colors focus:border-slate-400 focus:outline-2 focus:outline-slate-300/60";
+
+/** 업무용 메일 지향 — 대표적인 개인 메일 도메인이면 true (로그인·회원가입·초대에서 안내용) */
+const PERSONAL_EMAIL_DOMAINS = [
+  "gmail.com",
+  "naver.com",
+  "daum.net",
+  "hanmail.net",
+  "kakao.com",
+  "nate.com",
+  "outlook.com",
+  "hotmail.com",
+  "yahoo.com",
+  "icloud.com",
+];
+export function isPersonalEmail(email: string): boolean {
+  const domain = email.split("@")[1]?.toLowerCase().trim();
+  return !!domain && PERSONAL_EMAIL_DOMAINS.includes(domain);
+}
+
+export const TONE_TEXT: Record<Tone, string> = {
   green: "text-emerald-600",
   amber: "text-amber-600",
   red: "text-red-600",
@@ -117,12 +139,26 @@ export function Button({
   );
 }
 
-export function Stat({ stat }: { stat: StatData }) {
+export function Stat({ stat, onCta }: { stat: StatData; onCta?: (tabId: string) => void }) {
   const deltaTone = stat.deltaTone ?? "slate";
   const up = stat.delta?.startsWith("+");
   return (
     <Card className="min-w-0">
-      <p className="truncate text-sm text-slate-500">{stat.label}</p>
+      <div className="flex items-start justify-between gap-2">
+        <p className="truncate text-sm text-slate-500">
+          {stat.label}
+          {stat.dday && <span className="ml-1.5 text-xs font-semibold text-amber-600">{stat.dday}</span>}
+        </p>
+        {stat.cta && (
+          <button
+            type="button"
+            onClick={() => onCta?.(stat.cta!.tabId)}
+            className="inline-flex shrink-0 cursor-pointer items-center gap-0.5 text-xs font-semibold text-primary-700 transition-colors hover:text-primary-800"
+          >
+            {stat.cta.label} →
+          </button>
+        )}
+      </div>
       <div className="mt-1.5 flex items-baseline gap-2">
         <p className="text-2xl font-bold tracking-tight text-slate-900">{stat.value}</p>
         {stat.delta && (
@@ -154,27 +190,33 @@ function CellView({ cell }: { cell: Cell }) {
   return <>{cell}</>;
 }
 
+const CELL_ALIGN = { left: "text-left", center: "text-center", right: "text-right" } as const;
+
 export function DataTable({
   data,
   dense = false,
   onRowClick,
+  colAlign,
 }: {
   data: TableData;
   dense?: boolean;
   /** 지정 시 행 클릭 가능 (상세 팝업 등) */
   onRowClick?: (rowIndex: number) => void;
+  /** 컬럼별 정렬 (예: 재무제표 숫자 열 가운데 정렬) — 미지정 컬럼은 왼쪽 */
+  colAlign?: (keyof typeof CELL_ALIGN)[];
 }) {
   const clickable = !!onRowClick;
+  const align = (j: number) => CELL_ALIGN[colAlign?.[j] ?? "left"];
   return (
     <div className="thin-scroll -mx-1 overflow-x-auto px-1">
       <table className="w-full min-w-[560px] text-left text-sm">
         <thead>
           <tr className="border-b border-slate-200">
-            {data.columns.map((col) => (
+            {data.columns.map((col, j) => (
               <th
                 key={col}
                 scope="col"
-                className="whitespace-nowrap px-3 py-2.5 text-xs font-medium text-slate-400 first:pl-1 last:pr-1"
+                className={`whitespace-nowrap px-3 py-2.5 text-xs font-medium text-slate-400 first:pl-1 last:pr-1 ${align(j)}`}
               >
                 {col}
               </th>
@@ -191,7 +233,7 @@ export function DataTable({
               {row.map((cell, j) => (
                 <td
                   key={j}
-                  className={`whitespace-nowrap px-3 ${dense ? "py-2" : "py-3"} first:pl-1 first:font-medium first:text-slate-900 last:pr-1 text-slate-600`}
+                  className={`whitespace-nowrap px-3 ${dense ? "py-2" : "py-3"} first:pl-1 first:font-medium first:text-slate-900 last:pr-1 text-slate-600 ${align(j)}`}
                 >
                   <CellView cell={cell} />
                 </td>

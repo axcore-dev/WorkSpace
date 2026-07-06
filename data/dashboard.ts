@@ -1,6 +1,7 @@
+import { CHART } from "@/lib/palette";
 import type { StatData, Tone } from "./types";
 
-/** 비즈니스 현황 대시보드 더미 데이터 */
+/** 주요 정보 대시보드 더미 데이터 */
 
 export const DASHBOARD_KPIS: (StatData & { moduleSlug: string; spark: number[] })[] = [
   {
@@ -94,20 +95,116 @@ export const AI_ALERTS: {
   },
 ];
 
+/**
+ * 현금흐름 예측 — 월말 현금 잔고 추이. 예측 구간은 연한 색으로 구분(토스증권식).
+ * 상세는 영업활동 현금흐름 재무제표 형식.
+ */
+export const CASHFLOW_FORECAST = {
+  asOf: "7월 기준",
+  labels: ["5월", "6월", "7월", "8월", "9월"],
+  /** 월말 현금 잔고 (억원) — 5·6월 실적, 7월~ 예측 */
+  balances: [3.6, 4.2, 5.1, 2.0, 4.4],
+  /** 이 인덱스부터 예측 구간 (연한 색) */
+  forecastFrom: 2,
+  summary: "9월까지 현금이 바닥나는 구간은 없어요. 다만 8월엔 부가세 납부가 겹쳐 잔고가 2.0억원까지 줄어요.",
+  /** 상세 — 영업활동 현금흐름 (재무제표 형식 · 회계식 표기: 음수는 괄호, 단위 억원) */
+  statement: {
+    columns: ["구분", "7월 (예측)", "8월 (예측)", "9월 (예측)"],
+    rows: [
+      ["Ⅰ. 영업활동 현금흐름", "", "", ""],
+      ["　매출채권 회수", "21.8", "19.2", "23.5"],
+      ["　매입채무 지급", "(12.6)", "(11.8)", "(12.9)"],
+      ["　급여 지급", "(4.3)", "(4.3)", "(4.5)"],
+      ["　세금 납부 (부가세·원천세)", "(1.2)", "(3.6)", "(1.2)"],
+      ["　기타 영업비 지출", "(2.8)", "(2.6)", "(2.5)"],
+      [
+        "영업활동 순현금흐름",
+        { badge: "0.9", tone: "green" as Tone },
+        { badge: "(3.1)", tone: "red" as Tone },
+        { badge: "2.4", tone: "green" as Tone },
+      ],
+      ["기초 현금", "4.2", "5.1", "2.0"],
+      [
+        "기말 현금",
+        { badge: "5.1", tone: "green" as Tone },
+        { badge: "2.0", tone: "amber" as Tone },
+        { badge: "4.4", tone: "green" as Tone },
+      ],
+    ],
+  },
+};
+
+/** 납기 준수율 — 준수율(막대) + 지연 건수(선) 혼합 그래프, 상세는 엑셀 형태 */
+export const DELIVERY_STATUS = {
+  rate: "96.2%",
+  rateDesc: "최근 90일 납기 준수율",
+  riskCount: 2,
+  backlogMonths: "2.6개월",
+  backlogDesc: "평소 가동률 기준 수주 잔고",
+  summary: "진행 중인 주문 17건 중 2건에 납기 지연 리스크가 있어요.",
+  labels: ["3월", "4월", "5월", "6월", "7월"],
+  rateBars: [94.8, 95.6, 94.1, 96.0, 96.2],
+  delayLine: [6, 5, 7, 4, 2],
+  /** 상세 — 월별 실적 (엑셀 형태) */
+  monthly: {
+    columns: ["월", "완료 주문", "정시 납품", "지연", "준수율", "평균 지연일"],
+    rows: [
+      ["3월", "115건", "109건", "6건", "94.8%", "2.1일"],
+      ["4월", "114건", "109건", "5건", "95.6%", "1.8일"],
+      ["5월", "119건", "112건", "7건", "94.1%", "2.4일"],
+      ["6월", "121건", "116건", "4건", "96.0%", "1.5일"],
+      ["7월 (진행중)", "53건", "51건", "2건", "96.2%", "1.2일"],
+    ],
+  },
+  riskOrders: {
+    columns: ["수주번호", "고객사", "품목", "납기", "리스크 사유", "상태"],
+    rows: [
+      [
+        "SO-2606-31",
+        "한빛모터스",
+        "플랜지 커플링",
+        "07-06",
+        "프레스 2라인 일시 정지 · 진척 42%",
+        { badge: "지연 위험", tone: "red" as Tone },
+      ],
+      [
+        "SO-2607-05",
+        "한빛모터스",
+        "정밀 샤프트 Ø12",
+        "07-18",
+        "CNC-07 정비 예정과 생산 일정 겹침",
+        { badge: "주의", tone: "amber" as Tone },
+      ],
+    ],
+  },
+};
+
+/** 실시간 가동 현황 — 도넛(달성/잔여, 강약 구분) · 불량률 신호등 */
+export const REALTIME_OPS = {
+  achievedRate: 96.8,
+  producedNum: 12480,
+  targetNum: 12900,
+  produced: "12,480 EA",
+  target: "12,900 EA",
+  defectRate: 0.82,
+  defectLimit: 2.0,
+  summary: "오늘 목표의 96.8%를 만들었어요. 불량률은 0.82%로 기준치(2%) 안이에요.",
+};
+
 /** 실시간 생산 현황 차트 */
 export const PRODUCTION_TREND = {
   labels: ["08시", "10시", "12시", "14시", "16시", "18시", "20시"],
   series: [
-    { name: "계획", color: "#cbd5e1", values: [1800, 1800, 1200, 1800, 1800, 1800, 1600] },
-    { name: "실적", color: "#0a50ff", values: [1740, 1815, 1180, 1752, 1691, 1788, 1514] },
+    { name: "계획", color: CHART.neutral, values: [1800, 1800, 1200, 1800, 1800, 1800, 1600] },
+    { name: "실적", color: CHART.primary, values: [1740, 1815, 1180, 1752, 1691, 1788, 1514] },
   ],
 };
 
 /** 설비 상태 분포 */
 export const EQUIPMENT_STATUS = [
-  { name: "가동", value: 18, color: "#0a50ff" },
-  { name: "일시 정지", value: 2, color: "#f59e0b" },
-  { name: "정비 중", value: 1, color: "#ef4444" },
+  { name: "가동", value: 18, color: CHART.primary },
+  { name: "일시 정지", value: 2, color: CHART.amber },
+  { name: "정비 중", value: 1, color: CHART.red },
 ];
 
 /** 라인별 실시간 현황 테이블 */

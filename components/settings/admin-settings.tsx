@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { IconHistory, IconPlus, IconUsers } from "@/components/icons";
+import { IconPlus, IconUsers } from "@/components/icons";
 import { InviteModal } from "@/components/settings/invite-modal";
 import { Badge, Button, Card, SectionHeader } from "@/components/ui";
-import { AUDIT_LOG, USERS_ROLES } from "@/data/org";
+import { USERS_ROLES } from "@/data/org";
 
 export function AdminSettings() {
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -65,30 +65,6 @@ export function AdminSettings() {
             </tbody>
           </table>
         </div>
-      </Card>
-
-      <Card>
-        <SectionHeader
-          title={
-            <span className="flex items-center gap-2">
-              <IconHistory size={16} className="text-slate-400" /> 감사 로그
-            </span>
-          }
-          desc="사용자 접근, 모듈 ON/OFF 변경, 커넥터 전송 이력을 통합 기록합니다."
-        />
-        <ul>
-          {AUDIT_LOG.map((log, i) => (
-            <li
-              key={i}
-              className="flex flex-wrap items-center gap-x-3 gap-y-1 border-l border-slate-200 py-2.5 pl-4 text-sm transition-colors hover:border-slate-400"
-            >
-              <span className="w-24 shrink-0 font-mono text-xs text-slate-400">{log.time}</span>
-              <span className="font-medium text-slate-700">{log.action}</span>
-              <span className="min-w-0 flex-1 truncate text-slate-500">{log.target}</span>
-              <span className="text-xs text-slate-400">{log.user}</span>
-            </li>
-          ))}
-        </ul>
       </Card>
 
       <InviteModal open={inviteOpen} onClose={() => setInviteOpen(false)} />

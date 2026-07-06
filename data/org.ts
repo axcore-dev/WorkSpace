@@ -35,9 +35,10 @@ export const ORG_DIRECTORY: {
   },
 ];
 
+/** 데모 자동 로그인 계정 — 실제 배포: axcore.it.kr */
 export const DEMO_USER = {
   name: "박데모",
-  email: "demo@democompany.co.kr",
+  email: "demo@axcore.it.kr",
   role: "관리자",
   title: "제조혁신팀 팀장",
   company: "(주)데모컴퍼니",
@@ -70,35 +71,21 @@ export const USERS_ROLES: {
   { name: "문가영", email: "gymoon@democompany.co.kr", role: "일반 사용자", dept: "해외영업팀", lastActive: "5일 전", status: { badge: "초대 대기", tone: "amber" } },
 ];
 
-/** 관리 > 감사 로그 */
-export const AUDIT_LOG: {
-  time: string;
-  user: string;
-  action: string;
-  target: string;
-  tone: Tone;
-}[] = [
-  { time: "07-02 14:03", user: "박데모", action: "모듈 서브기능 OFF", target: "경영지원 > 인사 관리", tone: "amber" },
-  { time: "07-02 13:52", user: "시스템(AI)", action: "이상 징후 알림 발송", target: "AN-2607-021 · Slack #생산알림", tone: "red" },
-  { time: "07-02 11:47", user: "박데모", action: "OCR 반영 승인", target: "구매 요청 PR-2607-013 생성", tone: "violet" },
-  { time: "07-02 09:30", user: "김재현", action: "작업지시 생성", target: "WO-2607-021 (정밀 샤프트)", tone: "slate" },
-  { time: "07-01 17:22", user: "박데모", action: "외부 서비스 연결", target: "Slack 워크스페이스 OAuth", tone: "blue" },
-  { time: "07-01 09:05", user: "이수진", action: "검사 결과 등록", target: "LOT-260701-C 부적합 2건", tone: "slate" },
-];
-
-/** 설정 > 외부 시스템 연동 커넥터 */
+/** 설정 > 외부 시스템 연동 — name은 사용자 설정 이름, system은 실제 시스템 명 */
 export const CONNECTORS: {
   name: string;
+  system: string;
   type: string;
   endpoint: string;
   status: { badge: string; tone: Tone };
-  latency: string;
-  lastSync: string;
 }[] = [
-  { name: "더존 ERP", type: "ERP", endpoint: "https://erp.democompany.co.kr/api", status: { badge: "정상", tone: "green" }, latency: "1.2초", lastSync: "방금 전" },
-  { name: "레거시 MES", type: "MES", endpoint: "https://mes.democompany.local/v2", status: { badge: "정상", tone: "green" }, latency: "3.8초", lastSync: "5초 전" },
-  { name: "설비 IoT 게이트웨이", type: "센서", endpoint: "mqtt://iot.democompany.local:8883", status: { badge: "지연", tone: "amber" }, latency: "6.4초", lastSync: "12초 전" },
+  { name: "본사 ERP", system: "더존비즈온 iCUBE", type: "ERP", endpoint: "https://erp.democompany.co.kr/api", status: { badge: "정상", tone: "green" } },
+  { name: "1공장 MES", system: "미라콤 MESplus", type: "MES", endpoint: "https://mes.democompany.local/v2", status: { badge: "정상", tone: "green" } },
+  { name: "설비 IoT 게이트웨이", system: "PTC ThingWorx", type: "센서", endpoint: "mqtt://iot.democompany.local:8883", status: { badge: "지연", tone: "amber" } },
 ];
+
+/** 외부 시스템 추가/설정 팝업의 시스템 유형 목록 */
+export const CONNECTOR_TYPES = ["ERP", "MES", "PLM", "QMS", "WMS", "CRM", "센서", "기타"];
 
 /** 설정 > 모듈 간 데이터 연동 규칙 */
 export const SYNC_RULES: {
@@ -114,20 +101,20 @@ export const SYNC_RULES: {
   { from: "경영지원 (인사)", to: "생산관리 (작업배분)", rule: "교대 조 편성 정보 동기화", status: { badge: "비활성 (서브기능 OFF)", tone: "slate" } },
 ];
 
-/** 설정 > 외부 서비스 연동 */
+/** 설정 > 외부 서비스 연동 — icon은 브랜드 로고 슬러그(brand-icons.tsx) */
 export const EXTERNAL_SERVICES: {
   id: string;
   name: string;
-  icon: "hash" | "mail" | "hardDrive" | "calendar" | "file";
+  icon: string;
   desc: string;
   connected: boolean;
   account?: string;
 }[] = [
-  { id: "slack", name: "Slack", icon: "hash", desc: "이상 감지·작업 지시 알림 전송", connected: true, account: "democompany-precision.slack.com" },
-  { id: "gmail", name: "Gmail", icon: "mail", desc: "분석 결과 리포트 공유", connected: true, account: "demo@democompany.co.kr" },
-  { id: "drive", name: "Google Drive", icon: "hardDrive", desc: "문서 백업·가져오기", connected: false },
-  { id: "calendar", name: "Google Calendar", icon: "calendar", desc: "정비 일정 자동 등록", connected: true, account: "demo@democompany.co.kr" },
-  { id: "notion", name: "Notion", icon: "file", desc: "이슈·조치 내역 기록", connected: false },
+  { id: "slack", name: "Slack", icon: "slack", desc: "이상 감지·작업 지시 알림 전송", connected: true, account: "democompany-precision.slack.com" },
+  { id: "gmail", name: "Gmail", icon: "gmail", desc: "분석 결과 리포트 공유", connected: true, account: "demo@democompany.co.kr" },
+  { id: "drive", name: "Google Drive", icon: "googledrive", desc: "문서 백업·가져오기", connected: false },
+  { id: "calendar", name: "Google Calendar", icon: "googlecalendar", desc: "정비 일정 자동 등록", connected: true, account: "demo@democompany.co.kr" },
+  { id: "notion", name: "Notion", icon: "notion", desc: "이슈·조치 내역 기록", connected: false },
 ];
 
 /** 설정 > 알림 설정 */

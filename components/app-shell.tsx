@@ -41,8 +41,8 @@ function NavLink({
       aria-current={active ? "page" : undefined}
       className={`flex items-center gap-2.5 rounded-lg px-3 ${small ? "py-1.5 text-[13px]" : "py-2 text-sm"} transition-colors duration-150 ${
         active
-          ? "bg-slate-100 font-semibold text-slate-900"
-          : "font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+          ? "bg-white font-semibold text-slate-900 shadow-sm ring-1 ring-slate-200"
+          : "font-medium text-slate-600 hover:bg-slate-200/60 hover:text-slate-900"
       }`}
     >
       {children}
@@ -96,7 +96,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen">
       {/* ── 좌측 패널 ── */}
-      <aside className="fixed inset-y-0 left-0 z-30 flex w-60 flex-col border-r border-slate-200 bg-white">
+      <aside className="fixed inset-y-0 left-0 z-30 flex w-60 flex-col border-r border-slate-200 bg-slate-100">
         {/* 상단 로고 */}
         <Link href="/dashboard" className="flex items-center gap-2 px-5 pb-3 pt-5" aria-label="AXpoint 홈">
           <Logo height={18} />
@@ -110,7 +110,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             aria-expanded={orgOpen}
             aria-haspopup="listbox"
             onClick={() => setOrgOpen((v) => !v)}
-            className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg border border-slate-200 px-3 py-2 text-left transition-colors hover:bg-slate-50"
+            className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left transition-colors hover:bg-slate-50"
           >
             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-500">
               <IconBuilding size={15} />
@@ -167,7 +167,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="space-y-0.5">
             <NavLink href="/dashboard" active={pathname === "/dashboard"}>
               <IconDashboard size={17} className="shrink-0 text-slate-400" />
-              비즈니스 현황
+              주요 정보
             </NavLink>
           </div>
 
@@ -224,7 +224,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
 
         {/* 하단 프로필 → 팝업 메뉴 */}
-        <div className="relative border-t border-slate-100 p-3" ref={profileRef}>
+        <div className="relative border-t border-slate-200 p-3" ref={profileRef}>
           {profileOpen && (
             <div
               role="menu"
@@ -265,7 +265,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             aria-expanded={profileOpen}
             aria-haspopup="menu"
             onClick={() => setProfileOpen((v) => !v)}
-            className="flex w-full cursor-pointer items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-slate-50"
+            className="flex w-full cursor-pointer items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-slate-200/60"
           >
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-800 text-sm font-bold text-white">
               {DEMO_USER.initials}

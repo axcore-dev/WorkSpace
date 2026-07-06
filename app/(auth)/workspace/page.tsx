@@ -3,23 +3,39 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { AuthShell } from "@/components/auth-shell";
-import { Button, Card } from "@/components/ui";
-import { IconBuilding, IconCheck } from "@/components/icons";
+import { Modal } from "@/components/modal";
+import { Button, Card, FIELD } from "@/components/ui";
+import { IconBuilding, IconCheck, IconPlus } from "@/components/icons";
 import { CONSENT_TEXT, DEFAULT_WORKSPACE_ID, WORKSPACES } from "@/data/org";
 
 export default function WorkspacePage() {
   const router = useRouter();
   // 데모: 데모컴퍼니가 기본 선택됨
+  const [workspaces, setWorkspaces] = useState(WORKSPACES);
   const [selected, setSelected] = useState(DEFAULT_WORKSPACE_ID);
   const [showConsent, setShowConsent] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newBizNo, setNewBizNo] = useState("");
 
   function persistAndContinue() {
-    const ws = WORKSPACES.find((w) => w.id === selected) ?? WORKSPACES[0];
+    const ws = workspaces.find((w) => w.id === selected) ?? workspaces[0];
     localStorage.setItem(
       "axpoint-workspace",
       JSON.stringify({ id: ws.id, name: ws.name, role: ws.role }),
     );
-    router.push("/onboarding");
+    router.push("/dashboard");
+  }
+
+  function createWorkspace() {
+    const name = newName.trim();
+    if (!name) return;
+    const id = `ws-${workspaces.length + 1}-${name.replace(/\s/g, "")}`;
+    setWorkspaces((prev) => [...prev, { id, name, role: "관리자", plan: "AX 스탠다드" }]);
+    setSelected(id);
+    setCreateOpen(false);
+    setNewName("");
+    setNewBizNo("");
   }
 
   return (
@@ -32,7 +48,7 @@ export default function WorkspacePage() {
         </p>
 
         <ul className="mt-6 space-y-2" role="radiogroup" aria-label="워크스페이스">
-          {WORKSPACES.map((ws) => {
+          {workspaces.map((ws) => {
             const active = selected === ws.id;
             return (
               <li key={ws.id}>
@@ -69,6 +85,14 @@ export default function WorkspacePage() {
           })}
         </ul>
 
+        <button
+          type="button"
+          onClick={() => setCreateOpen(true)}
+          className="mt-2 flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 p-3 text-sm font-medium text-slate-500 transition-colors duration-150 hover:border-slate-400 hover:bg-slate-50 hover:text-slate-700"
+        >
+          <IconPlus size={15} />새 워크스페이스 생성
+        </button>
+
         <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-3">
           <label className="flex cursor-pointer items-start gap-2.5">
             <input type="checkbox" defaultChecked className="mt-0.5 h-4 w-4 accent-slate-800" />
@@ -98,10 +122,64 @@ export default function WorkspacePage() {
         <Button size="lg" className="mt-5 w-full" onClick={persistAndContinue}>
           선택한 워크스페이스로 계속
         </Button>
-        <p className="mt-3 text-center text-xs text-slate-400">
-          {CONSENT_TEXT.version} · 동의 이력은 감사 로그에 기록됩니다.
-        </p>
+        <p className="mt-3 text-center text-xs text-slate-400">{CONSENT_TEXT.version}</p>
       </Card>
+
+      {/* 새 워크스페이스 생성 팝업 */}
+      <Modal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        size="sm"
+        title="새 워크스페이스 생성"
+        desc="조직 정보를 입력하면 워크스페이스가 생성되고 관리자 권한이 부여됩니다."
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setCreateOpen(false)}>
+              취소
+            </Button>
+            <Button onClick={createWorkspace} disabled={!newName.trim()}>
+              생성하기
+            </Button>
+          </div>
+        }
+      >
+        <form
+          className="space-y-4 p-5"
+          onSubmit={(e) => {
+            e.preventDefault();
+            createWorkspace();
+          }}
+        >
+          <div>
+            <label htmlFor="ws-name" className="mb-1.5 block text-sm font-medium text-slate-700">
+              회사명 <span className="text-red-500">*</span>
+            </label>
+            <input
+              id="ws-name"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="(주)회사명"
+              className={FIELD}
+            />
+          </div>
+          <div>
+            <label htmlFor="ws-bizno" className="mb-1.5 block text-sm font-medium text-slate-700">
+              사업자등록번호
+            </label>
+            <input
+              id="ws-bizno"
+              value={newBizNo}
+              onChange={(e) => setNewBizNo(e.target.value)}
+              placeholder="000-00-00000"
+              inputMode="numeric"
+              className={FIELD}
+            />
+            <p className="mt-1.5 text-xs text-slate-400">
+              입력한 번호로 조직 정보를 조회해 자동으로 채워드려요. (데모에서는 생략 가능)
+            </p>
+          </div>
+        </form>
+      </Modal>
     </AuthShell>
   );
 }

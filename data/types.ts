@@ -17,6 +17,10 @@ export interface StatData {
   sub?: string;
   delta?: string;
   deltaTone?: Tone;
+  /** 마감 임박 표시 (예: 급여 지급 D-19) */
+  dday?: string;
+  /** 우측 상단 연결 버튼 — tabId의 세부 기능 탭으로 이동 */
+  cta?: { label: string; tabId: string };
 }
 
 export interface ChartSpec {
@@ -25,8 +29,6 @@ export interface ChartSpec {
   /** line/bar */
   labels?: string[];
   series?: { name: string; color: string; values: number[] }[];
-  /** 데이터 포인트 값 라벨 표기 (line) */
-  showValues?: boolean;
   /** 콤팩트 높이 */
   compact?: boolean;
   /** 값 접미사 (예: '천 EA') */
@@ -45,12 +47,16 @@ export interface TreeNode {
   children?: TreeNode[];
 }
 
+/** 탭별 액션 버튼 — 필요한 세부 기능에만 표시한다 */
+export type TabAction = "filter" | "export" | "create";
+
 /** 모듈 서브기능 탭 하나의 화면 구성 */
 export interface SubfunctionTab {
   id: string;
   label: string;
   description: string;
   ai?: boolean;
+  actions?: TabAction[];
   table?: TableData;
   chart?: ChartSpec;
   tree?: TreeNode[];
@@ -85,7 +91,10 @@ export interface DetailField {
 export interface DetailRecord {
   title: string;
   subtitle?: string;
+  /** 상태 — 급여 관리 팝업과 동일하게 항상 본문 하단 중앙에 표시된다 */
   status?: { label: string; tone: Tone };
+  /** 상태 행의 라벨 (기본 "상태" — AS 접수는 "우선순위") */
+  statusLabel?: string;
   fields: DetailField[];
   tableTitle?: string;
   table?: TableData;

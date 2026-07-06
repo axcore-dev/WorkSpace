@@ -4,15 +4,13 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AuthShell } from "@/components/auth-shell";
-import { Button, Card } from "@/components/ui";
+import { Button, Card, FIELD, isPersonalEmail } from "@/components/ui";
 import { IconCheck, IconMail } from "@/components/icons";
-
-const FIELD =
-  "w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 transition-colors focus:border-slate-400 focus:outline-2 focus:outline-slate-300/60";
 
 export default function SignupPage() {
   const router = useRouter();
   const [sent, setSent] = useState(false);
+  const [email, setEmail] = useState("demo@democompany.co.kr");
 
   if (sent) {
     return (
@@ -63,16 +61,24 @@ export default function SignupPage() {
           </div>
           <div>
             <label htmlFor="su-email" className="mb-1.5 block text-sm font-medium text-slate-700">
-              이메일
+              업무 이메일
             </label>
             <input
               id="su-email"
               type="email"
               autoComplete="email"
-              defaultValue="demo@democompany.co.kr"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               placeholder="name@company.co.kr"
               className={FIELD}
             />
+            {isPersonalEmail(email) ? (
+              <p className="mt-1.5 text-xs text-amber-600">
+                개인 메일 주소예요. 회사에서 발급한 업무용 이메일로 가입해 주세요.
+              </p>
+            ) : (
+              <p className="mt-1.5 text-xs text-slate-400">회사 도메인 이메일로 가입하면 워크스페이스 초대가 쉬워져요.</p>
+            )}
           </div>
           <div>
             <label htmlFor="su-password" className="mb-1.5 block text-sm font-medium text-slate-700">
