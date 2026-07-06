@@ -324,6 +324,22 @@ export default function AiChatPage() {
     return () => document.removeEventListener("mousedown", onClick);
   }, []);
 
+  // Google OAuth 콜백 복귀 안내 — /api/google/callback이 ?google_connected=1|google_error=... 로 리다이렉트한다
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const connected = params.get("google_connected");
+    const error = params.get("google_error");
+    if (!connected && !error) return;
+    window.history.replaceState({}, "", window.location.pathname);
+    const nid = createNote(connected ? "Google Calendar 연결" : "Google Calendar 연결 실패");
+    appendMessage(nid, {
+      role: "ai",
+      text: connected
+        ? "Google Calendar 연결이 완료됐어요. 이제 실제 일정을 조회할 수 있어요. 예: '이번 주 정비 일정 확인해줘'"
+        : "Google Calendar 연결에 실패했어요. 잠시 후 다시 시도해 주세요.",
+    });
+  }, []);
+
   function createNote(title = "새 대화"): number {
     const id = ++noteSeq.current;
     setNotes((prev) => [...prev, { id, title, messages: [], replyIdx: 0 }]);
@@ -380,7 +396,7 @@ export default function AiChatPage() {
           appendMessage(nid, {
             role: "ai",
             text: r.reply || "Google Calendar가 아직 연결되지 않았어요.",
-            cta: { label: "Google Calendar 연결하기", href: r.connectUrl ?? "/api/google/auth" },
+            cta: { label: "Google Calendar 연결하기", href: r.connectUrl ?? "/api/auth/google" },
           });
         } else if (r) {
           pushAi(nid, scenarioToMessage(r), r.trace.map((t) => t.text));

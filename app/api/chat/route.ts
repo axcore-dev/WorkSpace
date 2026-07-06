@@ -227,7 +227,7 @@ export async function POST(req: Request) {
         return NextResponse.json(
           {
             error: "google_not_connected",
-            connectUrl: "/api/google/auth",
+            connectUrl: "/api/auth/google",
             reply: "Google Calendar가 아직 연결되지 않았어요. 아래 버튼으로 연결하면 실제 일정을 확인해드릴게요.",
           },
           { status: 428 },
