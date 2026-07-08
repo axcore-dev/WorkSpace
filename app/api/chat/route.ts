@@ -83,11 +83,15 @@ function formatEventTime(iso: string): string {
 
 /** 실 조회된 Google Calendar 이벤트로 프롬프트 컨텍스트 구성 (지어낸 값 없음) */
 function buildCalendarContext(events: GoogleCalendarEvent[]): string {
+  const header = "[Google Calendar 실시간 조회 결과 — 오늘 0시부터 일주일, 표시 중인 캘린더 전체 · 오늘 이미 지난 일정 포함]";
   if (events.length === 0) {
-    return "[Google Calendar 실시간 조회 결과 — primary 캘린더] 이번 주 예정된 일정이 없습니다.";
+    return `${header} 조회된 일정이 없습니다.`;
   }
-  const lines = events.map((e) => `- ${formatEventTime(e.start)} ${e.summary}${e.location ? ` (${e.location})` : ""}`);
-  return `[Google Calendar 실시간 조회 결과 — primary 캘린더]\n${lines.join("\n")}`;
+  const lines = events.map(
+    (e) =>
+      `- ${formatEventTime(e.start)} ${e.summary}${e.location ? ` (${e.location})` : ""}${e.calendar ? ` [${e.calendar}]` : ""}`,
+  );
+  return `${header}\n${lines.join("\n")}`;
 }
 
 function calendarPrompt(calendarContext: string): string {
@@ -101,7 +105,8 @@ ${calendarContext}
 ${AXPOINT_CALENDAR_REFERENCE}
 
 ${TRACE_FORMAT}
-trace의 첫 단계는 반드시 icon "calendar"로 "Google Calendar API에서 이번 주 일정을 실시간 조회함" 형태로 쓰고, result에 조회된 일정 건수를 담는다.`;
+trace의 첫 단계는 반드시 icon "calendar"로 "Google Calendar API에서 이번 주 일정을 실시간 조회함" 형태로 쓰고, result에 조회된 일정 건수를 담는다.
+이어서 장비관리 정비 예측 확인(icon "app"), 일정·리스크 대조(icon "data"), 요약 정리(icon "model") 단계를 포함해 총 3~5단계로 구성한다.`;
 }
 
 const SCENARIO_PROMPTS: Record<string, string> = {

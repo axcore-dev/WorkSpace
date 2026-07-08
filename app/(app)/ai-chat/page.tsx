@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   IconArrowRight,
-  IconCalendar,
   IconCheck,
   IconCheckCircle,
   IconChevronLeft,
@@ -14,7 +13,6 @@ import {
   IconExternalLink,
   IconFile,
   IconLayers,
-  IconMail,
   IconPencil,
   IconPlus,
   IconScanText,
@@ -64,12 +62,11 @@ function useAutoResizeTextarea(minHeight: number, maxHeight: number) {
   return { ref, adjust };
 }
 
+/** 일반 단계 아이콘 — 외부 서비스(calendar·mail)는 TraceIcon에서 브랜드 로고로 처리 */
 const TRACE_ICONS = {
   search: IconSearch,
   data: IconDatabase,
   doc: IconFile,
-  calendar: IconCalendar,
-  mail: IconMail,
   app: IconExternalLink,
   model: IconCpu,
 } as const;
@@ -78,7 +75,7 @@ const TRACE_ICONS = {
 function TraceIcon({ icon }: { icon?: TraceStep["icon"] }) {
   if (icon === "calendar") return <BrandIcon slug="googlecalendar" size={15} />;
   if (icon === "mail") return <BrandIcon slug="gmail" size={15} />;
-  const Icon = TRACE_ICONS[icon ?? "search"];
+  const Icon = icon && icon in TRACE_ICONS ? TRACE_ICONS[icon as keyof typeof TRACE_ICONS] : IconSearch;
   return <Icon size={14} className="text-slate-400" />;
 }
 
