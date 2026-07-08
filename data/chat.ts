@@ -227,6 +227,31 @@ export const SCRIPTED_REPLIES: ChatMessage[] = [
   },
 ];
 
+/**
+ * 캘린더 확인 폴백 스크립트 — API 키 미설정 시 사용.
+ * 제조(정비 예측·납기) 시나리오를 섞지 않고 Google Calendar와 소스 문서 활용만 보여준다.
+ */
+export const SCRIPTED_CALENDAR_REPLY: ChatMessage = {
+  role: "ai",
+  text: "이번 주 Google Calendar 일정은 4건이에요. ① 7/8(수) 10:00 주간 운영회의 ② 7/9(목) 14:00 한국알루텍 미팅 (발주 협의) ③ 7/10(금) 11:00 품질경영 매뉴얼 개정 검토 ④ 7/11(토) 09:00 사내 안전 교육. 한국알루텍 미팅 전에 소스의 '공급업체 단가표 2026 상반기.xlsx'를 미리 확인해 두면 좋겠어요.",
+  reasoning: [
+    "질문의 의도를 파악하고 있어요",
+    "Google Calendar에서 일정을 불러오고 있어요",
+    "선택한 소스 문서를 함께 확인하고 있어요",
+  ],
+  process: {
+    sources: ["Google Calendar", "워크스페이스 소스 2건"],
+    steps: ["Google Calendar 일정 실시간 조회", "소스 문서 대조", "일정 요약 정리"],
+    tools: ["Google Calendar", "RAG 검색"],
+    summary: "2개의 도구 사용됨, Google Calendar 조회됨, 소스 문서 참조됨",
+    trace: [
+      { icon: "calendar", text: "Google Calendar에서 이번 주 일정을 실시간 조회함", result: "일정 4건" },
+      { icon: "doc", text: "소스 문서 대조 — 공급업체 단가표 2026 상반기.xlsx, 품질경영 매뉴얼 v4.pdf", result: "참조 2건" },
+      { icon: "model", text: "일정 요약 및 준비사항 정리" },
+    ],
+  },
+};
+
 /** 질문 키워드 → 시나리오 응답 매핑 (데모 시나리오 라우팅) */
 export const REPLY_ROUTES: { pattern: RegExp; index: number }[] = [
   { pattern: /불량|품질/, index: 0 },
@@ -238,7 +263,7 @@ export const REPLY_ROUTES: { pattern: RegExp; index: number }[] = [
 export const SUGGESTED_QUESTIONS = [
   "6월 CNC 1라인 불량률과 원인을 알려줘",
   "안전 재고 미달 품목과 권장 발주량은?",
-  "이번 주 정비 일정, 캘린더에서 확인해줘",
+  "이번 주 일정, Google Calendar에서 확인해줘",
   "한빛모터스 수주 진행 현황 알려줘",
 ];
 
@@ -248,18 +273,29 @@ export const AI_TOOLS_TEASER: { name: string; desc: string; tone: Tone }[] = [
   { name: "계산 시뮬레이터", desc: "원가·수율 시뮬레이션", tone: "slate" },
 ];
 
-/** 커넥터 추가 팝업(Manus형) 목록 — 브랜드 로고는 simple-icons 사용 */
-export const CONNECTOR_LIB: { slug: string; name: string; desc: string; connected?: boolean }[] = [
-  { slug: "slack", name: "Slack", desc: "이상 감지·작업 지시 알림을 전송하고 스레드를 요약해요.", connected: true },
-  { slug: "gmail", name: "Gmail", desc: "분석 결과 리포트를 작성·검색하고 메일을 요약해요.", connected: true },
-  { slug: "googledrive", name: "Google Drive", desc: "파일에 빠르게 접근하고 문서를 지능적으로 관리해요." },
-  { slug: "googlecalendar", name: "Google Calendar", desc: "정비 일정을 등록하고 일정을 최적화해요.", connected: true },
-  { slug: "notion", name: "Notion", desc: "이슈·조치 내역을 기록하고 워크플로를 자동화해요." },
-  { slug: "github", name: "GitHub", desc: "저장소를 관리하고 변경 사항을 추적해요." },
-  { slug: "googlesheets", name: "Google Sheets", desc: "수율·원가 데이터를 표로 정리하고 계산해요." },
-  { slug: "jira", name: "Jira", desc: "개선 과제를 이슈로 만들고 진행을 추적해요." },
-  { slug: "figma", name: "Figma", desc: "설계·라벨 시안을 불러와 검토해요." },
-  { slug: "dropbox", name: "Dropbox", desc: "외부 협력사 문서를 가져와요." },
+/**
+ * 커넥터 추가 팝업(Manus형) 목록 — 브랜드 로고는 simple-icons 사용.
+ * loginUrl: '+' 클릭 시 이동할 해당 앱 로그인 페이지 (Google Calendar는 /api/auth/google 실연동이라 없음).
+ * url: 상세 팝업의 '웹사이트' 링크.
+ */
+export const CONNECTOR_LIB: {
+  slug: string;
+  name: string;
+  desc: string;
+  connected?: boolean;
+  url: string;
+  loginUrl?: string;
+}[] = [
+  { slug: "slack", name: "Slack", desc: "이상 감지·작업 지시 알림을 전송하고 스레드를 요약해요.", connected: true, url: "https://slack.com", loginUrl: "https://slack.com/signin" },
+  { slug: "gmail", name: "Gmail", desc: "분석 결과 리포트를 작성·검색하고 메일을 요약해요.", connected: true, url: "https://mail.google.com", loginUrl: "https://accounts.google.com/ServiceLogin?service=mail" },
+  { slug: "googledrive", name: "Google Drive", desc: "파일에 빠르게 접근하고 문서를 지능적으로 관리해요.", url: "https://drive.google.com", loginUrl: "https://accounts.google.com/ServiceLogin?service=wise" },
+  { slug: "googlecalendar", name: "Google Calendar", desc: "정비 일정을 등록하고 일정을 최적화해요.", url: "https://calendar.google.com" },
+  { slug: "notion", name: "Notion", desc: "이슈·조치 내역을 기록하고 워크플로를 자동화해요.", url: "https://www.notion.so", loginUrl: "https://www.notion.so/login" },
+  { slug: "github", name: "GitHub", desc: "저장소를 관리하고 변경 사항을 추적해요.", url: "https://github.com", loginUrl: "https://github.com/login" },
+  { slug: "googlesheets", name: "Google Sheets", desc: "수율·원가 데이터를 표로 정리하고 계산해요.", url: "https://docs.google.com/spreadsheets", loginUrl: "https://accounts.google.com/ServiceLogin?service=wise" },
+  { slug: "jira", name: "Jira", desc: "개선 과제를 이슈로 만들고 진행을 추적해요.", url: "https://www.atlassian.com/software/jira", loginUrl: "https://id.atlassian.com/login" },
+  { slug: "figma", name: "Figma", desc: "설계·라벨 시안을 불러와 검토해요.", url: "https://www.figma.com", loginUrl: "https://www.figma.com/login" },
+  { slug: "dropbox", name: "Dropbox", desc: "외부 협력사 문서를 가져와요.", url: "https://www.dropbox.com", loginUrl: "https://www.dropbox.com/login" },
 ];
 
 /** 스킬 추가 팝업 목록 */

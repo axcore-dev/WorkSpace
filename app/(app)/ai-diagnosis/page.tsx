@@ -60,10 +60,10 @@ export default function AiDiagnosisPage() {
           <IconActivity size={24} className="text-slate-700" />
           <div className="flex items-center gap-2">
             <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight text-slate-900">
-              AI진단 <AiBadge />
+              AI알림 <AiBadge />
             </h1>
             <p className="mt-0.5 text-sm text-slate-500">
-              이상탐지 · 예지보전 · 최적화 통합 허브 — 이상 징후는 탐지 후 1분 이내 알림됩니다
+              이상탐지 · 예지보전 · 최적화 통합 허브
             </p>
           </div>
         </div>

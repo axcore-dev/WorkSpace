@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { AuthShell } from "@/components/auth-shell";
 import { Modal } from "@/components/modal";
 import { Button, Card, FIELD } from "@/components/ui";
-import { IconBuilding, IconCheck, IconPlus } from "@/components/icons";
+import { IconBuilding, IconCheck, IconLogOut, IconPlus } from "@/components/icons";
 import { CONSENT_TEXT, DEFAULT_WORKSPACE_ID, WORKSPACES } from "@/data/org";
 
 export default function WorkspacePage() {
@@ -27,6 +27,11 @@ export default function WorkspacePage() {
     router.push("/dashboard");
   }
 
+  function logout() {
+    localStorage.removeItem("axpoint-user");
+    router.push("/login");
+  }
+
   function createWorkspace() {
     const name = newName.trim();
     if (!name) return;
@@ -41,6 +46,14 @@ export default function WorkspacePage() {
   return (
     <AuthShell>
       <Card className="w-full max-w-md p-8">
+        <button
+          type="button"
+          onClick={logout}
+          className="mb-3 inline-flex cursor-pointer items-center gap-1.5 text-xs font-medium text-slate-400 transition-colors duration-150 hover:text-slate-600"
+        >
+          <IconLogOut size={13} className="rotate-180" />
+          로그아웃
+        </button>
         <h1 className="text-lg font-bold text-slate-900">워크스페이스 선택</h1>
         <p className="mt-1 text-sm text-slate-500">
           소속 조직을 선택하고 시작하세요. 데모에서는 <span className="font-medium text-slate-700">(주)데모컴퍼니</span>가

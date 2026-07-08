@@ -29,6 +29,7 @@ import {
   AI_TOOLS_TEASER,
   RAG_FOLDERS,
   REPLY_ROUTES,
+  SCRIPTED_CALENDAR_REPLY,
   SCRIPTED_REPLIES,
   SUGGESTED_QUESTIONS,
   type ChatMessage,
@@ -247,12 +248,16 @@ interface ScenarioResult {
 }
 
 /** /api/chat 시나리오 호출 — 키 미설정(501)·오류 시 null을 돌려 데모 스크립트로 폴백한다 */
-async function callScenario(scenario: "purchase-order" | "calendar", question: string): Promise<ScenarioResult | null> {
+async function callScenario(
+  scenario: "purchase-order" | "calendar",
+  question: string,
+  sources?: string[],
+): Promise<ScenarioResult | null> {
   try {
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ scenario, messages: [{ role: "user", content: question }] }),
+      body: JSON.stringify({ scenario, messages: [{ role: "user", content: question }], sources }),
     });
     const data = (await res.json().catch(() => null)) as (ScenarioResult & { error?: string }) | null;
     if (!data) return null;
@@ -385,8 +390,18 @@ export default function AiChatPage() {
     // 구글 캘린더 확인 시나리오 — Google Calendar API를 실제로 조회한다 (키 미설정 시 스크립트 폴백)
     if (/캘린더|일정|calendar/i.test(q)) {
       setThinking(true);
-      setThinkingSteps([]);
-      void callScenario("calendar", q).then((r) => {
+      // 응답 대기 중에도 어떤 도구(Google Calendar)와 소스를 쓰는지 보이게 순차 표시
+      setThinkingSteps(["질문의 의도를 파악하고 있어요"]);
+      const loadingTimers = [
+        setTimeout(() => setThinkingSteps((prev) => [...prev, "Google Calendar에서 일정을 불러오고 있어요"]), 850),
+      ];
+      if (selectedSources.length > 0) {
+        loadingTimers.push(
+          setTimeout(() => setThinkingSteps((prev) => [...prev, "선택한 소스 문서를 함께 확인하고 있어요"]), 1900),
+        );
+      }
+      void callScenario("calendar", q, selectedSources).then((r) => {
+        loadingTimers.forEach(clearTimeout);
         if (r?.notConnected) {
           setThinking(false);
           setThinkingSteps([]);
@@ -398,7 +413,7 @@ export default function AiChatPage() {
         } else if (r) {
           pushAi(nid, scenarioToMessage(r), r.trace.map((t) => t.text));
         } else {
-          pushAi(nid, SCRIPTED_REPLIES[4]);
+          pushAi(nid, SCRIPTED_CALENDAR_REPLY);
         }
       });
       return;
@@ -442,6 +457,12 @@ export default function AiChatPage() {
     if (!fresh.length) return;
     setSources((prev) => [...fresh, ...prev]);
     setSelectedSources((prev) => [...prev, ...fresh.map((f) => f.name)]);
+  }
+
+  /** 소스 삭제 — 목록과 선택 상태에서 함께 제거 */
+  function removeSource(name: string) {
+    setSources((prev) => prev.filter((s) => s.name !== name));
+    setSelectedSources((prev) => prev.filter((n) => n !== name));
   }
 
   /** 발주서 제안 시나리오 — 실제 AI가 OCR 텍스트를 근거로 제안·추론 과정을 생성 (키 미설정 시 스크립트 폴백) */
@@ -542,13 +563,13 @@ export default function AiChatPage() {
             {sources.map((doc) => {
               const on = selectedSources.includes(doc.name);
               return (
-                <li key={doc.name}>
+                <li key={doc.name} className="group relative">
                   <button
                     type="button"
                     onClick={() =>
                       setSelectedSources((prev) => (on ? prev.filter((x) => x !== doc.name) : [...prev, doc.name]))
                     }
-                    className="flex w-full cursor-pointer items-start gap-2.5 rounded-lg px-2 py-2 text-left transition-colors hover:bg-slate-50"
+                    className="flex w-full cursor-pointer items-start gap-2.5 rounded-lg px-2 py-2 pr-8 text-left transition-colors hover:bg-slate-50"
                   >
                     <span
                       className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
@@ -564,6 +585,16 @@ export default function AiChatPage() {
                         {doc.type} · {doc.scope} · {doc.updated}
                       </span>
                     </span>
+                  </button>
+                  {/* 소스 삭제 — 호버 시에만 표시 (무채색 유지) */}
+                  <button
+                    type="button"
+                    onClick={() => removeSource(doc.name)}
+                    aria-label={`${doc.name} 삭제`}
+                    title="소스 삭제"
+                    className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-slate-400 opacity-0 transition-[opacity,color,background-color] hover:bg-slate-200/70 hover:text-slate-600 focus-visible:opacity-100 group-hover:opacity-100"
+                  >
+                    <IconX size={13} />
                   </button>
                 </li>
               );

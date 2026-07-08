@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { chatCompletion, isAiConfigured, type AiChatMessage } from "@/lib/ai";
-import { listUpcomingEvents, refreshAccessToken, type GoogleCalendarEvent } from "@/lib/google";
+import { listUpcomingEvents, refreshAccessToken, type CalendarRange, type GoogleCalendarEvent } from "@/lib/google";
 
 /**
  * AI대화 백엔드 — OPENAI_API_KEY가 설정되면 실제 LLM으로 동작한다.
@@ -22,6 +22,8 @@ const VALID_SCENARIOS = new Set(["purchase-order", "calendar"]);
 const VALID_ICONS = new Set(["search", "data", "doc", "calendar", "mail", "app", "model"]);
 const MAX_MESSAGES = 50;
 const MAX_CONTENT_LENGTH = 8000;
+const MAX_SOURCES = 30;
+const MAX_SOURCE_NAME_LENGTH = 120;
 
 /** 외부 입력 검증 — 형식이 어긋나면 null */
 function parseMessages(body: unknown): AiChatMessage[] | null {
@@ -56,10 +58,54 @@ const PURCHASE_CONTEXT = `[업로드 발주서 OCR 텍스트]
 - 구매 이력: PR-2606-086 황동봉 800kg (대신금속, 7/3 입고 완료)
 - 구매 담당: 오세라 팀장 (구매자재팀)`;
 
-/** 장비관리·영업관리 등 AXpoint 자체 더미 데이터 — Google 쪽과 달리 이 ERP 데모의 정상적인 참고 데이터라 유지 */
-const AXPOINT_CALENDAR_REFERENCE = `[AXpoint 참고 데이터]
-- 장비관리 정비 예측: CNC-07 스핀들 베어링 마모 고장 확률 87% (72시간 내 교체 권고), PRS-02 유압 펌프 열화 64%
-- 납기: SO-2606-31 플랜지 커플링 납기 7/6 임박 (프레스 2라인 일시 정지로 지연 리스크)`;
+/** 선택된 워크스페이스 소스 문서 목록 검증 — 문자열 배열이 아니면 빈 배열 */
+function parseSources(body: unknown): string[] {
+  if (typeof body !== "object" || body === null) return [];
+  const sources = (body as { sources?: unknown }).sources;
+  if (!Array.isArray(sources)) return [];
+  return sources
+    .filter((s): s is string => typeof s === "string" && s.length > 0)
+    .map((s) => s.slice(0, MAX_SOURCE_NAME_LENGTH))
+    .slice(0, MAX_SOURCES);
+}
+
+/**
+ * 질문에서 조회 기간을 해석한다 — "저번주 일정 확인해줘" 같은 요청이
+ * 프롬프트에 강제된 '이번 주' 범위에 갇히지 않도록 키워드로 기간을 정한다.
+ * 주 시작은 월요일 기준.
+ */
+function resolveCalendarRange(q: string): { range: CalendarRange; label: string } {
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const day = (n: number) => new Date(startOfToday.getTime() + n * 24 * 60 * 60 * 1000);
+  const monday = day(-((startOfToday.getDay() + 6) % 7));
+  const mondayOffset = (weeks: number) => new Date(monday.getTime() + weeks * 7 * 24 * 60 * 60 * 1000);
+  const fmt = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`;
+  const between = (min: Date, max: Date, label: string) => ({
+    range: { timeMin: min.toISOString(), timeMax: max.toISOString() },
+    label: `${label}(${fmt(min)}~${fmt(new Date(max.getTime() - 1))})`,
+  });
+
+  if (/저번\s*주|지난\s*주/.test(q)) return between(mondayOffset(-1), mondayOffset(0), "지난주");
+  if (/다음\s*주|차주/.test(q)) return between(mondayOffset(1), mondayOffset(2), "다음 주");
+  if (/이번\s*주|금주|주간/.test(q)) return between(mondayOffset(0), mondayOffset(1), "이번 주");
+  if (/그저께|그제/.test(q)) return between(day(-2), day(-1), "그저께");
+  if (/어제/.test(q)) return between(day(-1), day(0), "어제");
+  if (/내일/.test(q)) return between(day(1), day(2), "내일");
+  if (/모레/.test(q)) return between(day(2), day(3), "모레");
+  if (/오늘/.test(q)) return between(day(0), day(1), "오늘");
+  if (/지난\s*달|저번\s*달|지난\s*월/.test(q)) {
+    const first = new Date(startOfToday.getFullYear(), startOfToday.getMonth() - 1, 1);
+    const next = new Date(startOfToday.getFullYear(), startOfToday.getMonth(), 1);
+    return between(first, next, "지난달");
+  }
+  if (/이번\s*달|이달|금월/.test(q)) {
+    const first = new Date(startOfToday.getFullYear(), startOfToday.getMonth(), 1);
+    const next = new Date(startOfToday.getFullYear(), startOfToday.getMonth() + 1, 1);
+    return between(first, next, "이번 달");
+  }
+  return between(day(0), day(8), "오늘부터 일주일");
+}
 
 const TRACE_FORMAT = `반드시 아래 형식의 JSON으로만 응답한다(다른 텍스트 금지):
 {
@@ -82,8 +128,8 @@ function formatEventTime(iso: string): string {
 }
 
 /** 실 조회된 Google Calendar 이벤트로 프롬프트 컨텍스트 구성 (지어낸 값 없음) */
-function buildCalendarContext(events: GoogleCalendarEvent[]): string {
-  const header = "[Google Calendar 실시간 조회 결과 — 오늘 0시부터 일주일, 표시 중인 캘린더 전체 · 오늘 이미 지난 일정 포함]";
+function buildCalendarContext(events: GoogleCalendarEvent[], rangeLabel: string): string {
+  const header = `[Google Calendar 실시간 조회 결과 — 조회 기간: ${rangeLabel}, 표시 중인 캘린더 전체 · 기간 내 이미 지난 일정 포함]`;
   if (events.length === 0) {
     return `${header} 조회된 일정이 없습니다.`;
   }
@@ -94,19 +140,29 @@ function buildCalendarContext(events: GoogleCalendarEvent[]): string {
   return `${header}\n${lines.join("\n")}`;
 }
 
-function calendarPrompt(calendarContext: string): string {
+/**
+ * 캘린더 시나리오 프롬프트 — 제조(정비 예측·납기) 시나리오는 섞지 않는다.
+ * 사용자가 선택한 워크스페이스 소스 문서가 있으면 참고 단계로 활용한다.
+ */
+function calendarPrompt(calendarContext: string, rangeLabel: string, sources: string[]): string {
+  const sourcesContext =
+    sources.length > 0
+      ? `\n[워크스페이스 소스 문서 — 사용자가 참고용으로 선택한 문서 목록 (제목만 제공됨)]\n${sources.map((s) => `- ${s}`).join("\n")}\n`
+      : "";
+  const sourcesInstruction =
+    sources.length > 0
+      ? `\n소스 문서 목록이 제공되었으니 trace에 icon "doc" 단계로 일정과 관련 있어 보이는 문서 1~2개를 대조했다고 표시한다(result 예: "${sources.length}건 중 참조"). 단, 문서 내용·수치는 제공되지 않았으므로 지어내지 않고, reply에서는 일정 요약을 중심으로 답한다.`
+      : "";
   return `${COMPANY_CONTEXT}
 
-사용자가 일정(Google Calendar) 확인을 요청했다. 아래는 방금 Google Calendar API로 실시간 조회한 결과다 — 이 데이터만 근거로 답하고 컨텍스트에 없는 일정을 지어내지 않는다.
-이번 주 일정을 요약하고, 정비 예측·납기 리스크와 겹치는 일정이 있으면 짚어준다.
+사용자가 일정(Google Calendar) 확인을 요청했다. 아래는 방금 Google Calendar API로 실시간 조회한 결과다(조회 기간: ${rangeLabel}) — 이 데이터만 근거로 답하고 컨텍스트에 없는 일정을 지어내지 않는다.
+사용자가 물어본 기간(${rangeLabel})의 일정을 요약해 답한다.
 
 ${calendarContext}
-
-${AXPOINT_CALENDAR_REFERENCE}
-
+${sourcesContext}
 ${TRACE_FORMAT}
-trace의 첫 단계는 반드시 icon "calendar"로 "Google Calendar API에서 이번 주 일정을 실시간 조회함" 형태로 쓰고, result에 조회된 일정 건수를 담는다.
-이어서 장비관리 정비 예측 확인(icon "app"), 일정·리스크 대조(icon "data"), 요약 정리(icon "model") 단계를 포함해 총 3~5단계로 구성한다.`;
+trace의 첫 단계는 반드시 icon "calendar"로 "Google Calendar에서 ${rangeLabel} 일정을 실시간 조회함" 형태로 쓰고, result에 조회된 일정 건수를 담는다.${sourcesInstruction}
+마지막에 요약 정리(icon "model") 단계를 포함해 총 3~5단계로 구성한다.`;
 }
 
 const SCENARIO_PROMPTS: Record<string, string> = {
@@ -238,14 +294,18 @@ export async function POST(req: Request) {
           { status: 428 },
         );
       }
+      // 마지막 사용자 질문에서 조회 기간을 해석한다 ("저번주", "다음주" 등)
+      const lastUserContent = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
+      const { range, label } = resolveCalendarRange(lastUserContent);
+      const sources = parseSources(body);
       let events;
       try {
-        events = await listUpcomingEvents(accessToken);
+        events = await listUpcomingEvents(accessToken, 20, range);
       } catch {
         return NextResponse.json({ error: "Google Calendar 조회에 실패했습니다." }, { status: 502 });
       }
       const raw = await chatCompletion(
-        [{ role: "system", content: calendarPrompt(buildCalendarContext(events)) }, ...messages],
+        [{ role: "system", content: calendarPrompt(buildCalendarContext(events, label), label, sources) }, ...messages],
         { json: true },
       );
       const out = sanitizeScenarioOutput(raw);

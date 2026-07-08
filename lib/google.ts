@@ -115,18 +115,29 @@ async function fetchCalendarEvents(
   return data.items ?? [];
 }
 
+/** 일정 조회 기간 — 미지정 시 오늘 0시부터 일주일 */
+export interface CalendarRange {
+  timeMin: string;
+  timeMax: string;
+}
+
 /**
- * 오늘(00:00)부터 일주일간의 일정 실시간 조회 (Google Calendar API).
- * - timeMin을 '지금'이 아닌 '오늘 0시'로 잡는다 — Google은 timeMin 이전에 끝난 일정을
+ * 지정 기간(기본: 오늘 00:00부터 일주일)의 일정 실시간 조회 (Google Calendar API).
+ * - 기본 timeMin을 '지금'이 아닌 '오늘 0시'로 잡는다 — Google은 timeMin 이전에 끝난 일정을
  *   제외하므로, '지금'으로 잡으면 오늘 이미 지난 일정이 전부 빠져 "오늘 일정 없음"으로 오답한다.
+ * - "저번주 일정" 같은 요청은 호출부에서 range로 기간을 넘겨 과거 일정도 조회할 수 있다.
  * - 회사 계정은 일정이 팀/공유 캘린더에 있는 경우가 많아 calendarList의 표시 중인 캘린더를
  *   모두 조회한다. (calendar.readonly 스코프가 없는 구 토큰이면 primary만 폴백)
  */
-export async function listUpcomingEvents(accessToken: string, maxResults = 20): Promise<GoogleCalendarEvent[]> {
+export async function listUpcomingEvents(
+  accessToken: string,
+  maxResults = 20,
+  range?: CalendarRange,
+): Promise<GoogleCalendarEvent[]> {
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
-  const timeMin = startOfToday.toISOString();
-  const timeMax = new Date(startOfToday.getTime() + 8 * 24 * 60 * 60 * 1000).toISOString();
+  const timeMin = range?.timeMin ?? startOfToday.toISOString();
+  const timeMax = range?.timeMax ?? new Date(startOfToday.getTime() + 8 * 24 * 60 * 60 * 1000).toISOString();
 
   let calendars: { id: string; name?: string }[] = [{ id: "primary" }];
   try {

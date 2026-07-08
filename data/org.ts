@@ -87,6 +87,45 @@ export const CONNECTORS: {
 /** 외부 시스템 추가/설정 팝업의 시스템 유형 목록 */
 export const CONNECTOR_TYPES = ["ERP", "MES", "PLM", "QMS", "WMS", "CRM", "센서", "기타"];
 
+/**
+ * 좌측 패널 외부 시스템 바로가기 — name은 사용자가 설정한 "목록에 표시될 이름"(CONNECTORS와 동일).
+ * 임시로 IFrame 임베드로 노출한다. embed 종류:
+ *  - image: 스크린샷 이미지로 대체
+ *  - iframe: 실제 페이지 임베드
+ *  - login: X-Frame-Options 등으로 임베드가 막힌 시스템 — 로그인 안내 목업 버튼만 표시
+ */
+export const EXTERNAL_SYSTEMS: {
+  slug: string;
+  name: string;
+  system: string;
+  embed:
+    | { kind: "image"; src: string }
+    | { kind: "iframe"; src: string }
+    | { kind: "login"; href: string };
+}[] = [
+  {
+    slug: "hq-erp",
+    name: "본사 ERP",
+    system: "더존비즈온 iCUBE",
+    embed: { kind: "image", src: "/assets/ExternalSystem/더존erp_1.jpg" },
+  },
+  {
+    slug: "factory1-mes",
+    name: "1공장 MES",
+    system: "미라콤 Nexplant MESplus",
+    embed: { kind: "iframe", src: "https://www.mespluscloud.com/exper/demo" },
+  },
+  {
+    slug: "iot-gateway",
+    name: "설비 IoT 게이트웨이",
+    system: "PTC ThingWorx",
+    embed: {
+      kind: "login",
+      href: "https://www.ptc.com/ko/products/thingworx?srsltid=AfmBOoq0MUqQgEo-LZR6yyYOG_k70srp7R7RWvlQ_6WDNkUpzwITiV8t#key-drivers",
+    },
+  },
+];
+
 /** 설정 > 모듈 간 데이터 연동 규칙 */
 export const SYNC_RULES: {
   from: string;

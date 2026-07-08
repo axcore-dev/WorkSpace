@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BrandIcon } from "@/components/brand-icons";
 import { ConnectorModal } from "@/components/connector-modal";
 import { ICON_MAP, IconCheckCircle, IconPlus } from "@/components/icons";
@@ -168,6 +168,21 @@ export function WorkspaceSettings() {
   const [services, setServices] = useState(EXTERNAL_SERVICES);
   const [connectorLibOpen, setConnectorLibOpen] = useState(false);
 
+  // Google Calendar는 서버 OAuth 상태(토큰 존재 여부)를 조회해 실제 연결 여부를 반영한다
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/auth/google/status")
+      .then((r) => r.json())
+      .then((d: { connected?: boolean }) => {
+        if (cancelled) return;
+        setServices((prev) => prev.map((s) => (s.id === "calendar" ? { ...s, connected: !!d.connected } : s)));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const connectedServices = services.filter((s) => s.connected);
 
   function saveConnector(next: Connector, original: Connector | null) {
@@ -177,6 +192,8 @@ export function WorkspaceSettings() {
   }
 
   function disconnectService(id: string) {
+    // Google Calendar는 실제 연동 — 서버에 저장된 토큰도 함께 삭제한다
+    if (id === "calendar") void fetch("/api/auth/google/status", { method: "DELETE" }).catch(() => {});
     setServices((prev) => prev.map((s) => (s.id === id ? { ...s, connected: false } : s)));
   }
 
