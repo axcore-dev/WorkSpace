@@ -35,8 +35,10 @@ import {
 import { Modal } from "@/components/modal";
 import { useModules } from "@/components/module-provider";
 import { MembersModal, RecordModal } from "@/components/record-modal";
+import { ReportAutomation } from "@/components/report-automation";
 import { AiBadge, Badge, Button, Card, DataTable, EmptyState, FIELD, SectionHeader, Stat } from "@/components/ui";
 import { HR_MEMBERS, ROW_DETAILS } from "@/data/module-details";
+import { downloadCsv } from "@/lib/download";
 import type { Cell, DetailRecord, Member, ModuleDef, ModulePageData, TabAction, TreeNode } from "@/data/types";
 
 /** 탭별 액션 버튼 정의 — data의 tab.actions로 필요한 곳에만 노출 */
@@ -47,19 +49,6 @@ const TAB_ACTIONS: Record<TabAction, { label: string; icon: typeof IconFilter; p
 };
 
 const cellText = (c: Cell) => (typeof c === "object" ? c.badge : String(c));
-
-/** CSV 다운로드 — Excel 한글 호환을 위해 BOM 포함 */
-function downloadCsv(filename: string, columns: string[], rows: Cell[][]) {
-  const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
-  const csv =
-    "﻿" + [columns, ...rows.map((r) => r.map(cellText))].map((r) => r.map((v) => esc(String(v))).join(",")).join("\r\n");
-  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
 
 /** 편집 모드에서 드래그(마우스·터치)와 키보드(Space+방향키)로 순서를 바꿀 수 있는 탭 */
 function SortableTab({
@@ -395,17 +384,13 @@ export function ModuleView({ mod, page }: { mod: ModuleDef; page: ModulePageData
     }
     if (action === "export") {
       if (active.table) {
-        downloadCsv(
-          `${mod.name}_${active.label}.csv`,
-          active.table.columns,
-          visibleRows.map((r) => r.cells),
-        );
+        downloadCsv(`${mod.name}_${active.label}.csv`, [active.table.columns, ...visibleRows.map((r) => r.cells)]);
       } else if (isHrTab) {
         const columns = ["팀", "이름", "직급", "연락처", "이메일", "입사일"];
         const rows: Cell[][] = Object.entries(members).flatMap(([t, list]) =>
           list.map((m) => [t, m.name, m.rank, m.phone, m.email, m.joined] as Cell[]),
         );
-        downloadCsv(`${mod.name}_구성원.csv`, columns, rows);
+        downloadCsv(`${mod.name}_구성원.csv`, [columns, ...rows]);
       }
       return;
     }
@@ -526,7 +511,11 @@ export function ModuleView({ mod, page }: { mod: ModuleDef; page: ModulePageData
         </div>
       </div>
 
-      {active ? (
+      {active?.custom === "report-automation" ? (
+        <div role="tabpanel">
+          <ReportAutomation />
+        </div>
+      ) : active ? (
         <div role="tabpanel" className="space-y-4">
           {active.chart && (
             <Card>

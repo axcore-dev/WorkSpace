@@ -61,6 +61,8 @@ export interface SubfunctionTab {
   chart?: ChartSpec;
   tree?: TreeNode[];
   note?: string;
+  /** 데이터 기반 렌더링 대신 전용 인터랙티브 컴포넌트로 그리는 탭 */
+  custom?: "report-automation";
 }
 
 /** 8대 핵심 모듈 정의 */

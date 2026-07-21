@@ -281,6 +281,13 @@ export const MODULE_PAGES: Record<string, ModulePageData> = {
           ],
         },
       },
+      {
+        id: "reporting",
+        label: "보고 자동화",
+        ai: true,
+        custom: "report-automation",
+        description: "현장 입력이 실시간으로 자동 집계되고, AI가 일일 생산·품질 보고서를 작성합니다.",
+      },
     ],
   },
 

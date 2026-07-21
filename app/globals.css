@@ -83,3 +83,21 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* 보고 자동화 — 'PDF 저장' 인쇄 시 보고서 문서만 출력 */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .report-print-area,
+  .report-print-area * {
+    visibility: visible;
+  }
+  .report-print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    border: none !important;
+  }
+}

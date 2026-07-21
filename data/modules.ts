@@ -44,6 +44,7 @@ export const MODULES: ModuleDef[] = [
       { id: "monitoring", name: "모니터링" },
       { id: "workorders", name: "작업지시" },
       { id: "bottleneck", name: "공정병목 분석" },
+      { id: "reporting", name: "보고 자동화", ai: true },
     ],
   },
   {

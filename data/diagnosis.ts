@@ -52,6 +52,33 @@ export const ANOMALIES: {
   },
 ];
 
+/**
+ * 이상 감지 시연 (UC2: 감지 → 알림 → 권장조치) — 시연 버튼 클릭 시
+ * 실시간 감지된 것처럼 목록 최상단에 주입되는 신규 이벤트.
+ */
+export const DEMO_ANOMALY: (typeof ANOMALIES)[number] = {
+  id: "AN-2607-022",
+  severity: "red",
+  severityLabel: "긴급",
+  title: "CNC 2라인 주축 모터 과전류 감지",
+  source: "생산관리 · 센서 C-0207",
+  detectedAt: "방금 감지 (실시간 센서 스트림 · 탐지 후 3초 내 알림)",
+  impact: "지속 시 주축 손상·라인 정지 위험",
+  cause: "절삭 부하 급증 — 공구 마모 한계 도달 추정",
+  action: "공구 교체 및 주축 부하 점검 작업지시 생성 권고",
+  notified: ["인앱", "Slack #생산알림", "담당: 김재현 (SMS)"],
+};
+
+/** 시연 이상 이벤트의 권장조치를 등록하면 조치 이행 추적에 추가되는 항목 */
+export const DEMO_ACTION: (typeof ACTION_TRACKING)[number] = {
+  id: "AC-2607-12",
+  title: "CNC 2라인 주축 공구 교체·부하 점검",
+  origin: "이상 징후 탐지",
+  owner: "김재현",
+  stage: "제안",
+  due: "2026-07-21",
+};
+
 export const PREDICTIONS: {
   id: string;
   equipment: string;

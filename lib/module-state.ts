@@ -39,6 +39,9 @@ export function loadModuleState(): ModuleState {
         for (const sub of Object.keys(base[slug].subs)) {
           if (typeof parsed[slug].subs?.[sub] === "boolean") {
             base[slug].subs[sub] = parsed[slug].subs[sub];
+          } else {
+            // 저장 이후 카탈로그에 추가된 신규 서브기능 — 모듈 상태를 따라간다
+            base[slug].subs[sub] = parsed[slug].enabled;
           }
         }
       }

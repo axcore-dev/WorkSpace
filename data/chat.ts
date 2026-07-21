@@ -42,6 +42,16 @@ export const RAG_FOLDERS: {
       { name: "품질경영 매뉴얼 v4.pdf", type: "PDF", scope: "전사", updated: "5/12" },
     ],
   },
+  {
+    name: "작업표준·FAQ",
+    count: 4,
+    docs: [
+      { name: "작업표준서_CNC 가공 SOP-114 Rev.D.pdf", type: "PDF", scope: "전사", updated: "7/14" },
+      { name: "작업표준서_프레스 성형 SOP-208 Rev.B.pdf", type: "PDF", scope: "전사", updated: "7/10" },
+      { name: "현장 FAQ 모음_2026.docx", type: "DOCX", scope: "전사", updated: "7/18" },
+      { name: "안전작업 지침서 v3.pdf", type: "PDF", scope: "전사", updated: "6/20" },
+    ],
+  },
 ];
 
 export interface ChatSource {
@@ -160,7 +170,7 @@ export const SCRIPTED_REPLIES: ChatMessage[] = [
   },
   {
     role: "ai",
-    text: "현재 안전 재고 미달 품목은 3개입니다. ① 알루미늄 합금 6061 (충족률 85.5%, 발주 필요) ② 베어링 608ZZ (82.4%, 발주 진행중 — 7/8 입고 예정) ③ 절삭유 (90.0%). 알루미늄 합금은 8월 수요 예측(31,800EA) 기준으로 2,000kg 추가 발주를 권장합니다.",
+    text: "현재 안전 재고 미달 품목은 3개입니다.\n① 알루미늄 합금 6061 — 충족률 85.5%, 발주 필요\n② 베어링 608ZZ — 82.4%, 발주 진행중 (7/8 입고 예정)\n③ 절삭유 — 90.0%\n알루미늄 합금은 8월 수요 예측(31,800EA) 기준으로 2,000kg 추가 발주를 권장합니다.",
     reasoning: [
       "질문의 의도를 파악하고 있어요",
       "재고 데이터를 살펴보고 있어요",
@@ -183,7 +193,7 @@ export const SCRIPTED_REPLIES: ChatMessage[] = [
   },
   {
     role: "ai",
-    text: "이번 주 고장 위험이 높은 설비는 2대입니다. ① CNC-07 머시닝센터 — 스핀들 베어링 마모, 고장 확률 87% (72시간 내 교체 권고) ② PRS-02 프레스 — 유압 펌프 열화, 고장 확률 64%. CNC-07 베어링 교체 일정을 7/4(토) 오전으로 Google Calendar에 등록해 두었고, 담당 정민호 팀장에게 공유했습니다.",
+    text: "이번 주 고장 위험이 높은 설비는 2대입니다.\n① CNC-07 머시닝센터 — 스핀들 베어링 마모, 고장 확률 87% (72시간 내 교체 권고)\n② PRS-02 프레스 — 유압 펌프 열화, 고장 확률 64%\nCNC-07 베어링 교체 일정을 7/4(토) 오전으로 Google Calendar에 등록해 두었고, 담당 정민호 팀장에게 공유했습니다.",
     reasoning: [
       "질문의 의도를 파악하고 있어요",
       "장비관리 센서 데이터를 살펴보고 있어요",
@@ -206,7 +216,7 @@ export const SCRIPTED_REPLIES: ChatMessage[] = [
   },
   {
     role: "ai",
-    text: "한빛모터스 수주는 2건이 진행 중입니다. ① SO-2607-05 정밀 샤프트 Ø12 24,000EA (8.6억원) — 생산 진척 51%, 납기 7/18 ② SO-2606-31 플랜지 커플링 8,000EA (2.4억원) — 납기 7/6 임박, 프레스 2라인 일시 정지로 지연 리스크가 있어요. 생산관리에서 라인 재가동 일정을 먼저 확인해 보세요.",
+    text: "한빛모터스 수주는 2건이 진행 중입니다.\n① SO-2607-05 정밀 샤프트 Ø12 24,000EA (8.6억원) — 생산 진척 51%, 납기 7/18\n② SO-2606-31 플랜지 커플링 8,000EA (2.4억원) — 납기 7/6 임박, 프레스 2라인 일시 정지로 지연 리스크가 있어요.\n생산관리에서 라인 재가동 일정을 먼저 확인해 보세요.",
     reasoning: [
       "질문의 의도를 파악하고 있어요",
       "영업관리 수주 데이터를 살펴보고 있어요",
@@ -225,6 +235,57 @@ export const SCRIPTED_REPLIES: ChatMessage[] = [
       ],
     },
   },
+  // ── 지식도우미 (UC3: 작업표준·FAQ 검색형 답변) ──
+  {
+    role: "ai",
+    text: "CNC 가공 공구 교체 기준은 작업표준서 SOP-114 Rev.D 4.2절에 정의되어 있습니다.\n① 초경 엔드밀 — 누적 절삭 2,400분 도달 또는 진동·이음 발생 시 즉시 교체\n② 드릴 — 누적 절삭 1,800분\n③ 인서트 팁 — 마모 한계 VB 0.3mm 도달 시\n교체 후에는 첫 가공품 3개를 전수 측정해 치수를 확인한 뒤 양산을 재개합니다. 참고로 CNC-07은 스핀들 진동 상승이 감지되어 조기 교체 대상입니다.",
+    reasoning: [
+      "질문의 의도를 파악하고 있어요",
+      "작업표준·FAQ 문서를 검색하고 있어요",
+      "해당 조항을 찾아 정리하고 있어요",
+    ],
+    sources: [
+      { doc: "작업표준서_CNC 가공 SOP-114 Rev.D.pdf", snippet: "4.2 공구 교체 기준 — 초경 엔드밀 누적 절삭 2,400분 또는 이상 진동 발생 시…" },
+      { doc: "현장 FAQ 모음_2026.docx", snippet: "Q. 공구 수명 전 이상 진동이 느껴지면? A. 즉시 교체 후 설비보전팀에 통보" },
+    ],
+    process: {
+      sources: ["작업표준·FAQ 문서 2건", "장비관리 센서 데이터"],
+      steps: ["질문 의도 분석 (작업표준 조회)", "작업표준·FAQ 문서 검색", "관련 조항 인용 및 현재 설비 상태 결합"],
+      tools: ["RAG 검색", "데이터 조회"],
+      summary: "2개의 도구 사용됨, 작업표준 검색됨, 조항 인용됨",
+      trace: [
+        { icon: "search", text: "작업표준·FAQ 폴더에서 '공구 교체' 검색", result: "결과 3건" },
+        { icon: "doc", text: "SOP-114 Rev.D 4.2절 조항 인용", result: "인용 2건" },
+        { icon: "data", text: "장비관리 센서 데이터 확인 — CNC-07 진동 상승", result: "1건" },
+        { icon: "model", text: "기준 요약 및 답변 생성" },
+      ],
+    },
+  },
+  {
+    role: "ai",
+    text: "불량품 발견 시 처리 절차는 4단계입니다.\n① 식별 — 부적합 태그(적색)를 부착하고 라인에서 즉시 격리\n② 이동 — 부적합품 보관 구역(B-2)으로 이동\n③ 등록 — 품질검사 > 불량 분석에 로트번호와 함께 등록 (품질관리팀에 자동 통보)\n④ 처분 — 재작업·특채·폐기 여부를 품질관리팀장이 24시간 내 결정\n동일 유형 불량이 3회 이상 반복되면 시정조치(CAPA)가 자동 발행됩니다.",
+    reasoning: [
+      "질문의 의도를 파악하고 있어요",
+      "현장 FAQ와 품질 규정을 검색하고 있어요",
+      "절차를 단계별로 정리하고 있어요",
+    ],
+    cta: { label: "품질검사에서 확인", href: "/modules/quality" },
+    sources: [
+      { doc: "현장 FAQ 모음_2026.docx", snippet: "Q. 불량품을 발견하면? A. 적색 태그 부착 → B-2 구역 격리 → 시스템 등록" },
+      { doc: "품질경영 매뉴얼 v4.pdf", snippet: "8.7 부적합품 관리 — 처분 결정은 발견 후 24시간 이내" },
+    ],
+    process: {
+      sources: ["작업표준·FAQ 문서 1건", "품질경영 매뉴얼"],
+      steps: ["질문 의도 분석 (절차 조회)", "FAQ·규정 문서 검색", "절차 단계 정리"],
+      tools: ["RAG 검색"],
+      summary: "1개의 도구 사용됨, FAQ·규정 검색됨, 절차 정리됨",
+      trace: [
+        { icon: "search", text: "작업표준·FAQ 폴더에서 '불량품 처리' 검색", result: "결과 2건" },
+        { icon: "doc", text: "현장 FAQ 모음·품질경영 매뉴얼 8.7절 인용", result: "인용 2건" },
+        { icon: "model", text: "4단계 절차로 재구성해 답변 생성" },
+      ],
+    },
+  },
 ];
 
 /**
@@ -233,7 +294,7 @@ export const SCRIPTED_REPLIES: ChatMessage[] = [
  */
 export const SCRIPTED_CALENDAR_REPLY: ChatMessage = {
   role: "ai",
-  text: "이번 주 Google Calendar 일정은 4건이에요. ① 7/8(수) 10:00 주간 운영회의 ② 7/9(목) 14:00 한국알루텍 미팅 (발주 협의) ③ 7/10(금) 11:00 품질경영 매뉴얼 개정 검토 ④ 7/11(토) 09:00 사내 안전 교육. 한국알루텍 미팅 전에 소스의 '공급업체 단가표 2026 상반기.xlsx'를 미리 확인해 두면 좋겠어요.",
+  text: "이번 주 Google Calendar 일정은 4건이에요.\n① 7/8(수) 10:00 주간 운영회의\n② 7/9(목) 14:00 한국알루텍 미팅 (발주 협의)\n③ 7/10(금) 11:00 품질경영 매뉴얼 개정 검토\n④ 7/11(토) 09:00 사내 안전 교육\n한국알루텍 미팅 전에 소스의 '공급업체 단가표 2026 상반기.xlsx'를 미리 확인해 두면 좋겠어요.",
   reasoning: [
     "질문의 의도를 파악하고 있어요",
     "Google Calendar에서 일정을 불러오고 있어요",
@@ -252,25 +313,77 @@ export const SCRIPTED_CALENDAR_REPLY: ChatMessage = {
   },
 };
 
-/** 질문 키워드 → 시나리오 응답 매핑 (데모 시나리오 라우팅) */
+/**
+ * 소스 파일 업로드 시 재생되는 RAG 인덱싱 스크립트 (UC3: 문서 업로드 → 분석 → 검색형 답변).
+ * 업로드 직후 대화에 표시되어 문서가 지식 인덱스에 등록되는 과정을 보여준다.
+ */
+export function ragIngestMessage(names: string[]): ChatMessage {
+  const first = names[0];
+  const label = names.length > 1 ? `'${first}' 외 ${names.length - 1}건` : `'${first}'`;
+  return {
+    role: "ai",
+    text: `${label} 문서 분석을 마쳤어요. 텍스트를 추출해 34개 구절로 나누고 지식 인덱스에 등록했습니다. 이제 이 문서 내용으로 질문하면 해당 구절을 근거로 답변해 드려요.\n예: "불량품 발견 시 처리 절차는?", "CNC 공구 교체 기준 알려줘"`,
+    reasoning: [
+      "업로드한 문서를 읽고 있어요",
+      "텍스트를 추출하고 구절을 나누고 있어요",
+      "임베딩을 생성해 지식 인덱스에 등록하고 있어요",
+    ],
+    process: {
+      sources: [`업로드 문서 ${names.length}건`],
+      steps: ["문서 텍스트 추출", "구절(청크) 분할", "임베딩 생성 및 인덱스 등록"],
+      tools: ["문서 파서", "RAG 인덱싱"],
+      summary: "2개의 도구 사용됨, 문서 판독됨, 지식 인덱스 등록됨",
+      trace: [
+        { icon: "doc", text: `업로드 문서 텍스트 추출 (${first})`, result: `${names.length}건` },
+        { icon: "model", text: "구절(청크) 분할 — 검색 단위로 재구성", result: "34개 구절" },
+        { icon: "data", text: "임베딩 생성 및 지식 인덱스 등록", result: "등록됨" },
+      ],
+    },
+  };
+}
+
+/** 지식도우미 답변에 업로드 문서를 최우선 출처로 끼워 넣는다 — '내 문서 기반 답변' 연출 */
+export function withUploadedCitation(msg: ChatMessage, docName: string): ChatMessage {
+  return {
+    ...msg,
+    sources: [
+      { doc: docName, snippet: "업로드 문서 일치 구절 3건 — 지식 인덱스 유사도 0.93" },
+      ...(msg.sources ?? []),
+    ],
+    process: msg.process && {
+      ...msg.process,
+      sources: ["업로드 문서 (RAG)", ...msg.process.sources],
+      trace: msg.process.trace && [
+        { icon: "search", text: `업로드 문서 '${docName}'의 지식 인덱스에서 우선 검색`, result: "일치 3건" },
+        ...msg.process.trace,
+      ],
+    },
+  };
+}
+
+/** 질문 키워드 → 시나리오 응답 매핑 (데모 시나리오 라우팅) — 구체적인 패턴을 앞에 둔다 */
 export const REPLY_ROUTES: { pattern: RegExp; index: number }[] = [
+  { pattern: /작업표준|표준서|SOP|공구 교체/, index: 6 },
+  { pattern: /불량품|처리 절차|FAQ/i, index: 7 },
   { pattern: /불량|품질/, index: 0 },
   { pattern: /재고|발주/, index: 3 },
   { pattern: /설비|고장|정비/, index: 4 },
   { pattern: /수주|한빛|납기|영업/, index: 5 },
 ];
 
-export const SUGGESTED_QUESTIONS = [
-  "6월 CNC 1라인 불량률과 원인을 알려줘",
-  "안전 재고 미달 품목과 권장 발주량은?",
-  "이번 주 일정, Google Calendar에서 확인해줘",
-  "한빛모터스 수주 진행 현황 알려줘",
+/** 시작 화면 추천 질문 — demo: 지식도우미(작업표준·FAQ) 시연 포인트 표시 */
+export const SUGGESTED_QUESTIONS: { q: string; demo?: boolean }[] = [
+  { q: "6월 CNC 1라인 불량률과 원인을 알려줘" },
+  { q: "안전 재고 미달 품목과 권장 발주량은?" },
+  { q: "CNC 공구 교체 기준, 작업표준서에서 찾아줘", demo: true },
+  { q: "불량품 발견 시 처리 절차는?", demo: true },
+  { q: "이번 주 일정, Google Calendar에서 확인해줘" },
+  { q: "한빛모터스 수주 진행 현황 알려줘" },
 ];
 
 export const AI_TOOLS_TEASER: { name: string; desc: string; tone: Tone }[] = [
-  { name: "차트 생성기", desc: "대화 데이터를 즉시 시각화", tone: "slate" },
-  { name: "자동화 룰 빌더", desc: "조건-액션 자동화 구성", tone: "slate" },
-  { name: "계산 시뮬레이터", desc: "원가·수율 시뮬레이션", tone: "slate" },
+  { name: "기안 생성", desc: "대화 내용을 사내 양식의 결재 기안 문서로 작성", tone: "slate" },
+  { name: "이메일 초안", desc: "분석 결과를 담은 공유 이메일 초안 작성", tone: "slate" },
 ];
 
 /**
@@ -298,11 +411,15 @@ export const CONNECTOR_LIB: {
   { slug: "dropbox", name: "Dropbox", desc: "외부 협력사 문서를 가져와요.", url: "https://www.dropbox.com", loginUrl: "https://www.dropbox.com/login" },
 ];
 
-/** 스킬 추가 팝업 목록 */
+/**
+ * 스킬 추가 팝업 목록 — AI Skills.
+ * 스킬은 특정 업무의 수행 절차·양식·규칙을 AI에게 가르치는 지침 패키지로,
+ * 추가하면 AI가 해당 업무를 사내 규칙대로 수행한다.
+ */
 export const SKILL_LIB: { id: string; name: string; desc: string }[] = [
-  { id: "chart", name: "차트 생성기", desc: "대화 데이터를 즉시 시각화합니다." },
-  { id: "summary", name: "문서 요약", desc: "긴 문서를 핵심만 요약합니다." },
-  { id: "ocr", name: "OCR 문서 추출", desc: "발주서·명세서를 구조화 추출합니다." },
-  { id: "forecast", name: "수요 예측", desc: "수주·판매 데이터로 수요를 예측합니다." },
-  { id: "rca", name: "불량 원인 분석", desc: "RCA 기반 근본 원인을 도출합니다." },
+  { id: "daily-report", name: "일일 생산보고 작성", desc: "사내 보고 양식과 결재선 규칙대로 일일 생산·품질 보고서를 작성하는 스킬" },
+  { id: "rca", name: "불량 원인 분석(RCA)", desc: "5Why·특성요인도 절차에 따라 근본 원인을 도출하고 시정조치를 제안하는 스킬" },
+  { id: "po-draft", name: "구매 기안 작성", desc: "품의 규정·승인 한도에 맞춰 구매 기안 문서를 작성하는 스킬" },
+  { id: "sop-answer", name: "작업표준 안내", desc: "작업표준서(SOP) 해당 조항을 인용해 현장 질문에 답변하는 스킬" },
+  { id: "meeting", name: "회의록 정리", desc: "회의 내용을 사내 회의록 양식으로 요약하고 액션 아이템을 추출하는 스킬" },
 ];

@@ -32,6 +32,8 @@ import {
   SCRIPTED_CALENDAR_REPLY,
   SCRIPTED_REPLIES,
   SUGGESTED_QUESTIONS,
+  ragIngestMessage,
+  withUploadedCitation,
   type ChatMessage,
   type ChatProcess,
   type OcrProposal,
@@ -41,11 +43,27 @@ import {
 // NotebookLM식 소스 목록 (폴더 없이 평면)
 const INITIAL_SOURCES = RAG_FOLDERS.flatMap((f) => f.docs).map((d) => ({ ...d }));
 
+interface SourceDoc {
+  name: string;
+  type: string;
+  scope: "개인" | "팀" | "전사";
+  updated: string;
+}
+
+/** 대화(노트북)별 소스 상태 — 새 대화는 빈 노트북으로 시작한다 */
+interface SourceState {
+  sources: SourceDoc[];
+  selected: string[];
+  /** 이 대화에서 업로드한 문서 — 지식도우미 답변의 최우선 출처로 인용 */
+  uploaded: string[];
+}
+
 interface Note {
   id: number;
   title: string;
   messages: ChatMessage[];
   replyIdx: number;
+  src: SourceState;
 }
 
 /** 입력창 자동 높이 조절 (참고 코드의 useAutoResizeTextarea를 의존성 없이 구현) */
@@ -299,8 +317,12 @@ export default function AiChatPage() {
   const [addMenu, setAddMenu] = useState(false);
   const [connectorOpen, setConnectorOpen] = useState(false);
   const [skillOpen, setSkillOpen] = useState(false);
-  const [sources, setSources] = useState(INITIAL_SOURCES);
-  const [selectedSources, setSelectedSources] = useState<string[]>(INITIAL_SOURCES.map((s) => s.name));
+  /** 첫 대화 생성 전(시작 화면)의 소스 — 첫 대화가 이 상태를 승계한다 */
+  const [draftSrc, setDraftSrc] = useState<SourceState>({
+    sources: INITIAL_SOURCES,
+    selected: INITIAL_SOURCES.map((s) => s.name),
+    uploaded: [],
+  });
   const [ocrPending, setOcrPending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const addRef = useRef<HTMLDivElement>(null);
@@ -310,6 +332,19 @@ export default function AiChatPage() {
   const { ref: inputRef, adjust: adjustInput } = useAutoResizeTextarea(38, 160);
 
   const active = notes.find((n) => n.id === activeId) ?? null;
+
+  // 표시 중인 소스 상태 — 활성 대화(노트북)의 것, 없으면 시작 화면 초안
+  const src = active?.src ?? draftSrc;
+  const { sources, selected: selectedSources, uploaded: uploadedDocs } = src;
+
+  /** 소스 상태 변경 — 활성 대화가 있으면 그 대화에, 없으면 초안에 반영한다 */
+  function patchSrc(patch: (s: SourceState) => SourceState) {
+    if (active) {
+      setNotes((prev) => prev.map((n) => (n.id === active.id ? { ...n, src: patch(n.src) } : n)));
+    } else {
+      setDraftSrc((prev) => patch(prev));
+    }
+  }
 
   const allSelected = sources.length > 0 && selectedSources.length === sources.length;
   const someSelected = selectedSources.length > 0 && !allSelected;
@@ -340,13 +375,29 @@ export default function AiChatPage() {
         ? "Google Calendar 연결이 완료됐어요. 이제 실제 일정을 조회할 수 있어요. 예: '이번 주 정비 일정 확인해줘'"
         : "Google Calendar 연결에 실패했어요. 잠시 후 다시 시도해 주세요.",
     });
+    // 마운트 시 1회만 실행 — OAuth 리다이렉트 쿼리 파라미터 처리 용도
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function createNote(title = "새 대화"): number {
+  function createNote(title = "새 대화", srcInit?: SourceState): number {
     const id = ++noteSeq.current;
-    setNotes((prev) => [...prev, { id, title, messages: [], replyIdx: 0 }]);
+    // 시작 화면에서 자동 생성되는 첫 대화는 화면에 보이던 소스(초안)를 승계한다
+    const s = srcInit ?? (active ? { sources: [], selected: [], uploaded: [] } : draftSrc);
+    setNotes((prev) => [...prev, { id, title, messages: [], replyIdx: 0, src: s }]);
     setActiveId(id);
     return id;
+  }
+
+  /** 새 대화 = 새 노트북 생성 — 소스 없이 빈 상태로 시작한다 */
+  function startNewNote() {
+    createNote("새 대화", { sources: [], selected: [], uploaded: [] });
+  }
+
+  /** 비어 있는 '새 대화' 노트북에 첫 활동이 생기면 제목을 붙인다 — 대화 드롭다운에서 구분되도록 */
+  function nameNoteIfUntitled(id: number, title: string) {
+    setNotes((prev) =>
+      prev.map((n) => (n.id === id && n.title === "새 대화" && n.messages.length === 0 ? { ...n, title } : n)),
+    );
   }
 
   function appendMessage(noteId: number, msg: ChatMessage) {
@@ -385,6 +436,7 @@ export default function AiChatPage() {
     const nid = noteId ?? activeId ?? createNote(q.length > 18 ? q.slice(0, 18) + "…" : q);
     setInput("");
     adjustInput(true);
+    nameNoteIfUntitled(nid, q.length > 18 ? q.slice(0, 18) + "…" : q);
     appendMessage(nid, { role: "user", text: q });
 
     // 구글 캘린더 확인 시나리오 — Google Calendar API를 실제로 조회한다 (키 미설정 시 스크립트 폴백)
@@ -422,7 +474,10 @@ export default function AiChatPage() {
     // 데모 시나리오 라우팅 — 질문 키워드로 응답 선택, 없으면 순서 재생
     const routed = REPLY_ROUTES.find((r) => r.pattern.test(q));
     if (routed) {
-      pushAi(nid, SCRIPTED_REPLIES[routed.index]);
+      const base = SCRIPTED_REPLIES[routed.index];
+      // 지식도우미(작업표준·FAQ) 답변: 업로드 문서가 있으면 그 문서를 최우선 출처로 인용 (RAG 시연)
+      const isKnowledge = routed.index === 6 || routed.index === 7;
+      pushAi(nid, isKnowledge && uploadedDocs.length > 0 ? withUploadedCitation(base, uploadedDocs[0]) : base);
       return;
     }
     const order = [0, 3];
@@ -441,7 +496,11 @@ export default function AiChatPage() {
     );
   }
 
-  /** 소스 추가 — 파일 선택 즉시 목록 상단에 추가되고 선택 상태가 된다 */
+  /**
+   * 소스 추가 — 파일 선택 즉시 목록 상단에 추가·선택되고,
+   * 대화에서 RAG 인덱싱(텍스트 추출→청크 분할→임베딩 등록) 과정을 재생한다.
+   * 이후 지식도우미 질문에 이 문서가 최우선 출처로 인용된다.
+   */
   function addSourceFiles(files: FileList | null) {
     if (!files?.length) return;
     const now = new Date();
@@ -455,20 +514,34 @@ export default function AiChatPage() {
         updated,
       }));
     if (!fresh.length) return;
-    setSources((prev) => [...fresh, ...prev]);
-    setSelectedSources((prev) => [...prev, ...fresh.map((f) => f.name)]);
+    const nextSrc: SourceState = {
+      sources: [...fresh, ...src.sources],
+      selected: [...src.selected, ...fresh.map((f) => f.name)],
+      uploaded: [...fresh.map((f) => f.name), ...src.uploaded],
+    };
+    // 활성 대화가 없으면 업로드 문서를 담은 새 노트북을 만들어 분석 과정을 재생한다
+    const nid = active ? active.id : createNote("문서 분석", nextSrc);
+    if (active) {
+      nameNoteIfUntitled(nid, "문서 분석");
+      patchSrc(() => nextSrc);
+    }
+    if (!thinking) pushAi(nid, ragIngestMessage(fresh.map((f) => f.name)));
   }
 
-  /** 소스 삭제 — 목록과 선택 상태에서 함께 제거 */
+  /** 소스 삭제 — 목록·선택·업로드 추적에서 함께 제거 */
   function removeSource(name: string) {
-    setSources((prev) => prev.filter((s) => s.name !== name));
-    setSelectedSources((prev) => prev.filter((n) => n !== name));
+    patchSrc((s) => ({
+      sources: s.sources.filter((d) => d.name !== name),
+      selected: s.selected.filter((n) => n !== name),
+      uploaded: s.uploaded.filter((n) => n !== name),
+    }));
   }
 
   /** 발주서 제안 시나리오 — 실제 AI가 OCR 텍스트를 근거로 제안·추론 과정을 생성 (키 미설정 시 스크립트 폴백) */
   async function triggerOcr() {
     if (thinking) return;
     const nid = activeId ?? createNote("발주서 OCR 반영");
+    nameNoteIfUntitled(nid, "발주서 OCR 반영");
     appendMessage(nid, { role: "user", text: "이 발주서 반영해줘", attachment: "발주서_대신금속_26-0702.pdf" });
     setThinking(true);
     setThinkingSteps(["발주서를 읽고 있어요"]);
@@ -541,25 +614,36 @@ export default function AiChatPage() {
               <IconUpload size={14} />
               소스 추가
             </Button>
-            {/* 전체 선택/해제 */}
-            <label className="flex cursor-pointer items-center gap-2 px-1 text-xs text-slate-600">
-              <input
-                type="checkbox"
-                checked={allSelected}
-                ref={(el) => {
-                  if (el) el.indeterminate = someSelected;
-                }}
-                onChange={() => setSelectedSources(allSelected ? [] : sources.map((s) => s.name))}
-                className="h-3.5 w-3.5 cursor-pointer accent-slate-800"
-                aria-label="소스 전체 선택/해제"
-              />
-              전체 선택
-              <span className="ml-auto text-slate-400">
-                {selectedSources.length}/{sources.length}
-              </span>
-            </label>
+            {/* 전체 선택/해제 — 소스가 있을 때만 표시 */}
+            {sources.length > 0 && (
+              <label className="flex cursor-pointer items-center gap-2 px-1 text-xs text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  ref={(el) => {
+                    if (el) el.indeterminate = someSelected;
+                  }}
+                  onChange={() => patchSrc((s) => ({ ...s, selected: allSelected ? [] : s.sources.map((d) => d.name) }))}
+                  className="h-3.5 w-3.5 cursor-pointer accent-slate-800"
+                  aria-label="소스 전체 선택/해제"
+                />
+                전체 선택
+                <span className="ml-auto text-slate-400">
+                  {selectedSources.length}/{sources.length}
+                </span>
+              </label>
+            )}
           </div>
           <ul className="thin-scroll flex-1 space-y-0.5 overflow-y-auto p-2">
+            {sources.length === 0 && (
+              <li className="mx-1 mt-1 rounded-lg border border-dashed border-slate-200 px-3 py-8 text-center text-xs leading-relaxed text-slate-400">
+                새 노트북이에요.
+                <br />
+                문서를 추가하면 AI가 분석해
+                <br />
+                답변 근거로 사용해요.
+              </li>
+            )}
             {sources.map((doc) => {
               const on = selectedSources.includes(doc.name);
               return (
@@ -567,7 +651,10 @@ export default function AiChatPage() {
                   <button
                     type="button"
                     onClick={() =>
-                      setSelectedSources((prev) => (on ? prev.filter((x) => x !== doc.name) : [...prev, doc.name]))
+                      patchSrc((s) => ({
+                        ...s,
+                        selected: on ? s.selected.filter((x) => x !== doc.name) : [...s.selected, doc.name],
+                      }))
                     }
                     className="flex w-full cursor-pointer items-start gap-2.5 rounded-lg px-2 py-2 pr-8 text-left transition-colors hover:bg-slate-50"
                   >
@@ -630,7 +717,7 @@ export default function AiChatPage() {
                 ))}
               </select>
             )}
-            <Button variant="secondary" size="sm" onClick={() => createNote()}>
+            <Button variant="secondary" size="sm" onClick={startNewNote}>
               <IconPlus size={14} />새 대화
             </Button>
           </div>
@@ -641,14 +728,20 @@ export default function AiChatPage() {
             <div className="mx-auto mt-10 max-w-lg text-center">
               <h2 className="text-base font-bold text-slate-900">새 대화를 시작하세요</h2>
               <div className="mt-6 grid gap-2 sm:grid-cols-2">
-                {SUGGESTED_QUESTIONS.map((qq) => (
+                {SUGGESTED_QUESTIONS.map((s) => (
                   <button
-                    key={qq}
+                    key={s.q}
                     type="button"
-                    onClick={() => send(qq)}
+                    onClick={() => send(s.q)}
                     className="cursor-pointer rounded-lg border border-slate-200 bg-white px-3.5 py-3 text-left text-sm text-slate-700 transition-colors duration-150 hover:border-slate-300 hover:bg-slate-50"
                   >
-                    {qq}
+                    {s.demo && (
+                      <span className="mb-1.5 flex items-center gap-1 text-[10px] font-semibold tracking-wide text-slate-400">
+                        <IconSparkles size={11} />
+                        데모 시연 — 지식도우미
+                      </span>
+                    )}
+                    {s.q}
                   </button>
                 ))}
               </div>
@@ -679,7 +772,7 @@ export default function AiChatPage() {
                   <div key={i} className="min-w-0 max-w-[85%]">
                     {/* 추론 과정 — 말풍선 없이 답변 위에 표시 */}
                     {msg.process && <ReasoningTrace process={msg.process} />}
-                    <div className="text-sm leading-relaxed text-slate-700">
+                    <div className="whitespace-pre-line text-sm leading-relaxed text-slate-700">
                       {msg.text}
                       {msg.ocrProposal && (
                         <OcrProposalCard

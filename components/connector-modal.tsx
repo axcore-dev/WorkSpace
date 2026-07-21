@@ -269,7 +269,13 @@ export function ConnectorModal({ open, onClose }: { open: boolean; onClose: () =
 export function SkillModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [added, setAdded] = useState<string[]>([]);
   return (
-    <Modal open={open} onClose={onClose} size="md" title="스킬" desc="대화에서 사용할 스킬을 추가합니다.">
+    <Modal
+      open={open}
+      onClose={onClose}
+      size="md"
+      title="스킬"
+      desc="스킬은 업무 절차·양식·규칙을 AI에게 가르치는 지침 패키지입니다. 추가하면 AI가 해당 업무를 사내 규칙대로 수행해요."
+    >
       <ul className="divide-y divide-slate-100 p-2">
         {SKILL_LIB.map((s) => {
           const on = added.includes(s.id);

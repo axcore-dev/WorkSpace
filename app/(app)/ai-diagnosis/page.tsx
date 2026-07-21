@@ -7,18 +7,22 @@ import {
   IconActivity,
   IconAlertTriangle,
   IconArrowRight,
+  IconBell,
   IconCalendar,
   IconCheck,
   IconCheckCircle,
   IconClock,
   IconGauge,
   IconWrench,
+  IconX,
   IconZap,
 } from "@/components/icons";
 import { AiBadge, Badge, Button, Card, ProgressBar, SectionHeader } from "@/components/ui";
 import {
   ACTION_TRACKING,
   ANOMALIES,
+  DEMO_ACTION,
+  DEMO_ANOMALY,
   OPTIMIZATION,
   PREDICTIONS,
   STAGE_TONE,
@@ -42,6 +46,36 @@ export default function AiDiagnosisPage() {
   );
   const [optApplied, setOptApplied] = useState(false);
   const [actions, setActions] = useState(ACTION_TRACKING);
+
+  // 이상 감지 시연 (감지 → 알림 → 권장조치) — 버튼 클릭 시 신규 이벤트가 실시간 감지된 것처럼 재생
+  const [anomalies, setAnomalies] = useState(ANOMALIES);
+  const [demoPhase, setDemoPhase] = useState<"idle" | "scanning" | "done">("idle");
+  const [toastOpen, setToastOpen] = useState(false);
+  const [toastStep, setToastStep] = useState(0);
+  const [demoActionAdded, setDemoActionAdded] = useState(false);
+
+  function runDetectionDemo() {
+    if (demoPhase !== "idle") return;
+    setTab("anomaly");
+    setDemoPhase("scanning");
+    setTimeout(() => {
+      setAnomalies((prev) => [DEMO_ANOMALY, ...prev]);
+      setDemoPhase("done");
+      setToastOpen(true);
+      setToastStep(0);
+      // 알림 채널이 순차 발송되는 연출
+      DEMO_ANOMALY.notified.forEach((_, i) => {
+        setTimeout(() => setToastStep(i + 1), (i + 1) * 700);
+      });
+      setTimeout(() => setToastOpen(false), 8000);
+    }, 2000);
+  }
+
+  function registerDemoAction() {
+    if (demoActionAdded) return;
+    setActions((prev) => [DEMO_ACTION, ...prev]);
+    setDemoActionAdded(true);
+  }
 
   function advance(id: string) {
     setActions((prev) =>
@@ -68,8 +102,19 @@ export default function AiDiagnosisPage() {
           </div>
         </div>
         <div className="flex items-center gap-4 text-center">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={runDetectionDemo}
+            disabled={demoPhase !== "idle"}
+            title="실시간 이상 감지 → 알림 → 권장조치 흐름을 재생합니다"
+          >
+            <IconZap size={14} />
+            {demoPhase === "idle" ? "이상 감지 시연" : demoPhase === "scanning" ? "감지 중…" : "시연 완료"}
+          </Button>
+          <div className="h-8 w-px bg-slate-200" />
           <div>
-            <p className="text-lg font-bold text-red-600">2</p>
+            <p className="text-lg font-bold text-red-600">{anomalies.filter((a) => a.severity !== "slate").length}</p>
             <p className="text-[11px] text-slate-500">긴급·경고</p>
           </div>
           <div className="h-8 w-px bg-slate-200" />
@@ -109,15 +154,23 @@ export default function AiDiagnosisPage() {
       {/* ── 이상 징후 탐지 ── */}
       {tab === "anomaly" && (
         <div className="space-y-4">
-          {ANOMALIES.map((an) => (
-            <Card key={an.id}>
+          {demoPhase === "scanning" && (
+            <p className="shimmer-text px-1 text-[13px] font-medium" role="status">
+              실시간 센서 스트림을 분석하고 있어요…
+            </p>
+          )}
+          {anomalies.map((an) => (
+            <Card key={an.id} className={an.id === DEMO_ANOMALY.id ? "ring-1 ring-slate-300" : undefined}>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="flex min-w-0 items-start gap-3">
                   <Badge tone={an.severity} dot className="mt-0.5 shrink-0">
                     {an.severityLabel}
                   </Badge>
                   <div className="min-w-0">
-                    <h3 className="text-sm font-bold text-slate-900">{an.title}</h3>
+                    <h3 className="flex items-center gap-2 text-sm font-bold text-slate-900">
+                      {an.title}
+                      {an.id === DEMO_ANOMALY.id && <Badge tone="red">방금 감지</Badge>}
+                    </h3>
                     <p className="mt-0.5 text-xs text-slate-500">
                       {an.source} · {an.detectedAt}
                     </p>
@@ -141,12 +194,29 @@ export default function AiDiagnosisPage() {
               </dl>
               <div className="mt-3.5 flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs text-slate-400">알림 발송: {an.notified.join(" · ")}</p>
-                <Link
-                  href="/modules/production"
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 transition-colors hover:text-slate-700"
-                >
-                  관련 모듈로 이동 <IconArrowRight size={13} />
-                </Link>
+                <div className="flex items-center gap-3">
+                  {an.id === DEMO_ANOMALY.id &&
+                    (demoActionAdded ? (
+                      <button
+                        type="button"
+                        onClick={() => setTab("actions")}
+                        className="inline-flex cursor-pointer items-center gap-1 text-xs font-semibold text-slate-600 transition-colors hover:text-slate-800"
+                      >
+                        <IconCheckCircle size={13} className="text-emerald-600" />
+                        조치 이행 추적에 등록됨 — 보러 가기
+                      </button>
+                    ) : (
+                      <Button size="sm" onClick={registerDemoAction}>
+                        권장 조치 등록
+                      </Button>
+                    ))}
+                  <Link
+                    href="/modules/production"
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 transition-colors hover:text-slate-700"
+                  >
+                    관련 모듈로 이동 <IconArrowRight size={13} />
+                  </Link>
+                </div>
               </div>
             </Card>
           ))}
@@ -343,6 +413,48 @@ export default function AiDiagnosisPage() {
             ))}
           </ul>
         </Card>
+      )}
+
+      {/* 이상 감지 시연 — 알림 채널 순차 발송 토스트 */}
+      {toastOpen && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed right-6 top-6 z-50 w-80 rounded-xl border border-slate-200 bg-white p-4 shadow-lg"
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <IconBell size={15} className="text-red-600" />
+              <p className="text-sm font-bold text-slate-900">긴급 이상 경보</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setToastOpen(false)}
+              aria-label="알림 닫기"
+              className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+            >
+              <IconX size={13} />
+            </button>
+          </div>
+          <p className="mt-1 text-xs text-slate-600">{DEMO_ANOMALY.title}</p>
+          <ul className="mt-3 space-y-1.5">
+            {DEMO_ANOMALY.notified.map((ch, i) => {
+              const sent = toastStep > i;
+              return (
+                <li key={ch} className="flex items-center gap-2 text-xs">
+                  {sent ? (
+                    <IconCheck size={13} className="shrink-0 text-emerald-600" />
+                  ) : (
+                    <span className="shimmer-text shrink-0 text-[11px]">…</span>
+                  )}
+                  <span className={sent ? "text-slate-600" : "text-slate-400"}>
+                    {ch} {sent ? "발송됨" : "발송 중"}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       )}
     </div>
   );
