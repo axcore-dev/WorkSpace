@@ -75,13 +75,15 @@ export const MODULES: ModuleDef[] = [
     slug: "inventory",
     name: "재고·물류",
     icon: "truck",
-    summary: "현재·안전 재고·입출고 검수",
-    action: "재고와 안전재고를 실시간으로 확인하고 입출고를 검수할 수 있어요.",
+    summary: "품목 기준정보·재고·입고 검사·입출고 이력",
+    action: "품목 기준정보부터 입고 검사, 입출고 이력까지 재고를 한 흐름으로 관리할 수 있어요.",
     externalSystem: "WMS",
     subfunctions: [
+      { id: "items", name: "품목 마스터" },
       { id: "stock", name: "현재 재고" },
       { id: "safety", name: "안전 재고" },
-      { id: "receiving", name: "입출고 검수" },
+      { id: "receiving", name: "입고·수입검사" },
+      { id: "movements", name: "입출고 이력" },
     ],
   },
   {
