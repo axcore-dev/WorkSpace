@@ -22,7 +22,6 @@ export function AdminSettings() {
               <IconUsers size={16} className="text-slate-400" /> 사용자 및 역할 관리 (RBAC)
             </span>
           }
-          desc="역할을 정의하고 사용자별로 부여합니다. 워크스페이스 첫 생성자는 관리자 권한이 자동 부여됩니다."
           action={
             <Button size="sm" onClick={() => setInviteOpen(true)}>
               <IconPlus size={14} />

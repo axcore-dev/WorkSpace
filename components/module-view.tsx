@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import {
   DndContext,
@@ -22,21 +22,25 @@ import { CSS } from "@dnd-kit/utilities";
 import { ChartFromSpec } from "@/components/charts";
 import {
   ICON_MAP,
+  IconAlertTriangle,
   IconCheck,
   IconChevronDown,
   IconChevronRight,
   IconDownload,
   IconFilter,
-  IconInfo,
   IconPencil,
   IconPlus,
+  IconUpload,
   IconSearch,
 } from "@/components/icons";
 import { Modal } from "@/components/modal";
 import { useModules } from "@/components/module-provider";
 import { MembersModal, RecordModal } from "@/components/record-modal";
+import { DrawingManager } from "@/components/drawing-manager";
+import { PurchaseOrder } from "@/components/purchase-order";
+import { ReceivingInspection } from "@/components/receiving-inspection";
 import { ReportAutomation } from "@/components/report-automation";
-import { AiBadge, Badge, Button, Card, DataTable, EmptyState, FIELD, SectionHeader, Stat } from "@/components/ui";
+import { AiBadge, Badge, Button, Card, DataTable, EmptyState, FIELD, SectionHeader, Stat , WizardSteps } from "@/components/ui";
 import { HR_MEMBERS, ROW_DETAILS } from "@/data/module-details";
 import { downloadCsv } from "@/lib/download";
 import type { Cell, DetailRecord, Member, ModuleDef, ModulePageData, TabAction, TreeNode } from "@/data/types";
@@ -46,6 +50,7 @@ const TAB_ACTIONS: Record<TabAction, { label: string; icon: typeof IconFilter; p
   filter: { label: "필터", icon: IconFilter },
   export: { label: "내보내기", icon: IconDownload },
   create: { label: "신규 등록", icon: IconPlus, primary: true },
+  upload: { label: "엑셀 업로드", icon: IconUpload },
 };
 
 const cellText = (c: Cell) => (typeof c === "object" ? c.badge : String(c));
@@ -162,6 +167,141 @@ function TreeItem({
 }
 
 /** 신규 등록 팝업 — 테이블 컬럼 기반 공용 폼 */
+/**
+ * 엑셀 업로드 — 파일 선택 → 정제 결과 확인·수정 → 승인(FR-IV-06, HITL).
+ * 데모라 실제 파싱은 하지 않고, 선택한 파일명으로 정제된 것처럼 미리보기를 만든다.
+ */
+function UploadReviewModal({
+  open,
+  title,
+  columns,
+  onApprove,
+  onClose,
+}: {
+  open: boolean;
+  title: string;
+  columns: string[];
+  onApprove: (rows: Cell[][]) => void;
+  onClose: () => void;
+}) {
+  const [step, setStep] = useState(1);
+  const [fileName, setFileName] = useState("");
+  const [rows, setRows] = useState<string[][]>([]);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  function pickFile(name: string) {
+    setFileName(name);
+    // 데모: 정제 결과 2행을 생성한다. 실제로는 서버 파싱 결과가 들어온다.
+    setRows([
+      columns.map((c, j) => (j === 0 ? "(신규) 업로드 항목 1" : `${c} 값`)),
+      columns.map((c, j) => (j === 0 ? "(신규) 업로드 항목 2" : `${c} 값`)),
+    ]);
+    setStep(2);
+  }
+
+  function close() {
+    setStep(1);
+    setFileName("");
+    setRows([]);
+    onClose();
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={close}
+      size="xl"
+      title={`${title} 엑셀 업로드`}
+      footer={
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-xs text-slate-400">{fileName && `${fileName} · ${rows.length}건`}</span>
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={close}>
+              취소
+            </Button>
+            <Button
+              disabled={step !== 2 || rows.length === 0}
+              onClick={() => {
+                onApprove(rows.map((r) => r as Cell[]));
+                close();
+              }}
+            >
+              승인하고 반영
+            </Button>
+          </div>
+        </div>
+      }
+    >
+      <WizardSteps steps={["파일 선택", "정제 결과 확인", "승인"]} current={step} />
+      {step === 1 ? (
+        <div className="p-5">
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            className="flex w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 px-6 py-12 text-slate-400 transition-colors hover:border-slate-400 hover:bg-slate-50 hover:text-slate-600"
+          >
+            <IconUpload size={22} />
+            <span className="text-sm font-medium">엑셀 파일을 선택하세요</span>
+            <span className="text-xs">.xlsx · .csv</span>
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) pickFile(f.name);
+              e.target.value = "";
+            }}
+          />
+        </div>
+      ) : (
+        <div className="space-y-3 p-5">
+          <p className="text-sm text-slate-500">
+            아래 내용이 등록됩니다. 값을 눌러 수정할 수 있습니다.
+          </p>
+          <div className="thin-scroll overflow-x-auto">
+            <table className="w-full min-w-[560px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 text-xs font-medium text-slate-400">
+                  {columns.map((c) => (
+                    <th key={c} scope="col" className="px-3 py-2.5">
+                      {c}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {rows.map((r, i) => (
+                  <tr key={i}>
+                    {r.map((v, j) => (
+                      <td key={j} className="px-2 py-1.5">
+                        <input
+                          aria-label={`${i + 1}행 ${columns[j]}`}
+                          value={v}
+                          onChange={(e) =>
+                            setRows((prev) =>
+                              prev.map((row, ri) =>
+                                ri === i ? row.map((cv, ci) => (ci === j ? e.target.value : cv)) : row,
+                              ),
+                            )
+                          }
+                          className="w-full rounded-md border border-transparent px-2 py-1.5 text-sm text-slate-700 transition-colors hover:border-slate-200 focus:border-slate-400 focus:outline-none"
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
 function CreateRecordModal({
   open,
   title,
@@ -187,7 +327,6 @@ function CreateRecordModal({
       onClose={onClose}
       size="md"
       title={`${title} 신규 등록`}
-      desc="입력한 내용은 목록 맨 위에 추가됩니다. (데모 — 새로고침 시 초기화)"
       footer={
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onClick={onClose}>
@@ -256,7 +395,6 @@ function CreateMemberModal({
       onClose={onClose}
       size="md"
       title="구성원 등록"
-      desc="등록 즉시 해당 팀의 구성원 목록에 추가됩니다. (데모 — 새로고침 시 초기화)"
       footer={
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onClick={onClose}>
@@ -350,12 +488,17 @@ export function ModuleView({ mod, page }: { mod: ModuleDef; page: ModulePageData
   const [filterQuery, setFilterQuery] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [extraRows, setExtraRows] = useState<Record<string, Cell[][]>>({});
+  /** 원본 행 갱신분 — 폐기 처리·BOM 매핑 등. 원본 데이터는 건드리지 않는다 */
+  const [overrideRows, setOverrideRows] = useState<Record<string, Record<number, Cell[]>>>({});
+  const [uploadOpen, setUploadOpen] = useState(false);
+  /** 행 액션 대상 — 원본 행 인덱스 */
+  const [actionRow, setActionRow] = useState<number | null>(null);
   const [members, setMembers] = useState<Record<string, Member[]>>(HR_MEMBERS);
 
-  function switchTab(id: string) {
+  function switchTab(id: string, query?: string) {
     setActiveId(id);
-    setFilterOpen(false);
-    setFilterQuery("");
+    setFilterOpen(!!query);
+    setFilterQuery(query ?? "");
   }
 
   const [record, setRecord] = useState<DetailRecord | null>(null);
@@ -369,7 +512,10 @@ export function ModuleView({ mod, page }: { mod: ModuleDef; page: ModulePageData
   const visibleRows = active?.table
     ? [
         ...(extraRows[active.id] ?? []).map((cells) => ({ cells, origIdx: null as number | null })),
-        ...active.table.rows.map((cells, i) => ({ cells, origIdx: i as number | null })),
+        ...active.table.rows.map((cells, i) => ({
+          cells: overrideRows[active.id]?.[i] ?? cells,
+          origIdx: i as number | null,
+        })),
       ].filter((r) => !q || r.cells.some((c) => cellText(c).toLowerCase().includes(q)))
     : [];
 
@@ -394,8 +540,46 @@ export function ModuleView({ mod, page }: { mod: ModuleDef; page: ModulePageData
       }
       return;
     }
+    if (action === "upload") {
+      setUploadOpen(true);
+      return;
+    }
     // create → 팝업
     setCreateOpen(true);
+  }
+
+  /** 행 액션 확정 — 상태 배지를 바꾸고, pick 이 있으면 고른 값도 채운다 */
+  function applyRowAction(origIdx: number, picked?: string) {
+    const cfg = active?.rowAction;
+    if (!active || !cfg || !active.table) return;
+    const base = overrideRows[active.id]?.[origIdx] ?? active.table.rows[origIdx];
+    const next = [...base];
+    next[cfg.statusCol] = { badge: cfg.resultBadge.text, tone: cfg.resultBadge.tone };
+    if (cfg.pick && picked) next[cfg.pick.targetCol] = picked;
+    setOverrideRows((prev) => ({ ...prev, [active.id]: { ...(prev[active.id] ?? {}), [origIdx]: next } }));
+    setActionRow(null);
+  }
+
+  /** 행 클릭 — 상세 팝업이 있으면 팝업, 없고 drilldown 설정이 있으면 대상 탭으로 이동 */
+  function onRow(i: number) {
+    if (!active) return;
+    const orig = visibleRows[i]?.origIdx;
+    if (rowDetails) {
+      if (orig != null) setRecord(rowDetails[orig] ?? null);
+      return;
+    }
+    if (active.drilldown) {
+      const cell = visibleRows[i]?.cells[active.drilldown.colIndex];
+      switchTab(active.drilldown.toTabId, cell != null ? cellText(cell) : undefined);
+      return;
+    }
+    // 처리 대상 상태인 행만 액션 팝업을 연다
+    const cfg = active.rowAction;
+    const r = visibleRows[i];
+    if (cfg && r?.origIdx != null) {
+      const c = r.cells[cfg.statusCol];
+      if (typeof c === "object" && c.badge === cfg.activeWhen) setActionRow(r.origIdx);
+    }
   }
 
   if (!modState?.enabled) {
@@ -423,7 +607,6 @@ export function ModuleView({ mod, page }: { mod: ModuleDef; page: ModulePageData
           {mod.name}
           {mod.subfunctions.some((s) => s.ai) && <AiBadge />}
         </h1>
-        <p className="mt-0.5 text-sm text-slate-500">{mod.action}</p>
       </div>
 
       {/* KPI */}
@@ -438,14 +621,7 @@ export function ModuleView({ mod, page }: { mod: ModuleDef; page: ModulePageData
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={tabOrder} strategy={horizontalListSortingStrategy}>
             {orderedTabs.map((tab, i) => {
-              const enabled = modState.subs[tab.id] !== false;
-              if (!enabled) {
-                return (
-                  <span key={tab.id} className="px-4 py-2.5 text-sm text-slate-300" title="세부 기능이 OFF 상태입니다">
-                    {tab.label} <span className="text-[10px]">(OFF)</span>
-                  </span>
-                );
-              }
+              if (modState.subs[tab.id] === false) return null;
               return (
                 <SortableTab
                   key={tab.id}
@@ -488,7 +664,7 @@ export function ModuleView({ mod, page }: { mod: ModuleDef; page: ModulePageData
                 className={isFilterActive ? "!bg-slate-100" : ""}
               >
                 <ActionIcon size={14} />
-                {def.label}
+                {a === "create" && active?.createLabel ? active.createLabel : def.label}
               </Button>
             );
           })}
@@ -515,6 +691,18 @@ export function ModuleView({ mod, page }: { mod: ModuleDef; page: ModulePageData
         <div role="tabpanel">
           <ReportAutomation />
         </div>
+      ) : active?.custom === "purchase-order" ? (
+        <div role="tabpanel">
+          <PurchaseOrder onOpenTab={switchTab} />
+        </div>
+      ) : active?.custom === "drawing-manager" ? (
+        <div role="tabpanel">
+          <DrawingManager />
+        </div>
+      ) : active?.custom === "receiving-inspection" ? (
+        <div role="tabpanel">
+          <ReceivingInspection query={filterQuery} />
+        </div>
       ) : active ? (
         <div role="tabpanel" className="space-y-4">
           {active.chart && (
@@ -538,15 +726,20 @@ export function ModuleView({ mod, page }: { mod: ModuleDef; page: ModulePageData
             <Card>
               <DataTable
                 data={{ columns: active.table.columns, rows: visibleRows.map((r) => r.cells) }}
-                onRowClick={
-                  rowDetails
-                    ? (i) => {
-                        const orig = visibleRows[i]?.origIdx;
-                        if (orig != null) setRecord(rowDetails[orig] ?? null);
-                      }
-                    : undefined
-                }
+                onRowClick={rowDetails || active.drilldown || active.rowAction ? onRow : undefined}
               />
+              {active.rowAction && (
+                <p className="mt-3 text-xs text-slate-400">
+                  {active.rowAction.activeWhen}{" "}
+                  {
+                    visibleRows.filter((r) => {
+                      const c = r.cells[active.rowAction!.statusCol];
+                      return typeof c === "object" && c.badge === active.rowAction!.activeWhen;
+                    }).length
+                  }
+                  건 남음
+                </p>
+              )}
               {q && (
                 <p className="mt-3 text-xs text-slate-400">
                   &lsquo;{filterQuery}&rsquo; 필터 적용 중 · {visibleRows.length}건
@@ -555,15 +748,73 @@ export function ModuleView({ mod, page }: { mod: ModuleDef; page: ModulePageData
             </Card>
           )}
 
-          {active.note && (
-            <p className="flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-              <IconInfo size={16} className="mt-0.5 shrink-0 text-slate-400" />
-              {active.note}
-            </p>
-          )}
         </div>
       ) : (
         <EmptyState title="활성화된 세부 기능이 없습니다" desc="설정 > 기능 활성화 설정에서 세부 기능을 켜 주세요." />
+      )}
+
+      {active?.table && (
+        <UploadReviewModal
+          key={`${active.id}-upload-${uploadOpen}`}
+          open={uploadOpen}
+          title={active.label}
+          columns={active.table.columns}
+          onApprove={(rows) => setExtraRows((prev) => ({ ...prev, [active.id]: [...rows, ...(prev[active.id] ?? [])] }))}
+          onClose={() => setUploadOpen(false)}
+        />
+      )}
+
+      {active?.rowAction?.pick && (
+        <Modal
+          open={actionRow !== null}
+          onClose={() => setActionRow(null)}
+          size="md"
+          title={active.rowAction.pick.title}
+        >
+          <ul className="max-h-96 space-y-2 overflow-y-auto p-5">
+            {active.rowAction.pick.options.map((opt) => (
+              <li key={opt}>
+                <button
+                  type="button"
+                  onClick={() => applyRowAction(actionRow!, opt)}
+                  className="w-full cursor-pointer rounded-lg border border-slate-200 px-3.5 py-3 text-left text-sm text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50"
+                >
+                  {opt}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </Modal>
+      )}
+
+      {active?.rowAction?.confirm && !active.rowAction.pick && (
+        <Modal
+          open={actionRow !== null}
+          onClose={() => setActionRow(null)}
+          size="sm"
+          title={active.rowAction.confirm.title}
+          footer={
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setActionRow(null)}>
+                취소
+              </Button>
+              <Button variant="danger" onClick={() => applyRowAction(actionRow!)}>
+                {active.rowAction.confirm.cta}
+              </Button>
+            </div>
+          }
+        >
+          <div className="flex items-start gap-3 p-5">
+            <IconAlertTriangle size={20} className="mt-0.5 shrink-0 text-amber-500" />
+            <p className="text-sm text-slate-600">
+              <span className="font-semibold text-slate-900">
+                {actionRow !== null && active.table ? cellText(active.table.rows[actionRow][0]) : ""}
+              </span>
+              {" "}
+              {active.rowAction.confirm.message}
+            </p>
+          </div>
+        </Modal>
       )}
 
       <RecordModal record={record} onClose={() => setRecord(null)} />

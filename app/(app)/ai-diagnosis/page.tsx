@@ -288,7 +288,6 @@ export default function AiDiagnosisPage() {
                   최적화안 {OPTIMIZATION.id} <AiBadge />
                 </span>
               }
-              desc={OPTIMIZATION.summary}
               action={
                 optApplied ? (
                   <span className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-2 text-sm font-medium text-slate-600">
@@ -365,7 +364,6 @@ export default function AiDiagnosisPage() {
         <Card>
           <SectionHeader
             title="권장 조치 이행 추적"
-            desc="AI 분석 결과 기반 액션 아이템의 상태(제안→승인→이행→완료)를 추적합니다."
           />
           <ul className="divide-y divide-slate-100">
             {actions.map((a) => (

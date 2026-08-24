@@ -180,19 +180,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 const Icon = ICON_MAP[mod.icon];
                 const enabled = state[mod.slug]?.enabled;
                 const active = pathname === `/modules/${mod.slug}`;
-                if (!enabled) {
-                  return (
-                    <div
-                      key={mod.slug}
-                      aria-disabled="true"
-                      title="설정에서 활성화할 수 있어요"
-                      className="flex cursor-not-allowed select-none items-center gap-2.5 rounded-lg px-3 py-1.5 text-[13px] font-medium text-slate-300"
-                    >
-                      <Icon size={16} className="shrink-0 text-slate-300" />
-                      {mod.name}
-                    </div>
-                  );
-                }
+                if (!enabled) return null;
                 return (
                   <NavLink key={mod.slug} href={`/modules/${mod.slug}`} active={active} small>
                     <Icon size={16} className={`shrink-0 ${active ? "text-slate-700" : "text-slate-400"}`} />

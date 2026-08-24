@@ -56,7 +56,6 @@ function SystemModal({
       onClose={onClose}
       size="sm"
       title={connector ? "외부 시스템 설정" : "외부 시스템 추가"}
-      desc="연동에 꼭 필요한 정보만 입력하면 돼요."
       footer={
         <div className="flex items-center justify-between gap-3">
           <button
@@ -243,7 +242,6 @@ export function WorkspaceSettings() {
       <Card>
         <SectionHeader
           title="외부 시스템 연동"
-          desc="ERP·MES 등 사내 시스템을 연결해 데이터를 동기화합니다."
           action={
             <Button size="sm" variant="secondary" onClick={() => openSystemModal(null)}>
               <IconPlus size={14} />
@@ -274,7 +272,6 @@ export function WorkspaceSettings() {
       <Card>
         <SectionHeader
           title="모듈 간 데이터 연동"
-          desc="모듈 간 데이터 흐름 맵핑과 동기화 규칙을 관리합니다. OFF된 서브기능 관련 규칙은 자동 비활성화됩니다."
         />
         <ul className="divide-y divide-slate-100">
           {SYNC_RULES.map((r, i) => (
@@ -295,7 +292,6 @@ export function WorkspaceSettings() {
       <Card>
         <SectionHeader
           title="외부 서비스 연동"
-          desc="연결된 서비스는 AI대화와 알림에서 바로 활용할 수 있어요."
           action={
             <Button size="sm" variant="secondary" onClick={() => setConnectorLibOpen(true)}>
               <IconPlus size={14} />
@@ -334,7 +330,7 @@ export function WorkspaceSettings() {
 
       {/* 알림 설정 — 임시 비활성화 */}
       <Card>
-        <SectionHeader title="알림 설정" desc="이벤트 유형별 수신 채널을 설정합니다." />
+        <SectionHeader title="알림 설정" />
         <p className="rounded-lg border border-dashed border-slate-300 bg-slate-50/50 px-4 py-6 text-center text-sm text-slate-400">
           알림 설정은 임시 비활성화되어 있어요. 다음 업데이트에서 다시 제공될 예정이에요.
         </p>

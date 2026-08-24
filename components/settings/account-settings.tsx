@@ -48,7 +48,6 @@ function PasswordModal({ open, onClose }: { open: boolean; onClose: () => void }
       onClose={close}
       size="sm"
       title="비밀번호 변경"
-      desc="현재 비밀번호 확인 후 새 비밀번호로 변경됩니다."
       footer={
         !done && (
           <div className="flex justify-end gap-2">
@@ -169,7 +168,7 @@ export function AccountSettings() {
   return (
     <div className="space-y-5">
       <Card>
-        <SectionHeader title="프로필 관리" desc="이름·직책·연락처 등 개인 정보를 관리합니다." />
+        <SectionHeader title="프로필 관리" />
         <div className="flex flex-wrap items-start gap-6">
           <div className="flex flex-col items-center gap-2">
             <span className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-800 text-xl font-bold text-white">
@@ -246,7 +245,6 @@ export function AccountSettings() {
               </Badge>
             </span>
           }
-          desc="로그인 시 추가 인증 단계를 요구해 계정을 보호합니다."
         />
         <ul className="divide-y divide-slate-100">
           {TFA_METHODS.map((m) => (

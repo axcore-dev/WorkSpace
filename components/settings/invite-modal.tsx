@@ -36,7 +36,6 @@ export function InviteModal({ open, onClose }: { open: boolean; onClose: () => v
       onClose={close}
       size="lg"
       title="구성원 초대"
-      desc="이메일로 초대하고 사용할 수 있는 기능을 지정합니다."
       footer={
         !sent && (
           <div className="flex items-center justify-between gap-3">

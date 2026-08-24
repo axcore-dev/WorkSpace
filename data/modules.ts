@@ -9,23 +9,18 @@ export const MODULES: ModuleDef[] = [
     slug: "management",
     name: "경영지원",
     icon: "briefcase",
-    summary: "인사·급여·자재·회계·구매",
-    action: "인사·급여부터 회계·구매까지, 경영 업무를 한 곳에서 관리할 수 있어요.",
     externalSystem: "ERP",
     subfunctions: [
       { id: "hr", name: "인사 관리" },
       { id: "payroll", name: "급여 관리" },
       { id: "materials", name: "자재 관리" },
       { id: "accounting", name: "회계 관리" },
-      { id: "purchasing", name: "구매 관리" },
     ],
   },
   {
     slug: "design",
     name: "제품설계",
     icon: "compass",
-    summary: "도면·설계·BOM 관리",
-    action: "도면과 BOM, 설계 변경 이력을 버전별로 관리할 수 있어요.",
     externalSystem: "PLM",
     subfunctions: [
       { id: "drawings", name: "도면 관리" },
@@ -37,8 +32,6 @@ export const MODULES: ModuleDef[] = [
     slug: "production",
     name: "생산관리",
     icon: "factory",
-    summary: "모니터링·작업지시·공정병목",
-    action: "생산 현황을 실시간으로 보고 작업지시와 병목을 관리할 수 있어요.",
     externalSystem: "MES",
     subfunctions: [
       { id: "monitoring", name: "모니터링" },
@@ -51,8 +44,6 @@ export const MODULES: ModuleDef[] = [
     slug: "equipment",
     name: "장비관리",
     icon: "wrench",
-    summary: "정비 예측(AI)·정비 관리",
-    action: "센서로 설비 고장을 미리 예측하고 정비 일정을 잡을 수 있어요.",
     externalSystem: "설비 예지보전(PdM)",
     subfunctions: [
       { id: "predict", name: "정비 예측", ai: true },
@@ -63,8 +54,6 @@ export const MODULES: ModuleDef[] = [
     slug: "quality",
     name: "품질검사",
     icon: "clipboardCheck",
-    summary: "불량 분석·품질 관리",
-    action: "불량 원인을 분석하고 검사 결과를 기록·관리할 수 있어요.",
     externalSystem: "QMS",
     subfunctions: [
       { id: "defects", name: "불량 분석" },
@@ -75,8 +64,6 @@ export const MODULES: ModuleDef[] = [
     slug: "inventory",
     name: "재고·물류",
     icon: "truck",
-    summary: "품목 기준정보·재고·입고 검사·입출고 이력",
-    action: "품목 기준정보부터 입고 검사, 입출고 이력까지 재고를 한 흐름으로 관리할 수 있어요.",
     externalSystem: "WMS",
     subfunctions: [
       { id: "items", name: "품목 마스터" },
@@ -84,14 +71,13 @@ export const MODULES: ModuleDef[] = [
       { id: "safety", name: "안전 재고" },
       { id: "receiving", name: "입고·수입검사" },
       { id: "movements", name: "입출고 이력" },
+      { id: "purchasing", name: "구매(발주) 관리" },
     ],
   },
   {
     slug: "sales",
     name: "영업관리",
     icon: "trendingUp",
-    summary: "수주·수요 예측(AI)·단가 견적",
-    action: "수주부터 수요 예측, 단가 견적까지 영업 흐름을 관리할 수 있어요.",
     externalSystem: "CRM",
     subfunctions: [
       { id: "orders", name: "수주 관리" },
@@ -103,8 +89,6 @@ export const MODULES: ModuleDef[] = [
     slug: "support",
     name: "고객지원",
     icon: "headset",
-    summary: "AS 접수·AS 트래킹·VOC 분석",
-    action: "AS 접수부터 처리 추적, VOC 분석까지 고객 대응을 관리할 수 있어요.",
     externalSystem: "CS 시스템",
     subfunctions: [
       { id: "tickets", name: "AS 접수" },

@@ -144,7 +144,6 @@ export default function WorkspacePage() {
         onClose={() => setCreateOpen(false)}
         size="sm"
         title="새 워크스페이스 생성"
-        desc="조직 정보를 입력하면 워크스페이스가 생성되고 관리자 권한이 부여됩니다."
         footer={
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setCreateOpen(false)}>

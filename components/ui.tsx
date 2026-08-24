@@ -1,5 +1,5 @@
 import type { Cell, StatData, TableData, Tone } from "@/data/types";
-import { IconArrowDownRight, IconArrowUpRight } from "@/components/icons";
+import { IconArrowDownRight, IconArrowUpRight, IconCheck } from "@/components/icons";
 
 /**
  * 색상 정책 (사용자 지침):
@@ -243,6 +243,35 @@ export function DataTable({
         </tbody>
       </table>
     </div>
+  );
+}
+
+/**
+ * 모달 위저드 진행 표시 — 지난 단계는 체크, 현재 단계는 메인 컬러.
+ * (생산관리 보고 자동화의 흐름 설명 배너와는 용도가 다르다. 그쪽은 3단계 고정 안내문.)
+ */
+export function WizardSteps({ steps, current }: { steps: string[]; current: number }) {
+  return (
+    <ol className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-5 py-3.5">
+      {steps.map((label, i) => {
+        const n = i + 1;
+        const done = current > n;
+        const now = current === n;
+        return (
+          <li key={label} className="flex items-center gap-2">
+            <span
+              className={`flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold ${
+                done ? "bg-slate-800 text-white" : now ? "bg-primary-600 text-white" : "bg-slate-100 text-slate-400"
+              }`}
+            >
+              {done ? <IconCheck size={11} /> : n}
+            </span>
+            <span className={`text-xs ${now ? "font-semibold text-slate-900" : "text-slate-400"}`}>{label}</span>
+            {n < steps.length && <span className="ml-1 text-slate-300">›</span>}
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 

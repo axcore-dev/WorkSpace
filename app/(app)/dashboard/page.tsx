@@ -253,7 +253,6 @@ export default function DashboardPage() {
         onClose={() => setDetail(null)}
         size="lg"
         title="현금흐름 예측 — 영업활동 현금흐름"
-        desc={`${CASHFLOW_FORECAST.asOf} · 향후 3개월 들어올 돈과 나갈 돈을 매칭한 시뮬레이션이에요.`}
       >
         <div className="space-y-5 p-5">
           <div>
@@ -272,7 +271,6 @@ export default function DashboardPage() {
         onClose={() => setDetail(null)}
         size="xl"
         title="납기 준수율 상세"
-        desc="월별 납기 실적과 지연 리스크 주문이에요."
       >
         <div className="space-y-5 p-5">
           <div className="grid grid-cols-3 gap-3">
@@ -315,7 +313,6 @@ export default function DashboardPage() {
         onClose={() => setDetail(null)}
         size="xl"
         title="실시간 가동 현황"
-        desc="오늘 계획 대비 생산 실적과 라인별 상태예요."
       >
         <div className="space-y-5 p-5">
           <div className="grid grid-cols-3 gap-3">
@@ -355,7 +352,6 @@ export default function DashboardPage() {
         onClose={() => setPickerOpen(false)}
         size="lg"
         title="위젯 편집"
-        desc="ON 상태인 핵심 기능의 그래프를 주요 정보로 가져오거나 제거합니다."
       >
         <div className="p-5">
           {availableWidgets.length === 0 ? (

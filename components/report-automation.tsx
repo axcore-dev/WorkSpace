@@ -24,9 +24,9 @@ const pct = (v: number) => `${v.toFixed(1)}%`;
 /** 현장 입력 → 자동 집계 → AI 보고서 3단계 흐름 표시 */
 function StepStrip({ reportReady }: { reportReady: boolean }) {
   const steps = [
-    { n: 1, label: "현장 입력", desc: "작업자 POP·태블릿", done: true },
-    { n: 2, label: "자동 집계", desc: "입력 즉시 실시간 반영", done: true },
-    { n: 3, label: "AI 보고서", desc: "일일 생산·품질 보고서", done: reportReady },
+    { n: 1, label: "현장 입력", done: true },
+    { n: 2, label: "자동 집계", done: true },
+    { n: 3, label: "AI 보고서", done: reportReady },
   ];
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
@@ -40,7 +40,6 @@ function StepStrip({ reportReady }: { reportReady: boolean }) {
             {s.done ? <IconCheck size={12} /> : s.n}
           </span>
           <span className="text-sm font-semibold text-slate-800">{s.label}</span>
-          <span className="hidden text-xs text-slate-400 sm:inline">{s.desc}</span>
           {i < steps.length - 1 && <IconArrowRight size={14} className="mx-1 text-slate-300" />}
         </div>
       ))}
@@ -190,7 +189,7 @@ export function ReportAutomation() {
       <div className="grid gap-4 xl:grid-cols-[340px_1fr]">
         {/* ── ① 현장 입력 ── */}
         <Card className="self-start">
-          <SectionHeader title="① 현장 실적 입력" desc="작업자가 POP 단말·태블릿에서 입력하는 화면입니다. 등록 즉시 집계에 반영됩니다." />
+          <SectionHeader title="① 현장 실적 입력" />
           <form
             className="space-y-3.5"
             onSubmit={(e) => {
@@ -280,7 +279,6 @@ export function ReportAutomation() {
         <Card className="self-start">
           <SectionHeader
             title="② 실시간 자동 집계"
-            desc="현장 입력이 집계 서버로 전송되어 라인·불량 유형별로 자동 합산됩니다."
           />
           <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
             {[
@@ -321,7 +319,6 @@ export function ReportAutomation() {
               ③ 일일 생산·품질 보고서 <AiBadge />
             </span>
           }
-          desc="집계 결과를 근거로 AI가 보고서 초안을 작성합니다. 발송 전 내용을 검토하세요."
           action={
             reportAt ? (
               <Button variant="secondary" onClick={generateReport} disabled={generating}>

@@ -10,9 +10,9 @@ export function RecordModal({ record, onClose }: { record: DetailRecord | null; 
     <Modal
       open={!!record}
       onClose={onClose}
-      size="lg"
+      // 검수 상세처럼 열이 많은 표는 넓게 — 기본은 lg 유지
+      size={(record?.table?.columns.length ?? 0) > 6 ? "xl" : "lg"}
       title={record?.title}
-      desc={record?.subtitle}
     >
       {record && (
         <div className="space-y-5 p-5">
