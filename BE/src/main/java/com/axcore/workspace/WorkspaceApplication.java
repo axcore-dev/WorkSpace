@@ -1,13 +1,13 @@
-package ai.axcore.axpoint;
+package com.axcore.workspace;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class AxpointApplication {
+public class WorkspaceApplication {
 
 	public static void main(String[] args) {
-		SpringApplication.run(AxpointApplication.class, args);
+		SpringApplication.run(WorkspaceApplication.class, args);
 	}
 
 }

@@ -4,9 +4,9 @@ plugins {
 	id("io.spring.dependency-management") version "1.1.7"
 }
 
-group = "ai.axcore"
+group = "com.axcore"
 version = "0.0.1-SNAPSHOT"
-description = "AXpoint backend"
+description = "AXpoint WorkSpace backend"
 
 java {
 	toolchain {
