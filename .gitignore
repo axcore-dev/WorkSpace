@@ -54,3 +54,8 @@ __pycache__/
 
 # IDE 로컬 설정
 .idea/
+
+# 환경변수 파일
+/BE/.env
+/FE/.env
+/INFRA/.env
