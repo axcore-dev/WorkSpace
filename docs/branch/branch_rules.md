@@ -1,0 +1,46 @@
+# 브랜치 명명 규칙
+
+## 기준 브랜치
+
+| 브랜치 | 역할 |
+| --- | --- |
+| `main` | 릴리스 브랜치. 직접 커밋하지 않는다. |
+| `dev` | **기본(default) 브랜치.** 모든 작업 브랜치는 여기서 따고, 여기로 병합한다. |
+
+## 형식
+
+```
+<최상위 폴더>/<작업 유형>/<기능 내용>
+```
+
+- **최상위 폴더** — 작업하는 최상위 디렉터리 이름을 그대로 쓴다. 대문자.
+  - `FE` / `BE` / `INFRA` / `AI`
+  - 여러 영역에 걸치면 변경의 무게중심이 있는 쪽을 쓴다.
+- **작업 유형** — 소문자. 커밋 타입(`docs/commit/commit-convention.md`)과 같은 어휘를 쓴다.
+  - `feature` / `fix` / `refactor` / `docs` / `style` / `test` / `chore` / `hotfix`
+  - 커밋의 `feat`에 대응하는 브랜치 유형은 `feature`로 쓴다.
+- **기능 내용** — 영문 소문자 + 하이픈(kebab-case). 무엇을 하는 브랜치인지 알 수 있게 2~4 단어.
+
+## 예시
+
+```
+BE/feature/purchase-order-api
+AI/refactor/graph-query-pipeline
+FE/fix/inventory-tab-overflow
+FE/feature/safety-stock-view
+INFRA/chore/github-actions-setup
+```
+
+## 브랜치 생성 절차
+
+브랜치를 만들기 전에 **항상** 원격을 먼저 당긴다. 낡은 로컬 `dev` 위에서 브랜치를 따면 나중에 불필요한 충돌·머지 커밋이 생긴다.
+
+```bash
+git checkout dev
+git pull origin dev
+git checkout -b FE/feature/safety-stock-view
+```
+
+## 현재 상태 메모
+
+- 2026-08-25 기준 원격(`origin`)에는 `main`만 있고 `dev` 브랜치가 아직 없다. 위 규칙대로 운영하려면 `dev`를 만들고 GitHub 저장소 설정에서 default 브랜치로 지정해야 한다.
