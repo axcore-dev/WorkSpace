@@ -1,0 +1,47 @@
+# Spring Boot(BE) 실행용.
+#
+#   docker compose -f docker-compose.yml up -d --build
+#   docker compose -f docker-compose.yml logs -f app
+#   docker compose -f docker-compose.yml down
+#
+# DB 는 docker-compose.db.yml 로 따로 띄운다. 두 파일은 별도 프로젝트이므로
+# depends_on 으로 묶을 수 없고, axcore-net 네트워크로만 연결된다.
+# 따라서 DB 를 먼저 올린 뒤 앱을 올린다.
+#
+# 최초 1회:
+#   docker network create axcore-net
+
+name: axcore-app
+
+services:
+  app:
+    build:
+      context: ../BE
+      dockerfile: Dockerfile
+    image: axcore/workspace-be:local
+    container_name: axcore-be
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
+      TZ: Asia/Seoul
+      # 아래 3개는 application.properties 의 DataSource 설정이 아직 주석 상태라
+      # 지금은 앱이 읽지 않는다. 주석을 풀면 그대로 spring.datasource.* 로 들어간다.
+      # 호스트 `postgres` 는 docker-compose.db.yml 의 서비스명이다.
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-workspace}
+      DB_USERNAME: ${POSTGRES_USER:-workspace}
+      # 값은 INFRA/.env 에서 온다. 이 파일에 적지 않는다.
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+networks:
+  # DB compose 와 공유하는 네트워크.
+  default:
+    name: axcore-net
+    external: true
