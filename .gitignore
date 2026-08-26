@@ -68,3 +68,4 @@ __pycache__/
 # 에이전트 스킬은 개인 로컬에서만 사용 가능하도록 설정
 .agents/
 .claude/
+skills-lock.json
