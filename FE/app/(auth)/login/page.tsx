@@ -64,7 +64,7 @@ export default function LoginPage() {
             프로토타입에서 양산까지, 하나의 코어 위에서.
           </p>
         </div>
-        <p className="relative text-xs text-slate-500">© 2026 AXCORE · AXpoint 데모 환경</p>
+        <p className="relative text-xs text-slate-500">© 2026 AXCORE · WorkSpace 데모 환경</p>
       </div>
 
       {/* ── 우측 폼 ── */}
@@ -81,7 +81,7 @@ export default function LoginPage() {
               <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-900">
                 다시 오신 것을 환영합니다
               </h2>
-              <p className="mt-1.5 text-sm text-slate-500">AXpoint 운영 콘솔에 접속하세요.</p>
+              <p className="mt-1.5 text-sm text-slate-500">WorkSpace 운영 콘솔에 접속하세요.</p>
 
               <form
                 className="mt-8 space-y-4"

@@ -151,7 +151,7 @@ export function ReportAutomation() {
   function downloadExcel() {
     const rows: Cell[][] = [
       ["일일 생산·품질 보고서"],
-      ["(주)데모컴퍼니 생산본부", "2026-07-20", "문서번호 RPT-260720-01", `작성 AXpoint AI · ${reportAt} 자동 생성`],
+      ["(주)데모컴퍼니 생산본부", "2026-07-20", "문서번호 RPT-260720-01", `작성 WorkSpace AI · ${reportAt} 자동 생성`],
       [],
       ["요약", "값", "비고"],
       ["총 생산 실적", `${nf.format(agg.produced)} EA`, `계획 ${nf.format(agg.plan)} EA`],
@@ -371,7 +371,7 @@ export function ReportAutomation() {
                     <h3 className="text-lg font-bold tracking-tight text-slate-900">일일 생산·품질 보고서</h3>
                     <p className="mt-0.5 text-xs text-slate-500">(주)데모컴퍼니 생산본부 · 2026-07-20 · 문서번호 RPT-260720-01</p>
                   </div>
-                  <p className="text-xs text-slate-400">작성 AXpoint AI · {reportAt} 자동 생성</p>
+                  <p className="text-xs text-slate-400">작성 WorkSpace AI · {reportAt} 자동 생성</p>
                 </div>
               </div>
               <div className="space-y-5 px-6 py-5">

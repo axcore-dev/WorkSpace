@@ -205,7 +205,7 @@ export default function DashboardPage() {
                   {up ? <IconArrowUpRight size={11} /> : <IconArrowDownRight size={11} />}
                   {kpi.delta}
                 </span>
-                <Sparkline values={kpi.spark} width={64} height={20} color="#94a3b8" />
+                <Sparkline values={kpi.spark} width={64} height={20} color={CHART.neutral400} />
               </div>
               <p className="mt-1 truncate text-[11px] text-slate-400">{kpi.sub}</p>
             </Link>

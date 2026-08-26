@@ -43,7 +43,7 @@ function parseMessages(body: unknown): AiChatMessage[] | null {
 
 /* ── 발주서 시나리오 컨텍스트 — 실제 OCR·재고 DB 연동 시 이 상수를 조회 결과로 교체 (캘린더는 아래에서 실제 API로 조회) ── */
 
-const COMPANY_CONTEXT = `너는 제조기업 (주)데모컴퍼니의 ERP 'AXpoint'에 내장된 AI 어시스턴트다.
+const COMPANY_CONTEXT = `너는 제조기업 (주)데모컴퍼니의 ERP 'WorkSpace'에 내장된 AI 어시스턴트다.
 오늘은 2026-07-06(월)이다. 존댓말(~해요/~습니다)로 간결하게 답한다.`;
 
 const PURCHASE_CONTEXT = `[업로드 발주서 OCR 텍스트]
@@ -52,7 +52,7 @@ const PURCHASE_CONTEXT = `[업로드 발주서 OCR 텍스트]
 품목: 황동봉 C3604 Ø12 · 수량 800kg · 단가 9,340원/kg · 금액 7,472,000원
 납기: 2026-07-11 · 결제: 월말 마감 익월 30일
 
-[AXpoint 참고 데이터]
+[WorkSpace 참고 데이터]
 - 자재 마스터: MAT-BR-C36 황동봉 C3604 Ø12 · 공급처 대신금속 · 최근 단가 9,340원/kg (보합)
 - 재고: 원자재 2창고 현재고 1,120kg · 가용 980kg · 30일 예측 소요 760kg
 - 구매 이력: PR-2606-086 황동봉 800kg (대신금속, 7/3 입고 완료)

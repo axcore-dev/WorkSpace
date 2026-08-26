@@ -1,13 +1,15 @@
-# AXpoint 디자인 시스템
+# WorkSpace 디자인 시스템
 
-AXpoint 데모의 시각 언어와 공용 컴포넌트 규칙. 코드가 단일 소스이며, 이 문서는 그 인덱스다.
+WorkSpace 데모의 시각 언어와 공용 컴포넌트 규칙. 코드가 단일 소스이며, 이 문서는 그 인덱스다.
 
 | 소스 | 역할 |
 | --- | --- |
 | `app/globals.css` | 디자인 토큰 (색·폰트), 전역 스타일 |
 | `components/ui.tsx` | 공용 컴포넌트 + `FIELD`/`TONE_TEXT` 공유 상수 |
 | `lib/palette.ts` | 차트 시리즈 색상 팔레트 |
-| `components/modal.tsx`, `charts.tsx`, `icons.tsx`, `logo.tsx` | 다이얼로그·차트·아이콘·브랜드 로고 |
+| `components/modal.tsx`, `record-modal.tsx` | 다이얼로그 — `Modal` / `RecordModal`·`MembersModal` |
+| `components/charts.tsx` | 순수 SVG 차트 |
+| `components/icons.tsx`, `brand-icons.tsx`, `logo.tsx` | 인라인 아이콘 + `ICON_MAP` / 외부 서비스 아이콘 / 브랜드 로고 |
 
 ## 원칙 — 무채색 우선
 
@@ -56,6 +58,7 @@ AXpoint 데모의 시각 언어와 공용 컴포넌트 규칙. 코드가 단일 
 | `CHART.primary400/300/200` | 밝기 단계 | 도넛 등 다중 세그먼트 |
 | `CHART.neutral` | `#cbd5e1` | 비교·계획 시리즈 |
 | `CHART.muted` | `#e2e8f0` | 잔여·기타 세그먼트 |
+| `CHART.neutral400` | `#94a3b8` | 스파크라인 등 소형 차트 라인 |
 | `CHART.amber` / `CHART.red` | amber/red-500 | 경고·이상 상태 시리즈 |
 
 ## 타이포그래피
@@ -80,6 +83,7 @@ AXpoint 데모의 시각 언어와 공용 컴포넌트 규칙. 코드가 단일 
 | `AiBadge` | AI 기능 표기 | 무채색 외곽선 태그 |
 | `Stat` | KPI 숫자 카드 | delta 화살표 + 톤 |
 | `DataTable` | 데이터 테이블 | `onRowClick`으로 행 상세(`RecordModal`) 연결 |
+| `WizardSteps` | 다단계 폼 진행 표시 | 완료 = 다크 슬레이트, 현재 = `primary-600` |
 | `Toggle` | 스위치 | ON = 다크 슬레이트 |
 | `ProgressBar` | 진행률 | 톤별 색, 중립은 다크 슬레이트 |
 | `SectionHeader` | 섹션 제목/설명/액션 | |
@@ -87,7 +91,11 @@ AXpoint 데모의 시각 언어와 공용 컴포넌트 규칙. 코드가 단일 
 | `FIELD` (상수) | 입력 필드 공용 클래스 | 로그인·설정·모달 폼에서 import해 사용 |
 | `isPersonalEmail` (유틸) | 개인 메일 도메인 판별 | 업무용 메일 지향 안내 (로그인·회원가입) |
 
-보조: `Modal`(sm~xl, ESC 닫기), `RecordModal`(행 상세), `LineChart`·`BarChart`(막대별 색 `perBarColors` — 예측 구간 연하게)·`ComboChart`(막대+선 혼합)·`DonutChart`·`Gauge`(순수 SVG, `charts.tsx`), `Logo`(PNG, 종횡비 3.87:1 — height 기준 지정, flex 컨테이너에서 stretch되지 않게 주의), `Icon*`(인라인 SVG, `icons.tsx`).
+보조 — 다이얼로그: `Modal`(sm~xl, ESC 닫기 · `modal.tsx`), `RecordModal`(행 상세)·`MembersModal`(둘 다 `record-modal.tsx`).
+
+차트(`charts.tsx`, 의존성 없는 순수 SVG): `LineChart`·`BarChart`(막대별 색 `perBarColors` — 예측 구간 연하게)·`ComboChart`(막대+선 혼합)·`DonutChart`·`GaugeChart`·`Sparkline`(KPI 카드용 미니 라인 — `color` **필수**, 기본값 없음)·`ChartFromSpec`(`ChartSpec.type`으로 위 차트를 분기 렌더).
+
+브랜드·아이콘: `Logo`(PNG, 종횡비 3.87:1 — height 기준 지정, flex 컨테이너에서 stretch되지 않게 주의), `Icon*` + `ICON_MAP`(인라인 SVG, `icons.tsx`), `BrandIcon` + `BRANDS`(외부 서비스 로고, `brand-icons.tsx`).
 
 AI 표현(전역 CSS, `globals.css`): `.shimmer-text`(추론 로딩 쉬머). AI 관련 표면에만 사용한다. AI대화는 프로필/아바타 없이 텍스트만으로 표현한다(ChatGPT·Gemini식 심플 레이아웃).
 

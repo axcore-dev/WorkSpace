@@ -54,7 +54,7 @@ export const REPORT_REASONING = [
 
 /** 보고서 결재선 (목업) */
 export const APPROVAL_LINE = [
-  { role: "작성", name: "AXpoint AI", state: "자동 생성" },
+  { role: "작성", name: "WorkSpace AI", state: "자동 생성" },
   { role: "검토", name: "김재현 팀장", state: "검토 대기" },
   { role: "승인", name: "생산본부장", state: "승인 대기" },
 ];

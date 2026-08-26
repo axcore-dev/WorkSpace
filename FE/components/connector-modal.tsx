@@ -67,7 +67,7 @@ function ConnectorDetailModal({
             </div>
             <div>
               <dt className="text-xs font-medium text-slate-400">작성자</dt>
-              <dd className="mt-1 text-sm text-slate-700">AXpoint</dd>
+              <dd className="mt-1 text-sm text-slate-700">WorkSpace</dd>
             </div>
             <div>
               <dt className="text-xs font-medium text-slate-400">추가 정보</dt>

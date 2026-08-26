@@ -9,10 +9,10 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
         <Link href="/login" aria-label="AXCORE 홈">
           <Logo height={22} />
         </Link>
-        <p className="text-xs text-slate-400">AXpoint · AI 통합 워크스페이스</p>
+        <p className="text-xs text-slate-400">WorkSpace · AI 통합 워크스페이스</p>
       </header>
       <main className="flex w-full justify-center">{children}</main>
-      <footer className="mt-10 text-xs text-slate-400">© 2026 AXCORE · AXpoint 데모 환경</footer>
+      <footer className="mt-10 text-xs text-slate-400">© 2026 AXCORE · WorkSpace 데모 환경</footer>
     </div>
   );
 }

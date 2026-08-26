@@ -16,6 +16,8 @@ export const CHART = {
   neutral: "#cbd5e1",
   /** 잔여·기타 세그먼트 (slate-200) */
   muted: "#e2e8f0",
+  /** 진한 중립 — 스파크라인 등 소형 차트 라인 (slate-400) */
+  neutral400: "#94a3b8",
   /** 경고 상태 (amber-500) */
   amber: "#f59e0b",
   /** 이상·중단 상태 (red-500) */

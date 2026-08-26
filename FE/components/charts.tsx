@@ -442,12 +442,13 @@ export function GaugeChart({
 
 export function Sparkline({
   values,
-  color = "#6444d9",
+  color,
   width = 96,
   height = 28,
 }: {
   values: number[];
-  color?: string;
+  /** DESIGN.md 규칙대로 CHART 팔레트에서만 받는다 — 기본값을 두지 않아 컴파일 시 강제된다. */
+  color: string;
   width?: number;
   height?: number;
 }) {

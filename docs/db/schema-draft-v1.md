@@ -1,4 +1,4 @@
-# AXpoint 스키마 관계도
+# WorkSpace 스키마 관계도
 
 `POSTGRESQL · 설계 초안 V1 · SETTINGS 반영`
 
@@ -292,7 +292,7 @@ stock_movements.receipt_line_id → receipt_lines
 
 ---
 
-`AXPOINT · DB SCHEMA DRAFT v1` — `33 TABLES / 4 DOMAINS`
+`WORKSPACE · DB SCHEMA DRAFT v1` — `33 TABLES / 4 DOMAINS`
 
 ---
 
