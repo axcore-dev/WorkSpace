@@ -23,18 +23,30 @@ WorkSpace 데모의 시각 언어와 공용 컴포넌트 규칙. 코드가 단�
 
 브랜드: **AXCORE Electric Blue `#0A50FF`** = `primary-600`. `globals.css`의 `@theme`에 `primary-50 ~ 950` 단계가 정의되어 있고 Tailwind 클래스(`bg-primary-600` 등)로 사용한다.
 
-무채색은 Tailwind `slate` 스케일을 그대로 쓴다. 관례:
+### 시맨틱 역할 (도입 예정 — `docs/개발 요청 사항/` 계획서 참조)
 
-| 용도 | 클래스 |
-| --- | --- |
-| 본문/제목 텍스트 | `text-slate-900` |
-| 보조 텍스트 | `text-slate-500` ~ `600` |
-| 뮤트 텍스트·테이블 헤더 | `text-slate-400` |
-| 카드·모달 테두리 | `border-slate-200` (모달 내부 구분선은 `slate-100`) |
-| 입력 필드 테두리 | `border-slate-300`, focus 시 `slate-400` |
-| 본문(페이지) 배경 | `bg-white` — 카드는 테두리로만 구분 |
-| 사이드 패널 배경 | `bg-slate-100` (활성 메뉴는 `bg-white` + `ring-slate-200`) |
-| 인증 카드 화면 배경 | `bg-slate-50` |
+색은 세 도메인의 시맨틱 계층으로 호출한다. base 팔레트(`slate-*`, `primary-*`) 직접 참조는 새 역할을 만들 때만 한다.
+
+| 도메인 | 계층 | 담당 |
+| --- | --- | --- |
+| 표면·텍스트·테두리 | `ink` / `line` / `surface` / `accent` (아래 표) | 화면의 정적 구조 |
+| 상태·심각도 | `Tone` + `TONE_TEXT` | 정상/경고/이상 표현 |
+| 차트 시리즈 | `CHART` | 데이터 시각화 |
+
+| 역할 | base 값 | 용도 |
+| --- | --- | --- |
+| `ink` | `slate-900` | 본문/제목 텍스트 |
+| `ink-soft` | `slate-600` | 보조 텍스트 (짙은 쪽. 옅은 보조는 `slate-500`) |
+| `ink-mute` | `slate-400` | 뮤트 텍스트·테이블 헤더·플레이스홀더 |
+| `line` | `slate-200` | 카드·모달 테두리 |
+| `line-soft` | `slate-100` | 모달 내부 구분선·리스트 divider |
+| `line-input` | `slate-300` | 입력 필드 테두리 (focus 시 `slate-400`) |
+| `surface` | `white` | 본문(페이지) 배경 — 카드는 테두리로만 구분 |
+| `surface-panel` | `slate-100` | 사이드 패널 배경 (활성 메뉴는 `bg-white` + `ring-slate-200`) |
+| `surface-sunken` | `slate-50` | 인증 카드 화면 배경·빈 상태 배경 |
+| `accent` | `primary-600` | 주요 액션·링크. **화면당 1~2곳** |
+
+구현 전까지는 위 표의 base 값 클래스를 그대로 쓴다. 구현 후에는 신규 코드부터 시맨틱 클래스를 쓰고 기존 코드는 화면 단위로 점진 교체한다 — 전면 일괄 교체 금지.
 
 ### 상태 톤 (`Tone`)
 
@@ -55,7 +67,7 @@ WorkSpace 데모의 시각 언어와 공용 컴포넌트 규칙. 코드가 단�
 | 키 | 값 | 용도 |
 | --- | --- | --- |
 | `CHART.primary` | `#0a50ff` | 주 시리즈 (실적 등) |
-| `CHART.primary400/300/200` | 밝기 단계 | 도넛 등 다중 세그먼트 |
+| `CHART.primary400/300/200` | 밝기 단계 | 도넛 등 다중 세그먼트 (`200`은 예측 구간) |
 | `CHART.neutral` | `#cbd5e1` | 비교·계획 시리즈 |
 | `CHART.muted` | `#e2e8f0` | 잔여·기타 세그먼트 |
 | `CHART.neutral400` | `#94a3b8` | 스파크라인 등 소형 차트 라인 |
@@ -63,15 +75,52 @@ WorkSpace 데모의 시각 언어와 공용 컴포넌트 규칙. 코드가 단�
 
 ## 타이포그래피
 
-- 폰트: **Pretendard Variable** (CDN), `--font-sans`으로 등록. 숫자는 `font-feature-settings: "tnum"`으로 고정폭.
+- 폰트: **Pretendard Variable** (CDN), `--font-sans`으로 등록.
 - 페이지 제목 `text-2xl font-bold tracking-tight`, 섹션 제목 `text-[15px] font-semibold`(`SectionHeader`), 본문 `text-sm`, 보조 `text-xs`.
+- **숫자는 전역 tnum 고정폭.** ERP 화면의 숫자는 항상 표·KPI·금액 맥락이므로 비례폭(proportional) 분리를 두지 않는다 — 예외가 필요해지기 전까지 정책은 "전부 tabular" 하나다.
 
-## 모양·간격 컨벤션
+## 간격
+
+베이스는 Tailwind 4px 스케일. 화면 전반의 룰 오브 섬:
+
+| 자리 | 값 | 클래스 |
+| --- | --- | --- |
+| 페이지 아우터 | 24px (lg 32px) + 중앙 정렬 | `mx-auto max-w-7xl px-6 py-6 lg:px-8` |
+| 카드 그리드 사이 | 16px | `gap-4` |
+| 카드 내부 밀접 요소 (아이콘+라벨 등) | 8~12px | `gap-2` ~ `gap-3` |
+| 섹션 세로 흐름 | 16~20px | `space-y-4` ~ `space-y-5` |
+| 라벨 ↔ 입력 | 6px | `mb-1.5` |
+| 카드 패딩 | 20px | `p-5` (모달 헤더/푸터는 `px-5`) |
+
+새 화면은 이 표에서 고른다. 표에 없는 간격이 필요하면 먼저 위 값으로 풀리는지 의심한다.
+
+## 모양
 
 - 카드 `rounded-xl`, 모달 `rounded-2xl`, 버튼·입력 `rounded-lg`.
-- 그림자는 모달(`shadow-2xl`)에만. 카드는 테두리로만 구분한다.
-- 카드 패딩 `p-5`, 모달 헤더/푸터 `px-5`.
-- 전환은 `transition-colors duration-200` 수준의 절제된 효과만. `prefers-reduced-motion` 대응이 전역에 있다.
+- **그림자는 떠 있는 표면에만**: 모달 `shadow-2xl`, 토스트·드롭다운 메뉴 `shadow-lg`. 카드·페이지 요소는 테두리로만 구분한다.
+
+## 모션
+
+절제가 기본. 사다리는 세 단이고, 전환 대상은 색·투명도가 원칙이다.
+
+| 단 | 값 | 자리 |
+| --- | --- | --- |
+| fast | `duration-150` | 내비게이션·리스트 hover 등 마이크로 인터랙션 |
+| base | `duration-200` | 공용 컴포넌트 기본 (`Button`, `Toggle` — `transition-colors`) |
+| slow | `duration-300` | 크기·레이아웃 변화 (`ProgressBar` width) |
+
+- 명명 애니메이션 예외 2개: `.shimmer-text`(AI 추론 로딩, 1.8s — **AI 표면 전용**), `.tab-wiggle`(탭 편집 모드, 0.28s).
+- 금지: 바운스 오버슈트, 패럴랙스, 300ms 초과 UI 전환, AI 표면 밖의 shimmer/skeleton.
+- `prefers-reduced-motion` 대응이 전역에 있다 — 개별 컴포넌트에서 다시 처리하지 않는다.
+
+## 상태 정책
+
+| 상태 | 규칙 |
+| --- | --- |
+| hover | 배경 한 단계 (`hover:bg-slate-50` / `hover:bg-slate-100`) 또는 텍스트 한 단계. 데스크톱의 1차 피드백 |
+| focus | `focus-visible:outline-2 focus-visible:outline-offset-2`. 입력 필드는 `focus:border-slate-400` — **블루 아님** (블루는 액션 전용) |
+| disabled | **노드 전체** `disabled:opacity-40` + `cursor-not-allowed`. 부분 회색 처리 금지 |
+| 폼 에러 | 필드 테두리 `border-red-300` + 아래 `text-xs text-red-600` 헬퍼 텍스트 (도입 예정 — 계획서 참조). 메시지는 다음 행동을 안내한다 (UX 라이팅 절) |
 
 ## 공용 컴포넌트 (`components/ui.tsx`)
 
@@ -99,14 +148,56 @@ WorkSpace 데모의 시각 언어와 공용 컴포넌트 규칙. 코드가 단�
 
 AI 표현(전역 CSS, `globals.css`): `.shimmer-text`(추론 로딩 쉬머). AI 관련 표면에만 사용한다. AI대화는 프로필/아바타 없이 텍스트만으로 표현한다(ChatGPT·Gemini식 심플 레이아웃).
 
+## UX 라이팅
+
+토스 보이스톤 기반. 제품 안의 모든 문구에 적용한다.
+
+| 규칙 | Don't → Do |
+| --- | --- |
+| 해요체 — 상황·맥락 불문 | ~보냅니다 → ~보낼게요 |
+| 능동형 | 변경됐어요 → 바꿨어요 · 높아졌어요 → 올랐어요 |
+| 긍정형 | 허락하기 전에는 가입할 수 없어요 → 허락해야 가입할 수 있어요 |
+| 캐주얼한 경어 (과도한 존대 금지) | 확인하시겠어요? → 확인할까요? · 계시다 → 있다 · ~께 → ~에게 |
+| {명사}+{명사} 금지 — 한자어 풀어쓰기 | 잔액 부족 → 잔액이 부족해서 |
+
+- **에러는 다음 행동이 제목**이다: "지금 버전에는 쓸 수 없어요" ✗ → "앱을 업데이트해주세요" ✓ (막힌 이유는 보조 문구로).
+- 다이얼로그 왼쪽 버튼은 **[닫기]**로 통일한다 — [취소]는 진행 중인 작업이 취소된다고 오해된다.
+- 버튼은 일어날 일을 직접 말한다 (저장하기·다음) — "여기를 눌러주세요" 같은 디렉티브 금지.
+- '~시'를 빼서 어색해지면 파악하려는 정보를 주어로 문장을 재구성한다.
+
 ## 접근성
 
 - 포커스는 `focus-visible:outline-2 focus-visible:outline-offset-2`로 표시.
-- 토글은 `role="switch"` + `aria-checked`, 모달은 `role="dialog"` + `aria-modal`, 차트 SVG는 `role="img"` + `aria-label`.
+- 토글은 `role="switch"` + `aria-checked`, 모달은 `role="dialog"` + `aria-modal`, 차트 SVG는 `role="img"` + `aria-label`, 토스트는 `role="status"` + `aria-live="polite"`.
 - 새 인터랙션 요소를 만들 때 이 패턴을 따른다.
+
+## Do / Don't
+
+**Do**
+
+- 색은 시맨틱 계층으로 호출한다 — 구조는 역할 표, 상태는 `Tone`, 차트는 `CHART`.
+- 블루(`accent`)는 화면당 1~2곳 — 주 CTA·핵심 링크에만.
+- 상태·심각도는 옅은 색 텍스트로만 구분한다.
+- disabled는 노드 전체 opacity로 처리한다.
+- 간격·모션은 위 사다리 표에서 고른다.
+- 폼 입력은 `FIELD`, 차트 색은 `CHART`를 import한다.
+- 카피는 UX 라이팅 절을 따른다 — 해요체, 버튼은 일어날 일을 직접 말한다.
+- 컴포넌트가 요구를 못 채우면 **우회하지 말고 `ui.tsx`에 변형을 추가**하고 이 문서에 한 줄 등록한다.
+
+**Don't**
+
+- 배경 채움·알약 배지 금지. 아이콘에 컬러 배경 금지.
+- 클래스 문자열·hex 복붙 금지 (`FIELD`/`CHART`/역할 표가 있다).
+- 인라인 `style`로 컴포넌트를 우회하지 않는다 — `className` 관통은 허용, 그 이상이 필요하면 변형 추가.
+- 카드에 그림자 금지 (떠 있는 표면 전용).
+- 입력 focus에 블루 금지 (블루는 액션 전용).
+- AI 표면 밖에서 shimmer 금지. skeleton 미사용.
+- 이모지를 UI에 쓰지 않는다 — `icons.tsx` SVG만.
+- 한 화면에 `primary` 버튼을 여러 개 두지 않는다.
 
 ## 새 화면을 만들 때
 
 1. 색은 slate + `Tone`으로 시작하고, 블루는 화면당 1~2곳(주 CTA·핵심 링크)으로 제한한다.
-2. 컴포넌트는 `ui.tsx`에서 먼저 찾고, 없으면 여기에 추가한 뒤 이 문서에 한 줄 등록한다.
+2. 컴포넌트는 `ui.tsx`에서 먼저 찾고, 없으면 여기에 추가한 뒤 이 문서에 한 줄 등록한다. 컴포넌트를 detach(복붙 후 수정)하는 순간 시스템에서 이탈한다 — 막히면 변형을 추가하는 쪽이 항상 싸다.
 3. 폼 입력은 `FIELD`, 차트 색은 `CHART`를 import한다 — 클래스 문자열·hex 복붙 금지.
+4. 간격은 간격 표, 전환은 모션 사다리에서 고른다.
