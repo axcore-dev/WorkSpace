@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AuthPrimaryButton, AuthSplit } from "@/components/auth-shell";
 import { FIELD_LG, isPersonalEmail } from "@/components/ui";
-import { DEMO_USER } from "@/data/org";
+import { DEMO_USER, INTERNAL_ADMIN_EMAILS, WORKSPACES } from "@/data/org";
 
 /** 데모: 매직링크 대기 화면 진입 후 이 시간(ms)이 지나면 링크를 클릭한 것으로 간주한다 */
 const DEMO_LINK_CLICK_MS = 5000;
@@ -34,8 +34,13 @@ export default function LoginPage() {
 
   function finish() {
     localStorage.setItem("axpoint-user", JSON.stringify({ ...DEMO_USER, email }));
-    // 워크스페이스 선택은 사이드바 전환기가 담당한다 (/workspace는 신규 개설 화면)
-    router.push("/dashboard");
+    // 진입 지점 분기 — 데모 판정이고 **보안 경계가 아니다.**
+    // 실제로는 BE 세션의 내부 역할·워크스페이스 보유 여부로 갈린다.
+    if (INTERNAL_ADMIN_EMAILS.includes(email.trim().toLowerCase())) {
+      router.push("/admin");
+      return;
+    }
+    router.push(WORKSPACES.length > 0 ? "/dashboard" : "/workspace");
   }
 
   /** 대기 화면 진입 — 타이머·확인 상태는 여기서 리셋한다 (effect 내 동기 setState 회피) */

@@ -48,6 +48,22 @@ export const DEMO_USER = {
   initials: "박",
 };
 
+/** 내부 관리자(AXCORE 운영) 데모 계정 — 계약 시 고객 워크스페이스를 개설하는 쪽 */
+export const DEMO_ADMIN = {
+  name: "운영팀",
+  email: "ops@axcore.ai.kr",
+  role: "내부 관리자",
+};
+
+/**
+ * 로그인 후 내부 관리자 콘솔로 보낼 계정 목록.
+ * 데모 분기용이며 **보안 경계가 아니다** — 실제 판정은 BE 세션의 역할로 한다.
+ */
+export const INTERNAL_ADMIN_EMAILS = [DEMO_ADMIN.email];
+
+/** 개설 대기 화면에서 안내하는 문의처 (데모 값) */
+export const SUPPORT_EMAIL = "support@axcore.ai.kr";
+
 /** 사이드바 조직(워크스페이스) 선택기 — 기본값은 데모컴퍼니 */
 export const WORKSPACES: { id: string; name: string; role: string; plan: string }[] = [
   { id: "democompany", name: "(주)데모컴퍼니", role: "관리자", plan: "AX 엔터프라이즈" },

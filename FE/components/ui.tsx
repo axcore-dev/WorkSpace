@@ -17,7 +17,8 @@ const FIELD_BASE = `${FIELD_SHAPE} ${FIELD_LINE}`;
 export const FIELD = `${FIELD_BASE} px-3.5 py-2.5 text-sm`;
 /** 큰 입력 변형 — 인증 화면처럼 필드가 주인공인 폼에서 사용 */
 export const FIELD_LG = `${FIELD_BASE} px-4 py-3 text-[15px]`;
-/** 큰 입력의 에러 상태 — 헬퍼 텍스트는 필드 아래 `mt-1.5 text-xs text-red-600` */
+/** 에러 상태 — 헬퍼 텍스트는 필드 아래 `mt-1.5 text-xs text-red-600` */
+export const FIELD_ERROR = `${FIELD_SHAPE} ${FIELD_LINE_ERROR} px-3.5 py-2.5 text-sm`;
 export const FIELD_LG_ERROR = `${FIELD_SHAPE} ${FIELD_LINE_ERROR} px-4 py-3 text-[15px]`;
 
 /** 업무용 메일 지향 — 대표적인 개인 메일 도메인이면 true (로그인·회원가입·초대에서 안내용) */
