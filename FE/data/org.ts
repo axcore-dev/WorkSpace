@@ -14,7 +14,7 @@ export const ORG_DIRECTORY: {
   adminEmail?: string;
 }[] = [
   {
-    bizNumber: "123-86-01234",
+    bizNumber: "123-86-01233",
     name: "(주)데모컴퍼니",
     ceo: "김정호",
     address: "경기도 안산시 단원구 성곡동",
@@ -23,14 +23,14 @@ export const ORG_DIRECTORY: {
     adminEmail: "admin@democompany.co.kr",
   },
   {
-    bizNumber: "220-81-45678",
+    bizNumber: "220-81-45672",
     name: "데모정공 (주)",
     ceo: "박민수",
     address: "인천광역시 남동구 논현동",
     hasWorkspace: false,
   },
   {
-    bizNumber: "312-86-77890",
+    bizNumber: "312-86-77895",
     name: "데모테크놀로지",
     ceo: "이서연",
     address: "충남 천안시 서북구 백석동",
