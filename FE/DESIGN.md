@@ -109,7 +109,7 @@ WorkSpace 데모의 시각 언어와 공용 컴포넌트 규칙. 코드가 단�
 | base | `duration-200` | 공용 컴포넌트 기본 (`Button`, `Toggle` — `transition-colors`) |
 | slow | `duration-300` | 크기·레이아웃 변화 (`ProgressBar` width) |
 
-- 명명 애니메이션 예외 2개: `.shimmer-text`(AI 추론 로딩, 1.8s — **AI 표면 전용**), `.tab-wiggle`(탭 편집 모드, 0.28s).
+- 명명 애니메이션 예외 3개: `.shimmer-text`(AI 추론 로딩, 1.8s — **AI 표면 전용**), `.spinner`(일반 대기 표시, 0.8s), `.tab-wiggle`(탭 편집 모드, 0.28s).
 - 금지: 바운스 오버슈트, 패럴랙스, 300ms 초과 UI 전환, AI 표면 밖의 shimmer/skeleton.
 - `prefers-reduced-motion` 대응이 전역에 있다 — 개별 컴포넌트에서 다시 처리하지 않는다.
 
@@ -137,10 +137,12 @@ WorkSpace 데모의 시각 언어와 공용 컴포넌트 규칙. 코드가 단�
 | `ProgressBar` | 진행률 | 톤별 색, 중립은 다크 슬레이트 |
 | `SectionHeader` | 섹션 제목/설명/액션 | |
 | `EmptyState` | 빈 상태 | 점선 테두리 |
-| `FIELD` (상수) | 입력 필드 공용 클래스 | 로그인·설정·모달 폼에서 import해 사용 |
+| `FIELD` / `FIELD_LG` (상수) | 입력 필드 공용 클래스 | 설정·모달 폼은 `FIELD`, 인증처럼 필드가 주인공인 폼은 큰 변형 `FIELD_LG` |
 | `isPersonalEmail` (유틸) | 개인 메일 도메인 판별 | 업무용 메일 지향 안내 (로그인·회원가입) |
 
 보조 — 다이얼로그: `Modal`(sm~xl, ESC 닫기 · `modal.tsx`), `RecordModal`(행 상세)·`MembersModal`(둘 다 `record-modal.tsx`).
+
+인증 화면(`auth-shell.tsx`): `AuthSplit`(로그인·회원가입 공통 분할 레이아웃 — 좌측 브랜드 패널 고정, 우측만 교체), `AuthPrimaryButton`(인증 폼 주 액션 — py-3.5 / 15px), `AuthShell`(워크스페이스 선택 등 카드형 화면).
 
 차트(`charts.tsx`, 의존성 없는 순수 SVG): `LineChart`·`BarChart`(막대별 색 `perBarColors` — 예측 구간 연하게)·`ComboChart`(막대+선 혼합)·`DonutChart`·`GaugeChart`·`Sparkline`(KPI 카드용 미니 라인 — `color` **필수**, 기본값 없음)·`ChartFromSpec`(`ChartSpec.type`으로 위 차트를 분기 렌더).
 

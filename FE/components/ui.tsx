@@ -8,8 +8,11 @@ import { IconArrowDownRight, IconArrowUpRight, IconCheck } from "@/components/ic
  * - 아이콘/배지에 컬러 배경을 넣지 않는다.
  */
 /** 공용 입력 필드 클래스 — 로그인/설정/모달 등 폼 전반에서 공유 */
-export const FIELD =
-  "w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 transition-colors focus:border-slate-400 focus:outline-2 focus:outline-slate-300/60";
+const FIELD_BASE =
+  "w-full rounded-lg border border-slate-300 text-slate-900 placeholder:text-slate-400 transition-colors focus:border-slate-400 focus:outline-2 focus:outline-slate-300/60";
+export const FIELD = `${FIELD_BASE} px-3.5 py-2.5 text-sm`;
+/** 큰 입력 변형 — 인증 화면처럼 필드가 주인공인 폼에서 사용 */
+export const FIELD_LG = `${FIELD_BASE} px-4 py-3 text-[15px]`;
 
 /** 업무용 메일 지향 — 대표적인 개인 메일 도메인이면 true (로그인·회원가입·초대에서 안내용) */
 const PERSONAL_EMAIL_DOMAINS = [
