@@ -260,12 +260,12 @@ interface ScenarioResult {
   tools: string[];
   sources: string[];
   proposal?: { fields: { label: string; value: string }[] };
-  /** Google Calendar 미연결 — connectUrl로 안내(진짜 캘린더 방문 전 사용자 동의가 필요) */
-  notConnected?: boolean;
-  connectUrl?: string;
 }
 
-/** /api/chat 시나리오 호출 — 키 미설정(501)·오류 시 null을 돌려 데모 스크립트로 폴백한다 */
+/**
+ * 시나리오 API 호출 seam — 백엔드는 BE(8080)로 이관 예정이라 현재 엔드포인트는 없다.
+ * 실패(=지금은 항상)하면 null을 돌려 데모 스크립트로 폴백한다. BE API가 서면 URL만 교체한다.
+ */
 async function callScenario(
   scenario: "purchase-order" | "calendar",
   question: string,
@@ -277,12 +277,8 @@ async function callScenario(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ scenario, messages: [{ role: "user", content: question }], sources }),
     });
-    const data = (await res.json().catch(() => null)) as (ScenarioResult & { error?: string }) | null;
-    if (!data) return null;
-    if (data.error === "google_not_connected") {
-      return { notConnected: true, connectUrl: data.connectUrl, reply: data.reply, trace: [], tools: [], sources: [] };
-    }
-    if (!res.ok) return null;
+    const data = (await res.json().catch(() => null)) as ScenarioResult | null;
+    if (!data || !res.ok) return null;
     if (typeof data.reply !== "string" || !Array.isArray(data.trace) || data.trace.length === 0) return null;
     return data;
   } catch {
@@ -439,7 +435,7 @@ export default function AiChatPage() {
     nameNoteIfUntitled(nid, q.length > 18 ? q.slice(0, 18) + "…" : q);
     appendMessage(nid, { role: "user", text: q });
 
-    // 구글 캘린더 확인 시나리오 — Google Calendar API를 실제로 조회한다 (키 미설정 시 스크립트 폴백)
+    // 구글 캘린더 확인 시나리오 — BE API 연동 전까지는 스크립트 폴백으로 동작한다
     if (/캘린더|일정|calendar/i.test(q)) {
       setThinking(true);
       // 응답 대기 중에도 어떤 도구(Google Calendar)와 소스를 쓰는지 보이게 순차 표시
@@ -454,15 +450,7 @@ export default function AiChatPage() {
       }
       void callScenario("calendar", q, selectedSources).then((r) => {
         loadingTimers.forEach(clearTimeout);
-        if (r?.notConnected) {
-          setThinking(false);
-          setThinkingSteps([]);
-          appendMessage(nid, {
-            role: "ai",
-            text: r.reply || "Google Calendar가 아직 연결되지 않았어요.",
-            cta: { label: "Google Calendar 연결하기", href: r.connectUrl ?? "/api/auth/google" },
-          });
-        } else if (r) {
+        if (r) {
           pushAi(nid, scenarioToMessage(r), r.trace.map((t) => t.text));
         } else {
           pushAi(nid, SCRIPTED_CALENDAR_REPLY);

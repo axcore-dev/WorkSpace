@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Modal } from "@/components/modal";
 import { BrandIcon } from "@/components/brand-icons";
 import { Badge, Button } from "@/components/ui";
@@ -99,7 +99,7 @@ function ConnectorDetailModal({
 
 /**
  * 커넥터 추가 팝업 (Manus형) — 브랜드 로고 포함.
- * Google Calendar는 서버 OAuth 상태를 조회해 실제 연결 여부를 반영하고,
+ * 데모: 연결 상태는 전부 로컬 state다. Google Calendar는 즉시 연결 처리되고,
  * 나머지 앱은 '+' 클릭 시 해당 앱 로그인 페이지로 이동하는 목업이다.
  */
 export function ConnectorModal({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -108,44 +108,24 @@ export function ConnectorModal({ open, onClose }: { open: boolean; onClose: () =
   const [connected, setConnected] = useState<string[]>(
     CONNECTOR_LIB.filter((c) => c.connected).map((c) => c.slug),
   );
-  const [googleConnected, setGoogleConnected] = useState(false);
   const [detail, setDetail] = useState<Connector | null>(null);
-
-  // 열릴 때마다 Google 연동 상태를 서버에서 조회한다 (토큰 존재 여부만 응답)
-  useEffect(() => {
-    if (!open) return;
-    let cancelled = false;
-    fetch("/api/auth/google/status")
-      .then((r) => r.json())
-      .then((d: { connected?: boolean }) => {
-        if (!cancelled) setGoogleConnected(!!d.connected);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [open]);
 
   const list = CONNECTOR_LIB.filter((c) => c.name.toLowerCase().includes(q.toLowerCase()));
 
   function isConnected(c: Connector) {
-    return c.slug === "googlecalendar" ? googleConnected : connected.includes(c.slug);
+    return connected.includes(c.slug);
   }
 
-  /** 연결 — Google Calendar는 실제 OAuth 플로우, 나머지는 해당 앱 로그인 페이지로 이동 */
+  /** 연결 — 데모: 즉시 연결 처리. OAuth 등 실연동은 BE 이관 후 BE API를 거친다 */
   function connect(c: Connector) {
     if (c.slug === "googlecalendar") {
-      window.location.assign("/api/auth/google");
+      setConnected((prev) => [...prev, c.slug]);
       return;
     }
     if (c.loginUrl) window.open(c.loginUrl, "_blank", "noopener,noreferrer");
   }
 
   function disconnect(c: Connector) {
-    if (c.slug === "googlecalendar") {
-      void fetch("/api/auth/google/status", { method: "DELETE" }).then(() => setGoogleConnected(false));
-      return;
-    }
     setConnected((prev) => prev.filter((x) => x !== c.slug));
   }
 

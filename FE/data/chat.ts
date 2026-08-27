@@ -388,7 +388,7 @@ export const AI_TOOLS_TEASER: { name: string; desc: string; tone: Tone }[] = [
 
 /**
  * 커넥터 추가 팝업(Manus형) 목록 — 브랜드 로고는 simple-icons 사용.
- * loginUrl: '+' 클릭 시 이동할 해당 앱 로그인 페이지 (Google Calendar는 /api/auth/google 실연동이라 없음).
+ * loginUrl: '+' 클릭 시 이동할 해당 앱 로그인 페이지 (Google Calendar는 데모 즉시 연결이라 없음).
  * url: 상세 팝업의 '웹사이트' 링크.
  */
 export const CONNECTOR_LIB: {
