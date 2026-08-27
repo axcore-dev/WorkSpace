@@ -41,7 +41,12 @@ yarn-error.log*
 next-env.d.ts
 
 # 작업 기록(docs/update)은 로컬 전용, 그 외 docs 문서는 추적한다
-/docs/update/
+docs/*
+!docs/be/
+!docs/branch/
+!docs/commit/
+!docs/db/
+
 
 # claude code local settings
 .claude/settings.local.json
@@ -59,3 +64,16 @@ __pycache__/
 /BE/.env
 /FE/.env
 /INFRA/.env
+
+# 에이전트 스킬은 개인 로컬에서만 사용 가능하도록 설정
+.agents/
+.claude/
+skills-lock.json
+
+# FE 더미데이터 작업 폴더 (개인 로컬 전용)
+FE/mock/
+
+# FE 개인 로컬 지침 (개발자별 상이)
+FE/CLAUDE.md
+
+/BE/docs

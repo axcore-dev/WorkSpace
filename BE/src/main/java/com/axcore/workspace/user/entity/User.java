@@ -15,7 +15,7 @@ import java.util.Objects;
 import java.util.UUID;
 
 /**
- * 로그인 계정. (docs/db/schema-draft-v1.md 의 users)
+ * 로그인 계정. (docs/db/schema-draft-v2.md 의 shared.users)
  *
  * <p>역할·부서는 여기 없다. 같은 계정이 A 워크스페이스에서는 관리자이고 B 에서는 구성원일 수
  * 있어서, 스키마 초안이 role_id/department_id 를 workspace_members 에 뒀다.
@@ -23,6 +23,7 @@ import java.util.UUID;
 @Entity
 @Table(
         name = "users",
+        schema = "shared",
         uniqueConstraints = @UniqueConstraint(name = "ux_users_email", columnNames = "email"))
 public class User {
 
@@ -33,8 +34,8 @@ public class User {
     /**
      * 항상 소문자로 정규화해서 저장한다. {@link #normalizeEmail(String)} 참고.
      *
-     * <p>Flyway 를 쓰지 않기로 해서 {@code lower(email)} 표현식 유니크 인덱스를 만들 수 없다.
-     * 대신 저장 전에 소문자로 맞춰서 평범한 유니크 제약으로 같은 효과를 낸다.
+     * <p>저장 전에 소문자로 맞춰서 평범한 유니크 제약으로 중복을 막는다. Flyway 를 도입해
+     * {@code lower(email)} 표현식 인덱스도 만들 수 있지만, 정규화 지점이 하나뿐이라 두지 않았다.
      */
     @Column(nullable = false, length = 255)
     private String email;
