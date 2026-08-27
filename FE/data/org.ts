@@ -10,6 +10,8 @@ export const ORG_DIRECTORY: {
   address: string;
   hasWorkspace: boolean;
   members?: number;
+  /** 이미 워크스페이스가 있는 회사의 관리자 — 화면에는 마스킹해서 노출한다 (maskEmail) */
+  adminEmail?: string;
 }[] = [
   {
     bizNumber: "123-86-01234",
@@ -18,6 +20,7 @@ export const ORG_DIRECTORY: {
     address: "경기도 안산시 단원구 성곡동",
     hasWorkspace: true,
     members: 42,
+    adminEmail: "admin@democompany.co.kr",
   },
   {
     bizNumber: "220-81-45678",

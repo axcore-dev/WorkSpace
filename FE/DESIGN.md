@@ -120,7 +120,7 @@ WorkSpace 데모의 시각 언어와 공용 컴포넌트 규칙. 코드가 단�
 | hover | 배경 한 단계 (`hover:bg-slate-50` / `hover:bg-slate-100`) 또는 텍스트 한 단계. 데스크톱의 1차 피드백 |
 | focus | `focus-visible:outline-2 focus-visible:outline-offset-2`. 입력 필드는 `focus:border-slate-400` — **블루 아님** (블루는 액션 전용) |
 | disabled | **노드 전체** `disabled:opacity-40` + `cursor-not-allowed`. 부분 회색 처리 금지 |
-| 폼 에러 | 필드 테두리 `border-red-300` + 아래 `text-xs text-red-600` 헬퍼 텍스트 (도입 예정 — 계획서 참조). 메시지는 다음 행동을 안내한다 (UX 라이팅 절) |
+| 폼 에러 | 필드 테두리 `border-red-300` + 아래 `mt-1.5 text-xs text-red-600` 헬퍼 텍스트. 인증 폼은 `FIELD_LG_ERROR` 상수를 쓴다 (작은 필드용 `FIELD_ERROR`는 사용처가 생길 때 추가). 메시지는 다음 행동을 안내한다 (UX 라이팅 절) |
 
 ## 공용 컴포넌트 (`components/ui.tsx`)
 
@@ -137,12 +137,13 @@ WorkSpace 데모의 시각 언어와 공용 컴포넌트 규칙. 코드가 단�
 | `ProgressBar` | 진행률 | 톤별 색, 중립은 다크 슬레이트 |
 | `SectionHeader` | 섹션 제목/설명/액션 | |
 | `EmptyState` | 빈 상태 | 점선 테두리 |
-| `FIELD` / `FIELD_LG` (상수) | 입력 필드 공용 클래스 | 설정·모달 폼은 `FIELD`, 인증처럼 필드가 주인공인 폼은 큰 변형 `FIELD_LG` |
+| `FIELD` / `FIELD_LG` / `FIELD_LG_ERROR` (상수) | 입력 필드 공용 클래스 | 설정·모달 폼은 `FIELD`, 인증처럼 필드가 주인공인 폼은 큰 변형 `FIELD_LG`, 에러 상태는 `FIELD_LG_ERROR` |
 | `isPersonalEmail` (유틸) | 개인 메일 도메인 판별 | 업무용 메일 지향 안내 (로그인·회원가입) |
+| `maskEmail` (유틸) | 제3자 이메일 마스킹 | 로컬파트 첫·끝 글자만 남긴다 (워크스페이스 개설의 관리자 안내) |
 
 보조 — 다이얼로그: `Modal`(sm~xl, ESC 닫기 · `modal.tsx`), `RecordModal`(행 상세)·`MembersModal`(둘 다 `record-modal.tsx`).
 
-인증 화면(`auth-shell.tsx`): `AuthSplit`(로그인·회원가입 공통 분할 레이아웃 — 좌측 브랜드 패널 고정, 우측만 교체), `AuthPrimaryButton`(인증 폼 주 액션 — py-3.5 / 15px), `AuthShell`(워크스페이스 선택 등 카드형 화면).
+인증 화면(`auth-shell.tsx`): `AuthSplit`(로그인·회원가입·워크스페이스 개설 공통 분할 레이아웃 — 좌측 브랜드 패널 고정, 우측만 교체), `AuthPrimaryButton`(인증 폼 주 액션 — py-3.5 / 15px · `className` 관통 허용). 워크스페이스 선택은 별도 화면 없이 사이드바 전환기(`app-shell.tsx`)가 담당한다.
 
 차트(`charts.tsx`, 의존성 없는 순수 SVG): `LineChart`·`BarChart`(막대별 색 `perBarColors` — 예측 구간 연하게)·`ComboChart`(막대+선 혼합)·`DonutChart`·`GaugeChart`·`Sparkline`(KPI 카드용 미니 라인 — `color` **필수**, 기본값 없음)·`ChartFromSpec`(`ChartSpec.type`으로 위 차트를 분기 렌더).
 

@@ -34,7 +34,8 @@ export default function LoginPage() {
 
   function finish() {
     localStorage.setItem("axpoint-user", JSON.stringify({ ...DEMO_USER, email }));
-    router.push("/workspace");
+    // 워크스페이스 선택은 사이드바 전환기가 담당한다 (/workspace는 신규 개설 화면)
+    router.push("/dashboard");
   }
 
   /** 대기 화면 진입 — 타이머·확인 상태는 여기서 리셋한다 (effect 내 동기 setState 회피) */
