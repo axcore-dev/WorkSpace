@@ -45,6 +45,23 @@
 
 
 
+## Agent skills
+
+에이전트 스킬(mattpocock-skills 등)이 읽는 저장소 설정. 스킬 미설치 환경에서는 무시해도 된다.
+
+### Issue tracker
+
+이슈는 GitHub Issues에서 관리한다 (`gh` CLI 사용). `docs/agents/issue-tracker.md` 참조.
+
+### Triage labels
+
+triage 라벨은 기본 5종(needs-triage / needs-info / ready-for-agent / ready-for-human / wontfix)을 그대로 쓴다. `docs/agents/triage-labels.md` 참조.
+
+### Domain docs
+
+단일 컨텍스트 — 루트 `CONTEXT.md` + `docs/adr/` (둘 다 필요해질 때 lazy 생성, 없어도 조용히 진행). `docs/agents/domain.md` 참조.
+
+
 # 소유자 계정 작업 규칙
 
 - 소유자(윤경일) 계정으로 실행 중일 때는 **코드 추가·수정과 커밋을 임의로 하지 않는다.** 무엇을 어떻게 바꿀지 먼저 설명하고 승인을 받은 뒤에 실행한다.
