@@ -75,3 +75,5 @@ FE/mock/
 
 # FE 개인 로컬 지침 (개발자별 상이)
 FE/CLAUDE.md
+
+/BE/docs
