@@ -12,7 +12,6 @@ import {
   IconChevronDown,
   IconDashboard,
   IconLogOut,
-  IconPlus,
   IconSettings,
   IconShield,
   IconUser,
@@ -152,13 +151,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   </button>
                 );
               })}
-              <Link
-                href="/workspace"
-                onClick={() => setOrgOpen(false)}
-                className="flex items-center gap-2 border-t border-slate-100 px-3 py-2 text-sm text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-700"
-              >
-                <IconPlus size={15} />새 워크스페이스
-              </Link>
             </div>
           )}
         </div>
