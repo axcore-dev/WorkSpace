@@ -31,6 +31,19 @@ public class AppUserDetailsService implements UserDetailsService {
                 userRepository
                         .findByEmail(User.normalizeEmail(email))
                         .orElseThrow(() -> new UsernameNotFoundException("계정을 찾을 수 없습니다"));
+
+        // 소셜 로그인으로만 가입한 계정은 비밀번호가 없다. 여기서 걸러야 하는 이유가 두 가지다.
+        //
+        // 하나, DelegatingPasswordEncoder 는 matches(raw, null) 에서 IllegalArgumentException 을
+        // 던진다("no PasswordEncoder mapped for the id null"). 그대로 두면 401 이어야 할 요청이
+        // 500 이 되고, 그 차이만으로 "이 주소는 소셜 계정" 이라는 사실이 새어 나간다.
+        //
+        // 둘, UsernameNotFoundException 으로 던지면 hideUserNotFoundExceptions 가 이를
+        // BadCredentialsException 으로 바꿔 준다. 없는 계정·틀린 비밀번호·소셜 전용 계정이 모두
+        // 같은 401 이 된다.
+        if (!user.hasPassword()) {
+            throw new UsernameNotFoundException("비밀번호가 설정되지 않은 계정입니다");
+        }
         return UserPrincipal.from(user);
     }
 }

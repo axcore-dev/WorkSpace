@@ -78,11 +78,14 @@ public class SecurityConfig {
                                         //   그 메일함을 열었다는 증거다.
                                         // password/reset-request — 비밀번호를 잊은 사람이 쓴다.
                                         //   가입 여부와 무관하게 항상 같은 응답을 준다.
+                                        // oauth/{provider} — 소셜 로그인. 제공자가 발급한
+                                        //   authorization code 를 가진 것이 자격 증명이다.
                                         .requestMatchers(
                                                 "/api/auth/signup",
                                                 "/api/auth/login",
                                                 "/api/auth/refresh",
                                                 "/api/auth/logout",
+                                                "/api/auth/oauth/*",
                                                 "/api/auth/mfa/verify",
                                                 "/api/auth/email/verify",
                                                 "/api/auth/password/reset-request",
