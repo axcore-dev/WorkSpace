@@ -69,3 +69,9 @@ __pycache__/
 .agents/
 .claude/
 skills-lock.json
+
+# FE 더미데이터 작업 폴더 (개인 로컬 전용)
+FE/mock/
+
+# FE 개인 로컬 지침 (개발자별 상이)
+FE/CLAUDE.md

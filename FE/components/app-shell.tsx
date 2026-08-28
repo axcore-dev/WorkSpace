@@ -98,9 +98,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* ── 좌측 패널 ── */}
       <aside className="fixed inset-y-0 left-0 z-30 flex w-60 flex-col border-r border-slate-200 bg-slate-100">
         {/* 상단 로고 */}
-        <Link href="/dashboard" className="flex items-center gap-2 px-5 pb-3 pt-5" aria-label="AXpoint 홈">
+        <Link href="/dashboard" className="flex items-center gap-2 px-5 pb-3 pt-5" aria-label="WorkSpace 홈">
           <Logo height={18} />
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-300">AXpoint</span>
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-300">WorkSpace</span>
         </Link>
 
         {/* 조직 선택기 */}
