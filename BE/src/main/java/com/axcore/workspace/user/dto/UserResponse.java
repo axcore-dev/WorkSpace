@@ -10,12 +10,16 @@ import java.util.UUID;
  *
  * <p>엔티티를 그대로 직렬화하지 않는 이유가 이것이다. 엔티티에 컬럼이 하나 늘 때마다
  * 응답에 자동으로 새어 나가면 안 된다.
+ *
+ * @param emailVerified 화면이 "이메일 확인이 필요합니다" 배너를 띄울 근거. 확인 시각 자체는
+ *                      쓸 곳이 없어 불리언으로만 내보낸다.
  */
 public record UserResponse(
         UUID id,
         String email,
         String name,
         String avatarUrl,
+        boolean emailVerified,
         Instant passwordChangedAt,
         Instant lastLoginAt,
         Instant createdAt) {
@@ -26,6 +30,7 @@ public record UserResponse(
                 user.getEmail(),
                 user.getName(),
                 user.getAvatarUrl(),
+                user.isEmailVerified(),
                 user.getPasswordChangedAt(),
                 user.getLastLoginAt(),
                 user.getCreatedAt());

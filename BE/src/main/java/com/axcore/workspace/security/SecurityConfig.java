@@ -70,11 +70,23 @@ public class SecurityConfig {
                         registry ->
                                 registry
                                         // 토큰이 없는 상태에서 부르는 것들.
+                                        //
+                                        // mfa/verify — 로그인 도중이라 access 토큰이 아직 없다.
+                                        //   챌린지 토큰과 코드를 함께 가진 것이 자격 증명이다.
+                                        // email/verify · password/reset — 메일 링크는 로그인하지
+                                        //   않은 브라우저에서 열린다. 토큰을 가진 것이 곧
+                                        //   그 메일함을 열었다는 증거다.
+                                        // password/reset-request — 비밀번호를 잊은 사람이 쓴다.
+                                        //   가입 여부와 무관하게 항상 같은 응답을 준다.
                                         .requestMatchers(
                                                 "/api/auth/signup",
                                                 "/api/auth/login",
                                                 "/api/auth/refresh",
-                                                "/api/auth/logout")
+                                                "/api/auth/logout",
+                                                "/api/auth/mfa/verify",
+                                                "/api/auth/email/verify",
+                                                "/api/auth/password/reset-request",
+                                                "/api/auth/password/reset")
                                         .permitAll()
                                         .requestMatchers("/actuator/health/**")
                                         .permitAll()

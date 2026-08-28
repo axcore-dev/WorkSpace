@@ -1,6 +1,7 @@
 package com.axcore.workspace.user.service;
 
 import com.axcore.workspace.security.JwtProperties;
+import com.axcore.workspace.security.SecureTokens;
 import com.axcore.workspace.user.entity.User;
 import com.axcore.workspace.user.entity.UserSession;
 import com.axcore.workspace.user.repository.UserSessionRepository;
@@ -10,13 +11,7 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
 import java.time.Instant;
-import java.util.Base64;
-import java.util.HexFormat;
 
 /**
  * refresh 토큰 발급·회전·폐기.
@@ -30,12 +25,6 @@ import java.util.HexFormat;
 public class RefreshTokenService {
 
     private static final Logger log = LoggerFactory.getLogger(RefreshTokenService.class);
-
-    /** 256비트. 추측이 불가능한 수준이면 충분하고, 늘려도 얻는 게 없다. */
-    private static final int TOKEN_BYTES = 32;
-
-    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
-    private static final Base64.Encoder ENCODER = Base64.getUrlEncoder().withoutPadding();
 
     private final UserSessionRepository sessionRepository;
     private final SessionRevoker sessionRevoker;
@@ -74,7 +63,7 @@ public class RefreshTokenService {
     public IssuedRefreshToken rotate(String rawToken, String userAgent, String ip, Instant now) {
         UserSession current =
                 sessionRepository
-                        .findByTokenHashWithUser(hash(rawToken))
+                        .findByTokenHashWithUser(SecureTokens.hash(rawToken))
                         .orElseThrow(RefreshTokenService::invalidToken);
 
         if (current.isReuseAttempt()) {
@@ -119,37 +108,17 @@ public class RefreshTokenService {
             return;
         }
         sessionRepository
-                .findByTokenHashWithUser(hash(rawToken))
+                .findByTokenHashWithUser(SecureTokens.hash(rawToken))
                 .ifPresent(session -> session.revoke(now));
     }
 
     private IssuedRefreshToken persist(
             User user, boolean rememberMe, String userAgent, String ip, Instant expiresAt) {
-        String raw = generate();
+        String raw = SecureTokens.generate();
         UserSession session =
                 sessionRepository.save(
-                        UserSession.issue(user, hash(raw), rememberMe, userAgent, ip, expiresAt));
+                        UserSession.issue(user, SecureTokens.hash(raw), rememberMe, userAgent, ip, expiresAt));
         return new IssuedRefreshToken(session, raw);
-    }
-
-    private static String generate() {
-        byte[] bytes = new byte[TOKEN_BYTES];
-        SECURE_RANDOM.nextBytes(bytes);
-        return ENCODER.encodeToString(bytes);
-    }
-
-    /**
-     * BCrypt 가 아니라 SHA-256 인 이유는 이 값이 사람이 고른 문자열이 아니기 때문이다. 256비트
-     * 난수는 사전 공격 대상이 아니고, 느린 해시는 재발급 경로에 지연으로만 얹힌다.
-     */
-    private static String hash(String rawToken) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            return HexFormat.of()
-                    .formatHex(digest.digest(rawToken.getBytes(StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 은 모든 JVM 이 제공한다", e);
-        }
     }
 
     /** 없는 토큰·만료된 토큰·재사용을 한 가지 응답으로 합친다. 어느 쪽인지 알려 줄 이유가 없다. */

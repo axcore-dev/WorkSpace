@@ -53,6 +53,16 @@ public class User {
     @Column(name = "avatar_url", length = 500)
     private String avatarUrl;
 
+    /**
+     * 이메일 소유가 확인된 시각. null 이면 미확인이다.
+     *
+     * <p>가입 자체는 막지 않는다. 확인 링크를 열기 전에도 로그인은 되지만 회사 진입이 막힌다.
+     * 아예 로그인을 막으면 확인 메일 재발송을 요청할 통로가 없어져서, 주소를 오타로 적은
+     * 사용자가 스스로 빠져나올 수 없다.
+     */
+    @Column(name = "email_verified_at")
+    private Instant emailVerifiedAt;
+
     /** 프로필 화면의 "비밀번호 마지막 변경" 표시에 쓴다. */
     @Column(name = "password_changed_at")
     private Instant passwordChangedAt;
@@ -112,6 +122,17 @@ public class User {
         this.lastLoginAt = at;
     }
 
+    public boolean isEmailVerified() {
+        return emailVerifiedAt != null;
+    }
+
+    /** 이미 확인된 계정에 다시 확인 링크가 들어와도 최초 시각을 유지한다. */
+    public void verifyEmail(Instant at) {
+        if (this.emailVerifiedAt == null) {
+            this.emailVerifiedAt = at;
+        }
+    }
+
     public void updateProfile(String name, String avatarUrl) {
         this.name = name;
         this.avatarUrl = avatarUrl;
@@ -135,6 +156,10 @@ public class User {
 
     public String getAvatarUrl() {
         return avatarUrl;
+    }
+
+    public Instant getEmailVerifiedAt() {
+        return emailVerifiedAt;
     }
 
     public Instant getPasswordChangedAt() {
