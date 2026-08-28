@@ -126,7 +126,7 @@ WorkSpace 데모의 시각 언어와 공용 컴포넌트 규칙. 코드가 단�
 
 | 컴포넌트 | 용도 | 비고 |
 | --- | --- | --- |
-| `Button` | 액션 버튼 | `primary`(블루) / `secondary` / `ghost` / `danger` × `sm/md/lg` |
+| `Button` | 액션 버튼 | `primary`(블루) / `secondary` / `ghost` / `danger` × `sm/md/lg`. `href`를 주면 `Link`로 렌더한다 — 이동은 버튼이 아니라 링크여야 한다 |
 | `Card` | 콘텐츠 컨테이너 | `padding=false`로 내부 직접 제어 |
 | `Badge` | 상태 텍스트 | `Tone` 기반, 배경 없음 |
 | `AiBadge` | AI 기능 표기 | 무채색 외곽선 태그 |
@@ -140,13 +140,14 @@ WorkSpace 데모의 시각 언어와 공용 컴포넌트 규칙. 코드가 단�
 | `FIELD` / `FIELD_LG` (상수) | 입력 필드 공용 클래스 | 설정·모달·관리자 폼은 `FIELD`, 인증처럼 필드가 주인공인 폼은 큰 변형 `FIELD_LG` |
 | `FIELD_ERROR` / `FIELD_LG_ERROR` (상수) | 입력 필드 에러 변형 | 테두리만 교체(`border-red-300`). 헬퍼는 `mt-1.5 text-xs text-red-600` |
 | `isPersonalEmail` (유틸) | 개인 메일 도메인 판별 | 업무용 메일 지향 안내 (로그인·회원가입) |
-| `maskEmail` (유틸) | 제3자 이메일 마스킹 | 로컬파트 첫·끝 글자만 남긴다 (워크스페이스 개설의 관리자 안내) |
 
 보조 — 다이얼로그: `Modal`(sm~xl, ESC 닫기 · `modal.tsx`), `RecordModal`(행 상세)·`MembersModal`(둘 다 `record-modal.tsx`).
 
 인증 화면(`auth-shell.tsx`): `AuthSplit`(로그인·회원가입·개설 대기 공통 분할 레이아웃 — 좌측 브랜드 패널 고정, 우측만 교체), `AuthPrimaryButton`(인증 폼 주 액션 — py-3.5 / 15px · `className` 관통 허용). 워크스페이스 선택은 별도 화면 없이 사이드바 전환기(`app-shell.tsx`)가 담당한다.
 
-내부 관리자 콘솔(`app/(admin)/layout.tsx`): 고객 앱(`AppShell`)과 크롬을 분리한 얇은 상단 바 + `max-w-3xl` 본문. 고객 화면의 브랜드 패널·사이드바를 쓰지 않는다. 워크스페이스는 계약 시 이 콘솔에서 개설한다 — 고객 셀프 개설 경로는 없다.
+운영자 콘솔(`app/(admin)/layout.tsx`): 고객 앱(`AppShell`)과 크롬을 분리한다. **좌측 내비**(워크스페이스 / 사용량·요금) + 넓은 본문(`max-w-6xl`), 하단에 로그인 운영자·권한 표시. `lg` 미만에서는 내비가 상단으로 접힌다. 고객 화면의 브랜드 패널·사이드바를 쓰지 않는 이유는 메뉴·권한·데이터가 전혀 다르기 때문이다.
+
+워크스페이스는 계약 시 이 콘솔에서 개설한다 — 고객 셀프 개설 경로는 없다. 화면은 목록 / 만들기 / 상세(개요·멤버·연동·사용량) / 사용량·요금 네 개다. 표는 `ui.tsx`의 `DataTable`(셀이 `string | number | badge`뿐)로 부족해서 `components/admin/admin-table.tsx`의 `AdminTable` + `TD`·`TD_KEY`·`TR` 클래스 상수와 `DefinitionList`를 쓴다. 시각 언어는 `DataTable`과 같다.
 
 차트(`charts.tsx`, 의존성 없는 순수 SVG): `LineChart`·`BarChart`(막대별 색 `perBarColors` — 예측 구간 연하게)·`ComboChart`(막대+선 혼합)·`DonutChart`·`GaugeChart`·`Sparkline`(KPI 카드용 미니 라인 — `color` **필수**, 기본값 없음)·`ChartFromSpec`(`ChartSpec.type`으로 위 차트를 분기 렌더).
 
