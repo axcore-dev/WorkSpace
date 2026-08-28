@@ -3,13 +3,24 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AuthPrimaryButton, AuthSplit } from "@/components/auth-shell";
+import { AuthPrimaryButton, AuthSplit, SocialAuthButtons } from "@/components/auth-shell";
 import { FIELD_LG, isPersonalEmail } from "@/components/ui";
+import { DEMO_USER } from "@/data/org";
 
 export default function SignupPage() {
   const router = useRouter();
   const [sent, setSent] = useState(false);
   const [email, setEmail] = useState("demo@democompany.co.kr");
+  const [pw, setPw] = useState("demo1234!");
+  const [pw2, setPw2] = useState("demo1234!");
+
+  const mismatch = pw2.length > 0 && pw !== pw2;
+
+  /** 데모: 소셜은 제공자가 이미 이메일을 확인했으므로 인증 대기 없이 바로 진입한다 */
+  function finishSocial() {
+    localStorage.setItem("axpoint-user", JSON.stringify({ ...DEMO_USER, email }));
+    router.push("/workspace");
+  }
 
   if (sent) {
     return (
@@ -64,7 +75,7 @@ export default function SignupPage() {
         </Link>
       </p>
 
-      {/* 데모: 검증 없이 버튼 클릭 즉시 다음 단계로 */}
+      {/* 데모: 비밀번호 일치만 막고, 나머지 검증은 BE 가입 API가 한다 */}
       <form
         className="mt-9 space-y-5"
         onSubmit={(e) => {
@@ -72,19 +83,11 @@ export default function SignupPage() {
           setSent(true);
         }}
       >
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label htmlFor="su-name" className="mb-2 block text-sm font-medium text-slate-700">
-              이름
-            </label>
-            <input id="su-name" defaultValue="박데모" placeholder="홍길동" className={FIELD_LG} />
-          </div>
-          <div>
-            <label htmlFor="su-company" className="mb-2 block text-sm font-medium text-slate-700">
-              회사명
-            </label>
-            <input id="su-company" defaultValue="(주)데모컴퍼니" placeholder="데모컴퍼니" className={FIELD_LG} />
-          </div>
+        <div>
+          <label htmlFor="su-name" className="mb-2 block text-sm font-medium text-slate-700">
+            이름
+          </label>
+          <input id="su-name" defaultValue="박데모" placeholder="홍길동" className={FIELD_LG} />
         </div>
         <div>
           <label htmlFor="su-email" className="mb-2 block text-sm font-medium text-slate-700">
@@ -115,13 +118,37 @@ export default function SignupPage() {
             id="su-password"
             type="password"
             autoComplete="new-password"
-            defaultValue="demo1234!"
+            value={pw}
+            onChange={(e) => setPw(e.target.value)}
             placeholder="8자 이상 · 대문자·숫자·특수문자 포함"
             className={FIELD_LG}
           />
         </div>
-        <AuthPrimaryButton>가입하기</AuthPrimaryButton>
+        <div>
+          <label htmlFor="su-password2" className="mb-2 block text-sm font-medium text-slate-700">
+            비밀번호 확인
+          </label>
+          <input
+            id="su-password2"
+            type="password"
+            autoComplete="new-password"
+            value={pw2}
+            onChange={(e) => setPw2(e.target.value)}
+            placeholder="비밀번호를 다시 입력해 주세요"
+            aria-invalid={mismatch || undefined}
+            aria-describedby={mismatch ? "su-password2-error" : undefined}
+            className={FIELD_LG}
+          />
+          {mismatch && (
+            <p id="su-password2-error" className="mt-1.5 text-xs text-red-600">
+              비밀번호가 서로 달라요. 다시 확인해 주세요.
+            </p>
+          )}
+        </div>
+        <AuthPrimaryButton disabled={!pw || mismatch}>가입하기</AuthPrimaryButton>
       </form>
+
+      <SocialAuthButtons action="회원가입" onSelect={finishSocial} />
     </AuthSplit>
   );
 }
