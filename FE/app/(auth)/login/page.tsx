@@ -1,210 +1,238 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Logo } from "@/components/logo";
-import { FIELD, isPersonalEmail } from "@/components/ui";
+import { AuthPrimaryButton, AuthSplit } from "@/components/auth-shell";
+import { FIELD_LG, isPersonalEmail } from "@/components/ui";
 import { DEMO_USER } from "@/data/org";
+
+/** 데모: 매직링크 대기 화면 진입 후 이 시간(ms)이 지나면 링크를 클릭한 것으로 간주한다 */
+const DEMO_LINK_CLICK_MS = 5000;
+const LINK_TTL_SEC = 600;
+
+/** Google 공식 로그인 버튼의 4색 G 로고 */
+function GoogleG() {
+  return (
+    <svg viewBox="0 0 48 48" width="20" height="20" aria-hidden focusable="false" className="block shrink-0">
+      <path fill="#4285F4" d="M45.12 24.5c0-1.56-.14-3.06-.4-4.5H24v8.51h11.84c-.51 2.75-2.06 5.08-4.39 6.64v5.52h7.11c4.16-3.83 6.56-9.47 6.56-16.17z" />
+      <path fill="#34A853" d="M24 46c5.94 0 10.92-1.97 14.56-5.33l-7.11-5.52c-1.97 1.32-4.49 2.1-7.45 2.1-5.73 0-10.58-3.87-12.31-9.07H4.34v5.7C7.96 41.07 15.4 46 24 46z" />
+      <path fill="#FBBC05" d="M11.69 28.18C11.25 26.86 11 25.45 11 24s.25-2.86.69-4.18v-5.7H4.34C2.85 17.09 2 20.45 2 24s.85 6.91 2.34 9.88l7.35-5.7z" />
+      <path fill="#EA4335" d="M24 10.75c3.23 0 6.13 1.11 8.41 3.29l6.31-6.31C34.91 4.18 29.93 2 24 2 15.4 2 7.96 6.93 4.34 14.12l7.35 5.7c1.73-5.2 6.58-9.07 12.31-9.07z" />
+    </svg>
+  );
+}
 
 export default function LoginPage() {
   const router = useRouter();
-  const [step, setStep] = useState<"login" | "otp">("login");
+  const [step, setStep] = useState<"login" | "await">("login");
   const [email, setEmail] = useState(DEMO_USER.email);
   const [password, setPassword] = useState("demo1234!");
-  const [otp, setOtp] = useState<string[]>(["4", "8", "2", "9", "1", "3"]);
-  const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const [left, setLeft] = useState(LINK_TTL_SEC);
+  const [resent, setResent] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
 
-  // 데모: 검증 없이 버튼 클릭 즉시 다음 단계로 진행
-  function goOtp() {
-    setStep("otp");
-  }
   function finish() {
     localStorage.setItem("axpoint-user", JSON.stringify({ ...DEMO_USER, email }));
     router.push("/workspace");
   }
-  function handleOtpChange(i: number, v: string) {
-    if (!/^\d?$/.test(v)) return;
-    const next = [...otp];
-    next[i] = v;
-    setOtp(next);
-    if (v && i < 5) otpRefs.current[i + 1]?.focus();
+
+  /** 대기 화면 진입 — 타이머·확인 상태는 여기서 리셋한다 (effect 내 동기 setState 회피) */
+  function goAwait() {
+    setLeft(LINK_TTL_SEC);
+    setConfirmed(false);
+    setStep("await");
   }
 
-  return (
-    <div className="flex min-h-screen">
-      {/* ── 좌측 브랜드 패널 (어두운 배경) ── */}
-      <div
-        className="relative hidden w-1/2 flex-col justify-between overflow-hidden p-12 lg:flex"
-        style={{
-          background:
-            "linear-gradient(155deg, #0b1220 0%, #0a0f1a 45%, #05080f 100%)",
-        }}
-      >
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0"
-          style={{
-            background:
-              "radial-gradient(520px 340px at 12% 8%, rgba(56,102,255,0.18), transparent), radial-gradient(600px 420px at 88% 100%, rgba(10,80,255,0.14), transparent)",
-          }}
-        />
-        <Logo variant="white" height={26} className="relative self-start" />
-        <div className="relative max-w-md">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary-400">
-            AX Manufacturing Platform
-          </p>
-          <h1 className="mt-4 text-4xl font-bold leading-[1.2] tracking-tight text-white">
-            지능형 자율제조
-            <br />
-            운영의 코어.
-          </h1>
-          <p className="mt-5 text-[15px] leading-relaxed text-slate-400">
-            분절된 제조 데이터를 하나의 런타임으로 통합하고, AI가 실시간으로 공정을 판단·최적화합니다.
-            프로토타입에서 양산까지, 하나의 코어 위에서.
-          </p>
-        </div>
-        <p className="relative text-xs text-slate-500">© 2026 AXCORE · AXpoint 데모 환경</p>
-      </div>
+  // 매직링크 대기: 만료 카운트다운 + 데모용 자동 완료
+  useEffect(() => {
+    if (step !== "await") return;
+    const tick = setInterval(() => setLeft((s) => Math.max(0, s - 1)), 1000);
+    const clicked = setTimeout(() => setConfirmed(true), DEMO_LINK_CLICK_MS);
+    return () => {
+      clearInterval(tick);
+      clearTimeout(clicked);
+    };
+  }, [step]);
 
-      {/* ── 우측 폼 ── */}
-      <div className="flex w-full items-center justify-center px-6 lg:w-1/2">
-        <div className="w-full max-w-sm">
-          {/* 모바일 로고 */}
-          <div className="mb-8 lg:hidden">
-            <Logo height={24} />
+  // 링크 확인 표시를 잠깐 보여준 뒤 로그인 완료
+  useEffect(() => {
+    if (!confirmed) return;
+    const t = setTimeout(finish, 900);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [confirmed]);
+
+  const mm = String(Math.floor(left / 60)).padStart(2, "0");
+  const ss = String(left % 60).padStart(2, "0");
+
+  return (
+    <AuthSplit>
+      {step === "login" ? (
+        <>
+          <p className="text-xs font-semibold text-primary-600">WorkSpace 로그인</p>
+          <h2 className="mt-2.5 text-[31px] font-bold leading-[1.25] tracking-tight text-slate-900">
+            다시 오신 것을 환영합니다
+          </h2>
+          <p className="mt-2.5 text-[15px] text-slate-500">
+            계정이 없으신가요?{" "}
+            <Link href="/signup" className="font-semibold text-primary-600 transition-colors hover:text-primary-700">
+              이메일로 회원가입
+            </Link>
+          </p>
+
+          <form
+            className="mt-9 space-y-5"
+            onSubmit={(e) => {
+              e.preventDefault();
+              goAwait();
+            }}
+          >
+            <div>
+              <label htmlFor="email" className="mb-2 block text-sm font-medium text-slate-700">
+                이메일
+              </label>
+              <input
+                id="email"
+                type="email"
+                autoComplete="email"
+                placeholder="name@company.co.kr"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className={FIELD_LG}
+              />
+              {isPersonalEmail(email) && (
+                <p className="mt-1.5 text-xs text-amber-600">
+                  개인 메일 주소예요. 회사에서 발급한 업무용 이메일 사용을 권장해요.
+                </p>
+              )}
+            </div>
+            <div>
+              <label htmlFor="password" className="mb-2 block text-sm font-medium text-slate-700">
+                비밀번호
+              </label>
+              <input
+                id="password"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className={FIELD_LG}
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600">
+                <input type="checkbox" defaultChecked className="h-4 w-4 accent-slate-800" />
+                로그인 유지
+              </label>
+              <button
+                type="button"
+                className="cursor-pointer text-sm font-medium text-primary-600 transition-colors hover:text-primary-700"
+              >
+                비밀번호 찾기
+              </button>
+            </div>
+            <AuthPrimaryButton>로그인</AuthPrimaryButton>
+          </form>
+
+          <div className="mt-8 flex items-center gap-4">
+            <span className="h-px flex-1 bg-slate-200" />
+            <span className="text-xs text-slate-400">또는</span>
+            <span className="h-px flex-1 bg-slate-200" />
           </div>
 
-          {step === "login" ? (
-            <>
-              <p className="text-xs font-semibold text-primary-600">로그인</p>
-              <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-900">
-                다시 오신 것을 환영합니다
-              </h2>
-              <p className="mt-1.5 text-sm text-slate-500">AXpoint 운영 콘솔에 접속하세요.</p>
+          {/* 소셜 로그인 — Google/네이버 공식 버튼 가이드의 색·형태를 따른다 (데모: 즉시 로그인) */}
+          <div className="mt-5 space-y-3">
+            <button
+              type="button"
+              onClick={finish}
+              aria-label="Google 계정으로 로그인"
+              className="flex h-10 w-full cursor-pointer items-center justify-center gap-2.5 rounded border border-[#747775] bg-white px-3 transition-[background-color,box-shadow] duration-150 hover:bg-[#f7f8f8] hover:shadow-[0_1px_2px_rgba(60,64,67,.3),0_1px_3px_1px_rgba(60,64,67,.15)] active:bg-[#eeeeee]"
+            >
+              <GoogleG />
+              <span className="whitespace-nowrap text-sm font-medium leading-5 text-[#1f1f1f]">
+                Google 계정으로 로그인
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={finish}
+              aria-label="네이버 아이디로 로그인"
+              className="flex h-10 w-full cursor-pointer items-center justify-center gap-2.5 rounded bg-[#03c75a] px-3 transition-colors duration-150 hover:bg-[#02b350] active:bg-[#02a94b]"
+            >
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden focusable="false" className="block shrink-0">
+                <path d="M3 4h6.6l4.9 7.9V4H21v16h-6.6L9.5 12v8H3z" fill="#fff" />
+              </svg>
+              <span className="whitespace-nowrap text-sm font-bold leading-5 text-white">
+                네이버 아이디로 로그인
+              </span>
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="text-xs font-semibold text-primary-600">2단계 인증</p>
+          <h2 className="mt-2.5 text-[31px] font-bold leading-[1.25] tracking-tight text-slate-900">
+            이메일의 로그인 링크를
+            <br />
+            확인해 주세요
+          </h2>
+          <p className="mt-3 text-[15px] leading-[1.65] text-slate-500">
+            <span className="font-semibold text-slate-800">{email}</span> 주소로 1회용 로그인
+            링크를 보냈습니다. 링크를 열면 이 화면이 자동으로 로그인됩니다.
+          </p>
 
-              <form
-                className="mt-8 space-y-4"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  goOtp();
-                }}
-              >
-                <div>
-                  <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-slate-700">
-                    업무 이메일
-                  </label>
-                  <input
-                    id="email"
-                    type="email"
-                    autoComplete="email"
-                    placeholder="name@company.co.kr"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className={FIELD}
-                  />
-                  {isPersonalEmail(email) && (
-                    <p className="mt-1.5 text-xs text-amber-600">
-                      개인 메일 주소예요. 회사에서 발급한 업무용 이메일 사용을 권장해요.
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-slate-700">
-                    비밀번호
-                  </label>
-                  <input
-                    id="password"
-                    type="password"
-                    autoComplete="current-password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className={FIELD}
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600">
-                    <input type="checkbox" defaultChecked className="h-4 w-4 accent-slate-800" />
-                    로그인 유지
-                  </label>
-                  <button
-                    type="button"
-                    className="cursor-pointer text-sm font-medium text-primary-600 transition-colors hover:text-primary-700"
-                  >
-                    비밀번호 찾기
-                  </button>
-                </div>
-                <button
-                  type="submit"
-                  className="w-full cursor-pointer rounded-lg bg-primary-600 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-700"
-                >
-                  2단계 인증으로 계속
-                </button>
-              </form>
+          <div className="mt-8 flex items-center gap-3.5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4" role="status" aria-live="polite">
+            {confirmed ? (
+              <>
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-emerald-600" aria-hidden>
+                  <path d="M20 6 9 17l-5-5" />
+                </svg>
+                <span className="text-sm text-slate-600">
+                  링크가 확인되었습니다. <span className="font-medium text-slate-900">로그인 중…</span>
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="spinner shrink-0" />
+                <span className="text-sm text-slate-600">
+                  링크 접속 대기 중 ·{" "}
+                  <span className="font-medium tabular-nums text-slate-900">
+                    {mm}:{ss}
+                  </span>{" "}
+                  후 만료
+                </span>
+              </>
+            )}
+          </div>
 
-              <p className="mt-6 text-center text-sm text-slate-500">
-                계정이 없으신가요?{" "}
-                <Link href="/signup" className="font-semibold text-primary-600 transition-colors hover:text-primary-700">
-                  이메일로 회원가입
-                </Link>
-              </p>
-            </>
-          ) : (
-            <>
-              <p className="text-xs font-semibold text-primary-600">2단계 인증</p>
-              <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-900">인증 코드 입력</h2>
-              <p className="mt-1.5 text-sm text-slate-500">
-                {email}로 발송된 6자리 코드입니다.{" "}
-                <span className="text-slate-400">(데모 · 자동 입력됨)</span>
-              </p>
+          <div className="mt-6 space-y-3">
+            <button
+              type="button"
+              disabled={resent}
+              onClick={() => {
+                setResent(true);
+                setLeft(LINK_TTL_SEC);
+                setTimeout(() => setResent(false), 2200);
+              }}
+              className="w-full cursor-pointer rounded-lg border border-slate-300 bg-white py-3.5 text-sm font-semibold text-slate-800 transition-colors hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {resent ? "인증 링크를 다시 보냈습니다" : "인증 링크 다시 보내기"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setStep("login")}
+              className="w-full cursor-pointer py-1 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800"
+            >
+              다른 계정으로 로그인
+            </button>
+          </div>
 
-              <form
-                className="mt-8"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  finish();
-                }}
-              >
-                <div className="flex gap-2" role="group" aria-label="OTP 인증 코드">
-                  {otp.map((d, i) => (
-                    <input
-                      key={i}
-                      ref={(el) => {
-                        otpRefs.current[i] = el;
-                      }}
-                      inputMode="numeric"
-                      maxLength={1}
-                      value={d}
-                      aria-label={`인증 코드 ${i + 1}번째 자리`}
-                      onChange={(e) => handleOtpChange(i, e.target.value)}
-                      className="h-12 w-full min-w-0 flex-1 rounded-lg border border-slate-300 text-center text-lg font-bold text-slate-900 transition-colors focus:border-slate-400 focus:outline-2 focus:outline-slate-300/60"
-                    />
-                  ))}
-                </div>
-                <button
-                  type="submit"
-                  className="mt-6 w-full cursor-pointer rounded-lg bg-primary-600 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-700"
-                >
-                  인증하고 계속하기
-                </button>
-              </form>
-
-              <div className="mt-4 flex items-center justify-between text-sm">
-                <button
-                  type="button"
-                  onClick={() => setStep("login")}
-                  className="cursor-pointer text-slate-500 transition-colors hover:text-slate-700"
-                >
-                  ← 로그인으로
-                </button>
-                <button type="button" className="cursor-pointer font-medium text-primary-600 transition-colors hover:text-primary-700">
-                  코드 재발송
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
+          <p className="mt-6 text-[12.5px] leading-[1.6] text-slate-400">
+            메일이 도착하지 않았다면 스팸함을 확인하거나, 조직 관리자에게 문의해 주세요.
+          </p>
+        </>
+      )}
+    </AuthSplit>
   );
 }

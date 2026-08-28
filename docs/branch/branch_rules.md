@@ -15,6 +15,9 @@
 
 - **최상위 폴더** — 작업하는 최상위 디렉터리 이름을 그대로 쓴다. 대문자.
   - `FE` / `BE` / `INFRA` / `AI`
+  - `ROOT` — 위 네 폴더 안이 하나도 바뀌지 않고 저장소 루트 파일만 고칠 때 쓴다.
+    `CLAUDE.md`, `.gitignore`, `.github/`, `docs/`, `.claude/` 같은 것들이다.
+    폴더 이름이 아니라 "루트"라는 위치를 가리키는 예외값이다.
   - 여러 영역에 걸치면 변경의 무게중심이 있는 쪽을 쓴다.
 - **작업 유형** — 소문자. 커밋 타입(`docs/commit/commit-convention.md`)과 같은 어휘를 쓴다.
   - `feature` / `fix` / `refactor` / `docs` / `style` / `test` / `chore` / `hotfix`
@@ -29,6 +32,8 @@ AI/refactor/graph-query-pipeline
 FE/fix/inventory-tab-overflow
 FE/feature/safety-stock-view
 INFRA/chore/github-actions-setup
+ROOT/docs/claude-md-team-rules
+ROOT/chore/gitignore-cleanup
 ```
 
 ## 브랜치 생성 절차
@@ -43,4 +48,9 @@ git checkout -b FE/feature/safety-stock-view
 
 ## 현재 상태 메모
 
-- 2026-08-25 기준 원격(`origin`)에는 `main`만 있고 `dev` 브랜치가 아직 없다. 위 규칙대로 운영하려면 `dev`를 만들고 GitHub 저장소 설정에서 default 브랜치로 지정해야 한다.
+- 2026-08-26 기준 원격(`origin`)에 `dev`가 있고 GitHub default 브랜치로 지정돼 있다. 위 규칙대로 운영 가능한 상태다.
+- 저장소는 `axcore-dev/WorkSpace`다. 이전 URL(`Paaaaang/axpoint-demo`)로 remote가 잡혀 있으면 아래로 갱신한다.
+
+  ```bash
+  git remote set-url origin https://github.com/axcore-dev/WorkSpace.git
+  ```

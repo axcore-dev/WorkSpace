@@ -6,7 +6,7 @@ plugins {
 
 group = "com.axcore"
 version = "0.0.1-SNAPSHOT"
-description = "AXpoint WorkSpace backend"
+description = "WorkSpace backend"
 
 java {
 	toolchain {

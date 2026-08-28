@@ -57,6 +57,22 @@ body {
   animation: tab-wiggle 0.28s ease-in-out infinite;
 }
 
+/* 일반 로딩 스피너 — 대기 상태 표시 (AI 전용인 shimmer와 구분) */
+.spinner {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  border: 2px solid #cbd5e1;
+  border-top-color: var(--color-primary-600);
+  animation: spinner-spin 0.8s linear infinite;
+}
+@keyframes spinner-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* 추론 로딩 — 텍스트 위로 그라데이션이 흐르는 쉬머 */
 .shimmer-text {
   background: linear-gradient(90deg, #94a3b8 20%, #0f172a 50%, #94a3b8 80%);
