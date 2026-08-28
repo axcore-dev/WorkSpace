@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { Logo } from "@/components/logo";
 
 /**
@@ -61,13 +60,14 @@ export function AuthSplit({ children }: { children: React.ReactNode }) {
 /** 인증 화면 전용 주 액션 버튼 — 로그인·가입하기 등 폼 제출 (일반 화면은 ui.tsx Button 사용) */
 export function AuthPrimaryButton({
   children,
+  className = "",
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
       type="submit"
-      className="w-full cursor-pointer rounded-lg bg-primary-600 py-3.5 text-[15px] font-semibold text-white transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-40"
       {...props}
+      className={`w-full cursor-pointer rounded-lg bg-primary-600 py-3.5 text-[15px] font-semibold text-white transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-40 ${className}`}
     >
       {children}
     </button>
