@@ -60,6 +60,9 @@ DB(Postgres)가 떠 있어야 하고, Flyway가 `shared` 스키마에 `users` / 
 `me`만 Bearer 토큰을 요구한다. `refresh`와 `logout`이 permitAll인 이유는, 유효한 refresh
 쿠키를 들고 있다는 것 자체가 자격 증명이기 때문이다.
 
+계정 관리(이메일 확인 · 2단계 인증 · 비밀번호 · 세션 · 회사 선택) 엔드포인트 14개는
+[account-api-postman-test.md](account-api-postman-test.md)에 있다.
+
 ### 컬렉션 레벨 Auth 설정 (권장)
 
 컬렉션 **Authorization** 탭 → Type `Bearer Token` → Token에 `{{accessToken}}`.
@@ -91,11 +94,15 @@ Postman이 자동으로 붙인다.
   "email": "postman.test@axcore.ai.kr",
   "name": "Postman Tester",
   "avatarUrl": null,
+  "emailVerified": false,
   "passwordChangedAt": "2026-08-28T01:31:30.095458900Z",
   "lastLoginAt": null,
   "createdAt": "2026-08-28T01:31:30.095458900Z"
 }
 ```
+
+가입과 동시에 확인 메일이 발송된다(지금은 서버 콘솔에 찍힌다). `emailVerified`가 `false`인
+동안은 회사 진입이 막힌다 — account-api 문서 3절 참고.
 
 `passwordHash`는 응답에 없다. `UserResponse`가 엔티티를 직접 직렬화하지 않기 때문이고,
 이건 회귀 테스트로 지켜야 할 성질이다 (아래 6절 스크립트에 체크가 들어 있다).
@@ -131,8 +138,9 @@ Set-Cookie: axp_refresh=WbgHo...; Path=/api/auth; Max-Age=1209599; Secure; HttpO
 
 읽을 점 세 가지.
 
-- **`next`는 항상 `SELECT_WORKSPACE`다.** 회사 선택 엔드포인트가 아직 없어서 세션의
-  `workspaceId`가 비어 있기 때문이다. `READY`가 나오면 그때가 회사 선택이 붙은 시점이다.
+- **`next`는 네 값을 가진다.** `MFA_REQUIRED` → `EMAIL_VERIFICATION_REQUIRED` →
+  `SELECT_WORKSPACE` → `READY` 순으로 남은 단계를 알려 준다. 2단계가 켜져 있으면
+  `accessToken`도 `user`도 없이 `mfaToken`만 나간다 — account-api 문서 2절 참고.
 - **`refreshToken`은 응답 본문에 없다.** 없는 게 정상이다. HttpOnly 쿠키로만 나간다.
 - **`rememberMe`를 `false`로 하거나 아예 빼면** `Max-Age`가 붙지 않는 세션 쿠키로 나간다.
   Postman에서는 앱을 닫을 때까지 유지되므로 브라우저만큼 티가 나지 않는다.
@@ -403,14 +411,23 @@ DELETE FROM shared.users WHERE email LIKE 'pm-%@axcore.ai.kr';
 
 ---
 
-## 8. 아직 없는 것
+## 8. 이어지는 문서
 
-테스트하다 "왜 없지" 싶을 항목들이다. 전부 미구현이며 버그가 아니다.
+이 문서가 다루는 것은 로그인 세션을 만들고 없애는 5개 경로까지다. 아래는
+[account-api-postman-test.md](account-api-postman-test.md)로 옮겨졌다.
 
-- **이메일 소유 확인** — `signup`이 즉시 계정을 만든다. 남의 주소로도 가입된다.
-  외부에 열기 전에 반드시 채워야 한다. (`AuthService#signUp` 주석)
-- **2단계 인증** — `LoginResponse.next`에 `MFA_REQUIRED` 값만 정의돼 있고 경로가 없다.
-- **회사(workspace) 선택** — 그래서 `next`가 항상 `SELECT_WORKSPACE`다.
-- **비밀번호 재설정 / 변경**, **세션 목록 조회 및 개별 로그아웃** — 엔드포인트 없음.
-- **권한(role) 클레임** — access 토큰에 넣지 않는다. 권한 모델이 확정되지 않았고,
-  넣는 순간 권한 회수가 access TTL만큼 늦어진다.
+- **이메일 소유 확인** — 가입 시 확인 메일이 발송된다. 미확인 계정은 로그인은 되지만
+  회사 진입이 막힌다.
+- **2단계 인증** — 이메일 OTP. 등록 · 로그인 2단계 · 해제 · 시도 횟수 제한.
+- **회사(workspace) 선택** — 그래서 `next`가 `READY`까지 간다.
+- **비밀번호 변경 / 재설정**, **세션 목록 및 개별 로그아웃**
+
+여전히 없는 것:
+
+- **TOTP · SMS · WebAuthn** — `MfaMethod`에 값만 있다.
+- **실제 메일 발송** — 지금은 서버 콘솔에 찍힌다. `MailSender` 구현체가 없다.
+- **회사 생성(프로비저닝)** — 테넌트 스키마 생성과 `search_path` 전환. 그래서 `wsid`는
+  기록만 되고 실제로 스키마를 열지 않는다.
+- **권한(role) 클레임** — 테넌트 스키마의 `roles`/`members`가 선행되어야 한다.
+  넣는 순간 권한 회수가 access TTL만큼 늦어지는 문제도 그대로다.
+- **요청 빈도 제한** — 메일을 유발하는 경로에 아직 없다.

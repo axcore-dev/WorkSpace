@@ -1,16 +1,17 @@
 package com.axcore.workspace.user.controller;
 
-import com.axcore.workspace.security.AuthProperties;
+import com.axcore.workspace.security.JwtPrincipal;
+import com.axcore.workspace.security.RefreshCookieFactory;
 import com.axcore.workspace.user.dto.LoginRequest;
 import com.axcore.workspace.user.dto.LoginResponse;
 import com.axcore.workspace.user.dto.SignUpRequest;
 import com.axcore.workspace.user.dto.UserResponse;
+import com.axcore.workspace.user.service.AuthResult;
 import com.axcore.workspace.user.service.AuthService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -22,42 +23,52 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.time.Duration;
-import java.time.Instant;
-import java.util.UUID;
-
 /**
  * 인증 엔드포인트.
  *
  * <p>access 토큰은 응답 본문으로, refresh 토큰은 HttpOnly 쿠키로 나간다. 두 개를 다른 통로로
  * 보내는 이유는 노출 면적이 다르기 때문이다. access 는 15분짜리라 메모리에 두면 되고, refresh 는
  * 며칠짜리 재발급 권한이라 스크립트가 읽을 수 있는 곳에 두면 안 된다.
+ *
+ * <p>계정 관리(비밀번호 · 이메일 확인 · 2단계 · 세션 · 회사)는 각각의 컨트롤러로 나뉘어 있다.
+ * 여기는 "로그인 세션을 만들고 없애는" 경로만 둔다.
  */
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
 
     private final AuthService authService;
-    private final AuthProperties authProperties;
+    private final RefreshCookieFactory refreshCookies;
 
-    public AuthController(AuthService authService, AuthProperties authProperties) {
+    public AuthController(AuthService authService, RefreshCookieFactory refreshCookies) {
         this.authService = authService;
-        this.authProperties = authProperties;
+        this.refreshCookies = refreshCookies;
     }
 
-    /** 명세 2.1.5. 이메일 소유 확인이 아직 없다 — AuthService#signUp 주석 참고. */
+    /**
+     * 가입. 계정을 만들고 소유 확인 메일을 보낸다.
+     *
+     * <p>확인 전에도 계정은 선다. 확인될 때까지 회사 진입이 막힐 뿐이다.
+     * ({@code AuthService#signUp} 주석 참고)
+     */
     @PostMapping("/signup")
     @ResponseStatus(HttpStatus.CREATED)
     public UserResponse signUp(@Valid @RequestBody SignUpRequest request) {
         return authService.signUp(request);
     }
 
+    /**
+     * 로그인.
+     *
+     * <p>2단계가 켜져 있으면 여기서 토큰이 나가지 않는다. {@code next=MFA_REQUIRED} 와
+     * {@code mfaToken} 만 돌려주고, 세션은 {@code POST /api/auth/mfa/verify} 에서 생긴다.
+     */
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(
             @Valid @RequestBody LoginRequest request, HttpServletRequest servletRequest) {
-        AuthService.AuthResult result =
+        AuthResult result =
                 authService.login(request, userAgent(servletRequest), clientIp(servletRequest));
-        return withRefreshCookie(result);
+        return refreshCookies.toResponse(result);
     }
 
     /**
@@ -70,9 +81,10 @@ public class AuthController {
             @CookieValue(name = "${app.auth.refresh-cookie-name}", required = false)
                     String refreshToken,
             HttpServletRequest servletRequest) {
-        AuthService.AuthResult result =
-                authService.refresh(refreshToken, userAgent(servletRequest), clientIp(servletRequest));
-        return withRefreshCookie(result);
+        AuthResult result =
+                authService.refresh(
+                        refreshToken, userAgent(servletRequest), clientIp(servletRequest));
+        return refreshCookies.toResponse(result);
     }
 
     /**
@@ -87,50 +99,13 @@ public class AuthController {
                     String refreshToken) {
         authService.logout(refreshToken);
         return ResponseEntity.noContent()
-                .header(HttpHeaders.SET_COOKIE, clearedRefreshCookie().toString())
+                .header(HttpHeaders.SET_COOKIE, refreshCookies.cleared().toString())
                 .build();
     }
 
     @GetMapping("/me")
     public UserResponse me(@AuthenticationPrincipal Jwt jwt) {
-        return authService.currentUser(UUID.fromString(jwt.getSubject()));
-    }
-
-    private ResponseEntity<LoginResponse> withRefreshCookie(AuthService.AuthResult result) {
-        ResponseCookie cookie =
-                refreshCookie(
-                        result.refreshToken(), result.refreshTokenExpiresAt(), result.rememberMe());
-        return ResponseEntity.ok()
-                .header(HttpHeaders.SET_COOKIE, cookie.toString())
-                .body(result.body());
-    }
-
-    /**
-     * "로그인 유지"를 끄면 Max-Age 를 붙이지 않는다. 그러면 브라우저를 닫는 순간 쿠키가 사라져
-     * 재접속 시 다시 로그인하게 된다. 공용 PC 를 고려한 명세 2.1.2 의 기본 동작이다.
-     */
-    private ResponseCookie refreshCookie(String value, Instant expiresAt, boolean rememberMe) {
-        ResponseCookie.ResponseCookieBuilder builder =
-                ResponseCookie.from(authProperties.refreshCookieName(), value)
-                        .httpOnly(true)
-                        .secure(authProperties.refreshCookieSecure())
-                        .path(authProperties.refreshCookiePath())
-                        .sameSite(authProperties.refreshCookieSameSite());
-        if (rememberMe) {
-            Duration maxAge = Duration.between(Instant.now(), expiresAt);
-            builder.maxAge(maxAge.isNegative() ? Duration.ZERO : maxAge);
-        }
-        return builder.build();
-    }
-
-    private ResponseCookie clearedRefreshCookie() {
-        return ResponseCookie.from(authProperties.refreshCookieName(), "")
-                .httpOnly(true)
-                .secure(authProperties.refreshCookieSecure())
-                .path(authProperties.refreshCookiePath())
-                .sameSite(authProperties.refreshCookieSameSite())
-                .maxAge(Duration.ZERO)
-                .build();
+        return authService.currentUser(JwtPrincipal.of(jwt).userId());
     }
 
     private static String userAgent(HttpServletRequest request) {

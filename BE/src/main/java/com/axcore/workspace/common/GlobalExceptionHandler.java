@@ -1,6 +1,11 @@
 package com.axcore.workspace.common;
 
 import com.axcore.workspace.user.service.DuplicateEmailException;
+import com.axcore.workspace.user.service.EmailAlreadyVerifiedException;
+import com.axcore.workspace.user.service.MfaStateException;
+import com.axcore.workspace.user.service.SamePasswordException;
+import com.axcore.workspace.user.service.SessionNotFoundException;
+import com.axcore.workspace.workspace.service.WorkspaceAccessDeniedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -58,6 +63,41 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleDuplicateEmail(DuplicateEmailException e) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ErrorResponse.of("EMAIL_ALREADY_USED", e.getMessage()));
+    }
+
+    /**
+     * 계정 설정의 상태 충돌. 전부 409 다.
+     *
+     * <p>인증 실패와 달리 문구를 그대로 내보낸다. 로그인된 사용자가 자기 설정을 보고 있는
+     * 상황이라 감출 정보가 없고, 무엇이 어긋났는지 알려 주지 않으면 화면이 같은 요청을 반복한다.
+     */
+    @ExceptionHandler({
+        MfaStateException.class,
+        EmailAlreadyVerifiedException.class,
+        SamePasswordException.class
+    })
+    public ResponseEntity<ErrorResponse> handleAccountStateConflict(RuntimeException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ErrorResponse.of("ACCOUNT_STATE_CONFLICT", e.getMessage()));
+    }
+
+    /**
+     * 회사 진입 거부. 403 이다.
+     *
+     * <p>404 로 감추지 않는 이유: 자기 소속 정보이고, "권한이 없다"와 "회사가 정지됐다"가
+     * 구분돼야 사용자가 누구에게 문의할지 안다.
+     */
+    @ExceptionHandler(WorkspaceAccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> handleWorkspaceAccess(WorkspaceAccessDeniedException e) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ErrorResponse.of("WORKSPACE_ACCESS_DENIED", e.getMessage()));
+    }
+
+    /** 없는 세션과 남의 세션을 구분하지 않는다. 둘 다 404 다. */
+    @ExceptionHandler(SessionNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleSessionNotFound(SessionNotFoundException e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ErrorResponse.of("SESSION_NOT_FOUND", e.getMessage()));
     }
 
     /**

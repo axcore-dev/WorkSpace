@@ -18,6 +18,8 @@ import java.util.List;
  *                          동작한다. 완전히 다른 도메인이면 None 으로 바꾸고 Secure 가 필수다.
  * @param allowedOrigins    쿠키를 주고받으려면 CORS 에 credentials 가 필요하고, 그러면
  *                          와일드카드 Origin 을 쓸 수 없다. 정확한 출처만 나열한다.
+ *                          기본값 포트는 8000 이다 — FE 가 {@code next dev -p 8000} 으로 돈다.
+ *                          Next.js 기본값 3000 을 적어 두면 FE 를 붙이는 순간 전부 CORS 에서 막힌다.
  */
 @ConfigurationProperties(prefix = "app.auth")
 public record AuthProperties(
@@ -25,5 +27,5 @@ public record AuthProperties(
         @DefaultValue("/api/auth") String refreshCookiePath,
         @DefaultValue("true") boolean refreshCookieSecure,
         @DefaultValue("Lax") String refreshCookieSameSite,
-        @DefaultValue("http://localhost:3000") List<String> allowedOrigins) {
+        @DefaultValue("http://localhost:8000") List<String> allowedOrigins) {
 }
