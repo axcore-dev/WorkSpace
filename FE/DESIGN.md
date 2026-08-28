@@ -120,7 +120,7 @@ WorkSpace 데모의 시각 언어와 공용 컴포넌트 규칙. 코드가 단�
 | hover | 배경 한 단계 (`hover:bg-slate-50` / `hover:bg-slate-100`) 또는 텍스트 한 단계. 데스크톱의 1차 피드백 |
 | focus | `focus-visible:outline-2 focus-visible:outline-offset-2`. 입력 필드는 `focus:border-slate-400` — **블루 아님** (블루는 액션 전용) |
 | disabled | **노드 전체** `disabled:opacity-40` + `cursor-not-allowed`. 부분 회색 처리 금지 |
-| 폼 에러 | 필드 테두리 `border-red-300` + 아래 `mt-1.5 text-xs text-red-600` 헬퍼 텍스트. 인증 폼은 `FIELD_LG_ERROR` 상수를 쓴다 (작은 필드용 `FIELD_ERROR`는 사용처가 생길 때 추가). 메시지는 다음 행동을 안내한다 (UX 라이팅 절) |
+| 폼 에러 | 필드 테두리 `border-red-300` + 아래 `mt-1.5 text-xs text-red-600` 헬퍼 텍스트. 인증 폼은 `FIELD_LG_ERROR`, 설정·모달·관리자 폼은 `FIELD_ERROR`를 쓴다. 메시지는 다음 행동을 안내한다 (UX 라이팅 절) |
 
 ## 공용 컴포넌트 (`components/ui.tsx`)
 
