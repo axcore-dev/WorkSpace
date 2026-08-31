@@ -290,7 +290,7 @@ export default function AdminCreatePage() {
           </Card>
 
           <Card>
-            <SectionHeader title="종사업장" desc="본사 외 사업장이 있으면 추가해 주세요." />
+            <SectionHeader title="종사업장" />
 
             <SiteFields sites={sites} onChange={setSites} />
           </Card>
@@ -299,10 +299,7 @@ export default function AdminCreatePage() {
         {/* ── 오른쪽: 담당자 + 설정 + 안내 ── */}
         <div className="space-y-4">
           <Card>
-            <SectionHeader
-              title="담당자"
-              desc="접속 링크 받는 사람과 연락 담당을 따로 둘 수 있어요."
-            />
+            <SectionHeader title="담당자" />
 
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
               <p className="text-xs font-semibold text-slate-700">접속 링크 받는 사람</p>
@@ -467,7 +464,7 @@ export default function AdminCreatePage() {
                 </select>
               </Field>
 
-              <Field id="memo" label="메모" hint="내부용이에요. 고객에게는 보이지 않아요.">
+              <Field id="memo" label="내부 메모">
                 <textarea
                   id="memo"
                   value={memo}

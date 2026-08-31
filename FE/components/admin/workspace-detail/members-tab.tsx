@@ -21,7 +21,7 @@ export function MembersTab({ ws }: { ws: AdminWorkspace }) {
     <Card>
       <SectionHeader
         title={`멤버 ${ws.members.length}명`}
-        desc="보기 전용이에요. 멤버 초대·권한 변경은 고객사 담당자가 자기 화면에서 해요."
+        desc="멤버 초대·권한 변경은 고객사 담당자가 자기 화면에서 해요."
       />
 
       {ws.members.length === 0 ? (

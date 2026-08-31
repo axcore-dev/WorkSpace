@@ -19,12 +19,7 @@ export function MemoCard({ ws, onSave }: { ws: AdminWorkspace; onSave: Save }) {
 
   return (
     <Card>
-      <EditHeader
-        title="내부 메모"
-        desc="고객에게는 보이지 않아요."
-        editing={editing}
-        onEdit={open}
-      />
+      <EditHeader title="내부 메모" editing={editing} onEdit={open} />
 
       {!editing ? (
         ws.memo ? (

@@ -14,19 +14,16 @@ export type Save = (patch: Partial<AdminWorkspace>) => void;
 /** 카드 제목 + '수정' 버튼. 편집 중일 때는 버튼을 숨긴다 */
 export function EditHeader({
   title,
-  desc,
   editing,
   onEdit,
 }: {
   title: string;
-  desc?: string;
   editing: boolean;
   onEdit: () => void;
 }) {
   return (
     <SectionHeader
       title={title}
-      desc={desc}
       action={
         editing ? undefined : (
           <Button variant="ghost" size="sm" onClick={onEdit}>

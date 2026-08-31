@@ -74,10 +74,6 @@ export function ContactsCard({ ws, onSave }: { ws: AdminWorkspace; onSave: Save 
               {resent ? "다시 보냈어요" : "링크 다시 보내기"}
             </Button>
           </div>
-          <p className="mt-2 text-xs text-slate-400">
-            링크는 <span className="font-medium text-slate-600">{ws.contacts.link.email}</span> 으로만
-            나가요.
-          </p>
         </>
       ) : (
         <div className="space-y-4">

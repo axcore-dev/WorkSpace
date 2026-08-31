@@ -48,10 +48,7 @@ export function IntegrationsTab({ ws }: { ws: AdminWorkspace }) {
     <div className="space-y-4">
       {/* 매핑이 이 탭의 주인공 — 시스템 목록은 위에 요약으로 둔다 */}
       <Card>
-        <SectionHeader
-          title="온톨로지 매핑"
-          desc="원본 항목을 온톨로지 개념에 이어 붙인 결과예요. 확신도가 낮으면 사람이 확인해야 해요."
-        />
+        <SectionHeader title="온톨로지 매핑" desc="확신도가 낮으면 사람이 확인해야 해요." />
 
         <div className="grid grid-cols-3 gap-3">
           {[
@@ -134,7 +131,7 @@ export function IntegrationsTab({ ws }: { ws: AdminWorkspace }) {
       </Card>
 
       <Card>
-        <SectionHeader title="연결된 시스템" desc="연결 상태와 마지막 동기화 시각이에요." />
+        <SectionHeader title="연결된 시스템" />
         <AdminTable columns={["시스템", "종류", "사업장", "연결 상태", "마지막 동기화"]} minWidth={620}>
           {ws.systems.map((s) => (
             <tr key={s.name} className={TR}>
