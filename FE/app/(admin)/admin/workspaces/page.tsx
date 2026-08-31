@@ -164,7 +164,7 @@ export default function AdminWorkspaceListPage() {
                   <td className={`${TD} tabular-nums`}>{w.bizNumber}</td>
                   <td className={TD}>
                     <Link
-                      href={`/admin/${w.slug}`}
+                      href={`/admin/workspaces/${w.slug}`}
                       className="font-medium text-primary-700 transition-colors hover:text-primary-800"
                     >
                       {w.slug}
@@ -190,7 +190,7 @@ export default function AdminWorkspaceListPage() {
                   </td>
                   <td className={TD}>{w.lastActive}</td>
                   <td className={TD}>
-                    <Button variant="secondary" size="sm" href={`/admin/${w.slug}`}>
+                    <Button variant="secondary" size="sm" href={`/admin/workspaces/${w.slug}`}>
                       열기
                     </Button>
                   </td>

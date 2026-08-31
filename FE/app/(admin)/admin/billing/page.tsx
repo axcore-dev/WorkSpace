@@ -180,7 +180,7 @@ export default function AdminBillingPage() {
                   )}
                 </td>
                 <td className={TD}>
-                  <Button variant="secondary" size="sm" href={`/admin/${w.slug}`}>
+                  <Button variant="secondary" size="sm" href={`/admin/workspaces/${w.slug}`}>
                     열기
                   </Button>
                 </td>

@@ -6,7 +6,14 @@ import { IconBuilding, IconDashboard, IconGauge } from "@/components/icons";
 
 const ITEMS = [
   { href: "/admin", label: "대시보드", icon: IconDashboard },
-  { href: "/admin/workspaces", label: "워크스페이스", icon: IconBuilding },
+  {
+    href: "/admin/workspaces",
+    label: "워크스페이스",
+    icon: IconBuilding,
+    // 만들기는 `/admin/new`에 있다 — `/admin/workspaces/new`로 옮기면 `new`라는 이름의
+    // 워크스페이스가 가려진다 (수정요청v9 ① 1-1)
+    owns: ["/admin/workspaces", "/admin/new"],
+  },
   { href: "/admin/billing", label: "사용량 · 요금", icon: IconGauge },
 ];
 
@@ -20,7 +27,7 @@ export function AdminNav() {
       </p>
       <div className="space-y-0.5">
         {ITEMS.map((item) => {
-          const active = isActive(pathname, item.href);
+          const active = isActive(pathname, item);
           return (
             <Link
               key={item.href}
@@ -43,11 +50,16 @@ export function AdminNav() {
 }
 
 /**
- * 대시보드는 정확히 `/admin`일 때만 활성.
- * 워크스페이스는 목록·생성·상세(`/admin/<slug>`)를 전부 품는다 — `/admin/billing`만 예외다.
+ * 각 메뉴가 자기 경로를 명시적으로 소유한다 — 「빼기 예외」 방식을 쓰지 않는다.
+ *
+ * 전에는 「워크스페이스」가 `/admin/` 아래 전부를 주장하고 `billing`만 예외로 뺐다.
+ * 메뉴를 추가할 때마다 예외를 붙여야 했고 잊으면 조용히 틀렸다.
+ * 상세가 `/admin/workspaces/<slug>`로 옮겨져 `/admin/` 아래에 동적 경로가 없으므로,
+ * 이제 접두사 비교만으로 정확하다.
  */
-function isActive(pathname: string, href: string) {
-  if (href === "/admin") return pathname === "/admin";
-  if (href === "/admin/billing") return pathname === "/admin/billing";
-  return pathname.startsWith("/admin/") && pathname !== "/admin/billing";
+function isActive(pathname: string, item: { href: string; owns?: string[] }) {
+  if (pathname === item.href) return true;
+  return (item.owns ?? []).some(
+    (p) => pathname === p || pathname.startsWith(`${p}/`),
+  );
 }

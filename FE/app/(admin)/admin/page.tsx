@@ -151,7 +151,7 @@ function TaskGroup({ kind, rows }: { kind: TaskKind; rows: Task[] }) {
               <p className="mt-0.5 truncate text-xs text-slate-500">{t.detail}</p>
             </div>
             <span className="shrink-0 text-xs text-slate-400">{t.since}</span>
-            <Button variant="secondary" size="sm" href={`/admin/${t.slug}`}>
+            <Button variant="secondary" size="sm" href={`/admin/workspaces/${t.slug}`}>
               열기
             </Button>
           </li>
