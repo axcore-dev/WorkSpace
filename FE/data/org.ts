@@ -100,7 +100,7 @@ export const EXTERNAL_SYSTEMS: {
     slug: "factory1-mes",
     name: "1공장 MES",
     system: "미라콤 Nexplant MESplus",
-    icon: "factory",
+    icon: "hardDrive",
     embed: { kind: "iframe", src: "https://www.mespluscloud.com/exper/demo" },
   },
   {
