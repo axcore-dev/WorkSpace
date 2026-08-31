@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AuthPrimaryButton, AuthSplit } from "@/components/auth-shell";
+import { AuthPrimaryButton, AuthSplit, SocialAuthButtons } from "@/components/auth-shell";
 import { FIELD_LG, isPersonalEmail } from "@/components/ui";
 import { DEMO_USER } from "@/data/org";
 import {
@@ -16,18 +16,6 @@ import {
 /** 데모: 매직링크 대기 화면 진입 후 이 시간(ms)이 지나면 링크를 클릭한 것으로 간주한다 */
 const DEMO_LINK_CLICK_MS = 5000;
 const LINK_TTL_SEC = 600;
-
-/** Google 공식 로그인 버튼의 4색 G 로고 */
-function GoogleG() {
-  return (
-    <svg viewBox="0 0 48 48" width="20" height="20" aria-hidden focusable="false" className="block shrink-0">
-      <path fill="#4285F4" d="M45.12 24.5c0-1.56-.14-3.06-.4-4.5H24v8.51h11.84c-.51 2.75-2.06 5.08-4.39 6.64v5.52h7.11c4.16-3.83 6.56-9.47 6.56-16.17z" />
-      <path fill="#34A853" d="M24 46c5.94 0 10.92-1.97 14.56-5.33l-7.11-5.52c-1.97 1.32-4.49 2.1-7.45 2.1-5.73 0-10.58-3.87-12.31-9.07H4.34v5.7C7.96 41.07 15.4 46 24 46z" />
-      <path fill="#FBBC05" d="M11.69 28.18C11.25 26.86 11 25.45 11 24s.25-2.86.69-4.18v-5.7H4.34C2.85 17.09 2 20.45 2 24s.85 6.91 2.34 9.88l7.35-5.7z" />
-      <path fill="#EA4335" d="M24 10.75c3.23 0 6.13 1.11 8.41 3.29l6.31-6.31C34.91 4.18 29.93 2 24 2 15.4 2 7.96 6.93 4.34 14.12l7.35 5.7c1.73-5.2 6.58-9.07 12.31-9.07z" />
-    </svg>
-  );
-}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -61,7 +49,13 @@ export default function LoginPage() {
 
   function finish() {
     localStorage.setItem("axpoint-user", JSON.stringify({ ...DEMO_USER, email }));
-    router.push("/workspace");
+    // 진입 지점 분기 — 데모 판정이고 **보안 경계가 아니다.**
+    // 실제로는 BE 세션의 내부 역할·워크스페이스 보유 여부로 갈린다.
+    if (INTERNAL_ADMIN_EMAILS.includes(email.trim().toLowerCase())) {
+      router.push("/admin");
+      return;
+    }
+    router.push(WORKSPACES.length > 0 ? "/dashboard" : "/workspace");
   }
 
   /** 대기 화면 진입 — 타이머·확인 상태는 여기서 리셋한다 (effect 내 동기 setState 회피) */

@@ -2,39 +2,6 @@ import type { Tone } from "./types";
 
 /** 조직/워크스페이스·설정 관련 더미 데이터 */
 
-/** 워크스페이스 생성 단계의 조직 검색 결과 */
-export const ORG_DIRECTORY: {
-  bizNumber: string;
-  name: string;
-  ceo: string;
-  address: string;
-  hasWorkspace: boolean;
-  members?: number;
-}[] = [
-  {
-    bizNumber: "123-86-01234",
-    name: "(주)데모컴퍼니",
-    ceo: "김정호",
-    address: "경기도 안산시 단원구 성곡동",
-    hasWorkspace: true,
-    members: 42,
-  },
-  {
-    bizNumber: "220-81-45678",
-    name: "데모정공 (주)",
-    ceo: "박민수",
-    address: "인천광역시 남동구 논현동",
-    hasWorkspace: false,
-  },
-  {
-    bizNumber: "312-86-77890",
-    name: "데모테크놀로지",
-    ceo: "이서연",
-    address: "충남 천안시 서북구 백석동",
-    hasWorkspace: false,
-  },
-];
-
 /** 데모 자동 로그인 계정 — 실제 배포: axcore.it.kr */
 export const DEMO_USER = {
   name: "박데모",
@@ -44,6 +11,22 @@ export const DEMO_USER = {
   company: "(주)데모컴퍼니",
   initials: "박",
 };
+
+/** 내부 관리자(AXCORE 운영) 데모 계정 — 계약 시 고객 워크스페이스를 개설하는 쪽 */
+export const DEMO_ADMIN = {
+  name: "운영팀",
+  email: "ops@axcore.ai.kr",
+  role: "내부 관리자",
+};
+
+/**
+ * 로그인 후 내부 관리자 콘솔로 보낼 계정 목록.
+ * 데모 분기용이며 **보안 경계가 아니다** — 실제 판정은 BE 세션의 역할로 한다.
+ */
+export const INTERNAL_ADMIN_EMAILS = [DEMO_ADMIN.email];
+
+/** 개설 대기 화면에서 안내하는 문의처 (데모 값) */
+export const SUPPORT_EMAIL = "support@axcore.ai.kr";
 
 /** 사이드바 조직(워크스페이스) 선택기 — 기본값은 데모컴퍼니 */
 export const WORKSPACES: { id: string; name: string; role: string; plan: string }[] = [
