@@ -19,6 +19,7 @@ import {
   LIMIT_WARN_PCT,
   billingState,
   estimateAmount,
+  isNearLimit,
   isValidBizNumber,
   isValidSlug,
   pendingTasks,
@@ -118,6 +119,33 @@ test("한도 임박 신호는 중지된 곳을 제외하고 기준치 이상만�
     (w) => w.status !== "suspended" && storagePct(w) >= LIMIT_WARN_PCT,
   ).length;
   assert.equal(pendingTasks().filter((t) => t.kind === "limit").length, expected);
+});
+
+/* ───────────── isNearLimit (요금 화면·대시보드 판정 통합) ───────────── */
+
+test("isNearLimit은 중지된 곳을 제외하고 기준치 이상만 고른다", () => {
+  for (const w of ADMIN_WORKSPACES) {
+    const expected = w.status !== "suspended" && storagePct(w) >= LIMIT_WARN_PCT;
+    assert.equal(isNearLimit(w), expected, w.slug);
+  }
+});
+
+test("한도 임박 신호 수와 isNearLimit 집계가 일치한다", () => {
+  // 대시보드 신호와 요금 화면 요약이 같은 판정을 쓰는지 고정한다.
+  const signal = pendingTasks().filter((t) => t.kind === "limit").length;
+  assert.equal(signal, ADMIN_WORKSPACES.filter(isNearLimit).length);
+});
+
+test("중지된 워크스페이스는 한도를 넘겨도 한도 임박이 아니다", () => {
+  const base = ADMIN_WORKSPACES[0];
+  const suspended = {
+    ...base,
+    slug: "합성-중지",
+    status: "suspended" as const,
+    usage: { ...base.usage, storageGb: 99, storageLimitGb: 100 },
+  };
+  assert.equal(storagePct(suspended), 99);
+  assert.equal(isNearLimit(suspended), false);
 });
 
 test("pendingTasks는 넘긴 목록만 본다", () => {

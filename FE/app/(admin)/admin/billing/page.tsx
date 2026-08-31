@@ -13,6 +13,7 @@ import {
   billingState,
   downloadCsv,
   estimateAmount,
+  isNearLimit,
   storagePct,
   toCsv,
 } from "@/data/admin";
@@ -34,7 +35,7 @@ export default function AdminBillingPage() {
     return {
       storage,
       amount,
-      nearLimit: ADMIN_WORKSPACES.filter((w) => storagePct(w) >= 75).length,
+      nearLimit: ADMIN_WORKSPACES.filter(isNearLimit).length,
       overdue: ADMIN_WORKSPACES.filter((w) => billingState(w) === "overdue").length,
     };
   }, []);

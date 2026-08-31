@@ -626,6 +626,16 @@ export function storagePct(ws: AdminWorkspace) {
 }
 
 /**
+ * 저장 용량 한도에 임박했나 — 대시보드 신호와 요금 화면 요약이 같은 판정을 쓴다.
+ *
+ * 중지된 워크스페이스는 제외한다. 쓰지 않는 곳의 한도는 손볼 일이 아니다.
+ * 이 판정이 두 곳에 흩어져 있으면 같은 라벨(「한도 임박」) 아래 다른 숫자가 나온다.
+ */
+export function isNearLimit(ws: AdminWorkspace) {
+  return ws.status !== "suspended" && storagePct(ws) >= LIMIT_WARN_PCT;
+}
+
+/**
  * 청구 상태 — 미수금이 있으면 그게 상태다. 없으면 청구 예정.
  *
  * 화면 세 곳(요금 목록·상세 사용량 탭·대시보드 미수금 신호)이 같은 판정을 쓰므로
@@ -655,9 +665,6 @@ export function pendingTasks(list: AdminWorkspace[] = ADMIN_WORKSPACES): Task[] 
   const tasks: Task[] = [];
 
   for (const ws of list) {
-    // 중지된 곳은 손볼 대상이 아니다 — 미수금만 예외로 남긴다
-    const active = ws.status !== "suspended";
-
     const authFailCount = ws.systems.filter((s) => s.state === "authFail").length;
 
     for (const s of ws.systems) {
@@ -702,7 +709,7 @@ export function pendingTasks(list: AdminWorkspace[] = ADMIN_WORKSPACES): Task[] 
     }
 
     const pct = storagePct(ws);
-    if (active && pct >= LIMIT_WARN_PCT) {
+    if (isNearLimit(ws)) {
       tasks.push({
         kind: "limit",
         slug: ws.slug,

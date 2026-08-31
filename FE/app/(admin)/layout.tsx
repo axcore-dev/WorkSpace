@@ -26,7 +26,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <div className="min-h-screen bg-slate-50 lg:flex">
       <aside
-        className={`flex flex-col border-b border-slate-200 bg-white lg:shrink-0 lg:border-b-0 lg:border-r ${
+        className={`flex flex-col border-b border-slate-200 bg-white transition-[width] duration-300 lg:shrink-0 lg:border-b-0 lg:border-r ${
           collapsed ? "lg:w-20" : "lg:w-60"
         }`}
       >
