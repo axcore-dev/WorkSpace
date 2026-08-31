@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AuthPrimaryButton, AuthSplit, SocialAuthButtons } from "@/components/auth-shell";
 import { FIELD_LG, isPersonalEmail } from "@/components/ui";
-import { DEMO_USER } from "@/data/org";
+import { DEMO_USER, INTERNAL_ADMIN_EMAILS, WORKSPACES } from "@/data/org";
 import {
   PROVIDER_LABELS,
   SocialLoginNotConfiguredError,
@@ -156,45 +156,15 @@ export default function LoginPage() {
             <AuthPrimaryButton>로그인</AuthPrimaryButton>
           </form>
 
-          <div className="mt-8 flex items-center gap-4">
-            <span className="h-px flex-1 bg-slate-200" />
-            <span className="text-xs text-slate-400">또는</span>
-            <span className="h-px flex-1 bg-slate-200" />
-          </div>
+          {/* 버튼 모양과 "또는" 구분선은 SocialAuthButtons 안에 있다. 회원가입 화면과 같은
+              컴포넌트를 써야 두 화면이 어긋나지 않는다. */}
+          <SocialAuthButtons action="로그인" onSelect={loginWith} />
 
-          {/* 소셜 로그인 — Google/네이버 공식 버튼 가이드의 색·형태를 따른다.
-              둘 다 실제 OAuth 로 연결돼 있다. */}
-          <div className="mt-5 space-y-3">
-            {socialError && (
-              <p className="text-sm text-red-600" role="alert">
-                {socialError}
-              </p>
-            )}
-            <button
-              type="button"
-              onClick={() => loginWith("google")}
-              aria-label="Google 계정으로 로그인"
-              className="flex h-10 w-full cursor-pointer items-center justify-center gap-2.5 rounded border border-[#747775] bg-white px-3 transition-[background-color,box-shadow] duration-150 hover:bg-[#f7f8f8] hover:shadow-[0_1px_2px_rgba(60,64,67,.3),0_1px_3px_1px_rgba(60,64,67,.15)] active:bg-[#eeeeee]"
-            >
-              <GoogleG />
-              <span className="whitespace-nowrap text-sm font-medium leading-5 text-[#1f1f1f]">
-                Google 계정으로 로그인
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={() => loginWith("naver")}
-              aria-label="네이버 아이디로 로그인"
-              className="flex h-10 w-full cursor-pointer items-center justify-center gap-2.5 rounded bg-[#03c75a] px-3 transition-colors duration-150 hover:bg-[#02b350] active:bg-[#02a94b]"
-            >
-              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden focusable="false" className="block shrink-0">
-                <path d="M3 4h6.6l4.9 7.9V4H21v16h-6.6L9.5 12v8H3z" fill="#fff" />
-              </svg>
-              <span className="whitespace-nowrap text-sm font-bold leading-5 text-white">
-                네이버 아이디로 로그인
-              </span>
-            </button>
-          </div>
+          {socialError && (
+            <p className="mt-3 text-sm text-red-600" role="alert">
+              {socialError}
+            </p>
+          )}
         </>
       ) : (
         <>

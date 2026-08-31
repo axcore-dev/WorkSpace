@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { Logo } from "@/components/logo";
+import { SocialProvider } from "@/lib/auth";
 
 /**
  * 로그인·회원가입 공통 분할 레이아웃 — 좌측 브랜드 패널은 고정, 우측 콘텐츠만 바뀐다.
@@ -91,8 +93,18 @@ function GoogleG() {
  *
  * Google·네이버 **공식 버튼 가이드**의 색·형태를 그대로 따르므로 여기만 디자인 토큰을 쓰지 않는다
  * (DESIGN.md 예외). `action`은 라벨에만 들어간다 — "Google 계정으로 로그인" / "…회원가입".
+ *
+ * `onSelect`는 어느 제공자를 눌렀는지 받는다. 실제 OAuth 는 제공자마다 인증 URL 이 달라서
+ * 어느 버튼인지 모르면 시작할 수 없다. 아직 데모인 화면은 인자를 받지 않는 함수를 그대로
+ * 넘기면 된다 — 인자를 무시하는 함수는 그대로 할당된다.
  */
-export function SocialAuthButtons({ action, onSelect }: { action: string; onSelect: () => void }) {
+export function SocialAuthButtons({
+  action,
+  onSelect,
+}: {
+  action: string;
+  onSelect: (provider: SocialProvider) => void;
+}) {
   return (
     <>
       <div className="mt-8 flex items-center gap-4">
@@ -104,7 +116,7 @@ export function SocialAuthButtons({ action, onSelect }: { action: string; onSele
       <div className="mt-5 space-y-3">
         <button
           type="button"
-          onClick={onSelect}
+          onClick={() => onSelect("google")}
           aria-label={`Google 계정으로 ${action}`}
           className="flex h-10 w-full cursor-pointer items-center justify-center gap-2.5 rounded border border-[#747775] bg-white px-3 transition-[background-color,box-shadow] duration-150 hover:bg-[#f7f8f8] hover:shadow-[0_1px_2px_rgba(60,64,67,.3),0_1px_3px_1px_rgba(60,64,67,.15)] active:bg-[#eeeeee]"
         >
@@ -115,7 +127,7 @@ export function SocialAuthButtons({ action, onSelect }: { action: string; onSele
         </button>
         <button
           type="button"
-          onClick={onSelect}
+          onClick={() => onSelect("naver")}
           aria-label={`네이버 아이디로 ${action}`}
           className="flex h-10 w-full cursor-pointer items-center justify-center gap-2.5 rounded bg-[#03c75a] px-3 transition-colors duration-150 hover:bg-[#02b350] active:bg-[#02a94b]"
         >
