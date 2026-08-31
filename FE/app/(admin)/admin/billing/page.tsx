@@ -22,7 +22,7 @@ import {
  * 기간을 고를 수 없다 — 고를 수 있는 것처럼 보이지 않게 고정 표시한다.
  * 기간 비교는 BE 선행 (수정요청v9 ④ 4-1).
  */
-const PERIOD = "2026년 8월";
+const PERIOD = "2026년 8월 기준";
 
 export default function AdminBillingPage() {
   const totals = useMemo(() => {
@@ -61,7 +61,7 @@ export default function AdminBillingPage() {
         ];
       }),
     );
-    downloadCsv(`사용량-요금_${PERIOD.replace(/[년월]/g, "").trim().replace(/\s+/g, "-")}.csv`, csv);
+    downloadCsv(`사용량-요금_${PERIOD.replace(/[년월기준]/g, "").trim().replace(/\s+/g, "-")}.csv`, csv);
   }
 
   return (
