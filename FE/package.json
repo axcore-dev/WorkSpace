@@ -6,7 +6,8 @@
     "dev": "next dev -p 8000",
     "build": "next build",
     "start": "next start -p 8000",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "node --test data/admin.test.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
