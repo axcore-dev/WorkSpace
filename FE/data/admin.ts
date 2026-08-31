@@ -559,8 +559,8 @@ export function isValidSlug(v: string) {
 
 export const KRW = new Intl.NumberFormat("ko-KR");
 
-/** 현재 로그인한 운영자 (데모) */
-export const ADMIN_OPERATOR = { name: "김운영", team: "운영팀", scope: "워크스페이스 생성·수정" };
+/** 현재 로그인한 운영자 (데모) — 권한 구분이 없으므로 scope 필드를 두지 않는다 */
+export const ADMIN_OPERATOR = { name: "김운영", team: "운영팀" };
 
 /**
  * 이번 달 예상 금액 (데모 추정식) — 기본료 + 저장 용량 단가.

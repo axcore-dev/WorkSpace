@@ -16,7 +16,7 @@ import { DEMO_ADMIN } from "@/data/org";
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-slate-50 lg:flex">
-      <aside className="flex flex-col border-b border-slate-200 bg-white lg:w-56 lg:shrink-0 lg:border-b-0 lg:border-r">
+      <aside className="flex flex-col border-b border-slate-200 bg-white lg:w-60 lg:shrink-0 lg:border-b-0 lg:border-r">
         <div className="flex items-center gap-2.5 border-b border-slate-100 px-5 py-4">
           <Logo height={17} />
           <span className="rounded border border-slate-300 px-1.5 py-px text-[10px] font-semibold tracking-wide text-slate-500">
@@ -31,7 +31,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             {ADMIN_OPERATOR.team} {ADMIN_OPERATOR.name}
           </p>
           <p className="mt-0.5">{DEMO_ADMIN.email}</p>
-          <p className="mt-1.5 text-slate-400">권한 · {ADMIN_OPERATOR.scope}</p>
           <Link
             href="/login"
             className="mt-2 inline-block font-medium text-slate-500 transition-colors duration-150 hover:text-slate-800"

@@ -22,10 +22,10 @@ export function AdminNav() {
 
   return (
     <nav className="px-3 py-3 lg:py-4" aria-label="운영자 메뉴">
-      <p className="mb-1.5 px-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+      <p className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
         고객 운영
       </p>
-      <div className="space-y-0.5">
+      <div className="space-y-1">
         {ITEMS.map((item) => {
           const active = isActive(pathname, item);
           return (
@@ -33,7 +33,7 @@ export function AdminNav() {
               key={item.href}
               href={item.href}
               aria-current={active ? "page" : undefined}
-              className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors duration-150 ${
+              className={`flex min-h-10 items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors duration-150 ${
                 active
                   ? "bg-slate-100 font-semibold text-slate-900"
                   : "font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900"

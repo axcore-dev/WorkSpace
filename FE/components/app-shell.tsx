@@ -37,7 +37,7 @@ function NavLink({
     <Link
       href={href}
       aria-current={active ? "page" : undefined}
-      className={`flex items-center gap-2.5 rounded-lg px-3 ${small ? "py-1.5 text-[13px]" : "py-2 text-sm"} transition-colors duration-150 ${
+      className={`flex min-h-10 items-center gap-2.5 rounded-lg px-3 ${small ? "py-1.5 text-[13px]" : "py-2 text-sm"} transition-colors duration-150 ${
         active
           ? "bg-white font-semibold text-slate-900 shadow-sm ring-1 ring-slate-200"
           : "font-medium text-slate-600 hover:bg-slate-200/60 hover:text-slate-900"
@@ -153,8 +153,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           )}
         </div>
 
-        <nav className="thin-scroll flex-1 space-y-5 overflow-y-auto px-3 py-2" aria-label="주 메뉴">
-          <div className="space-y-0.5">
+        <nav className="thin-scroll flex-1 space-y-6 overflow-y-auto px-3 py-2" aria-label="주 메뉴">
+          <div className="space-y-1">
             <NavLink href="/dashboard" active={pathname === "/dashboard"}>
               <IconDashboard size={17} className="shrink-0 text-slate-400" />
               주요 정보
@@ -162,10 +162,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div>
-            <p className="mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+            <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
               핵심 기능
             </p>
-            <div className="space-y-0.5">
+            <div className="space-y-1">
               {MODULES.map((mod) => {
                 const Icon = ICON_MAP[mod.icon];
                 const enabled = state[mod.slug]?.enabled;
@@ -183,10 +183,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
           {/* 외부 시스템 연동 바로가기 */}
           <div>
-            <p className="mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+            <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
               외부 시스템
             </p>
-            <div className="space-y-0.5">
+            <div className="space-y-1">
               {EXTERNAL_SYSTEMS.map((sys) => {
                 const Icon = ICON_MAP[sys.icon];
                 return (
@@ -205,10 +205,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div>
-            <p className="mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+            <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
               AI 워크스페이스
             </p>
-            <div className="space-y-0.5">
+            <div className="space-y-1">
               <NavLink href="/ai-chat" active={pathname === "/ai-chat"}>
                 <IconChat size={17} className="shrink-0 text-slate-400" />
                 AI대화
