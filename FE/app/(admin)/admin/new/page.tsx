@@ -1,16 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Breadcrumb } from "@/components/admin/breadcrumb";
-import { IconCheck, IconPlus, IconSearch, IconX } from "@/components/icons";
+import { Field, SiteFields } from "@/components/admin/form-parts";
+import { IconCheck, IconInfo, IconPlus, IconSearch, IconX } from "@/components/icons";
 import { Button, Card, FIELD, FIELD_ERROR, SectionHeader } from "@/components/ui";
 import {
   ADMIN_WORKSPACES,
   PLANS,
   formatBizNumber,
   isValidBizNumber,
+  clearDraft,
   isValidSlug,
+  readDraft,
+  saveDraft,
+  type Draft,
   type Plan,
   type Site,
 } from "@/data/admin";
@@ -21,39 +26,6 @@ type Lookup =
   | { kind: "invalid" }
   | { kind: "taken"; slug: string; company: string }
   | { kind: "ok" };
-
-const EMPTY_SITE: Site = { name: "", bizNumber: "", address: "", bizType: "", bizItem: "" };
-
-function Field({
-  id,
-  label,
-  required,
-  hint,
-  error,
-  children,
-}: {
-  id: string;
-  label: string;
-  required?: boolean;
-  hint?: string;
-  error?: string;
-  children?: React.ReactNode;
-}) {
-  return (
-    <div>
-      <label htmlFor={id} className="mb-1.5 block text-sm font-medium text-slate-700">
-        {label}
-        {required && <span className="ml-0.5 text-red-500">*</span>}
-      </label>
-      {children}
-      {error ? (
-        <p className="mt-1.5 text-xs text-red-600">{error}</p>
-      ) : (
-        hint && <p className="mt-1.5 text-xs text-slate-400">{hint}</p>
-      )}
-    </div>
-  );
-}
 
 export default function AdminCreatePage() {
   const router = useRouter();
@@ -86,6 +58,51 @@ export default function AdminCreatePage() {
   const [plan, setPlan] = useState<Plan>("Growth");
   const [memo, setMemo] = useState("");
 
+  /** 이 브라우저에 남아 있던 작성분 — 배너로 물어보고 사용자가 고른다 */
+  const [found, setFound] = useState<Draft | null>(null);
+  const [saved, setSaved] = useState<"idle" | "ok" | "fail">("idle");
+
+  // 첫 진입에 한 번만 본다. 자동으로 채우지 않는다 — 남의 작성분을 덮어쓸 수 있다.
+  // localStorage 는 서버에 없다. 마운트 뒤 마이크로태스크로 읽어야 프리렌더 결과와 어긋나지
+  // 않고, effect 안에서 동기 setState 를 호출하지 않게 된다.
+  useEffect(() => {
+    queueMicrotask(() => setFound(readDraft()));
+  }, []);
+
+  function collect() {
+    return {
+      bizNumber, company, corpNumber, bizType, bizItem, address, addressDetail, website,
+      sites, linkName, linkEmail, sameContact, contactName, contactEmail, contactPhone, cc,
+      slug, plan, memo,
+    };
+  }
+
+  function restore(d: Draft) {
+    setBizNumber(d.bizNumber);
+    setCompany(d.company);
+    setCorpNumber(d.corpNumber);
+    setBizType(d.bizType);
+    setBizItem(d.bizItem);
+    setAddress(d.address);
+    setAddressDetail(d.addressDetail);
+    setWebsite(d.website);
+    setSites(d.sites);
+    setLinkName(d.linkName);
+    setLinkEmail(d.linkEmail);
+    setSameContact(d.sameContact);
+    setContactName(d.contactName);
+    setContactEmail(d.contactEmail);
+    setContactPhone(d.contactPhone);
+    setCc(d.cc);
+    setSlug(d.slug);
+    setPlan(d.plan);
+    setMemo(d.memo);
+    // 사업자번호는 조회를 다시 거치게 한다 — 그 사이 다른 사람이 같은 번호로 개설했을 수 있다.
+    setLookup({ kind: "idle" });
+    clearDraft();
+    setFound(null);
+  }
+
   const bizOk = lookup.kind === "ok";
   const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(linkEmail.trim());
   const slugOk = isValidSlug(slug);
@@ -114,9 +131,6 @@ export default function AdminCreatePage() {
     setLookup({ kind: "ok" });
   }
 
-  function updateSite(i: number, patch: Partial<Site>) {
-    setSites((prev) => prev.map((s, j) => (j === i ? { ...s, ...patch } : s)));
-  }
 
   // 폼은 상한을 둔다 — 입력칸이 1900px로 늘어나면 라벨과 값이 멀어져 오타를 놓친다
   return (
@@ -127,6 +141,31 @@ export default function AdminCreatePage() {
       <p className="mt-0.5 text-sm text-slate-500">
         사업자 정보를 등록하면 접속 링크 받는 담당자에게 메일이 나가요.
       </p>
+
+      {found && (
+        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-300 bg-slate-50 px-4 py-3.5">
+          <IconInfo size={16} className="shrink-0 text-slate-500" />
+          <p className="min-w-0 flex-1 text-sm text-slate-700">
+            {found.savedAt}에 임시 저장한 내용이 있어요
+            {found.company && <> · {found.company}</>}
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                clearDraft();
+                setFound(null);
+              }}
+            >
+              버리기
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => restore(found)}>
+              이어서 작성
+            </Button>
+          </div>
+        </div>
+      )}
 
       <div className="mt-6 grid items-start gap-4 lg:grid-cols-2">
         {/* ── 왼쪽: 사업자 정보 + 종사업장 ── */}
@@ -253,89 +292,7 @@ export default function AdminCreatePage() {
           <Card>
             <SectionHeader title="종사업장" desc="본사 외 사업장이 있으면 추가해 주세요." />
 
-            {sites.length === 0 && (
-              <p className="mb-3 text-sm text-slate-400">등록된 종사업장이 없어요.</p>
-            )}
-
-            <div className="space-y-3">
-              {sites.map((site, i) => (
-                <div key={i} className="rounded-lg border border-dashed border-slate-300 p-4">
-                  <div className="mb-3 flex items-center justify-between">
-                    <p className="text-xs font-semibold text-slate-500">사업장 {i + 1}</p>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setSites((prev) => prev.filter((_, j) => j !== i))}
-                    >
-                      <IconX size={13} />
-                      삭제
-                    </Button>
-                  </div>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <Field id={`site-name-${i}`} label="사업장명">
-                      <input
-                        id={`site-name-${i}`}
-                        value={site.name}
-                        onChange={(e) => updateSite(i, { name: e.target.value })}
-                        placeholder="포항 2공장"
-                        className={FIELD}
-                      />
-                    </Field>
-                    <Field id={`site-biz-${i}`} label="사업자등록번호">
-                      <input
-                        id={`site-biz-${i}`}
-                        inputMode="numeric"
-                        value={site.bizNumber}
-                        onChange={(e) => updateSite(i, { bizNumber: formatBizNumber(e.target.value) })}
-                        placeholder="000-00-00000"
-                        className={`${FIELD} tabular-nums`}
-                      />
-                    </Field>
-                  </div>
-                  <div className="mt-4">
-                    <Field id={`site-addr-${i}`} label="주소">
-                      <input
-                        id={`site-addr-${i}`}
-                        value={site.address}
-                        onChange={(e) => updateSite(i, { address: e.target.value })}
-                        placeholder="도로명 주소"
-                        className={FIELD}
-                      />
-                    </Field>
-                  </div>
-                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                    <Field id={`site-type-${i}`} label="업태">
-                      <input
-                        id={`site-type-${i}`}
-                        value={site.bizType}
-                        onChange={(e) => updateSite(i, { bizType: e.target.value })}
-                        placeholder="제조업"
-                        className={FIELD}
-                      />
-                    </Field>
-                    <Field id={`site-item-${i}`} label="업종">
-                      <input
-                        id={`site-item-${i}`}
-                        value={site.bizItem}
-                        onChange={(e) => updateSite(i, { bizItem: e.target.value })}
-                        placeholder="철강 압연"
-                        className={FIELD}
-                      />
-                    </Field>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <Button
-              variant="secondary"
-              size="sm"
-              className="mt-3"
-              onClick={() => setSites((prev) => [...prev, { ...EMPTY_SITE }])}
-            >
-              <IconPlus size={13} />
-              종사업장 추가
-            </Button>
+            <SiteFields sites={sites} onChange={setSites} />
           </Card>
         </div>
 
@@ -533,9 +490,24 @@ export default function AdminCreatePage() {
             </ol>
           </Card>
 
+          <p className="text-xs text-slate-400">
+            임시 저장은 <span className="font-medium text-slate-600">이 브라우저에만</span> 남아요.
+            다른 PC에서는 보이지 않고, 이어서 작성하면 저장분은 지워집니다.
+          </p>
+
           <div className="sticky bottom-0 flex flex-wrap justify-end gap-2 rounded-xl border border-slate-200 bg-white/95 p-4 backdrop-blur">
             <Button variant="secondary" href="/admin/workspaces">
               취소
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                const at = new Date().toLocaleString("ko-KR");
+                setSaved(saveDraft(collect(), at) ? "ok" : "fail");
+                setTimeout(() => setSaved("idle"), 2600);
+              }}
+            >
+              {saved === "ok" ? "저장했어요" : saved === "fail" ? "저장 못 했어요" : "임시 저장"}
             </Button>
             <Button
               disabled={!canSubmit}

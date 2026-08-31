@@ -9,7 +9,9 @@ import {
   ADMIN_WORKSPACES,
   BILLING_STATE_LABEL,
   KRW,
+  downloadCsv,
   estimateAmount,
+  toCsv,
   type AdminWorkspace,
   type BillingState,
 } from "@/data/admin";
@@ -57,6 +59,26 @@ export default function AdminBillingPage() {
     [],
   );
 
+  /** 지금 보는 표 그대로 내려준다 — 정렬·기간이 화면과 같아야 대조할 수 있다 */
+  function download() {
+    const csv = toCsv(
+      ["회사명", "사업자등록번호", "요금제", "사용량(GB)", "한도 대비(%)", "청구액(원)", "상태"],
+      rows.map((w) => {
+        const suspended = w.status === "suspended";
+        return [
+          w.company,
+          w.bizNumber,
+          w.plan,
+          w.usage.storageGb,
+          usageRatio(w),
+          suspended ? "" : estimateAmount(w),
+          suspended ? "중지" : BILLING_STATE_LABEL[billingState(w)],
+        ];
+      }),
+    );
+    downloadCsv(`사용량-요금_${period.replace(/[년월]/g, "").trim().replace(/\s+/g, "-")}.csv`, csv);
+  }
+
   return (
     <div>
       <Breadcrumb items={[{ label: "사용량 · 요금" }]} />
@@ -78,7 +100,7 @@ export default function AdminBillingPage() {
               </option>
             ))}
           </select>
-          <Button variant="secondary">
+          <Button variant="secondary" onClick={download}>
             <IconDownload size={15} />
             내려받기
           </Button>

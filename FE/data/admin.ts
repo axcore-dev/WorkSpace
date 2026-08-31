@@ -679,3 +679,101 @@ export function pendingTasks(list: AdminWorkspace[] = ADMIN_WORKSPACES): Task[] 
   const order: TaskKind[] = ["integration", "link", "overdue", "limit"];
   return tasks.sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind));
 }
+
+/* ────────────────────── 생성 폼 임시 저장 ────────────────────── */
+
+/**
+ * 작성 중인 개설 정보를 **이 브라우저에만** 남긴다.
+ *
+ * 서버 드래프트가 아니다 — 다른 PC·다른 브라우저에서는 보이지 않고, 방문자 데이터를 지우면
+ * 사라진다. 그래서 화면에 저장 위치를 명시하고, 불러온 뒤에는 지운다. 고객사 사업자 정보가
+ * 담기므로 공용 PC에 방치되지 않게 하려는 것이다.
+ *
+ * 드래프트 API가 생기면 이 자리를 서버 저장으로 바꾼다.
+ */
+export const DRAFT_KEY = "axpoint-admin-draft";
+
+export type Draft = {
+  bizNumber: string;
+  company: string;
+  corpNumber: string;
+  bizType: string;
+  bizItem: string;
+  address: string;
+  addressDetail: string;
+  website: string;
+  sites: Site[];
+  linkName: string;
+  linkEmail: string;
+  sameContact: boolean;
+  contactName: string;
+  contactEmail: string;
+  contactPhone: string;
+  cc: string[];
+  slug: string;
+  plan: Plan;
+  memo: string;
+  /** 저장 시각 — 화면에 "언제 저장했는지" 보여준다 */
+  savedAt: string;
+};
+
+export function saveDraft(draft: Omit<Draft, "savedAt">, savedAt: string) {
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...draft, savedAt }));
+    return true;
+  } catch {
+    // 시크릿 모드·저장 공간 부족 등. 실패를 삼키지 않고 화면에서 알린다.
+    return false;
+  }
+}
+
+export function readDraft(): Draft | null {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    const d = JSON.parse(raw) as Draft;
+    // 형태가 바뀐 옛 데이터가 남아 있을 수 있다 — 최소한만 확인한다
+    return typeof d?.slug === "string" && Array.isArray(d?.sites) ? d : null;
+  } catch {
+    return null;
+  }
+}
+
+export function clearDraft() {
+  try {
+    localStorage.removeItem(DRAFT_KEY);
+  } catch {
+    // 지우지 못해도 화면 흐름은 계속된다
+  }
+}
+
+/* ────────────────────────── CSV 내려받기 ────────────────────────── */
+
+/**
+ * 값 하나를 CSV 셀로. 쉼표·따옴표·줄바꿈이 들어가면 따옴표로 감싸고 내부 따옴표는 두 번 쓴다.
+ * 회사명에 쉼표가 들어가는 경우가 실제로 있어서 그냥 이어 붙이면 열이 밀린다.
+ */
+function csvCell(v: string | number) {
+  const s = String(v);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+export function toCsv(header: string[], rows: (string | number)[][]) {
+  return [header, ...rows].map((r) => r.map(csvCell).join(",")).join("\r\n");
+}
+
+/**
+ * 브라우저에서 CSV 파일로 받게 한다. 외부 라이브러리를 쓰지 않는다.
+ *
+ * 앞에 BOM(`﻿`)을 붙이는 이유: 엑셀이 UTF-8을 자동으로 알아채지 못해서
+ * 한글이 깨진다. 메모장·구글 시트는 BOM이 있어도 정상이다.
+ */
+export function downloadCsv(filename: string, csv: string) {
+  const blob = new Blob([`﻿${csv}`], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
