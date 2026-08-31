@@ -591,6 +591,14 @@ export type Task = {
   detail: string;
   /** 언제부터인지 — 날짜 또는 상대 표현 */
   since: string;
+  /**
+   * 급한 정도 — 클수록 위에 온다.
+   *
+   * **같은 `kind` 안에서만 비교 가능하다.** 척도가 신호마다 다르다:
+   * 연동=실패 시스템 수 · 링크=음수 발송일 · 미수금=원 · 한도=퍼센트.
+   * 전역으로 정렬하면 금액이 퍼센트를 항상 이긴다 — 그렇게 쓰지 말 것.
+   */
+  severity: number;
 };
 
 export const TASK_LABEL: Record<TaskKind, string> = {
@@ -650,6 +658,8 @@ export function pendingTasks(list: AdminWorkspace[] = ADMIN_WORKSPACES): Task[] 
     // 중지된 곳은 손볼 대상이 아니다 — 미수금만 예외로 남긴다
     const active = ws.status !== "suspended";
 
+    const authFailCount = ws.systems.filter((s) => s.state === "authFail").length;
+
     for (const s of ws.systems) {
       if (s.state === "authFail") {
         tasks.push({
@@ -658,6 +668,9 @@ export function pendingTasks(list: AdminWorkspace[] = ADMIN_WORKSPACES): Task[] 
           company: ws.company,
           detail: `${s.name} 인증 실패`,
           since: `마지막 동기화 ${s.lastSync}`,
+          // 여러 시스템이 동시에 끊긴 곳이 더 급하다.
+          // lastSync 는 "3일 전" 같은 사람용 문자열이라 정렬에 쓸 수 없다.
+          severity: authFailCount,
         });
       }
     }
@@ -669,6 +682,10 @@ export function pendingTasks(list: AdminWorkspace[] = ADMIN_WORKSPACES): Task[] 
         company: ws.company,
         detail: `${ws.contacts.link.name}(${ws.contacts.link.email})`,
         since: `${ws.linkSentAt} 발송`,
+        // linkSentAt 은 "2026-03-14" 형태다. 하이픈을 빼면 20260314 이 되어
+        // 크기 비교가 날짜 비교와 같다. 오래된 것이 급하므로 부호를 뒤집는다.
+        // 저장된 문자열을 파싱하는 것이라 `new Date()` 와 달리 하이드레이션 문제가 없다.
+        severity: -Number(ws.linkSentAt.replace(/-/g, "")),
       });
     }
 
@@ -680,6 +697,7 @@ export function pendingTasks(list: AdminWorkspace[] = ADMIN_WORKSPACES): Task[] 
         company: ws.company,
         detail: `${overdue.period} ${KRW.format(overdue.amount)}원`,
         since: `${overdue.plan} 요금제`,
+        severity: overdue.amount,
       });
     }
 
@@ -691,12 +709,15 @@ export function pendingTasks(list: AdminWorkspace[] = ADMIN_WORKSPACES): Task[] 
         company: ws.company,
         detail: `저장 용량 ${pct}% (${ws.usage.storageGb} / ${ws.usage.storageLimitGb} GB)`,
         since: `${ws.plan} 요금제`,
+        severity: pct,
       });
     }
   }
 
   const order: TaskKind[] = ["integration", "link", "overdue", "limit"];
-  return tasks.sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind));
+  return tasks.sort(
+    (a, b) => order.indexOf(a.kind) - order.indexOf(b.kind) || b.severity - a.severity,
+  );
 }
 
 /* ────────────────────── 생성 폼 임시 저장 ────────────────────── */
