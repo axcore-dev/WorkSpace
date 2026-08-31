@@ -2,42 +2,6 @@ import type { Tone } from "./types";
 
 /** 조직/워크스페이스·설정 관련 더미 데이터 */
 
-/** 워크스페이스 생성 단계의 조직 검색 결과 */
-export const ORG_DIRECTORY: {
-  bizNumber: string;
-  name: string;
-  ceo: string;
-  address: string;
-  hasWorkspace: boolean;
-  members?: number;
-  /** 이미 워크스페이스가 있는 회사의 관리자 — 화면에는 마스킹해서 노출한다 (maskEmail) */
-  adminEmail?: string;
-}[] = [
-  {
-    bizNumber: "123-86-01233",
-    name: "(주)데모컴퍼니",
-    ceo: "김정호",
-    address: "경기도 안산시 단원구 성곡동",
-    hasWorkspace: true,
-    members: 42,
-    adminEmail: "admin@democompany.co.kr",
-  },
-  {
-    bizNumber: "220-81-45672",
-    name: "데모정공 (주)",
-    ceo: "박민수",
-    address: "인천광역시 남동구 논현동",
-    hasWorkspace: false,
-  },
-  {
-    bizNumber: "312-86-77895",
-    name: "데모테크놀로지",
-    ceo: "이서연",
-    address: "충남 천안시 서북구 백석동",
-    hasWorkspace: false,
-  },
-];
-
 /** 데모 자동 로그인 계정 — 실제 배포: axcore.it.kr */
 export const DEMO_USER = {
   name: "박데모",

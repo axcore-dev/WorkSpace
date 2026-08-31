@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Cell, StatData, TableData, Tone } from "@/data/types";
 import { IconArrowDownRight, IconArrowUpRight, IconCheck } from "@/components/icons";
 
@@ -8,8 +9,9 @@ import { IconArrowDownRight, IconArrowUpRight, IconCheck } from "@/components/ic
  * - 아이콘/배지에 컬러 배경을 넣지 않는다.
  */
 /** 공용 입력 필드 클래스 — 로그인/설정/모달 등 폼 전반에서 공유 */
-const FIELD_SHAPE =
-  "w-full rounded-lg border text-slate-900 placeholder:text-slate-400 transition-colors focus:outline-2";
+const FIELD_FORM =
+  "rounded-lg border text-slate-900 placeholder:text-slate-400 transition-colors focus:outline-2";
+const FIELD_SHAPE = `w-full ${FIELD_FORM}`;
 const FIELD_LINE = "border-slate-300 focus:border-slate-400 focus:outline-slate-300/60";
 /** 에러 테두리 — 옅은 색 원칙 유지 (DESIGN.md 상태 정책) */
 const FIELD_LINE_ERROR = "border-red-300 focus:border-red-400 focus:outline-red-200/60";
@@ -20,6 +22,11 @@ export const FIELD_LG = `${FIELD_BASE} px-4 py-3 text-[15px]`;
 /** 에러 상태 — 헬퍼 텍스트는 필드 아래 `mt-1.5 text-xs text-red-600` */
 export const FIELD_ERROR = `${FIELD_SHAPE} ${FIELD_LINE_ERROR} px-3.5 py-2.5 text-sm`;
 export const FIELD_LG_ERROR = `${FIELD_SHAPE} ${FIELD_LINE_ERROR} px-4 py-3 text-[15px]`;
+/**
+ * 폭을 내용에 맞추는 변형 — 필터 드롭다운처럼 한 줄에 여러 개 놓을 때.
+ * `FIELD`에 `w-auto`를 덧붙이는 것으로는 안 된다 (클래스 문자열 순서가 CSS 우선순위를 정하지 않는다).
+ */
+export const FIELD_INLINE = `${FIELD_FORM} ${FIELD_LINE} px-3.5 py-2.5 text-sm`;
 
 /** 업무용 메일 지향 — 대표적인 개인 메일 도메인이면 true (로그인·회원가입·초대에서 안내용) */
 const PERSONAL_EMAIL_DOMAINS = [
@@ -37,13 +44,6 @@ const PERSONAL_EMAIL_DOMAINS = [
 export function isPersonalEmail(email: string): boolean {
   const domain = email.split("@")[1]?.toLowerCase().trim();
   return !!domain && PERSONAL_EMAIL_DOMAINS.includes(domain);
-}
-
-/** 제3자 이메일 노출 최소화 — 로컬파트 첫·끝 글자만 남긴다 (admin@x.com -> a***n@x.com) */
-export function maskEmail(email: string): string {
-  const [local, domain] = email.split("@");
-  if (!domain || !local) return email;
-  return `${local.slice(0, 1)}***${local.length > 1 ? local.slice(-1) : ""}@${domain}`;
 }
 
 export const TONE_TEXT: Record<Tone, string> = {
@@ -137,23 +137,29 @@ export function Button({
   variant = "primary",
   size = "md",
   className = "",
+  href,
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: keyof typeof BTN_VARIANTS;
   size?: "sm" | "md" | "lg";
+  /** 지정 시 `Link`로 렌더한다 — 이동은 버튼이 아니라 링크여야 한다(중첩 금지, 새 탭 열기 가능) */
+  href?: string;
 }) {
   const sizes = {
     sm: "px-2.5 py-1.5 text-xs rounded-lg gap-1",
     md: "px-3.5 py-2 text-sm rounded-lg gap-1.5",
     lg: "px-5 py-2.5 text-sm rounded-lg gap-2",
   };
-  return (
-    <button
-      type="button"
-      className={`inline-flex cursor-pointer items-center justify-center font-medium transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed ${sizes[size]} ${BTN_VARIANTS[variant]} ${className}`}
-      {...props}
-    />
-  );
+  const cls = `inline-flex cursor-pointer items-center justify-center font-medium transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed ${sizes[size]} ${BTN_VARIANTS[variant]} ${className}`;
+
+  if (href) {
+    return (
+      <Link href={href} className={cls}>
+        {props.children}
+      </Link>
+    );
+  }
+  return <button type="button" className={cls} {...props} />;
 }
 
 export function Stat({ stat, onCta }: { stat: StatData; onCta?: (tabId: string) => void }) {
