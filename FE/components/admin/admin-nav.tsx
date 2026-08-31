@@ -17,12 +17,16 @@ const ITEMS = [
   { href: "/admin/billing", label: "사용량 · 요금", icon: IconGauge },
 ];
 
-export function AdminNav() {
+export function AdminNav({ collapsed = false }: { collapsed?: boolean }) {
   const pathname = usePathname();
 
   return (
     <nav className="px-3 py-3 lg:py-4" aria-label="운영자 메뉴">
-      <p className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+      <p
+        className={`mb-1 px-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400 ${
+          collapsed ? "lg:hidden" : ""
+        }`}
+      >
         고객 운영
       </p>
       <div className="space-y-1">
@@ -32,15 +36,18 @@ export function AdminNav() {
             <Link
               key={item.href}
               href={item.href}
+              title={item.label}
               aria-current={active ? "page" : undefined}
-              className={`flex min-h-10 items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors duration-150 ${
+              className={`flex min-h-10 items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400 ${
+                collapsed ? "lg:justify-center" : ""
+              } ${
                 active
                   ? "bg-slate-100 font-semibold text-slate-900"
                   : "font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900"
               }`}
             >
               <item.icon size={16} className="shrink-0 text-slate-400" />
-              {item.label}
+              <span className={collapsed ? "lg:hidden" : ""}>{item.label}</span>
             </Link>
           );
         })}
