@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { AdminTable, TD, TD_KEY, TR } from "@/components/admin/admin-table";
+import { Breadcrumb } from "@/components/admin/breadcrumb";
 import { IconDownload } from "@/components/icons";
 import { Badge, Button, Card, FIELD_INLINE, ProgressBar, SectionHeader } from "@/components/ui";
 import {
@@ -57,7 +58,8 @@ export default function AdminBillingPage() {
   );
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div>
+      <Breadcrumb items={[{ label: "사용량 · 요금" }]} />
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-slate-900">사용량 · 요금</h1>

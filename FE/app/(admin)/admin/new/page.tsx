@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { IconCheck, IconChevronLeft, IconPlus, IconSearch, IconX } from "@/components/icons";
+import { Breadcrumb } from "@/components/admin/breadcrumb";
+import { IconCheck, IconPlus, IconSearch, IconX } from "@/components/icons";
 import { Button, Card, FIELD, FIELD_ERROR, SectionHeader } from "@/components/ui";
 import {
   ADMIN_WORKSPACES,
@@ -118,17 +118,12 @@ export default function AdminCreatePage() {
     setSites((prev) => prev.map((s, j) => (j === i ? { ...s, ...patch } : s)));
   }
 
+  // 폼은 상한을 둔다 — 입력칸이 1900px로 늘어나면 라벨과 값이 멀어져 오타를 놓친다
   return (
-    <div className="mx-auto max-w-5xl">
-      <Link
-        href="/admin/workspaces"
-        className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 transition-colors hover:text-slate-800"
-      >
-        <IconChevronLeft size={14} />
-        워크스페이스
-      </Link>
+    <div className="max-w-5xl">
+      <Breadcrumb items={[{ label: "워크스페이스", href: "/admin/workspaces" }, { label: "만들기" }]} />
 
-      <h1 className="mt-2 text-xl font-bold tracking-tight text-slate-900">워크스페이스 만들기</h1>
+      <h1 className="text-xl font-bold tracking-tight text-slate-900">워크스페이스 만들기</h1>
       <p className="mt-0.5 text-sm text-slate-500">
         사업자 정보를 등록하면 접속 링크 받는 담당자에게 메일이 나가요.
       </p>

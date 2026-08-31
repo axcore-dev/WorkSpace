@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { Breadcrumb } from "@/components/admin/breadcrumb";
 import { IconCheckCircle } from "@/components/icons";
 import { Badge, Button, Card } from "@/components/ui";
 import {
@@ -44,7 +45,8 @@ export default function AdminDashboardPage() {
   const live = ADMIN_WORKSPACES.filter((w) => w.status === "live").length;
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <div>
+      <Breadcrumb items={[{ label: "대시보드" }]} />
       <h1 className="text-xl font-bold tracking-tight text-slate-900">대시보드</h1>
       <p className="mt-0.5 text-sm text-slate-500">
         {tasks.length > 0

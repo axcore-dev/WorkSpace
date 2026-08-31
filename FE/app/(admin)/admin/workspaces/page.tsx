@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { AdminTable, TD, TD_KEY, TR } from "@/components/admin/admin-table";
+import { Breadcrumb } from "@/components/admin/breadcrumb";
 import { IconPlus, IconSearch } from "@/components/icons";
 import { Badge, Button, Card, FIELD, FIELD_INLINE } from "@/components/ui";
 import {
@@ -69,7 +70,8 @@ export default function AdminWorkspaceListPage() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div>
+      <Breadcrumb items={[{ label: "워크스페이스" }]} />
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-slate-900">워크스페이스</h1>

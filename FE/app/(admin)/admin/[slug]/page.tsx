@@ -1,11 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { AdminTable, DefinitionList, TD, TD_KEY, TD_WRAP, TR } from "@/components/admin/admin-table";
+import { Breadcrumb } from "@/components/admin/breadcrumb";
 import { Modal } from "@/components/modal";
-import { IconAlertTriangle, IconChevronLeft, IconSearch } from "@/components/icons";
+import { IconAlertTriangle, IconSearch } from "@/components/icons";
 import { Badge, Button, Card, FIELD, FIELD_INLINE, ProgressBar, SectionHeader } from "@/components/ui";
 import {
   ADMIN_WORKSPACES,
@@ -71,16 +71,12 @@ export default function AdminWorkspaceDetailPage() {
   const suspended = current === "suspended";
 
   return (
-    <div className="mx-auto max-w-6xl">
-      <Link
-        href="/admin/workspaces"
-        className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 transition-colors hover:text-slate-800"
-      >
-        <IconChevronLeft size={14} />
-        워크스페이스
-      </Link>
+    <div>
+      <Breadcrumb
+        items={[{ label: "워크스페이스", href: "/admin/workspaces" }, { label: ws.company }]}
+      />
 
-      <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <h1 className="truncate text-xl font-bold tracking-tight text-slate-900">
             {ws.company} · <span className="font-mono text-lg text-slate-600">{ws.slug}</span>

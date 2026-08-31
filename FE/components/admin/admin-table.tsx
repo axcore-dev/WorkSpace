@@ -1,16 +1,18 @@
 /**
  * 운영자 콘솔 표 — `ui.tsx`의 `DataTable`은 셀이 `string | number | badge`뿐이라
- * 링크·버튼이 들어가는 관리자 표에는 쓸 수 없다. 시각 언어는 `DataTable`과 같게 맞췄다.
+ * 링크·버튼이 들어가는 관리자 표에는 쓸 수 없다.
  *
- * 셀 내용이 화면마다 달라서 컴포넌트로 감싸지 않고 클래스 상수를 공유한다.
+ * 고객 화면보다 한 단계 조밀하다(13px, 셀 패딩 축소). 운영자는 한 화면에서 많은 행을
+ * 훑어야 하고, 콘솔 폭이 상한 없이 넓어서 행 높이가 크면 스크롤만 길어진다.
+ * 카드·폼·제목은 고객 화면과 같은 크기를 쓴다 — 표만 조인다.
  */
 
 export const TR = "transition-colors hover:bg-slate-50/70";
-export const TD = "whitespace-nowrap px-3 py-3 text-slate-600 first:pl-1 last:pr-1";
+export const TD = "whitespace-nowrap px-2.5 py-2.5 text-slate-600 first:pl-1 last:pr-1";
 /** 첫 열 강조 — 회사명·항목명처럼 행을 식별하는 열 */
 export const TD_KEY = `${TD} font-medium text-slate-900`;
 /** 줄바꿈이 필요한 열 (주소 등) */
-export const TD_WRAP = "px-3 py-3 text-slate-600 first:pl-1 last:pr-1";
+export const TD_WRAP = "px-2.5 py-2.5 text-slate-600 first:pl-1 last:pr-1";
 
 export function AdminTable({
   columns,
@@ -24,14 +26,14 @@ export function AdminTable({
 }) {
   return (
     <div className="thin-scroll -mx-1 overflow-x-auto px-1">
-      <table className="w-full text-left text-sm" style={{ minWidth }}>
+      <table className="w-full text-left text-[13px]" style={{ minWidth }}>
         <thead>
           <tr className="border-b border-slate-200">
             {columns.map((col) => (
               <th
                 key={col}
                 scope="col"
-                className="whitespace-nowrap px-3 py-2.5 text-xs font-medium text-slate-400 first:pl-1 last:pr-1"
+                className="whitespace-nowrap px-2.5 py-2 text-[11px] font-medium text-slate-400 first:pl-1 last:pr-1"
               >
                 {col}
               </th>
