@@ -121,7 +121,7 @@ export default function AdminCreatePage() {
   return (
     <div className="mx-auto max-w-5xl">
       <Link
-        href="/admin"
+        href="/admin/workspaces"
         className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 transition-colors hover:text-slate-800"
       >
         <IconChevronLeft size={14} />
@@ -539,13 +539,13 @@ export default function AdminCreatePage() {
           </Card>
 
           <div className="sticky bottom-0 flex flex-wrap justify-end gap-2 rounded-xl border border-slate-200 bg-white/95 p-4 backdrop-blur">
-            <Button variant="secondary" href="/admin">
+            <Button variant="secondary" href="/admin/workspaces">
               취소
             </Button>
             <Button
               disabled={!canSubmit}
               title={canSubmit ? undefined : "필수 항목을 모두 채우면 만들 수 있어요"}
-              onClick={() => router.push("/admin")}
+              onClick={() => router.push("/admin/workspaces")}
             >
               만들고 메일 보내기
             </Button>

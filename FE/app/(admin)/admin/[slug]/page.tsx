@@ -60,7 +60,7 @@ export default function AdminWorkspaceDetailPage() {
       <div className="mx-auto max-w-2xl py-16 text-center">
         <p className="text-sm font-semibold text-slate-900">워크스페이스를 찾을 수 없어요</p>
         <p className="mt-1 text-sm text-slate-500">주소의 워크스페이스 이름을 확인해 주세요.</p>
-        <Button variant="secondary" className="mt-5" href="/admin">
+        <Button variant="secondary" className="mt-5" href="/admin/workspaces">
           목록으로
         </Button>
       </div>
@@ -73,7 +73,7 @@ export default function AdminWorkspaceDetailPage() {
   return (
     <div className="mx-auto max-w-6xl">
       <Link
-        href="/admin"
+        href="/admin/workspaces"
         className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 transition-colors hover:text-slate-800"
       >
         <IconChevronLeft size={14} />

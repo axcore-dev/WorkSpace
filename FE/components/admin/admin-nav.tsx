@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { IconBuilding, IconGauge } from "@/components/icons";
+import { IconBuilding, IconDashboard, IconGauge } from "@/components/icons";
 
 const ITEMS = [
-  { href: "/admin", label: "워크스페이스", icon: IconBuilding },
+  { href: "/admin", label: "대시보드", icon: IconDashboard },
+  { href: "/admin/workspaces", label: "워크스페이스", icon: IconBuilding },
   { href: "/admin/billing", label: "사용량 · 요금", icon: IconGauge },
 ];
 
@@ -19,8 +20,7 @@ export function AdminNav() {
       </p>
       <div className="space-y-0.5">
         {ITEMS.map((item) => {
-          // /admin/billing 이 /admin 의 하위 경로라서, 워크스페이스는 정확히 일치할 때만 활성.
-          const active = item.href === "/admin" ? pathname === "/admin" || isWorkspacePath(pathname) : pathname === item.href;
+          const active = isActive(pathname, item.href);
           return (
             <Link
               key={item.href}
@@ -42,7 +42,12 @@ export function AdminNav() {
   );
 }
 
-/** /admin/new, /admin/<slug> 는 워크스페이스 메뉴에 속한다 (/admin/billing 만 예외) */
-function isWorkspacePath(pathname: string) {
+/**
+ * 대시보드는 정확히 `/admin`일 때만 활성.
+ * 워크스페이스는 목록·생성·상세(`/admin/<slug>`)를 전부 품는다 — `/admin/billing`만 예외다.
+ */
+function isActive(pathname: string, href: string) {
+  if (href === "/admin") return pathname === "/admin";
+  if (href === "/admin/billing") return pathname === "/admin/billing";
   return pathname.startsWith("/admin/") && pathname !== "/admin/billing";
 }

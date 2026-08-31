@@ -2,240 +2,159 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { AdminTable, TD, TD_KEY, TR } from "@/components/admin/admin-table";
-import { IconPlus, IconSearch } from "@/components/icons";
-import { Badge, Button, Card, FIELD, FIELD_INLINE } from "@/components/ui";
+import { IconCheckCircle } from "@/components/icons";
+import { Badge, Button, Card } from "@/components/ui";
 import {
   ADMIN_WORKSPACES,
-  WS_STATUS_LABEL,
-  integrationHealth,
-  type IntegrationHealth,
-  type WsStatus,
+  TASK_ACTION,
+  TASK_LABEL,
+  pendingTasks,
+  type Task,
+  type TaskKind,
 } from "@/data/admin";
 
-const PAGE_SIZE = 5;
-
-const STATUS_TONE: Record<WsStatus, "green" | "slate" | "amber"> = {
-  live: "green",
-  invited: "slate",
-  suspended: "amber",
+/** 신호별 색 — 고객이 지금 피해를 보는 것과 돈이 걸린 것만 빨강 */
+const TONE: Record<TaskKind, "red" | "amber" | "slate"> = {
+  integration: "red",
+  link: "amber",
+  overdue: "red",
+  limit: "slate",
 };
 
-type StatusFilter = WsStatus | "all";
-type HealthFilter = IntegrationHealth | "all";
+const ORDER: TaskKind[] = ["integration", "link", "overdue", "limit"];
 
-export default function AdminWorkspaceListPage() {
-  const [q, setQ] = useState("");
-  const [status, setStatus] = useState<StatusFilter>("all");
-  const [health, setHealth] = useState<HealthFilter>("all");
-  const [page, setPage] = useState(1);
+export default function AdminDashboardPage() {
+  const [kind, setKind] = useState<TaskKind | "all">("all");
 
+  const tasks = useMemo(() => pendingTasks(), []);
   const counts = useMemo(
-    () => ({
-      total: ADMIN_WORKSPACES.length,
-      live: ADMIN_WORKSPACES.filter((w) => w.status === "live").length,
-      error: ADMIN_WORKSPACES.filter((w) => integrationHealth(w) === "error").length,
-      suspended: ADMIN_WORKSPACES.filter((w) => w.status === "suspended").length,
-    }),
-    [],
+    () =>
+      ORDER.reduce(
+        (acc, k) => ({ ...acc, [k]: tasks.filter((t) => t.kind === k).length }),
+        {} as Record<TaskKind, number>,
+      ),
+    [tasks],
   );
 
-  const filtered = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    const digits = needle.replace(/\D/g, "");
-    return ADMIN_WORKSPACES.filter((w) => {
-      if (status !== "all" && w.status !== status) return false;
-      if (health !== "all" && integrationHealth(w) !== health) return false;
-      if (!needle) return true;
-      // 사업자번호는 하이픈을 빼고 비교한다 — 운영자가 붙여넣는 형태가 일정하지 않다.
-      const hit =
-        w.company.toLowerCase().includes(needle) ||
-        w.slug.includes(needle) ||
-        (digits.length > 0 && w.bizNumber.replace(/\D/g, "").includes(digits));
-      return hit;
-    });
-  }, [q, status, health]);
+  const shown = kind === "all" ? tasks : tasks.filter((t) => t.kind === kind);
+  const groups = ORDER.map((k) => ({ kind: k, rows: shown.filter((t) => t.kind === k) })).filter(
+    (g) => g.rows.length > 0,
+  );
 
-  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const current = Math.min(page, pageCount);
-  const rows = filtered.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
-
-  /** 필터를 바꾸면 1페이지로 — 3페이지를 보다 필터를 좁히면 빈 화면이 된다 */
-  function reset<T>(setter: (v: T) => void) {
-    return (v: T) => {
-      setter(v);
-      setPage(1);
-    };
-  }
+  const live = ADMIN_WORKSPACES.filter((w) => w.status === "live").length;
 
   return (
-    <div className="mx-auto max-w-6xl">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight text-slate-900">워크스페이스</h1>
-          <p className="mt-0.5 text-sm text-slate-500">
-            고객사 1곳당 워크스페이스 1개. 생성과 수정은 운영자만 할 수 있어요.
-          </p>
-        </div>
-        <Button href="/admin/new">
-          <IconPlus size={15} />
-          워크스페이스 만들기
-        </Button>
-      </div>
+    <div className="mx-auto max-w-5xl">
+      <h1 className="text-xl font-bold tracking-tight text-slate-900">대시보드</h1>
+      <p className="mt-0.5 text-sm text-slate-500">
+        {tasks.length > 0
+          ? `오늘 손볼 것 ${tasks.length}건이에요.`
+          : "지금 손볼 것이 없어요."}
+      </p>
 
       <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {[
-          { label: "전체", value: counts.total },
-          { label: "운영 중", value: counts.live },
-          { label: "연동 오류", value: counts.error },
-          { label: "중지", value: counts.suspended },
-        ].map((s) => (
-          <Card key={s.label}>
-            <p className="text-sm text-slate-500">{s.label}</p>
-            <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900">{s.value}</p>
-          </Card>
-        ))}
-      </div>
-
-      <Card className="mt-4">
-        <div className="flex flex-wrap items-center gap-2.5">
-          <div className="relative min-w-0 flex-1 basis-56">
-            <IconSearch
-              size={15}
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-            />
-            <input
-              value={q}
-              onChange={(e) => reset(setQ)(e.target.value)}
-              placeholder="회사명 · 사업자등록번호 · 워크스페이스 이름"
-              aria-label="워크스페이스 검색"
-              className={`${FIELD} pl-9`}
-            />
-          </div>
-          <select
-            value={status}
-            onChange={(e) => reset(setStatus)(e.target.value as StatusFilter)}
-            aria-label="상태 필터"
-            className={`${FIELD_INLINE} cursor-pointer`}
-          >
-            <option value="all">상태: 전체</option>
-            {(Object.keys(WS_STATUS_LABEL) as WsStatus[]).map((s) => (
-              <option key={s} value={s}>
-                {WS_STATUS_LABEL[s]}
-              </option>
-            ))}
-          </select>
-          <select
-            value={health}
-            onChange={(e) => reset(setHealth)(e.target.value as HealthFilter)}
-            aria-label="연동 필터"
-            className={`${FIELD_INLINE} cursor-pointer`}
-          >
-            <option value="all">연동: 전체</option>
-            <option value="ok">정상</option>
-            <option value="error">오류</option>
-            <option value="none">미연결</option>
-          </select>
-          <span className="ml-auto shrink-0 text-xs text-slate-400">{filtered.length}건</span>
-        </div>
-
-        <div className="mt-4">
-          <AdminTable
-            columns={[
-              "회사명",
-              "사업자등록번호",
-              "워크스페이스",
-              "상태",
-              "멤버",
-              "이번 달 사용량",
-              "연동",
-              "최근 활동",
-              "",
-            ]}
-            minWidth={940}
-          >
-            {rows.map((w) => {
-              const h = integrationHealth(w);
-              return (
-                <tr key={w.slug} className={TR}>
-                  <td className={TD_KEY}>{w.company}</td>
-                  <td className={`${TD} tabular-nums`}>{w.bizNumber}</td>
-                  <td className={TD}>
-                    <Link
-                      href={`/admin/${w.slug}`}
-                      className="font-medium text-primary-700 transition-colors hover:text-primary-800"
-                    >
-                      {w.slug}
-                    </Link>
-                  </td>
-                  <td className={TD}>
-                    <Badge tone={STATUS_TONE[w.status]}>{WS_STATUS_LABEL[w.status]}</Badge>
-                  </td>
-                  <td className={`${TD} tabular-nums`}>{w.members.length}</td>
-                  <td className={`${TD} tabular-nums`}>
-                    {w.usage.storageGb > 0 ? `${w.usage.storageGb} GB` : "—"}
-                  </td>
-                  <td className={TD}>
-                    {h === "error" ? (
-                      <Badge tone="red">연동 오류</Badge>
-                    ) : (
-                      <span className={h === "none" ? "text-slate-400" : undefined}>
-                        {w.systems.length > 0
-                          ? w.systems.map((s) => s.kind).join("·")
-                          : "미연결"}
-                      </span>
-                    )}
-                  </td>
-                  <td className={TD}>{w.lastActive}</td>
-                  <td className={TD}>
-                    <Button variant="secondary" size="sm" href={`/admin/${w.slug}`}>
-                      열기
-                    </Button>
-                  </td>
-                </tr>
-              );
-            })}
-          </AdminTable>
-
-          {filtered.length === 0 && (
-            <p className="py-10 text-center text-sm text-slate-500">
-              조건에 맞는 워크스페이스가 없어요. 검색어나 필터를 넓혀 보세요.
-            </p>
-          )}
-        </div>
-
-        {pageCount > 1 && (
-          <div className="mt-4 flex items-center justify-center gap-1.5">
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={current === 1}
-              onClick={() => setPage(current - 1)}
+        {ORDER.map((k) => {
+          const n = counts[k];
+          const on = kind === k;
+          return (
+            <button
+              key={k}
+              type="button"
+              disabled={n === 0}
+              aria-pressed={on}
+              onClick={() => setKind(on ? "all" : k)}
+              className={`cursor-pointer rounded-xl border px-4 py-3.5 text-left transition-colors disabled:cursor-default disabled:opacity-50 ${
+                on
+                  ? "border-slate-400 bg-slate-50"
+                  : "border-slate-200 bg-white hover:border-slate-300 enabled:hover:bg-slate-50/70"
+              }`}
             >
-              이전
-            </Button>
-            {Array.from({ length: pageCount }, (_, i) => i + 1).map((n) => (
-              <Button
-                key={n}
-                variant={n === current ? "primary" : "secondary"}
-                size="sm"
-                aria-current={n === current ? "page" : undefined}
-                onClick={() => setPage(n)}
+              <p className="truncate text-sm text-slate-500">{TASK_LABEL[k]}</p>
+              <p
+                className={`mt-1 text-2xl font-bold tabular-nums ${
+                  n === 0
+                    ? "text-slate-400"
+                    : TONE[k] === "red"
+                      ? "text-red-700"
+                      : TONE[k] === "amber"
+                        ? "text-amber-700"
+                        : "text-slate-900"
+                }`}
               >
                 {n}
+              </p>
+            </button>
+          );
+        })}
+      </div>
+
+      {kind !== "all" && (
+        <div className="mt-3">
+          <Button variant="ghost" size="sm" onClick={() => setKind("all")}>
+            {TASK_LABEL[kind]}만 보는 중 · 전체 보기
+          </Button>
+        </div>
+      )}
+
+      <div className="mt-4 space-y-4">
+        {groups.length === 0 ? (
+          <Card>
+            <div className="flex flex-col items-center justify-center px-6 py-12 text-center">
+              <IconCheckCircle size={36} className="text-emerald-600" />
+              <p className="mt-3 text-sm font-semibold text-slate-900">밀린 일이 없어요</p>
+              <p className="mt-1 max-w-sm text-sm text-slate-500">
+                연동 실패·미개봉 링크·미수금·한도 임박이 모두 없습니다.
+              </p>
+              <Button variant="secondary" className="mt-5" href="/admin/workspaces">
+                워크스페이스 목록
               </Button>
-            ))}
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={current === pageCount}
-              onClick={() => setPage(current + 1)}
-            >
-              다음
-            </Button>
-          </div>
+            </div>
+          </Card>
+        ) : (
+          groups.map((g) => <TaskGroup key={g.kind} kind={g.kind} rows={g.rows} />)
         )}
-      </Card>
+      </div>
+
+      <p className="mt-5 text-sm text-slate-500">
+        운영 중 <span className="font-semibold text-slate-800">{live}곳</span> · 전체{" "}
+        <span className="font-semibold text-slate-800">{ADMIN_WORKSPACES.length}곳</span> ·{" "}
+        <Link
+          href="/admin/workspaces"
+          className="font-medium text-primary-700 transition-colors hover:text-primary-800"
+        >
+          워크스페이스 목록
+        </Link>
+      </p>
     </div>
+  );
+}
+
+function TaskGroup({ kind, rows }: { kind: TaskKind; rows: Task[] }) {
+  return (
+    <Card padding={false}>
+      <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-5 py-3.5">
+        <Badge tone={TONE[kind]}>{TASK_LABEL[kind]}</Badge>
+        <span className="text-xs tabular-nums text-slate-400">{rows.length}건</span>
+        <span className="ml-auto text-xs text-slate-500">{TASK_ACTION[kind]}</span>
+      </div>
+
+      <ul className="divide-y divide-slate-100">
+        {rows.map((t, i) => (
+          <li
+            key={`${t.kind}-${t.slug}-${i}`}
+            className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3.5 transition-colors hover:bg-slate-50/70"
+          >
+            <div className="min-w-0 flex-1 basis-64">
+              <p className="truncate text-sm font-medium text-slate-900">{t.company}</p>
+              <p className="mt-0.5 truncate text-xs text-slate-500">{t.detail}</p>
+            </div>
+            <span className="shrink-0 text-xs text-slate-400">{t.since}</span>
+            <Button variant="secondary" size="sm" href={`/admin/${t.slug}`}>
+              열기
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </Card>
   );
 }

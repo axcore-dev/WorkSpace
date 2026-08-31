@@ -570,3 +570,112 @@ export function estimateAmount(ws: AdminWorkspace) {
   const base: Record<Plan, number> = { Enterprise: 4000000, Growth: 900000, Starter: 300000 };
   return base[ws.plan] + ws.usage.storageGb * 2000;
 }
+
+/* ────────────────────── 오늘 손볼 것 (대시보드) ────────────────────── */
+
+/**
+ * 운영자가 손대야 하는 신호. 우선순위 순서다.
+ *
+ * - `integration` 고객이 지금 피해를 본다 (데이터가 멈춰 있다)
+ * - `link`        온보딩이 멈춰 있다
+ * - `overdue`     돈
+ * - `limit`       상위 요금제를 안내할 시점 (기회지 문제가 아니다)
+ */
+export type TaskKind = "integration" | "link" | "overdue" | "limit";
+
+export type Task = {
+  kind: TaskKind;
+  slug: string;
+  company: string;
+  /** 무엇이 문제인지 한 줄 */
+  detail: string;
+  /** 언제부터인지 — 날짜 또는 상대 표현 */
+  since: string;
+};
+
+export const TASK_LABEL: Record<TaskKind, string> = {
+  integration: "연동 실패",
+  link: "접속 링크 미개봉",
+  overdue: "미수금",
+  limit: "사용량 한도 임박",
+};
+
+/** 해당 신호가 무엇을 하라는 뜻인지 — 화면에 그대로 띄운다 */
+export const TASK_ACTION: Record<TaskKind, string> = {
+  integration: "고객사에 접속 정보 재발급을 요청해 주세요.",
+  link: "담당자에게 링크를 다시 보내거나 유선으로 확인해 주세요.",
+  overdue: "청구 담당자에게 입금을 확인해 주세요.",
+  limit: "상위 요금제를 안내할 시점이에요.",
+};
+
+/** 사용량이 이 비율을 넘으면 한도 임박으로 본다 */
+export const LIMIT_WARN_PCT = 75;
+
+/** 저장 용량 사용률(%) */
+export function storagePct(ws: AdminWorkspace) {
+  if (ws.usage.storageLimitGb === 0) return 0;
+  return Math.min(100, Math.round((ws.usage.storageGb / ws.usage.storageLimitGb) * 100));
+}
+
+/**
+ * 처리 대기 목록. 한 워크스페이스가 여러 신호에 걸릴 수 있다.
+ *
+ * ponytail: "며칠 지났는지"는 계산하지 않는다 — `new Date()`를 렌더에서 쓰면 프리렌더와
+ * 하이드레이션 결과가 갈린다. 발송일을 그대로 보여주고 판단은 사람이 한다.
+ * 서버가 기준 시각을 내려주면 그때 경과일을 붙이는 게 맞다.
+ */
+export function pendingTasks(list: AdminWorkspace[] = ADMIN_WORKSPACES): Task[] {
+  const tasks: Task[] = [];
+
+  for (const ws of list) {
+    // 중지된 곳은 손볼 대상이 아니다 — 미수금만 예외로 남긴다
+    const active = ws.status !== "suspended";
+
+    for (const s of ws.systems) {
+      if (s.state === "authFail") {
+        tasks.push({
+          kind: "integration",
+          slug: ws.slug,
+          company: ws.company,
+          detail: `${s.name} 인증 실패`,
+          since: `마지막 동기화 ${s.lastSync}`,
+        });
+      }
+    }
+
+    if (ws.status === "invited" && !ws.linkOpened) {
+      tasks.push({
+        kind: "link",
+        slug: ws.slug,
+        company: ws.company,
+        detail: `${ws.contacts.link.name}(${ws.contacts.link.email})`,
+        since: `${ws.linkSentAt} 발송`,
+      });
+    }
+
+    const overdue = ws.invoices.find((i) => i.state === "overdue");
+    if (overdue) {
+      tasks.push({
+        kind: "overdue",
+        slug: ws.slug,
+        company: ws.company,
+        detail: `${overdue.period} ${KRW.format(overdue.amount)}원`,
+        since: `${overdue.plan} 요금제`,
+      });
+    }
+
+    const pct = storagePct(ws);
+    if (active && pct >= LIMIT_WARN_PCT) {
+      tasks.push({
+        kind: "limit",
+        slug: ws.slug,
+        company: ws.company,
+        detail: `저장 용량 ${pct}% (${ws.usage.storageGb} / ${ws.usage.storageLimitGb} GB)`,
+        since: `${ws.plan} 요금제`,
+      });
+    }
+  }
+
+  const order: TaskKind[] = ["integration", "link", "overdue", "limit"];
+  return tasks.sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind));
+}
