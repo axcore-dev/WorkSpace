@@ -76,9 +76,10 @@ function OAuthCallbackContent() {
     }
 
     const code = params.get("code");
+    const returnedState = params.get("state");
     // state 검증은 code 를 보내기 전에 한다. 통과하지 못한 code 를 서버로 넘기면 공격자 계정으로
     // 로그인되는 것을 막을 수 없다.
-    if (!consumeState(provider, params.get("state"))) {
+    if (!consumeState(provider, returnedState)) {
       setState({
         kind: "failed",
         message: "로그인 요청을 확인할 수 없습니다. 로그인 화면에서 다시 시도해 주세요",
@@ -90,7 +91,9 @@ function OAuthCallbackContent() {
       return;
     }
 
-    apiPost<LoginResponse>(`/api/auth/oauth/${provider}`, { code })
+    // state 를 함께 보낸다. 검증은 위에서 이미 끝났고, 이 값은 네이버가 토큰 요청에 요구해서
+    // BE 가 제공자에게 그대로 넘겨주기 위한 것이다. Google 은 쓰지 않는다.
+    apiPost<LoginResponse>(`/api/auth/oauth/${provider}`, { code, state: returnedState })
       .then((result) => {
         if (!result) {
           setState({ kind: "failed", message: "서버 응답이 비어 있습니다" });

@@ -20,8 +20,15 @@ public interface OAuthClient {
     /**
      * authorization code 를 사용자 정보로 바꾼다.
      *
-     * @param code FE 가 제공자로부터 받아 넘긴 일회용 코드. 한 번만 쓸 수 있다
+     * <p>{@code state} 를 함께 받는 이유는 네이버가 토큰 요청에 이 값을 요구하기 때문이다.
+     * <b>여기서 state 를 검증하지는 않는다.</b> CSRF 방어용 검증은 FE 가 한다 — 인증 URL 을
+     * 만들 때 sessionStorage 에 넣어 두고 돌아온 값과 대조한 뒤에야 이 경로로 들어온다
+     * ({@link com.axcore.workspace.user.dto.OAuthLoginRequest}). 서버는 제공자에게 그대로
+     * 넘겨주는 역할만 한다.
+     *
+     * @param code  FE 가 제공자로부터 받아 넘긴 일회용 코드. 한 번만 쓸 수 있다
+     * @param state FE 가 발급해 제공자를 거쳐 돌아온 값. 쓰지 않는 제공자는 무시한다. 없을 수 있다
      * @throws OAuthExchangeException 코드가 이미 쓰였거나 만료됐거나 제공자가 거절한 경우
      */
-    OAuthUserInfo fetchUserInfo(String code);
+    OAuthUserInfo fetchUserInfo(String code, String state);
 }

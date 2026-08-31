@@ -51,6 +51,7 @@ public class OAuthController {
                 socialLoginService.login(
                         resolveProvider(provider),
                         request.code(),
+                        request.state(),
                         request.rememberMeOrDefault(),
                         servletRequest.getHeader(HttpHeaders.USER_AGENT),
                         servletRequest.getRemoteAddr());

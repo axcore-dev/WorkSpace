@@ -48,6 +48,7 @@ public class SocialLoginService {
     public AuthResult login(
             AuthProvider provider,
             String code,
+            String state,
             boolean rememberMe,
             String userAgent,
             String ip) {
@@ -57,7 +58,7 @@ public class SocialLoginService {
                         .orElseThrow(() -> new OAuthNotConfiguredException(provider));
 
         // 네트워크 호출. 트랜잭션 밖이다.
-        OAuthUserInfo info = client.fetchUserInfo(code);
+        OAuthUserInfo info = client.fetchUserInfo(code, state);
 
         Instant now = Instant.now();
         User user = linker.resolve(info, now);

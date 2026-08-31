@@ -38,9 +38,13 @@ const PROVIDERS: Record<SocialProvider, ProviderConfig> = {
     },
   },
   naver: {
-    // 네이버는 다음 작업에서 붙인다. 자리만 둔다.
     authorizeUrl: "https://nid.naver.com/oauth2.0/authorize",
     clientId: process.env.NEXT_PUBLIC_NAVER_CLIENT_ID,
+    // 네이버는 scope 를 인증 URL 로 받지 않는다. 제공받을 항목은 개발자센터의 애플리케이션
+    // 설정에서 정한다 — 거기서 "이메일 주소" 를 필수로 체크해야 한다. 빠지면 사용자가 동의
+    // 화면에서 이메일 제공을 거절할 수 있고, 이메일이 없으면 계정을 이을 수 없다.
+    //
+    // 빈 문자열이면 startSocialLogin 이 파라미터 자체를 붙이지 않는다.
     scope: "",
   },
 };

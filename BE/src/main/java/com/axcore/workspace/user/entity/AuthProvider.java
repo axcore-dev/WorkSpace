@@ -32,7 +32,7 @@ public enum AuthProvider implements DbValued {
     /**
      * 경로 조각에서 제공자를 찾는다. 대소문자를 구분하지 않는다.
      *
-     * <p>모르는 값이면 빈 값을 돌려준다. 예외를 던지지 않는 이유는 호출하는 쪽이 404 와 400 중
+     * 모르는 값이면 빈 값을 돌려준다. 예외를 던지지 않는 이유는 호출하는 쪽이 404 와 400 중
      * 무엇으로 답할지 결정해야 하기 때문이다.
      */
     public static Optional<AuthProvider> from(String value) {

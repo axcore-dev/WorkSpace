@@ -19,12 +19,18 @@ import java.util.Optional;
 /**
  * 제공자에서 받은 정보를 우리 계정과 잇는다. 소셜 로그인의 보안 판단이 모두 여기에 있다.
  *
- * <p>세 갈래다.
+ * <p>다섯 갈래다. 판단에 쓰는 값은 둘뿐이다 — <b>주소를 쥔 계정이 확인됐는가</b>, 그리고
+ * <b>제공자가 이 이메일의 소유를 확인해 줬는가</b>.
  *
  * <ol>
- *   <li><b>이미 연결된 소셜 계정</b> — 그 계정으로 로그인한다.
- *   <li><b>같은 이메일의 기존 계정이 있음</b> — 제공자가 이메일 소유를 확인해 준 경우에만 연결한다.
- *   <li><b>처음 보는 사람</b> — 계정을 새로 만든다.
+ *   <li><b>이미 연결된 소셜 계정</b> — 그 계정으로 로그인한다. 이메일은 보지 않는다.
+ *   <li><b>처음 보는 주소</b> — 계정을 새로 만든다.
+ *   <li><b>확인된 계정이 쥐고 있음 + 제공자가 확인해 줌</b> — 그 계정에 연결한다.
+ *   <li><b>확인된 계정이 쥐고 있음 + 제공자가 확인해 주지 않음</b> — 거절한다. 허용하면 남의
+ *       주소를 적어 둔 제공자 계정으로 그 사람의 계정에 들어갈 수 있다.
+ *   <li><b>확인되지 않은 계정이 쥐고 있음</b> — 그 계정은 주소를 점유하지 않는다
+ *       ({@link UnverifiedAccountReclaimer}). 제공자가 소유를 확인해 줬으면 밀어내고 새로
+ *       만들고, 확인해 주지 않았으면 어느 쪽도 주인이라는 증거가 없으므로 거절한다.
  * </ol>
  *
  * <p>{@link com.axcore.workspace.oauth.OAuthClient} 호출과 분리된 별도 빈인 이유는 트랜잭션
@@ -40,16 +46,19 @@ public class SocialAccountLinker {
     private final UserIdentityRepository identityRepository;
     private final VerificationTokenService verificationTokenService;
     private final AccountMailer mailer;
+    private final UnverifiedAccountReclaimer reclaimer;
 
     public SocialAccountLinker(
             UserRepository userRepository,
             UserIdentityRepository identityRepository,
             VerificationTokenService verificationTokenService,
-            AccountMailer mailer) {
+            AccountMailer mailer,
+            UnverifiedAccountReclaimer reclaimer) {
         this.userRepository = userRepository;
         this.identityRepository = identityRepository;
         this.verificationTokenService = verificationTokenService;
         this.mailer = mailer;
+        this.reclaimer = reclaimer;
     }
 
     @Transactional
@@ -65,10 +74,43 @@ public class SocialAccountLinker {
             throw new SocialEmailUnavailableException(info.provider());
         }
         String email = User.normalizeEmail(info.email());
-        return userRepository
-                .findByEmail(email)
-                .map(existing -> linkToExisting(existing, info, now))
-                .orElseGet(() -> createFromSocial(email, info, now));
+        Optional<User> holder = userRepository.findByEmail(email);
+        if (holder.isEmpty()) {
+            return createFromSocial(email, info, now);
+        }
+
+        User existing = holder.get();
+        if (existing.isEmailVerified()) {
+            // 주소의 주인이 정해져 있다. 붙일지 말지는 제공자가 소유를 확인해 줬는지로 갈린다.
+            return linkToExisting(existing, info);
+        }
+
+        // 여기서부터는 주소를 쥔 계정이 확인되지 않은 계정이다. 그 계정은 이 주소를 점유하지
+        // 않는다({@link UnverifiedAccountReclaimer}).
+        if (!info.emailVerified()) {
+            // 제공자도 소유를 확인해 주지 않았다. 양쪽 다 주인이라는 증거가 없으므로 아무것도
+            // 하지 않는다. 여기서 밀어내면 확인되지 않은 계정을 아무나 지울 수 있게 된다.
+            log.warn(
+                    "확인되지 않은 계정과 확인되지 않은 소셜 이메일이 만났다. 연결하지 않는다."
+                            + " provider={} email={}",
+                    info.provider().dbValue(),
+                    maskEmail(info.email()));
+            throw new SocialLinkBlockedException();
+        }
+
+        // 제공자가 소유를 확인해 줬다. 이 사람이 주소의 주인이고, 주소를 쥔 미확인 계정은
+        // 아니다. 그 계정을 밀어내고 새로 만든다.
+        //
+        // 연결해서 재사용하지 않는 이유가 있다. 그 계정에 남아 있는 비밀번호는 소유가 증명되지
+        // 않은 쪽이 정한 값이다. 붙이기만 하면 남의 주소로 미리 가입해 둔 사람이 그 비밀번호로
+        // 계속 들어올 수 있다 — 소셜 로그인이 계정 탈취 경로가 되는 지점이다.
+        //
+        // 대가로 정상적인 사용자도 비밀번호를 잃는다. 이메일로 가입해 두고 확인 링크를 누르기
+        // 전에 소셜로 들어온 경우다. 확인되지 않은 계정에는 회사 데이터가 딸릴 수 없어
+        // (SessionIssuer#nextStep) 잃는 것은 비밀번호뿐이고, 비밀번호 재설정으로 다시 설정할 수
+        // 있다. 되돌릴 수 없는 쪽은 탈취다.
+        reclaimer.reclaimIfUnverified(existing);
+        return createFromSocial(email, info, now);
     }
 
     /**
@@ -93,11 +135,14 @@ public class SocialAccountLinker {
     /**
      * 같은 이메일의 기존 계정에 붙인다.
      *
+     * <p><b>이미 이메일이 확인된 계정만 받는다.</b> 확인되지 않은 계정은 주소를 점유하지 않아
+     * {@link #resolve} 에서 다른 갈래로 빠진다.
+     *
      * <p><b>{@code emailVerified} 검사가 이 메서드의 핵심이다.</b> 제공자가 확인해 주지 않은 주소로
      * 연결을 허용하면, 아무 제공자 계정에 남의 주소를 적어 두고 로그인하는 것만으로 그 사람의
      * 계정에 들어갈 수 있다. 소셜 로그인이 계정 탈취 경로로 바뀌는 지점이다.
      */
-    private User linkToExisting(User user, OAuthUserInfo info, Instant now) {
+    private User linkToExisting(User user, OAuthUserInfo info) {
         if (!info.emailVerified()) {
             log.warn(
                     "미확인 이메일로 기존 계정 연결 시도를 거절했다. provider={} email={}",
@@ -119,9 +164,8 @@ public class SocialAccountLinker {
         identityRepository.save(
                 UserIdentity.link(user, info.provider(), info.providerUserId(), info.email()));
 
-        // 제공자가 소유를 확인해 줬으므로 미확인 계정이었다면 함께 확인 처리한다.
-        // 비밀번호 재설정 링크를 통과했을 때와 같은 판단이다(PasswordService#reset).
-        user.verifyEmail(now);
+        // 확인 처리를 하지 않는다. 이 메서드는 이미 확인된 계정만 받는다 — 확인되지 않은 계정은
+        // resolve 에서 밀어내기로 갈라져 여기까지 오지 않는다.
 
         log.info(
                 "기존 계정 {} 에 {} 를 연결했다",

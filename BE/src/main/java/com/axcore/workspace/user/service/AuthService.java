@@ -40,6 +40,7 @@ public class AuthService {
     private final VerificationTokenService verificationTokenService;
     private final AccountMailer mailer;
     private final PasswordEncoder passwordEncoder;
+    private final UnverifiedAccountReclaimer reclaimer;
 
     public AuthService(
             AuthenticationManager authenticationManager,
@@ -49,7 +50,8 @@ public class AuthService {
             MfaService mfaService,
             VerificationTokenService verificationTokenService,
             AccountMailer mailer,
-            PasswordEncoder passwordEncoder) {
+            PasswordEncoder passwordEncoder,
+            UnverifiedAccountReclaimer reclaimer) {
         this.authenticationManager = authenticationManager;
         this.userRepository = userRepository;
         this.refreshTokenService = refreshTokenService;
@@ -58,22 +60,37 @@ public class AuthService {
         this.verificationTokenService = verificationTokenService;
         this.mailer = mailer;
         this.passwordEncoder = passwordEncoder;
+        this.reclaimer = reclaimer;
     }
 
     /**
      * 이메일 가입. 계정을 만들고 소유 확인 메일을 보낸다.
      *
-     * <p>확인 전에도 계정은 선다. 확인이 끝날 때까지 계정을 만들지 않으면, 같은 주소로 반복
-     * 가입을 시도해 "이 주소가 가입돼 있는가"를 알아낼 수 있고 미완료 가입 상태를 따로 관리해야
-     * 한다. 대신 확인되지 않은 계정은 회사에 들어가지 못한다.
+     * <p>확인 전에도 계정은 선다. 확인이 끝날 때까지 계정을 만들지 않으면 미완료 가입 상태를
+     * 담아 둘 곳이 따로 필요하고, 소셜 로그인에는 그 자리(가입 폼)가 아예 없어서 같은 장치를
+     * 두 벌 만들게 된다. 대신 확인되지 않은 계정은 회사에 들어가지 못한다.
      * ({@link SessionIssuer#nextStep})
+     *
+     * <p>이미 그 주소로 계정이 있으면 <b>확인 여부로 갈린다.</b> 확인된 계정이면 중복이고,
+     * 확인되지 않은 계정이면 그 주소를 점유하지 않으므로 밀어내고 새로 만든다. 남의 주소로
+     * 가입해 두는 것만으로 진짜 주인이 가입하지 못하게 되는 것을 막는 장치다.
+     * ({@link UnverifiedAccountReclaimer})
+     *
+     * <p>중복을 그대로 알려 주므로 "이 주소가 가입돼 있는가" 는 지금도 알아낼 수 있다. 가입
+     * 화면에서 흔히 받아들이는 교환이지만 이 클래스가 정한 것은 아니다 — 응답을 흐리게 바꾸려면
+     * 확인 메일 문구까지 함께 바꿔야 하므로 여기서 다루지 않는다.
      */
     @Transactional
     public UserResponse signUp(SignUpRequest request) {
         String email = User.normalizeEmail(request.email());
-        if (userRepository.existsByEmail(email)) {
-            throw new DuplicateEmailException();
-        }
+        userRepository
+                .findByEmail(email)
+                .ifPresent(
+                        existing -> {
+                            if (!reclaimer.reclaimIfUnverified(existing)) {
+                                throw new DuplicateEmailException();
+                            }
+                        });
         User user =
                 userRepository.save(
                         User.create(email, passwordEncoder.encode(request.password()), request.name()));

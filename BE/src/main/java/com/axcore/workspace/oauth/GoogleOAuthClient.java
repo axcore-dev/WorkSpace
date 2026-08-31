@@ -49,8 +49,12 @@ public class GoogleOAuthClient implements OAuthClient {
         return AuthProvider.GOOGLE;
     }
 
+    /**
+     * {@code state} 는 쓰지 않는다. Google 의 토큰 엔드포인트는 이 값을 받지 않는다 — code 와
+     * redirect_uri 의 대조로 충분하다. 네이버가 요구해서 인터페이스에만 있는 값이다.
+     */
     @Override
-    public OAuthUserInfo fetchUserInfo(String code) {
+    public OAuthUserInfo fetchUserInfo(String code, String state) {
         OAuthProperties.Registration registration =
                 properties
                         .registration(AuthProvider.GOOGLE)
