@@ -20,7 +20,6 @@ import { Logo } from "@/components/logo";
 import { useModules } from "@/components/module-provider";
 import { SettingsModal, type SettingsTab } from "@/components/settings/settings-modal";
 import { MODULES } from "@/data/modules";
-import { AI_ALERTS } from "@/data/dashboard";
 import { DEFAULT_WORKSPACE_ID, DEMO_USER, EXTERNAL_SYSTEMS, WORKSPACES } from "@/data/org";
 
 function NavLink({
@@ -84,7 +83,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   const currentOrg = WORKSPACES.find((w) => w.id === orgId) ?? WORKSPACES[0];
-  const alertCount = AI_ALERTS.length;
 
   const profileMenu: { label: string; tab: SettingsTab; icon: typeof IconUser }[] = [
     { label: "계정", tab: "account", icon: IconUser },
@@ -183,15 +181,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
 
-          {/* 외부 시스템 연동 바로가기 — 제목 없이 구분선만 */}
+          {/* 외부 시스템 연동 바로가기 */}
           <div>
-            <div className="mb-4 border-t border-slate-200" aria-hidden />
+            <p className="mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+              외부 시스템
+            </p>
             <div className="space-y-0.5">
-              {EXTERNAL_SYSTEMS.map((sys) => (
-                <NavLink key={sys.slug} href={`/external/${sys.slug}`} active={pathname === `/external/${sys.slug}`} small>
-                  {sys.name}
-                </NavLink>
-              ))}
+              {EXTERNAL_SYSTEMS.map((sys) => {
+                const Icon = ICON_MAP[sys.icon];
+                return (
+                  <NavLink
+                    key={sys.slug}
+                    href={`/external/${sys.slug}`}
+                    active={pathname === `/external/${sys.slug}`}
+                    small
+                  >
+                    <Icon size={16} className="shrink-0 text-slate-400" />
+                    {sys.name}
+                  </NavLink>
+                );
+              })}
             </div>
           </div>
 
@@ -206,10 +215,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </NavLink>
               <NavLink href="/ai-diagnosis" active={pathname === "/ai-diagnosis"}>
                 <IconActivity size={17} className="shrink-0 text-slate-400" />
-                <span className="flex-1">AI알림</span>
-                {alertCount > 0 && (
-                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" aria-label={`알림 ${alertCount}건`} />
-                )}
+                AI알림
               </NavLink>
             </div>
           </div>
