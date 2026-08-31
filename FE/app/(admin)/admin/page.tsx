@@ -6,7 +6,6 @@ import { Breadcrumb } from "@/components/admin/breadcrumb";
 import { IconCheckCircle } from "@/components/icons";
 import { Badge, Button, Card } from "@/components/ui";
 import {
-  ADMIN_WORKSPACES,
   TASK_ACTION,
   TASK_LABEL,
   pendingTasks,
@@ -41,8 +40,6 @@ export default function AdminDashboardPage() {
   const groups = ORDER.map((k) => ({ kind: k, rows: shown.filter((t) => t.kind === k) })).filter(
     (g) => g.rows.length > 0,
   );
-
-  const live = ADMIN_WORKSPACES.filter((w) => w.status === "live").length;
 
   return (
     <div>
@@ -118,8 +115,6 @@ export default function AdminDashboardPage() {
       </div>
 
       <p className="mt-5 text-sm text-slate-500">
-        운영 중 <span className="font-semibold text-slate-800">{live}곳</span> · 전체{" "}
-        <span className="font-semibold text-slate-800">{ADMIN_WORKSPACES.length}곳</span> ·{" "}
         <Link
           href="/admin/workspaces"
           className="font-medium text-primary-700 transition-colors hover:text-primary-800"

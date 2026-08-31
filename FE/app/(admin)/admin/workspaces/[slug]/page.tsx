@@ -13,8 +13,16 @@ import { Modal } from "@/components/modal";
 import { Badge, Button } from "@/components/ui";
 import { ADMIN_WORKSPACES, WS_STATUS_LABEL, type AdminWorkspace, type WsStatus } from "@/data/admin";
 
-const TABS = ["개요", "멤버", "외부 시스템 연동", "사용량 · 요금"] as const;
+/**
+ * 수정 가능한 탭이 앞, 읽기 전용이 뒤다. 탭 띠만 보고 어디서 뭘 할 수 있는지
+ * 알 수 있게 배치로 나눈다 — 「읽기 전용」 라벨이나 아이콘을 붙이지 않는다
+ * (문구를 늘리지 않는다: 수정요청v9 ⑤ 5-4).
+ */
+const TABS = ["개요", "사용량 · 요금", "멤버", "외부 시스템 연동"] as const;
 type Tab = (typeof TABS)[number];
+
+/** 이 인덱스부터 읽기 전용 — 탭 띠에 구분을 준다 */
+const READONLY_FROM = 2;
 
 export default function AdminWorkspaceDetailPage() {
   const slug = useParams().slug as string;
@@ -79,21 +87,25 @@ export default function AdminWorkspaceDetailPage() {
       </div>
 
       <div className="mt-5 flex flex-wrap gap-1 border-b border-slate-200" role="tablist">
-        {TABS.map((t) => (
-          <button
-            key={t}
-            type="button"
-            role="tab"
-            aria-selected={tab === t}
-            onClick={() => setTab(t)}
-            className={`-mb-px cursor-pointer border-b-2 px-3.5 py-2.5 text-sm transition-colors duration-150 ${
-              tab === t
-                ? "border-slate-800 font-semibold text-slate-900"
-                : "border-transparent font-medium text-slate-500 hover:text-slate-800"
-            }`}
-          >
-            {t}
-          </button>
+        {TABS.map((t, i) => (
+          <div key={t} className="flex items-center">
+            {i === READONLY_FROM && (
+              <span className="mx-1.5 h-4 w-px shrink-0 bg-slate-200" aria-hidden />
+            )}
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === t}
+              onClick={() => setTab(t)}
+              className={`-mb-px cursor-pointer border-b-2 px-3.5 py-2.5 text-sm transition-colors duration-150 ${
+                tab === t
+                  ? "border-slate-800 font-semibold text-slate-900"
+                  : "border-transparent font-medium text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              {t}
+            </button>
+          </div>
         ))}
       </div>
 
