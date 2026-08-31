@@ -43,8 +43,13 @@ public class User {
     /**
      * DelegatingPasswordEncoder 가 만든 문자열이라 {@code {bcrypt}$2a$10$...} 형태다.
      * 접두사가 붙어 있어서 나중에 argon2id 로 알고리즘을 바꿔도 기존 계정이 그대로 로그인된다.
+     *
+     * <p><b>null 일 수 있다.</b> 소셜 로그인으로만 가입한 계정은 비밀번호가 없다. 빈 문자열이나
+     * 아무도 모르는 난수 해시를 채워 넣지 않는 이유는, 그러면 "비밀번호가 없다"와 "맞힐 수 없는
+     * 비밀번호가 있다"를 구분할 수 없어서다. 비밀번호 로그인·변경 경로에서 그 차이가 필요하다.
+     * {@link #hasPassword()} 로 확인한다.
      */
-    @Column(name = "password_hash", nullable = false, length = 255)
+    @Column(name = "password_hash", length = 255)
     private String passwordHash;
 
     @Column(nullable = false, length = 100)
@@ -93,6 +98,19 @@ public class User {
         return new User(normalizeEmail(email), passwordHash, name);
     }
 
+    /**
+     * 소셜 로그인으로 처음 들어온 사람의 계정. 비밀번호가 없다.
+     *
+     * <p>이메일 확인 처리는 여기서 하지 않는다. 제공자가 소유를 확인해 준 경우에만
+     * {@link #verifyEmail(Instant)} 를 부르는 것이 호출하는 쪽의 판단이고, 그 판단을 엔티티가
+     * 대신하면 확인되지 않은 주소까지 확인 처리될 수 있다.
+     */
+    public static User createSocial(String email, String name, String avatarUrl) {
+        User user = new User(normalizeEmail(email), null, name);
+        user.avatarUrl = avatarUrl;
+        return user;
+    }
+
     /** 조회·저장 양쪽에서 같은 규칙을 써야 해서 여기에 둔다. */
     public static String normalizeEmail(String email) {
         return email == null ? null : email.strip().toLowerCase();
@@ -103,7 +121,9 @@ public class User {
         Instant now = Instant.now();
         this.createdAt = now;
         this.updatedAt = now;
-        if (this.passwordChangedAt == null) {
+        // 비밀번호가 없는 계정에는 채우지 않는다. 채우면 프로필 화면이 설정한 적 없는 비밀번호의
+        // "마지막 변경" 시각을 보여 준다.
+        if (this.passwordChangedAt == null && this.passwordHash != null) {
             this.passwordChangedAt = now;
         }
     }
@@ -120,6 +140,16 @@ public class User {
 
     public void recordLogin(Instant at) {
         this.lastLoginAt = at;
+    }
+
+    /**
+     * 비밀번호 자격증명을 가진 계정인가.
+     *
+     * <p>false 면 비밀번호 로그인이 불가능하고, 현재 비밀번호를 요구하는 조작(비밀번호 변경,
+     * 2단계 끄기)도 할 수 없다. 비밀번호 재설정 링크로 처음 설정하는 것이 유일한 통로다.
+     */
+    public boolean hasPassword() {
+        return passwordHash != null;
     }
 
     public boolean isEmailVerified() {

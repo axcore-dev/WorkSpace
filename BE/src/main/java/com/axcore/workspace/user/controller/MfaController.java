@@ -10,6 +10,7 @@ import com.axcore.workspace.user.entity.User;
 import com.axcore.workspace.user.service.AuthResult;
 import com.axcore.workspace.user.service.AuthService;
 import com.axcore.workspace.user.service.MfaService;
+import com.axcore.workspace.user.service.PasswordNotSetException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
@@ -112,6 +113,12 @@ public class MfaController {
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody MfaRequests.DisableRequest request) {
         User user = authService.requireUser(JwtPrincipal.of(jwt).userId());
+        // 소셜 전용 계정은 대조할 해시가 없다. 이 경우 2단계를 끄려면 비밀번호 재설정 링크로
+        // 비밀번호를 먼저 설정해야 한다. 제공자 재인증으로 대신하는 편이 사용자에게는 자연스럽지만
+        // 그건 별도 흐름이라 여기서 열지 않는다.
+        if (!user.hasPassword()) {
+            throw new PasswordNotSetException();
+        }
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
             throw new BadCredentialsException("비밀번호가 올바르지 않습니다");
         }

@@ -52,6 +52,11 @@ public class PasswordService {
      */
     @Transactional
     public void change(User user, String currentPassword, String newPassword, Instant now) {
+        // 소셜 전용 계정은 대조할 해시가 없다. 이 검사 없이 내려가면 PasswordEncoder 가
+        // IllegalArgumentException 을 던져 500 이 된다.
+        if (!user.hasPassword()) {
+            throw new PasswordNotSetException();
+        }
         if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
             throw new BadCredentialsException("현재 비밀번호가 올바르지 않습니다");
         }

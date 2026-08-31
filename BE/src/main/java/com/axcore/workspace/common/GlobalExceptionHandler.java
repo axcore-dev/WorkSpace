@@ -1,8 +1,13 @@
 package com.axcore.workspace.common;
 
+import com.axcore.workspace.oauth.OAuthExchangeException;
+import com.axcore.workspace.oauth.OAuthNotConfiguredException;
+import com.axcore.workspace.oauth.SocialEmailUnavailableException;
+import com.axcore.workspace.oauth.SocialLinkBlockedException;
 import com.axcore.workspace.user.service.DuplicateEmailException;
 import com.axcore.workspace.user.service.EmailAlreadyVerifiedException;
 import com.axcore.workspace.user.service.MfaStateException;
+import com.axcore.workspace.user.service.PasswordNotSetException;
 import com.axcore.workspace.user.service.SamePasswordException;
 import com.axcore.workspace.user.service.SessionNotFoundException;
 import com.axcore.workspace.workspace.service.WorkspaceAccessDeniedException;
@@ -74,11 +79,56 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({
         MfaStateException.class,
         EmailAlreadyVerifiedException.class,
-        SamePasswordException.class
+        SamePasswordException.class,
+        PasswordNotSetException.class,
+        SocialLinkBlockedException.class
     })
     public ResponseEntity<ErrorResponse> handleAccountStateConflict(RuntimeException e) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ErrorResponse.of("ACCOUNT_STATE_CONFLICT", e.getMessage()));
+    }
+
+    /**
+     * 제공자가 이메일을 주지 않았다. 400 이다.
+     *
+     * <p>사용자가 동의 화면에서 이메일 제공을 거절한 결과이므로 사용자가 고칠 수 있다. 문구에
+     * 무엇을 해야 하는지 담는다.
+     */
+    @ExceptionHandler(SocialEmailUnavailableException.class)
+    public ResponseEntity<ErrorResponse> handleSocialEmailUnavailable(
+            SocialEmailUnavailableException e) {
+        return ResponseEntity.badRequest()
+                .body(ErrorResponse.of("SOCIAL_EMAIL_UNAVAILABLE", e.getMessage()));
+    }
+
+    /**
+     * 제공자와의 통신 실패. 401 이다.
+     *
+     * <p>code 가 이미 쓰였거나 만료됐거나 위조된 경우다. 사용자 입장에서는 "로그인이 안 됐다" 와
+     * 같아서 인증 실패로 답한다. 원인은 로그에만 남긴다 — 응답으로 흘리면 제공자 응답을 탐색하는
+     * 통로가 된다.
+     */
+    @ExceptionHandler(OAuthExchangeException.class)
+    public ResponseEntity<ErrorResponse> handleOAuthExchange(OAuthExchangeException e) {
+        log.warn("소셜 로그인 실패", e);
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(ErrorResponse.of("SOCIAL_LOGIN_FAILED", "소셜 로그인에 실패했습니다. 다시 시도해 주세요"));
+    }
+
+    /**
+     * 이 제공자의 자격증명이 서버에 설정되지 않았다. 503 이다.
+     *
+     * <p>사용자 잘못이 아니므로 4xx 가 아니다. 로그에 남겨 두면 배포에서 환경변수를 빠뜨린 것을
+     * 바로 알 수 있다.
+     */
+    @ExceptionHandler(OAuthNotConfiguredException.class)
+    public ResponseEntity<ErrorResponse> handleOAuthNotConfigured(OAuthNotConfiguredException e) {
+        log.error("{} 로그인 자격증명이 설정되지 않았다", e.getProvider().dbValue());
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(
+                        ErrorResponse.of(
+                                "SOCIAL_LOGIN_UNAVAILABLE",
+                                "현재 이 방식의 로그인을 사용할 수 없습니다"));
     }
 
     /**

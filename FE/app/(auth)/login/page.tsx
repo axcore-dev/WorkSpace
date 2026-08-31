@@ -5,7 +5,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AuthPrimaryButton, AuthSplit, SocialAuthButtons } from "@/components/auth-shell";
 import { FIELD_LG, isPersonalEmail } from "@/components/ui";
-import { DEMO_USER, INTERNAL_ADMIN_EMAILS, WORKSPACES } from "@/data/org";
+import { DEMO_USER } from "@/data/org";
+import {
+  PROVIDER_LABELS,
+  SocialLoginNotConfiguredError,
+  SocialProvider,
+  startSocialLogin,
+} from "@/lib/auth";
 
 /** 데모: 매직링크 대기 화면 진입 후 이 시간(ms)이 지나면 링크를 클릭한 것으로 간주한다 */
 const DEMO_LINK_CLICK_MS = 5000;
@@ -19,6 +25,27 @@ export default function LoginPage() {
   const [left, setLeft] = useState(LINK_TTL_SEC);
   const [resent, setResent] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
+  const [socialError, setSocialError] = useState<string | null>(null);
+
+  /**
+   * 제공자의 인증 화면으로 이동한다. 이 뒤는 `/oauth/callback/<provider>` 가 이어받는다.
+   *
+   * 클라이언트 ID 환경변수가 없으면 제공자로 보내지 않고 화면에 알린다. 그대로 보내면
+   * 제공자가 "invalid_client" 오류 페이지를 띄워서, 원인이 우리 설정인 것을 알기 어렵다.
+   */
+  function loginWith(provider: SocialProvider) {
+    setSocialError(null);
+    try {
+      startSocialLogin(provider);
+    } catch (e: unknown) {
+      const label = PROVIDER_LABELS[provider];
+      setSocialError(
+        e instanceof SocialLoginNotConfiguredError
+          ? `${label} 로그인이 아직 설정되지 않았습니다`
+          : `${label} 로그인을 시작할 수 없습니다`,
+      );
+    }
+  }
 
   function finish() {
     localStorage.setItem("axpoint-user", JSON.stringify({ ...DEMO_USER, email }));
@@ -129,8 +156,45 @@ export default function LoginPage() {
             <AuthPrimaryButton>로그인</AuthPrimaryButton>
           </form>
 
-          {/* 데모: 소셜은 즉시 로그인된다 (매직링크 단계를 거치지 않는다) */}
-          <SocialAuthButtons action="로그인" onSelect={finish} />
+          <div className="mt-8 flex items-center gap-4">
+            <span className="h-px flex-1 bg-slate-200" />
+            <span className="text-xs text-slate-400">또는</span>
+            <span className="h-px flex-1 bg-slate-200" />
+          </div>
+
+          {/* 소셜 로그인 — Google/네이버 공식 버튼 가이드의 색·형태를 따른다.
+              둘 다 실제 OAuth 로 연결돼 있다. */}
+          <div className="mt-5 space-y-3">
+            {socialError && (
+              <p className="text-sm text-red-600" role="alert">
+                {socialError}
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={() => loginWith("google")}
+              aria-label="Google 계정으로 로그인"
+              className="flex h-10 w-full cursor-pointer items-center justify-center gap-2.5 rounded border border-[#747775] bg-white px-3 transition-[background-color,box-shadow] duration-150 hover:bg-[#f7f8f8] hover:shadow-[0_1px_2px_rgba(60,64,67,.3),0_1px_3px_1px_rgba(60,64,67,.15)] active:bg-[#eeeeee]"
+            >
+              <GoogleG />
+              <span className="whitespace-nowrap text-sm font-medium leading-5 text-[#1f1f1f]">
+                Google 계정으로 로그인
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => loginWith("naver")}
+              aria-label="네이버 아이디로 로그인"
+              className="flex h-10 w-full cursor-pointer items-center justify-center gap-2.5 rounded bg-[#03c75a] px-3 transition-colors duration-150 hover:bg-[#02b350] active:bg-[#02a94b]"
+            >
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden focusable="false" className="block shrink-0">
+                <path d="M3 4h6.6l4.9 7.9V4H21v16h-6.6L9.5 12v8H3z" fill="#fff" />
+              </svg>
+              <span className="whitespace-nowrap text-sm font-bold leading-5 text-white">
+                네이버 아이디로 로그인
+              </span>
+            </button>
+          </div>
         </>
       ) : (
         <>
