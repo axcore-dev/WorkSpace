@@ -1,4 +1,4 @@
-package com.axcore.workspace.oauth;
+package com.axcore.workspace.oauth.exception;
 
 import com.axcore.workspace.user.entity.AuthProvider;
 

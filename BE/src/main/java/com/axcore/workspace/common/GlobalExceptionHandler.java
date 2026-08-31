@@ -1,9 +1,9 @@
 package com.axcore.workspace.common;
 
-import com.axcore.workspace.oauth.OAuthExchangeException;
-import com.axcore.workspace.oauth.OAuthNotConfiguredException;
-import com.axcore.workspace.oauth.SocialEmailUnavailableException;
-import com.axcore.workspace.oauth.SocialLinkBlockedException;
+import com.axcore.workspace.oauth.exception.OAuthExchangeException;
+import com.axcore.workspace.oauth.exception.OAuthNotConfiguredException;
+import com.axcore.workspace.oauth.exception.SocialEmailUnavailableException;
+import com.axcore.workspace.oauth.exception.SocialLinkBlockedException;
 import com.axcore.workspace.user.service.DuplicateEmailException;
 import com.axcore.workspace.user.service.EmailAlreadyVerifiedException;
 import com.axcore.workspace.user.service.MfaStateException;

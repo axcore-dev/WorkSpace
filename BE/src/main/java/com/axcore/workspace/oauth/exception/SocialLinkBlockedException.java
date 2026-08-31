@@ -1,4 +1,4 @@
-package com.axcore.workspace.oauth;
+package com.axcore.workspace.oauth.exception;
 
 /**
  * 기존 계정에 이 소셜 계정을 자동으로 붙일 수 없다.

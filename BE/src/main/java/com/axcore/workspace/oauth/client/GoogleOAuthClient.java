@@ -1,5 +1,8 @@
-package com.axcore.workspace.oauth;
+package com.axcore.workspace.oauth.client;
 
+import com.axcore.workspace.oauth.*;
+import com.axcore.workspace.oauth.exception.OAuthExchangeException;
+import com.axcore.workspace.oauth.exception.OAuthNotConfiguredException;
 import com.axcore.workspace.user.entity.AuthProvider;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
