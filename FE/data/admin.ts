@@ -618,6 +618,25 @@ export function storagePct(ws: AdminWorkspace) {
 }
 
 /**
+ * 청구 상태 — 미수금이 있으면 그게 상태다. 없으면 청구 예정.
+ *
+ * 화면 세 곳(요금 목록·상세 사용량 탭·대시보드 미수금 신호)이 같은 판정을 쓰므로
+ * 여기 한 곳에만 둔다. 흩어져 있으면 한쪽만 고쳐서 같은 고객사에 대해
+ * 두 화면이 다른 말을 하게 된다.
+ */
+export function billingState(ws: AdminWorkspace): BillingState {
+  if (ws.invoices.some((i) => i.state === "overdue")) return "overdue";
+  return "due";
+}
+
+/** 청구 상태 색 — 미수금만 빨강 */
+export const BILLING_TONE: Record<BillingState, "green" | "slate" | "red"> = {
+  paid: "green",
+  due: "slate",
+  overdue: "red",
+};
+
+/**
  * 처리 대기 목록. 한 워크스페이스가 여러 신호에 걸릴 수 있다.
  *
  * ponytail: "며칠 지났는지"는 계산하지 않는다 — `new Date()`를 렌더에서 쓰면 프리렌더와

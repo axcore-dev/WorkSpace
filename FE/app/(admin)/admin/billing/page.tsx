@@ -8,34 +8,17 @@ import { Badge, Button, Card, FIELD_INLINE, ProgressBar, SectionHeader } from "@
 import {
   ADMIN_WORKSPACES,
   BILLING_STATE_LABEL,
+  BILLING_TONE,
   KRW,
+  billingState,
   downloadCsv,
   estimateAmount,
+  storagePct,
   toCsv,
-  type AdminWorkspace,
-  type BillingState,
 } from "@/data/admin";
 
 /** 데모: 이번 달 + 지난 두 달만 고른다 */
 const PERIODS = ["2026년 8월", "2026년 7월", "2026년 6월"];
-
-const BILLING_TONE: Record<BillingState, "green" | "slate" | "red"> = {
-  paid: "green",
-  due: "slate",
-  overdue: "red",
-};
-
-/** 한도 대비 사용률 — 저장 용량 기준 (요금에 가장 크게 영향) */
-function usageRatio(ws: AdminWorkspace) {
-  if (ws.usage.storageLimitGb === 0) return 0;
-  return Math.min(100, Math.round((ws.usage.storageGb / ws.usage.storageLimitGb) * 100));
-}
-
-/** 미수금이 있으면 그게 상태다. 없으면 청구 예정 */
-function billingState(ws: AdminWorkspace): BillingState {
-  if (ws.invoices.some((i) => i.state === "overdue")) return "overdue";
-  return "due";
-}
 
 export default function AdminBillingPage() {
   const [period, setPeriod] = useState(PERIODS[0]);
@@ -49,7 +32,7 @@ export default function AdminBillingPage() {
     return {
       storage,
       amount,
-      nearLimit: ADMIN_WORKSPACES.filter((w) => usageRatio(w) >= 75).length,
+      nearLimit: ADMIN_WORKSPACES.filter((w) => storagePct(w) >= 75).length,
       overdue: ADMIN_WORKSPACES.filter((w) => billingState(w) === "overdue").length,
     };
   }, []);
@@ -70,7 +53,7 @@ export default function AdminBillingPage() {
           w.bizNumber,
           w.plan,
           w.usage.storageGb,
-          usageRatio(w),
+          storagePct(w),
           suspended ? "" : estimateAmount(w),
           suspended ? "중지" : BILLING_STATE_LABEL[billingState(w)],
         ];
@@ -146,7 +129,7 @@ export default function AdminBillingPage() {
           minWidth={900}
         >
           {rows.map((w) => {
-            const pct = usageRatio(w);
+            const pct = storagePct(w);
             const state = billingState(w);
             const suspended = w.status === "suspended";
             return (

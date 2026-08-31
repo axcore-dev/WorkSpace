@@ -7,20 +7,14 @@ import { IconPencil } from "@/components/icons";
 import { Badge, Button, Card, FIELD, ProgressBar, SectionHeader } from "@/components/ui";
 import {
   BILLING_STATE_LABEL,
+  BILLING_TONE,
   PLANS,
   KRW,
   estimateAmount,
   type AdminWorkspace,
-  type BillingState,
   type Plan,
 } from "@/data/admin";
 import type { Save } from "./shared";
-
-const BILLING_TONE: Record<BillingState, "green" | "slate" | "red"> = {
-  paid: "green",
-  due: "slate",
-  overdue: "red",
-};
 
 /* ── 요금제·청구 정보 (사용량 탭) ── */
 

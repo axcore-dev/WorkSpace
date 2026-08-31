@@ -15,7 +15,9 @@ import assert from "node:assert/strict";
 
 import {
   ADMIN_WORKSPACES,
+  BILLING_TONE,
   LIMIT_WARN_PCT,
+  billingState,
   estimateAmount,
   isValidBizNumber,
   isValidSlug,
@@ -119,4 +121,29 @@ test("한도 임박 신호는 중지된 곳을 제외하고 기준치 이상만�
 
 test("pendingTasks는 넘긴 목록만 본다", () => {
   assert.deepEqual(pendingTasks([]), []);
+});
+
+/* ───────────── billingState (Task 5에서 data/admin.ts로 이관) ───────────── */
+
+test("billingState는 미수금이 있으면 overdue다", () => {
+  const w = ADMIN_WORKSPACES.find((x) => x.invoices.some((i) => i.state === "overdue"));
+  assert.ok(w, "미수금이 있는 워크스페이스가 더미에 없다");
+  assert.equal(billingState(w), "overdue");
+});
+
+test("billingState는 미수금이 없으면 due다", () => {
+  const w = ADMIN_WORKSPACES.find(
+    (x) => x.invoices.length > 0 && !x.invoices.some((i) => i.state === "overdue"),
+  );
+  assert.ok(w, "미수금 없는 청구 내역을 가진 워크스페이스가 더미에 없다");
+  assert.equal(billingState(w), "due");
+});
+
+test("billingState는 청구 내역이 없어도 due다", () => {
+  const empty = { ...ADMIN_WORKSPACES[0], invoices: [] };
+  assert.equal(billingState(empty), "due");
+});
+
+test("BILLING_TONE은 BillingState 3종을 모두 덮는다", () => {
+  assert.deepEqual(Object.keys(BILLING_TONE).sort(), ["due", "overdue", "paid"]);
 });
