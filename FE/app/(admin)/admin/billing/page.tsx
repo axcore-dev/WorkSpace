@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { AdminTable, TD, TD_KEY, TR } from "@/components/admin/admin-table";
 import { Breadcrumb } from "@/components/admin/breadcrumb";
 import { IconDownload } from "@/components/icons";
-import { Badge, Button, Card, FIELD_INLINE, ProgressBar, SectionHeader } from "@/components/ui";
+import { Badge, Button, Card, ProgressBar, SectionHeader } from "@/components/ui";
 import {
   ADMIN_WORKSPACES,
   BILLING_STATE_LABEL,
@@ -17,12 +17,14 @@ import {
   toCsv,
 } from "@/data/admin";
 
-/** 데모: 이번 달 + 지난 두 달만 고른다 */
-const PERIODS = ["2026년 8월", "2026년 7월", "2026년 6월"];
+/**
+ * 더미 데이터의 기준 기간. `Usage` 가 단일 객체라 과거 사용량이 없어서
+ * 기간을 고를 수 없다 — 고를 수 있는 것처럼 보이지 않게 고정 표시한다.
+ * 기간 비교는 BE 선행 (수정요청v9 ④ 4-1).
+ */
+const PERIOD = "2026년 8월";
 
 export default function AdminBillingPage() {
-  const [period, setPeriod] = useState(PERIODS[0]);
-
   const totals = useMemo(() => {
     const storage = ADMIN_WORKSPACES.reduce((sum, w) => sum + w.usage.storageGb, 0);
     const amount = ADMIN_WORKSPACES.reduce(
@@ -59,7 +61,7 @@ export default function AdminBillingPage() {
         ];
       }),
     );
-    downloadCsv(`사용량-요금_${period.replace(/[년월]/g, "").trim().replace(/\s+/g, "-")}.csv`, csv);
+    downloadCsv(`사용량-요금_${PERIOD.replace(/[년월]/g, "").trim().replace(/\s+/g, "-")}.csv`, csv);
   }
 
   return (
@@ -71,18 +73,7 @@ export default function AdminBillingPage() {
           <p className="mt-0.5 text-sm text-slate-500">전체 고객사를 한 화면에서 봐요.</p>
         </div>
         <div className="flex items-center gap-2.5">
-          <select
-            value={period}
-            onChange={(e) => setPeriod(e.target.value)}
-            aria-label="기간 선택"
-            className={`${FIELD_INLINE} cursor-pointer`}
-          >
-            {PERIODS.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </select>
+          <span className="text-sm font-medium text-slate-600">{PERIOD}</span>
           <Button variant="secondary" onClick={download}>
             <IconDownload size={15} />
             내려받기

@@ -50,7 +50,7 @@ export default function AdminDashboardPage() {
       <h1 className="text-xl font-bold tracking-tight text-slate-900">대시보드</h1>
       <p className="mt-0.5 text-sm text-slate-500">
         {tasks.length > 0
-          ? `오늘 손볼 것 ${tasks.length}건이에요.`
+          ? `지금 손볼 것 ${tasks.length}건이에요.`
           : "지금 손볼 것이 없어요."}
       </p>
 
