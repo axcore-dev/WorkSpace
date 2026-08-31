@@ -152,7 +152,7 @@ WorkSpace 데모의 시각 언어와 공용 컴포넌트 규칙. 코드가 단�
 
 **권한을 표시하지 않는다** — 지금은 모든 운영자가 같은 권한이고, 내부 역할 분리는 BE 역할 검사와 같은 묶음으로 미뤄져 있다. 뒷받침할 체계가 없는 표시는 두지 않는다.
 
-워크스페이스는 계약 시 이 콘솔에서 개설한다 — 고객 셀프 개설 경로는 없다. 화면은 대시보드(오늘 손볼 것 큐) / 목록 / 만들기 / 상세(개요·사용량·요금 ┊ 멤버·연동) / 사용량·요금 다섯 개다. 상세 경로는 `/admin/workspaces/<slug>`이며 **`/admin/` 아래에 동적 경로를 두지 않는다** — slug가 메뉴 이름과 충돌하면 그 워크스페이스가 자기 상세에 도달할 수 없게 된다. 표는 `ui.tsx`의 `DataTable`(셀이 `string | number | badge`뿐)로 부족해서 `components/admin/admin-table.tsx`의 `AdminTable` + `TD`·`TD_KEY`·`TR` 클래스 상수와 `DefinitionList`를 쓴다. 시각 언어는 `DataTable`과 같다.
+워크스페이스는 계약 시 이 콘솔에서 개설한다 — 고객 셀프 개설 경로는 없다. 화면은 대시보드(지금 손볼 것 큐) / 목록 / 만들기 / 상세(개요·사용량·요금 ┊ 멤버·연동) / 사용량·요금 다섯 개다. 상세 경로는 `/admin/workspaces/<slug>`이며 **`/admin/` 아래에 동적 경로를 두지 않는다** — slug가 메뉴 이름과 충돌하면 그 워크스페이스가 자기 상세에 도달할 수 없게 된다. 표는 `ui.tsx`의 `DataTable`(셀이 `string | number | badge`뿐)로 부족해서 `components/admin/admin-table.tsx`의 `AdminTable` + `TD`·`TD_KEY`·`TR` 클래스 상수와 `DefinitionList`를 쓴다. 시각 언어는 `DataTable`과 같다.
 
 차트(`charts.tsx`, 의존성 없는 순수 SVG): `LineChart`·`BarChart`(막대별 색 `perBarColors` — 예측 구간 연하게)·`ComboChart`(막대+선 혼합)·`DonutChart`·`GaugeChart`·`Sparkline`(KPI 카드용 미니 라인 — `color` **필수**, 기본값 없음)·`ChartFromSpec`(`ChartSpec.type`으로 위 차트를 분기 렌더).
 
@@ -194,7 +194,6 @@ AI 표현(전역 CSS, `globals.css`): `.shimmer-text`(추론 로딩 쉬머). AI 
 | 항목 간격 | 4px | `space-y-1` |
 | 그룹 라벨 → 첫 항목 | 4px | `mb-1` |
 | 그룹 사이 | 24px | `space-y-6` |
-| 섹션 사이 | 48px | `space-y-12` |
 | 로고 영역 패딩 | 좌우 20 / 상하 16 | `px-5 py-4` (양쪽 동일) |
 | 하단 패딩 | 상하 16 | 콘솔 `px-5 py-4` · 고객 앱 `p-4` |
 

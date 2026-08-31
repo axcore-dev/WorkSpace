@@ -36,7 +36,7 @@ export function AdminNav({ collapsed = false }: { collapsed?: boolean }) {
             <Link
               key={item.href}
               href={item.href}
-              title={item.label}
+              title={collapsed ? item.label : undefined}
               aria-current={active ? "page" : undefined}
               className={`flex min-h-10 items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400 ${
                 collapsed ? "lg:justify-center" : ""

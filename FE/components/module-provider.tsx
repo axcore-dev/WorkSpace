@@ -10,7 +10,8 @@ import {
 
 /**
  * 모듈 ON/OFF 상태의 외부 스토어 (localStorage 동기화).
- * SSR에서는 기본값(전체 ON)으로 렌더링하고, 클라이언트에서 저장된 상태로 재조정된다.
+ * SSR에서는 기본값(`DEFAULT_ON_MODULES` — 8개 중 3개만 ON)으로 렌더링하고,
+ * 클라이언트에서 저장된 상태로 재조정된다.
  */
 const SERVER_SNAPSHOT = defaultModuleState();
 
