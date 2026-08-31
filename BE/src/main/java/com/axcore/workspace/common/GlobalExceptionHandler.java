@@ -10,6 +10,11 @@ import com.axcore.workspace.user.service.MfaStateException;
 import com.axcore.workspace.user.service.PasswordNotSetException;
 import com.axcore.workspace.user.service.SamePasswordException;
 import com.axcore.workspace.user.service.SessionNotFoundException;
+import com.axcore.workspace.workspace.admin.DuplicateBizNumberException;
+import com.axcore.workspace.workspace.admin.InternalAdminRequiredException;
+import com.axcore.workspace.workspace.admin.WorkspaceNotFoundException;
+import com.axcore.workspace.workspace.admin.WorkspaceStateException;
+import com.axcore.workspace.workspace.provisioning.TenantProvisioningException;
 import com.axcore.workspace.workspace.service.WorkspaceAccessDeniedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -141,6 +146,55 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleWorkspaceAccess(WorkspaceAccessDeniedException e) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(ErrorResponse.of("WORKSPACE_ACCESS_DENIED", e.getMessage()));
+    }
+
+    /**
+     * 운영자 전용 API 를 운영자가 아닌 계정이 불렀다. 403 이다.
+     *
+     * <p>404 로 감추는 편이 API 존재를 숨기지만, 그러면 운영자 화면이 "없는 회사" 와 "권한
+     * 없음" 을 구분하지 못한다. 인증된 사용자에게만 나가는 응답이라 403 으로 둔다.
+     */
+    @ExceptionHandler(InternalAdminRequiredException.class)
+    public ResponseEntity<ErrorResponse> handleInternalAdminRequired(
+            InternalAdminRequiredException e) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ErrorResponse.of("FORBIDDEN", e.getMessage()));
+    }
+
+    /** 없는 워크스페이스. 404 다. */
+    @ExceptionHandler(WorkspaceNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleWorkspaceNotFound(WorkspaceNotFoundException e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ErrorResponse.of("WORKSPACE_NOT_FOUND", e.getMessage()));
+    }
+
+    /**
+     * 이미 개설된 사업자번호 · 지금 상태에서 할 수 없는 조작. 둘 다 409 다.
+     *
+     * <p>요청 자체는 올바른데 대상의 상태가 맞지 않는 경우다. 400 으로 답하면 화면이 입력값을
+     * 고치라고 안내하게 되는데, 고칠 입력이 없다.
+     */
+    @ExceptionHandler({DuplicateBizNumberException.class, WorkspaceStateException.class})
+    public ResponseEntity<ErrorResponse> handleWorkspaceConflict(RuntimeException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ErrorResponse.of("WORKSPACE_STATE_CONFLICT", e.getMessage()));
+    }
+
+    /**
+     * 테넌트 스키마를 만들지 못했다. 500 이다.
+     *
+     * <p>사용자 입력 문제가 아니라 우리 쪽 실패다. 원인을 응답에 싣지 않는다 — 스키마 이름과
+     * DDL 오류가 그대로 드러난다. {@code shared.workspaces} 행은 {@code provisioning} 으로
+     * 남아 있으므로 목록에서 찾아 다시 시도할 수 있다.
+     */
+    @ExceptionHandler(TenantProvisioningException.class)
+    public ResponseEntity<ErrorResponse> handleTenantProvisioning(TenantProvisioningException e) {
+        log.error("테넌트 프로비저닝 실패", e);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(
+                        ErrorResponse.of(
+                                "PROVISIONING_FAILED",
+                                "워크스페이스를 개설하지 못했습니다. 목록에서 다시 시도해 주세요"));
     }
 
     /** 없는 세션과 남의 세션을 구분하지 않는다. 둘 다 404 다. */
