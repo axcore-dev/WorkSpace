@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Breadcrumb } from "@/components/admin/breadcrumb";
 import { Field } from "@/components/admin/form-parts";
 import { Modal } from "@/components/modal";
-import { IconCheck, IconInfo, IconPlus, IconSearch, IconX } from "@/components/icons";
+import { IconCheck, IconInfo, IconSearch } from "@/components/icons";
 import { Button, Card, FIELD, FIELD_ERROR, SectionHeader } from "@/components/ui";
 import {
   ADMIN_WORKSPACES,
@@ -46,7 +46,6 @@ export default function AdminCreatePage() {
   const [contactName, setContactName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
-  const [cc, setCc] = useState<string[]>([]);
 
   // 워크스페이스 설정
   const [plan, setPlan] = useState<Plan>("Growth");
@@ -69,7 +68,7 @@ export default function AdminCreatePage() {
   function collect() {
     return {
       bizNumber, company, corpNumber, bizType, bizItem, address, addressDetail, website,
-      contactName, contactEmail, contactPhone, cc,
+      contactName, contactEmail, contactPhone,
       plan, memo,
     };
   }
@@ -86,7 +85,6 @@ export default function AdminCreatePage() {
     setContactName(d.contactName);
     setContactEmail(d.contactEmail);
     setContactPhone(d.contactPhone);
-    setCc(d.cc);
     setPlan(d.plan);
     setMemo(d.memo);
     // 사업자번호는 조회를 다시 거치게 한다 — 그 사이 다른 사람이 같은 번호로 개설했을 수 있다.
@@ -315,41 +313,6 @@ export default function AdminCreatePage() {
               </Field>
             </div>
 
-            <div className="mt-4">
-              <p className="mb-1.5 text-sm font-medium text-slate-700">참조 수신</p>
-              <p className="mb-2 text-xs text-slate-400">링크를 보낼 때 함께 넣을 주소예요.</p>
-              <div className="space-y-2">
-                {cc.map((v, i) => (
-                  <div key={i} className="flex gap-2">
-                    <input
-                      type="email"
-                      value={v}
-                      onChange={(e) => setCc((prev) => prev.map((x, j) => (j === i ? e.target.value : x)))}
-                      aria-label={`참조 수신 ${i + 1}`}
-                      placeholder="추가 이메일"
-                      className={`${FIELD} flex-1`}
-                    />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      aria-label={`참조 수신 ${i + 1} 삭제`}
-                      onClick={() => setCc((prev) => prev.filter((_, j) => j !== i))}
-                    >
-                      <IconX size={14} />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-              <Button
-                variant="secondary"
-                size="sm"
-                className={cc.length > 0 ? "mt-2" : undefined}
-                onClick={() => setCc((prev) => [...prev, ""])}
-              >
-                <IconPlus size={13} />
-                한 줄 더
-              </Button>
-            </div>
           </Card>
 
           <Card>
@@ -387,7 +350,7 @@ export default function AdminCreatePage() {
             <SectionHeader title="만들면 이렇게 됩니다" />
             <ol className="space-y-1.5 text-sm text-slate-600">
               <li>1. 워크스페이스가 <span className="font-semibold text-slate-900">{WS_STATUS_LABEL.pending}</span> 상태로 생성되고, 테넌트 스키마가 자동 부여돼요.</li>
-              <li>2. 상세 화면에서 <span className="font-semibold text-slate-900">접속 링크를 복사</span>해 담당자에게 보내요{cc.length > 0 && ` (참조 ${cc.length}명)`}.</li>
+              <li>2. 상세 화면에서 <span className="font-semibold text-slate-900">접속 링크를 복사</span>해 담당자에게 보내요.</li>
               <li>3. 링크를 연 사람이 첫 관리자로 등록돼요.</li>
               <li>4. ERP·MES 연동은 상세 화면의 <span className="font-semibold text-slate-900">온톨로지</span> 탭에서 따로 진행해요.</li>
             </ol>

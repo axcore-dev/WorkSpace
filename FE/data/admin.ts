@@ -572,7 +572,6 @@ export type Draft = {
   contactName: string;
   contactEmail: string;
   contactPhone: string;
-  cc: string[];
   plan: Plan;
   memo: string;
   /** 저장 시각 — 화면에 "언제 저장했는지" 보여준다 */
