@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.UUID;
 
 /**
  * refresh 토큰 발급·회전·폐기.
@@ -25,6 +26,9 @@ import java.time.Instant;
 public class RefreshTokenService {
 
     private static final Logger log = LoggerFactory.getLogger(RefreshTokenService.class);
+
+    /** 유예 창 안에서 회전이 거듭돼도 이만큼만 따라간다. 정상 상황에서 1~2 를 넘지 않는다. */
+    private static final int MAX_ROTATION_HOPS = 8;
 
     private final UserSessionRepository sessionRepository;
     private final SessionRevoker sessionRevoker;
@@ -67,8 +71,14 @@ public class RefreshTokenService {
                         .orElseThrow(RefreshTokenService::invalidToken);
 
         if (current.isReuseAttempt()) {
-            // 정상 클라이언트라면 이미 회전된 새 토큰을 들고 있다. 옛 토큰이 다시 왔다는 것은
-            // 사본이 돌아다닌다는 뜻이라, 어느 쪽이 진짜인지 가릴 수 없으니 전부 끊는다.
+            // 회전 직후라면 탈취가 아니라 동시 요청일 가능성이 훨씬 높다. 탭 두 개가 같은
+            // 쿠키로 동시에 재발급을 부르면 뒤에 도착한 쪽이 항상 이 자리에 온다.
+            if (current.isWithinRotationGrace(now)) {
+                return reissueWithinGrace(current, now);
+            }
+
+            // 유예를 넘겨서 온 옛 토큰은 사본이 돌아다닌다는 뜻이다. 어느 쪽이 진짜인지
+            // 가릴 수 없으니 전부 끊는다.
             //
             // 폐기는 별도 트랜잭션이어야 한다. 바로 아래에서 던지는 예외가 이 트랜잭션을
             // 롤백시키기 때문에, 같은 트랜잭션에서 끊으면 끊은 것이 되돌아간다.
@@ -110,6 +120,56 @@ public class RefreshTokenService {
         sessionRepository
                 .findByTokenHashWithUser(SecureTokens.hash(rawToken))
                 .ifPresent(session -> session.revoke(now));
+    }
+
+    /**
+     * 유예 창 안에 들어온 옛 토큰을 받아 준다.
+     *
+     * <p>새 refresh 토큰을 발급하지 않는 것이 핵심이다. raw 값이 {@code null} 이면
+     * {@code RefreshCookieFactory} 가 Set-Cookie 를 붙이지 않는다. 여기서 쿠키를 다시 심으면
+     * 먼저 처리된 요청이 심어 둔 새 쿠키를 덮어써서, 그쪽이 방금 받은 토큰이 무효가 된다.
+     * 쿠키는 브라우저 단위로 공유되므로 이미 새 토큰을 갖고 있다.
+     *
+     * <p>대신 회전된 세션을 따라가 access 토큰만 다시 끊어 준다. 세션은 늘지 않는다.
+     */
+    private IssuedRefreshToken reissueWithinGrace(UserSession rotated, Instant now) {
+        UserSession successor = activeSuccessorOf(rotated, now);
+        if (successor == null) {
+            // 회전은 됐는데 이어받을 살아 있는 세션이 없다. 로그아웃했거나 그 사이에 세션이
+            // 전부 폐기된 경우다. 공격 징후가 아니므로 전체 폐기까지 갈 일은 아니다.
+            throw invalidToken();
+        }
+        log.debug(
+                "회전 유예 창 안의 refresh 재요청 — 세션 {} 대신 {} 의 access 토큰을 재발급한다",
+                rotated.getId(),
+                successor.getId());
+        return new IssuedRefreshToken(successor, null);
+    }
+
+    /**
+     * {@code rotatedTo} 를 따라가 살아 있는 세션을 찾는다.
+     *
+     * <p>유예 창 안에 회전이 두 번 일어날 수 있어서 한 칸만 보면 이미 폐기된 세션을 집게 된다.
+     * 무한 순환을 막기 위해 hop 수를 제한한다. 정상 상황에서 1~2 를 넘지 않는다.
+     */
+    private UserSession activeSuccessorOf(UserSession from, Instant now) {
+        UserSession cursor = from;
+        for (int hop = 0; hop < MAX_ROTATION_HOPS; hop++) {
+            UUID nextId = cursor.getRotatedTo();
+            if (nextId == null) {
+                return null;
+            }
+            UserSession next = sessionRepository.findById(nextId).orElse(null);
+            if (next == null) {
+                return null;
+            }
+            if (next.isActive(now)) {
+                return next;
+            }
+            cursor = next;
+        }
+        log.warn("회전 체인이 {} 단계를 넘었다. 세션 {} 부터 추적을 멈춘다", MAX_ROTATION_HOPS, from.getId());
+        return null;
     }
 
     private IssuedRefreshToken persist(

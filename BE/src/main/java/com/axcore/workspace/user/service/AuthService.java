@@ -41,6 +41,7 @@ public class AuthService {
     private final AccountMailer mailer;
     private final PasswordEncoder passwordEncoder;
     private final UnverifiedAccountReclaimer reclaimer;
+    private final LoginAttemptRecorder loginAttemptRecorder;
 
     public AuthService(
             AuthenticationManager authenticationManager,
@@ -51,7 +52,8 @@ public class AuthService {
             VerificationTokenService verificationTokenService,
             AccountMailer mailer,
             PasswordEncoder passwordEncoder,
-            UnverifiedAccountReclaimer reclaimer) {
+            UnverifiedAccountReclaimer reclaimer,
+            LoginAttemptRecorder loginAttemptRecorder) {
         this.authenticationManager = authenticationManager;
         this.userRepository = userRepository;
         this.refreshTokenService = refreshTokenService;
@@ -61,6 +63,7 @@ public class AuthService {
         this.mailer = mailer;
         this.passwordEncoder = passwordEncoder;
         this.reclaimer = reclaimer;
+        this.loginAttemptRecorder = loginAttemptRecorder;
     }
 
     /**
@@ -112,6 +115,12 @@ public class AuthService {
         User user = authenticate(request);
         Instant now = Instant.now();
         boolean rememberMe = request.rememberMeOrDefault();
+
+        // 비밀번호가 맞았다. 여기까지 온 시점에 연속 실패 기록은 의미가 없다.
+        //
+        // 2단계가 남아 있어도 지운다. 막으려던 것은 비밀번호 추측이고 그건 이미 끝났다.
+        // 2단계 코드 자체는 mfa_challenges 가 5회로 따로 막는다.
+        user.clearLoginFailures();
 
         if (sessionIssuer.requiresMfa(user)) {
             String challengeToken = mfaService.startLoginChallenge(user, rememberMe, now);
@@ -169,14 +178,24 @@ public class AuthService {
      * 인증 실패는 원인을 가리지 않고 한 가지로 합친다. "없는 계정"과 "틀린 비밀번호"가 구분되면
      * 그 응답만으로 가입 여부를 조회할 수 있다.
      */
+    /**
+     * 비밀번호를 대조하고 계정을 돌려준다.
+     *
+     * <p>실패 원인이 무엇이든 같은 메시지로 수렴시킨다. 없는 계정 · 틀린 비밀번호 · 소셜 전용
+     * 계정 · 잠긴 계정이 응답으로 구분되면, 그 차이만으로 어떤 주소가 가입돼 있고 어떤 계정이
+     * 잠겼는지 알아낼 수 있다.
+     */
     private User authenticate(LoginRequest request) {
+        String email = User.normalizeEmail(request.email());
         Authentication authentication;
         try {
             authentication =
                     authenticationManager.authenticate(
-                            new UsernamePasswordAuthenticationToken(
-                                    User.normalizeEmail(request.email()), request.password()));
+                            new UsernamePasswordAuthenticationToken(email, request.password()));
         } catch (AuthenticationException e) {
+            // 잠긴 계정으로 들어온 시도(LockedException)도 여기로 온다. 기록하는 쪽에서
+            // 이미 잠긴 계정은 횟수를 올리지 않으므로 그대로 넘겨도 된다.
+            loginAttemptRecorder.recordFailure(email, Instant.now());
             throw new BadCredentialsException("이메일 또는 비밀번호가 올바르지 않습니다");
         }
 

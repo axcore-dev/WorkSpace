@@ -113,6 +113,9 @@ public class PasswordService {
 
     private void applyNewPassword(User user, String newPassword, Instant now) {
         user.changePassword(passwordEncoder.encode(newPassword));
+        // 연속 실패로 잠긴 계정을 푸는 유일한 통로다. 재설정은 메일함을 열 수 있다는 증명이고,
+        // 변경은 현재 비밀번호를 안다는 증명이라 둘 다 잠금을 유지할 이유가 없다.
+        user.clearLoginFailures();
 
         // 폐기는 별도 트랜잭션이다. SessionRevoker 주석 참고 — 여기서는 예외가 나지 않지만
         // 같은 메서드를 쓰는 편이 폐기 경로를 하나로 유지한다.

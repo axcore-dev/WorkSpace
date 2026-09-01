@@ -25,17 +25,24 @@ public final class UserPrincipal implements UserDetails {
     private final String email;
     private final String name;
     private final String passwordHash;
+    private final boolean locked;
 
-    private UserPrincipal(UUID id, String email, String name, String passwordHash) {
+    private UserPrincipal(
+            UUID id, String email, String name, String passwordHash, boolean locked) {
         this.id = id;
         this.email = email;
         this.name = name;
         this.passwordHash = passwordHash;
+        this.locked = locked;
     }
 
     public static UserPrincipal from(User user) {
         return new UserPrincipal(
-                user.getId(), user.getEmail(), user.getName(), user.getPasswordHash());
+                user.getId(),
+                user.getEmail(),
+                user.getName(),
+                user.getPasswordHash(),
+                user.isLocked());
     }
 
     public UUID getId() {
@@ -76,9 +83,20 @@ public final class UserPrincipal implements UserDetails {
         return true;
     }
 
+    /**
+     * 비밀번호 연속 실패로 잠긴 계정을 여기서 막는다.
+     *
+     * <p>DaoAuthenticationProvider 가 이 값을 먼저 보고 LockedException 을 던진다. 직접
+     * 검사하지 않고 프레임워크 훅을 쓰는 이유는, 잠금 판정이 비밀번호 대조보다 앞에 있어야
+     * 잠긴 계정에 대해 해시 연산을 반복하지 않기 때문이다.
+     *
+     * <p>LockedException 도 AuthenticationException 이라 {@code AuthService.authenticate} 가
+     * 같은 401 메시지로 바꿔 준다. "잠김" 과 "비밀번호 틀림" 이 응답으로 구분되면 그 차이만으로
+     * 계정 존재와 잠금 여부가 새어 나간다.
+     */
     @Override
     public boolean isAccountNonLocked() {
-        return true;
+        return !locked;
     }
 
     @Override

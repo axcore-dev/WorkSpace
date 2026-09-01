@@ -13,6 +13,7 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
@@ -35,6 +36,20 @@ import java.util.UUID;
                 @UniqueConstraint(name = "ux_user_sessions_token_hash", columnNames = "token_hash"),
         indexes = @Index(name = "ix_user_sessions_user_id", columnList = "user_id"))
 public class UserSession {
+
+    /**
+     * 회전 직후 옛 토큰을 한 번 더 받아 주는 시간.
+     *
+     * <p>없으면 정상 클라이언트가 끊긴다. 탭 두 개가 동시에 만료된 access 토큰으로 요청하면
+     * 둘 다 같은 refresh 쿠키를 보내고, 뒤에 도착한 쪽은 이미 회전된 토큰을 들고 오게 된다.
+     * 네트워크 재전송이나 프록시 재시도도 같은 모양이다. 이걸 탈취로 판정하면 잘못 없는
+     * 사용자가 모든 기기에서 로그아웃된다.
+     *
+     * <p>짧게 잡는 이유: 이 창 안에서는 탈취된 토큰도 한 번 통한다. 다만 통해서 나가는 것은
+     * access 토큰뿐이고 refresh 는 재발급되지 않아, 피해가 access 토큰 수명(15분)으로 갇힌다.
+     * 동시 요청이 겹치는 시간은 초 단위라 30초면 충분하다.
+     */
+    public static final Duration ROTATION_GRACE = Duration.ofSeconds(30);
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -193,6 +208,16 @@ public class UserSession {
     /** 이미 회전된 refresh 가 다시 들어온 경우. 탈취로 간주하고 그 사용자의 세션을 전부 끊는다. */
     public boolean isReuseAttempt() {
         return revokedAt != null && rotatedTo != null;
+    }
+
+    /**
+     * 회전된 직후라 재사용으로 보지 않아도 되는 구간인가.
+     *
+     * <p>{@code revokedAt} 은 회전한 시각이다. {@link #rotateTo(UUID, Instant)} 가 같은
+     * 시각으로 둘을 함께 기록한다.
+     */
+    public boolean isWithinRotationGrace(Instant now) {
+        return isReuseAttempt() && revokedAt.plus(ROTATION_GRACE).isAfter(now);
     }
 
     public UUID getId() {
