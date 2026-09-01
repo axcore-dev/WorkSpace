@@ -6,7 +6,11 @@ import com.axcore.workspace.user.entity.UserSession;
 import com.axcore.workspace.user.service.SessionIssuer;
 import com.axcore.workspace.user.service.UserSessionService;
 import com.axcore.workspace.workspace.entity.UserWorkspaceMembership;
+import com.axcore.workspace.workspace.entity.Workspace;
 import com.axcore.workspace.workspace.repository.UserWorkspaceMembershipRepository;
+import com.axcore.workspace.workspace.repository.WorkspaceRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,15 +32,20 @@ import java.util.UUID;
 @Service
 public class WorkspaceService {
 
+    private static final Logger log = LoggerFactory.getLogger(WorkspaceService.class);
+
     private final UserWorkspaceMembershipRepository membershipRepository;
+    private final WorkspaceRepository workspaceRepository;
     private final UserSessionService sessionService;
     private final SessionIssuer sessionIssuer;
 
     public WorkspaceService(
             UserWorkspaceMembershipRepository membershipRepository,
+            WorkspaceRepository workspaceRepository,
             UserSessionService sessionService,
             SessionIssuer sessionIssuer) {
         this.membershipRepository = membershipRepository;
+        this.workspaceRepository = workspaceRepository;
         this.sessionService = sessionService;
         this.sessionIssuer = sessionIssuer;
     }
@@ -64,6 +73,14 @@ public class WorkspaceService {
         if (!user.isEmailVerified()) {
             throw new WorkspaceAccessDeniedException("이메일 확인이 필요합니다");
         }
+
+        // 서버 운영자는 소속 없이 어느 회사에나 들어간다. 지원·장애 대응을 하려면 고객이
+        // 보는 화면을 그대로 봐야 하는데, 그때마다 초대를 받아 정식 멤버가 되는 것은
+        // 성격이 다르다(회사 구성원 목록에 남는다).
+        if (user.isInternalAdmin()) {
+            return selectAsInternalAdmin(user, sessionId, workspaceId, now);
+        }
+
         UserWorkspaceMembership membership =
                 membershipRepository
                         .findByUserIdAndWorkspaceIdWithWorkspace(user.getId(), workspaceId)
@@ -80,6 +97,42 @@ public class WorkspaceService {
 
         UserSession session = sessionService.requireActive(user.getId(), sessionId, now);
         session.selectWorkspace(workspaceId);
+        return sessionIssuer.reissueAccessToken(session, now);
+    }
+
+    /**
+     * 서버 운영자의 진입. 소속을 보지 않는다.
+     *
+     * <p>상태로는 막지 않는다. 중지·해지된 회사일수록 들여다볼 이유가 생기고, "지금 못 들어가는
+     * 회사" 를 조사하지 못하면 지원 도구로서 쓸모가 없다. 다만 <b>스키마가 아직 없는 회사</b>는
+     * 예외다 — 열 것이 없어서 들어가도 아무것도 못 한다.
+     *
+     * <p>고객 데이터에 들어가는 경로이므로 반드시 기록을 남긴다. 접근 자체보다 누가 언제
+     * 어디에 들어갔는지 모르는 것이 위험하다. 지금은 애플리케이션 로그뿐이고, 조회 가능한
+     * 감사 테이블은 별도 작업으로 남아 있다.
+     */
+    private LoginResponse selectAsInternalAdmin(
+            User user, UUID sessionId, Long workspaceId, Instant now) {
+        Workspace workspace =
+                workspaceRepository
+                        .findById(workspaceId)
+                        .orElseThrow(() -> new WorkspaceAccessDeniedException("접근할 수 없는 회사입니다"));
+
+        if (workspace.getSchemaName() == null) {
+            throw new WorkspaceAccessDeniedException("아직 개설되지 않은 회사입니다");
+        }
+
+        UserSession session = sessionService.requireActive(user.getId(), sessionId, now);
+        session.selectWorkspace(workspaceId);
+
+        log.warn(
+                "운영자 진입 — 사용자 {} 가 워크스페이스 {}({}, 상태 {}) 에 소속 없이 들어갔다. 세션 {}",
+                user.getId(),
+                workspaceId,
+                workspace.getName(),
+                workspace.getStatus().dbValue(),
+                sessionId);
+
         return sessionIssuer.reissueAccessToken(session, now);
     }
 }
