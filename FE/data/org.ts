@@ -1,3 +1,4 @@
+import type { ICON_MAP } from "@/components/icons";
 import type { Tone } from "./types";
 
 /** 조직/워크스페이스·설정 관련 더미 데이터 */
@@ -81,6 +82,8 @@ export const EXTERNAL_SYSTEMS: {
   slug: string;
   name: string;
   system: string;
+  /** 사이드바 축소 모드(80px)에서는 아이콘만 남는다 — 없으면 빈 줄이 된다 */
+  icon: keyof typeof ICON_MAP;
   embed:
     | { kind: "image"; src: string }
     | { kind: "iframe"; src: string }
@@ -90,18 +93,21 @@ export const EXTERNAL_SYSTEMS: {
     slug: "hq-erp",
     name: "본사 ERP",
     system: "더존비즈온 iCUBE",
+    icon: "database",
     embed: { kind: "image", src: "/assets/ExternalSystem/더존erp_1.jpg" },
   },
   {
     slug: "factory1-mes",
     name: "1공장 MES",
     system: "미라콤 Nexplant MESplus",
+    icon: "hardDrive",
     embed: { kind: "iframe", src: "https://www.mespluscloud.com/exper/demo" },
   },
   {
     slug: "iot-gateway",
     name: "설비 IoT 게이트웨이",
     system: "PTC ThingWorx",
+    icon: "cpu",
     embed: {
       kind: "login",
       href: "https://www.ptc.com/ko/products/thingworx?srsltid=AfmBOoq0MUqQgEo-LZR6yyYOG_k70srp7R7RWvlQ_6WDNkUpzwITiV8t#key-drivers",

@@ -46,6 +46,24 @@ export function AdminTable({
   );
 }
 
+/**
+ * 행 전체를 눌러 상세로 가게 한다.
+ *
+ * `<tr>`에 `role="link"`·`tabIndex`를 붙이지 않는다 — `<tr>`의 암묵 역할 `row`를 덮으면
+ * 표의 접근성 트리가 깨져서 스크린리더가 표를 표로 읽지 못한다. **키보드와 스크린리더는
+ * 첫 열의 진짜 `<Link>`로 도달한다.** 행 클릭은 마우스 사용자를 위한 덤이다.
+ *
+ * 첫 열 링크를 눌렀을 때 라우팅이 두 번 일어나지 않게 앵커에서 온 이벤트는 흘려보낸다.
+ */
+export function rowClick(onOpen: () => void) {
+  return {
+    className: `${TR} cursor-pointer`,
+    onClick: (e: React.MouseEvent) => {
+      if (!(e.target as HTMLElement).closest("a")) onOpen();
+    },
+  };
+}
+
 /** 라벨 = 값 형태의 정의 표 (사업자 정보·담당자 카드) */
 export function DefinitionList({ rows }: { rows: [string, React.ReactNode][] }) {
   return (

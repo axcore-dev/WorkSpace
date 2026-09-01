@@ -10,6 +10,8 @@ import {
   IconChat,
   IconCheck,
   IconChevronDown,
+  IconChevronLeft,
+  IconChevronRight,
   IconDashboard,
   IconLogOut,
   IconSettings,
@@ -19,8 +21,8 @@ import {
 import { Logo } from "@/components/logo";
 import { useModules } from "@/components/module-provider";
 import { SettingsModal, type SettingsTab } from "@/components/settings/settings-modal";
+import { useSidebarCollapsed } from "@/components/use-sidebar-collapsed";
 import { MODULES } from "@/data/modules";
-import { AI_ALERTS } from "@/data/dashboard";
 import { DEFAULT_WORKSPACE_ID, DEMO_USER, EXTERNAL_SYSTEMS, WORKSPACES } from "@/data/org";
 
 function NavLink({
@@ -28,17 +30,24 @@ function NavLink({
   active,
   children,
   small = false,
+  collapsed = false,
+  title,
 }: {
   href: string;
   active: boolean;
   children: React.ReactNode;
   small?: boolean;
+  collapsed?: boolean;
+  title?: string;
 }) {
   return (
     <Link
       href={href}
+      title={title}
       aria-current={active ? "page" : undefined}
-      className={`flex items-center gap-2.5 rounded-lg px-3 ${small ? "py-1.5 text-[13px]" : "py-2 text-sm"} transition-colors duration-150 ${
+      className={`flex min-h-10 items-center gap-2.5 rounded-lg px-3 ${small ? "py-1.5 text-[13px]" : "py-2 text-sm"} transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400 ${
+        collapsed ? "justify-center" : ""
+      } ${
         active
           ? "bg-white font-semibold text-slate-900 shadow-sm ring-1 ring-slate-200"
           : "font-medium text-slate-600 hover:bg-slate-200/60 hover:text-slate-900"
@@ -59,9 +68,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [profileOpen, setProfileOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<SettingsTab>("account");
+  const [collapsed, toggleCollapsed] = useSidebarCollapsed("axpoint-app-nav-collapsed");
 
   const orgRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
+
+  // 접기/펼치기 시 열려 있던 드롭다운을 닫는다 — 240px 기준 위치라 80px에서 어긋난다.
+  function handleToggleCollapse() {
+    setOrgOpen(false);
+    setProfileOpen(false);
+    toggleCollapsed();
+  }
 
   useEffect(() => {
     function onClick(e: MouseEvent) {
@@ -84,7 +101,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   const currentOrg = WORKSPACES.find((w) => w.id === orgId) ?? WORKSPACES[0];
-  const alertCount = AI_ALERTS.length;
 
   const profileMenu: { label: string; tab: SettingsTab; icon: typeof IconUser }[] = [
     { label: "계정", tab: "account", icon: IconUser },
@@ -95,33 +111,61 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen">
       {/* ── 좌측 패널 ── */}
-      <aside className="fixed inset-y-0 left-0 z-30 flex w-60 flex-col border-r border-slate-200 bg-slate-100">
-        {/* 상단 로고 */}
-        <Link href="/dashboard" className="flex items-center gap-2 px-5 pb-3 pt-5" aria-label="WorkSpace 홈">
-          <Logo height={18} />
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-300">WorkSpace</span>
-        </Link>
+      <aside
+        className={`fixed inset-y-0 left-0 z-30 flex flex-col border-r border-slate-200 bg-slate-100 transition-[width] duration-300 ${
+          collapsed ? "w-20" : "w-60"
+        }`}
+      >
+        {/* 상단 로고 + 접기 토글 */}
+        <div className={`flex items-center gap-2 px-5 py-4 ${collapsed ? "justify-center" : ""}`}>
+          {!collapsed && (
+            <Link href="/dashboard" className="flex min-w-0 items-center gap-2" aria-label="WorkSpace 홈">
+              <Logo height={18} />
+              <span className="truncate text-[11px] font-semibold uppercase tracking-wider text-slate-300">
+                WorkSpace
+              </span>
+            </Link>
+          )}
+          <button
+            type="button"
+            aria-expanded={!collapsed}
+            aria-label={collapsed ? "사이드바 펼치기" : "사이드바 접기"}
+            onClick={handleToggleCollapse}
+            className={`flex shrink-0 cursor-pointer items-center justify-center rounded-md p-1.5 text-slate-400 transition-colors duration-150 hover:bg-slate-200/60 hover:text-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400 ${
+              collapsed ? "" : "ml-auto"
+            }`}
+          >
+            {collapsed ? <IconChevronRight size={16} /> : <IconChevronLeft size={16} />}
+          </button>
+        </div>
 
         {/* 조직 선택기 */}
         <div className="relative px-3 pb-3" ref={orgRef}>
           <button
             type="button"
-            aria-expanded={orgOpen}
+            aria-expanded={orgOpen && !collapsed}
             aria-haspopup="listbox"
-            onClick={() => setOrgOpen((v) => !v)}
-            className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left transition-colors hover:bg-slate-50"
+            title={collapsed ? currentOrg.name : undefined}
+            onClick={() => !collapsed && setOrgOpen((v) => !v)}
+            className={`flex w-full cursor-pointer items-center gap-2.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left transition-colors hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400 ${
+              collapsed ? "justify-center" : ""
+            }`}
           >
             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-500">
               <IconBuilding size={15} />
             </span>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-semibold text-slate-900">{currentOrg.name}</span>
-              <span className="block truncate text-[11px] text-slate-400">{currentOrg.plan}</span>
-            </span>
-            <IconChevronDown size={15} className="shrink-0 text-slate-400" />
+            {!collapsed && (
+              <>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold text-slate-900">{currentOrg.name}</span>
+                  <span className="block truncate text-[11px] text-slate-400">{currentOrg.plan}</span>
+                </span>
+                <IconChevronDown size={15} className="shrink-0 text-slate-400" />
+              </>
+            )}
           </button>
 
-          {orgOpen && (
+          {orgOpen && !collapsed && (
             <div
               role="listbox"
               className="absolute left-3 right-3 z-40 mt-1.5 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg"
@@ -155,73 +199,117 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           )}
         </div>
 
-        <nav className="thin-scroll flex-1 space-y-5 overflow-y-auto px-3 py-2" aria-label="주 메뉴">
-          <div className="space-y-0.5">
-            <NavLink href="/dashboard" active={pathname === "/dashboard"}>
+        <nav className="thin-scroll flex-1 space-y-6 overflow-y-auto px-3 py-2" aria-label="주 메뉴">
+          <div className="space-y-1">
+            <NavLink
+              href="/dashboard"
+              active={pathname === "/dashboard"}
+              collapsed={collapsed}
+              title={collapsed ? "주요 정보" : undefined}
+            >
               <IconDashboard size={17} className="shrink-0 text-slate-400" />
-              주요 정보
+              {!collapsed && "주요 정보"}
             </NavLink>
           </div>
 
           <div>
-            <p className="mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+            <p
+              className={`mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400 ${
+                collapsed ? "hidden" : ""
+              }`}
+            >
               핵심 기능
             </p>
-            <div className="space-y-0.5">
+            <div className="space-y-1">
               {MODULES.map((mod) => {
                 const Icon = ICON_MAP[mod.icon];
                 const enabled = state[mod.slug]?.enabled;
                 const active = pathname === `/modules/${mod.slug}`;
                 if (!enabled) return null;
                 return (
-                  <NavLink key={mod.slug} href={`/modules/${mod.slug}`} active={active} small>
+                  <NavLink
+                    key={mod.slug}
+                    href={`/modules/${mod.slug}`}
+                    active={active}
+                    small
+                    collapsed={collapsed}
+                    title={collapsed ? mod.name : undefined}
+                  >
                     <Icon size={16} className={`shrink-0 ${active ? "text-slate-700" : "text-slate-400"}`} />
-                    {mod.name}
+                    {!collapsed && mod.name}
                   </NavLink>
                 );
               })}
             </div>
           </div>
 
-          {/* 외부 시스템 연동 바로가기 — 제목 없이 구분선만 */}
+          {/* 외부 시스템 연동 바로가기 */}
           <div>
-            <div className="mb-4 border-t border-slate-200" aria-hidden />
-            <div className="space-y-0.5">
-              {EXTERNAL_SYSTEMS.map((sys) => (
-                <NavLink key={sys.slug} href={`/external/${sys.slug}`} active={pathname === `/external/${sys.slug}`} small>
-                  {sys.name}
-                </NavLink>
-              ))}
+            <p
+              className={`mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400 ${
+                collapsed ? "hidden" : ""
+              }`}
+            >
+              외부 시스템
+            </p>
+            <div className="space-y-1">
+              {EXTERNAL_SYSTEMS.map((sys) => {
+                const Icon = ICON_MAP[sys.icon];
+                return (
+                  <NavLink
+                    key={sys.slug}
+                    href={`/external/${sys.slug}`}
+                    active={pathname === `/external/${sys.slug}`}
+                    small
+                    collapsed={collapsed}
+                    title={collapsed ? sys.name : undefined}
+                  >
+                    <Icon size={16} className="shrink-0 text-slate-400" />
+                    {!collapsed && sys.name}
+                  </NavLink>
+                );
+              })}
             </div>
           </div>
 
           <div>
-            <p className="mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+            <p
+              className={`mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400 ${
+                collapsed ? "hidden" : ""
+              }`}
+            >
               AI 워크스페이스
             </p>
-            <div className="space-y-0.5">
-              <NavLink href="/ai-chat" active={pathname === "/ai-chat"}>
+            <div className="space-y-1">
+              <NavLink
+                href="/ai-chat"
+                active={pathname === "/ai-chat"}
+                collapsed={collapsed}
+                title={collapsed ? "AI대화" : undefined}
+              >
                 <IconChat size={17} className="shrink-0 text-slate-400" />
-                AI대화
+                {!collapsed && "AI대화"}
               </NavLink>
-              <NavLink href="/ai-diagnosis" active={pathname === "/ai-diagnosis"}>
+              <NavLink
+                href="/ai-diagnosis"
+                active={pathname === "/ai-diagnosis"}
+                collapsed={collapsed}
+                title={collapsed ? "AI알림" : undefined}
+              >
                 <IconActivity size={17} className="shrink-0 text-slate-400" />
-                <span className="flex-1">AI알림</span>
-                {alertCount > 0 && (
-                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" aria-label={`알림 ${alertCount}건`} />
-                )}
+                {!collapsed && "AI알림"}
               </NavLink>
             </div>
           </div>
         </nav>
 
         {/* 하단 프로필 → 팝업 메뉴 */}
-        <div className="relative border-t border-slate-200 p-3" ref={profileRef}>
-          {profileOpen && (
+        <div className="relative border-t border-slate-200 p-4" ref={profileRef}>
+          {profileOpen && !collapsed && (
             <div
               role="menu"
               aria-label="프로필 메뉴"
-              className="absolute bottom-full left-3 right-3 mb-2 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg"
+              className="absolute bottom-full left-4 right-4 mb-2 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg"
             >
               <div className="border-b border-slate-100 px-4 py-3">
                 <p className="text-sm font-semibold text-slate-900">{DEMO_USER.name}</p>
@@ -254,25 +342,35 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           )}
           <button
             type="button"
-            aria-expanded={profileOpen}
+            aria-expanded={profileOpen && !collapsed}
             aria-haspopup="menu"
-            onClick={() => setProfileOpen((v) => !v)}
-            className="flex w-full cursor-pointer items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-slate-200/60"
+            title={collapsed ? DEMO_USER.name : undefined}
+            aria-label={collapsed ? DEMO_USER.name : undefined}
+            onClick={() => !collapsed && setProfileOpen((v) => !v)}
+            className={`flex w-full cursor-pointer items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-slate-200/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400 ${
+              collapsed ? "justify-center" : ""
+            }`}
           >
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-800 text-sm font-bold text-white">
               {DEMO_USER.initials}
             </span>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-semibold text-slate-900">{DEMO_USER.name}</span>
-              <span className="block truncate text-xs text-slate-500">{DEMO_USER.role}</span>
-            </span>
-            <IconChevronDown size={15} className="shrink-0 text-slate-400" />
+            {!collapsed && (
+              <>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold text-slate-900">{DEMO_USER.name}</span>
+                  <span className="block truncate text-xs text-slate-500">{DEMO_USER.role}</span>
+                </span>
+                <IconChevronDown size={15} className="shrink-0 text-slate-400" />
+              </>
+            )}
           </button>
         </div>
       </aside>
 
       {/* ── 콘텐츠 ── */}
-      <main className="min-w-0 flex-1 pl-60">{children}</main>
+      <main className={`min-w-0 flex-1 transition-[padding] duration-300 ${collapsed ? "pl-20" : "pl-60"}`}>
+        {children}
+      </main>
 
       <SettingsModal
         open={settingsOpen}

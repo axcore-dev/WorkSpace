@@ -1,59 +1,32 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Breadcrumb } from "@/components/admin/breadcrumb";
-import { IconCheck, IconPlus, IconSearch, IconX } from "@/components/icons";
+import { Field } from "@/components/admin/form-parts";
+import { Modal } from "@/components/modal";
+import { IconCheck, IconInfo, IconSearch } from "@/components/icons";
 import { Button, Card, FIELD, FIELD_ERROR, SectionHeader } from "@/components/ui";
 import {
   ADMIN_WORKSPACES,
   PLANS,
+  WS_STATUS_LABEL,
   formatBizNumber,
   isValidBizNumber,
-  isValidSlug,
+  clearDraft,
+  nextSchemaName,
+  readDraft,
+  saveDraft,
+  type Draft,
   type Plan,
-  type Site,
 } from "@/data/admin";
 
 /** 사업자번호 조회 결과 — 지금은 형식·중복만 본다 (외부 연동 미도입) */
 type Lookup =
   | { kind: "idle" }
   | { kind: "invalid" }
-  | { kind: "taken"; slug: string; company: string }
+  | { kind: "taken"; schemaName: string; company: string }
   | { kind: "ok" };
-
-const EMPTY_SITE: Site = { name: "", bizNumber: "", address: "", bizType: "", bizItem: "" };
-
-function Field({
-  id,
-  label,
-  required,
-  hint,
-  error,
-  children,
-}: {
-  id: string;
-  label: string;
-  required?: boolean;
-  hint?: string;
-  error?: string;
-  children?: React.ReactNode;
-}) {
-  return (
-    <div>
-      <label htmlFor={id} className="mb-1.5 block text-sm font-medium text-slate-700">
-        {label}
-        {required && <span className="ml-0.5 text-red-500">*</span>}
-      </label>
-      {children}
-      {error ? (
-        <p className="mt-1.5 text-xs text-red-600">{error}</p>
-      ) : (
-        hint && <p className="mt-1.5 text-xs text-slate-400">{hint}</p>
-      )}
-    </div>
-  );
-}
 
 export default function AdminCreatePage() {
   const router = useRouter();
@@ -69,36 +42,60 @@ export default function AdminCreatePage() {
   const [addressDetail, setAddressDetail] = useState("");
   const [website, setWebsite] = useState("");
 
-  // 종사업장
-  const [sites, setSites] = useState<Site[]>([]);
-
-  // 담당자 — 접속 링크 받는 사람과 연락 담당을 나눈다
-  const [linkName, setLinkName] = useState("");
-  const [linkEmail, setLinkEmail] = useState("");
-  const [sameContact, setSameContact] = useState(true);
+  // 담당자 — 고객사 쪽 창구 한 명. 접속 링크는 운영팀이 복사해 직접 보낸다
   const [contactName, setContactName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
-  const [cc, setCc] = useState<string[]>([]);
 
   // 워크스페이스 설정
-  const [slug, setSlug] = useState("");
   const [plan, setPlan] = useState<Plan>("Growth");
   const [memo, setMemo] = useState("");
 
-  const bizOk = lookup.kind === "ok";
-  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(linkEmail.trim());
-  const slugOk = isValidSlug(slug);
-  const slugTaken = ADMIN_WORKSPACES.some((w) => w.slug === slug.trim());
+  /** 만든 뒤 BE가 부여한 스키마 이름. null 이면 아직 만들지 않았다 */
+  const [created, setCreated] = useState<string | null>(null);
 
-  const canSubmit =
-    bizOk &&
-    !!company.trim() &&
-    !!address.trim() &&
-    !!linkName.trim() &&
-    emailOk &&
-    slugOk &&
-    !slugTaken;
+  /** 이 브라우저에 남아 있던 작성분 — 배너로 물어보고 사용자가 고른다 */
+  const [found, setFound] = useState<Draft | null>(null);
+  const [saved, setSaved] = useState<"idle" | "ok" | "fail">("idle");
+
+  // 첫 진입에 한 번만 본다. 자동으로 채우지 않는다 — 남의 작성분을 덮어쓸 수 있다.
+  // localStorage 는 서버에 없다. 마운트 뒤 마이크로태스크로 읽어야 프리렌더 결과와 어긋나지
+  // 않고, effect 안에서 동기 setState 를 호출하지 않게 된다.
+  useEffect(() => {
+    queueMicrotask(() => setFound(readDraft()));
+  }, []);
+
+  function collect() {
+    return {
+      bizNumber, company, corpNumber, bizType, bizItem, address, addressDetail, website,
+      contactName, contactEmail, contactPhone,
+      plan, memo,
+    };
+  }
+
+  function restore(d: Draft) {
+    setBizNumber(d.bizNumber);
+    setCompany(d.company);
+    setCorpNumber(d.corpNumber);
+    setBizType(d.bizType);
+    setBizItem(d.bizItem);
+    setAddress(d.address);
+    setAddressDetail(d.addressDetail);
+    setWebsite(d.website);
+    setContactName(d.contactName);
+    setContactEmail(d.contactEmail);
+    setContactPhone(d.contactPhone);
+    setPlan(d.plan);
+    setMemo(d.memo);
+    // 사업자번호는 조회를 다시 거치게 한다 — 그 사이 다른 사람이 같은 번호로 개설했을 수 있다.
+    setLookup({ kind: "idle" });
+    clearDraft();
+    setFound(null);
+  }
+
+  const bizOk = lookup.kind === "ok";
+  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail.trim());
+  const canSubmit = bizOk && !!company.trim() && !!address.trim() && !!contactName.trim() && emailOk;
 
   function runLookup() {
     const digits = bizNumber.replace(/\D/g, "");
@@ -108,15 +105,12 @@ export default function AdminCreatePage() {
     }
     const dup = ADMIN_WORKSPACES.find((w) => w.bizNumber.replace(/\D/g, "") === digits);
     if (dup) {
-      setLookup({ kind: "taken", slug: dup.slug, company: dup.company });
+      setLookup({ kind: "taken", schemaName: dup.schemaName, company: dup.company });
       return;
     }
     setLookup({ kind: "ok" });
   }
 
-  function updateSite(i: number, patch: Partial<Site>) {
-    setSites((prev) => prev.map((s, j) => (j === i ? { ...s, ...patch } : s)));
-  }
 
   // 폼은 상한을 둔다 — 입력칸이 1900px로 늘어나면 라벨과 값이 멀어져 오타를 놓친다
   return (
@@ -124,12 +118,34 @@ export default function AdminCreatePage() {
       <Breadcrumb items={[{ label: "워크스페이스", href: "/admin/workspaces" }, { label: "만들기" }]} />
 
       <h1 className="text-xl font-bold tracking-tight text-slate-900">워크스페이스 만들기</h1>
-      <p className="mt-0.5 text-sm text-slate-500">
-        사업자 정보를 등록하면 접속 링크 받는 담당자에게 메일이 나가요.
-      </p>
+
+      {found && (
+        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-300 bg-slate-50 px-4 py-3.5">
+          <IconInfo size={16} className="shrink-0 text-slate-500" />
+          <p className="min-w-0 flex-1 text-sm text-slate-700">
+            {found.savedAt}에 임시 저장한 내용이 있어요
+            {found.company && <> · {found.company}</>}
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                clearDraft();
+                setFound(null);
+              }}
+            >
+              버리기
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => restore(found)}>
+              이어서 작성
+            </Button>
+          </div>
+        </div>
+      )}
 
       <div className="mt-6 grid items-start gap-4 lg:grid-cols-2">
-        {/* ── 왼쪽: 사업자 정보 + 종사업장 ── */}
+        {/* ── 왼쪽: 사업자 정보 ── */}
         <div className="space-y-4">
           <Card>
             <SectionHeader title="사업자 정보" />
@@ -142,7 +158,7 @@ export default function AdminCreatePage() {
                 lookup.kind === "invalid"
                   ? "사업자등록번호 형식이 맞지 않아요. 10자리를 다시 확인해 주세요."
                   : lookup.kind === "taken"
-                    ? `이미 등록된 사업자예요. ${lookup.company}(${lookup.slug})에서 확인해 주세요.`
+                    ? `이미 등록된 사업자예요. ${lookup.company}(${lookup.schemaName})에서 확인해 주세요.`
                     : undefined
               }
               hint={
@@ -250,251 +266,58 @@ export default function AdminCreatePage() {
             </div>
           </Card>
 
-          <Card>
-            <SectionHeader title="종사업장" desc="본사 외 사업장이 있으면 추가해 주세요." />
-
-            {sites.length === 0 && (
-              <p className="mb-3 text-sm text-slate-400">등록된 종사업장이 없어요.</p>
-            )}
-
-            <div className="space-y-3">
-              {sites.map((site, i) => (
-                <div key={i} className="rounded-lg border border-dashed border-slate-300 p-4">
-                  <div className="mb-3 flex items-center justify-between">
-                    <p className="text-xs font-semibold text-slate-500">사업장 {i + 1}</p>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setSites((prev) => prev.filter((_, j) => j !== i))}
-                    >
-                      <IconX size={13} />
-                      삭제
-                    </Button>
-                  </div>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <Field id={`site-name-${i}`} label="사업장명">
-                      <input
-                        id={`site-name-${i}`}
-                        value={site.name}
-                        onChange={(e) => updateSite(i, { name: e.target.value })}
-                        placeholder="포항 2공장"
-                        className={FIELD}
-                      />
-                    </Field>
-                    <Field id={`site-biz-${i}`} label="사업자등록번호">
-                      <input
-                        id={`site-biz-${i}`}
-                        inputMode="numeric"
-                        value={site.bizNumber}
-                        onChange={(e) => updateSite(i, { bizNumber: formatBizNumber(e.target.value) })}
-                        placeholder="000-00-00000"
-                        className={`${FIELD} tabular-nums`}
-                      />
-                    </Field>
-                  </div>
-                  <div className="mt-4">
-                    <Field id={`site-addr-${i}`} label="주소">
-                      <input
-                        id={`site-addr-${i}`}
-                        value={site.address}
-                        onChange={(e) => updateSite(i, { address: e.target.value })}
-                        placeholder="도로명 주소"
-                        className={FIELD}
-                      />
-                    </Field>
-                  </div>
-                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                    <Field id={`site-type-${i}`} label="업태">
-                      <input
-                        id={`site-type-${i}`}
-                        value={site.bizType}
-                        onChange={(e) => updateSite(i, { bizType: e.target.value })}
-                        placeholder="제조업"
-                        className={FIELD}
-                      />
-                    </Field>
-                    <Field id={`site-item-${i}`} label="업종">
-                      <input
-                        id={`site-item-${i}`}
-                        value={site.bizItem}
-                        onChange={(e) => updateSite(i, { bizItem: e.target.value })}
-                        placeholder="철강 압연"
-                        className={FIELD}
-                      />
-                    </Field>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <Button
-              variant="secondary"
-              size="sm"
-              className="mt-3"
-              onClick={() => setSites((prev) => [...prev, { ...EMPTY_SITE }])}
-            >
-              <IconPlus size={13} />
-              종사업장 추가
-            </Button>
-          </Card>
         </div>
 
         {/* ── 오른쪽: 담당자 + 설정 + 안내 ── */}
         <div className="space-y-4">
           <Card>
-            <SectionHeader
-              title="담당자"
-              desc="접속 링크 받는 사람과 연락 담당을 따로 둘 수 있어요."
-            />
+            <SectionHeader title="담당자" />
 
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-semibold text-slate-700">접속 링크 받는 사람</p>
-              <p className="mt-0.5 text-xs text-slate-500">
-                이 주소로 접속 링크가 나가고, 링크를 연 사람이 첫 관리자가 돼요.
-              </p>
-              <div className="mt-3 grid gap-4 sm:grid-cols-2">
-                <Field id="link-name" label="이름" required>
-                  <input
-                    id="link-name"
-                    value={linkName}
-                    onChange={(e) => setLinkName(e.target.value)}
-                    placeholder="홍길동"
-                    className={FIELD}
-                  />
-                </Field>
-                <Field
-                  id="link-email"
-                  label="이메일"
-                  required
-                  error={linkEmail && !emailOk ? "이메일 형식을 확인해 주세요." : undefined}
-                >
-                  <input
-                    id="link-email"
-                    type="email"
-                    value={linkEmail}
-                    onChange={(e) => setLinkEmail(e.target.value)}
-                    placeholder="name@company.co.kr"
-                    aria-invalid={(!!linkEmail && !emailOk) || undefined}
-                    className={linkEmail && !emailOk ? FIELD_ERROR : FIELD}
-                  />
-                </Field>
-              </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field id="c-name" label="이름" required>
+                <input
+                  id="c-name"
+                  value={contactName}
+                  onChange={(e) => setContactName(e.target.value)}
+                  placeholder="홍길동"
+                  className={FIELD}
+                />
+              </Field>
+              <Field id="c-phone" label="연락처">
+                <input
+                  id="c-phone"
+                  value={contactPhone}
+                  onChange={(e) => setContactPhone(e.target.value)}
+                  placeholder="02-000-0000"
+                  className={`${FIELD} tabular-nums`}
+                />
+              </Field>
             </div>
-
-            <label className="mt-4 flex cursor-pointer items-start gap-2.5 text-sm text-slate-700">
-              <input
-                type="checkbox"
-                checked={sameContact}
-                onChange={(e) => setSameContact(e.target.checked)}
-                className="mt-0.5 h-4 w-4 shrink-0 accent-slate-800"
-              />
-              연락 담당도 같은 사람이에요
-            </label>
-
-            {!sameContact && (
-              <div className="mt-3 rounded-lg border border-slate-200 p-4">
-                <p className="text-xs font-semibold text-slate-700">연락 담당</p>
-                <p className="mt-0.5 text-xs text-slate-500">
-                  계약·정산 연락을 받는 사람이에요. 접속 링크는 이 주소로 가지 않아요.
-                </p>
-                <div className="mt-3 grid gap-4 sm:grid-cols-2">
-                  <Field id="c-name" label="이름">
-                    <input
-                      id="c-name"
-                      value={contactName}
-                      onChange={(e) => setContactName(e.target.value)}
-                      placeholder="김담당"
-                      className={FIELD}
-                    />
-                  </Field>
-                  <Field id="c-phone" label="연락처">
-                    <input
-                      id="c-phone"
-                      value={contactPhone}
-                      onChange={(e) => setContactPhone(e.target.value)}
-                      placeholder="010-0000-0000"
-                      className={`${FIELD} tabular-nums`}
-                    />
-                  </Field>
-                </div>
-                <div className="mt-4">
-                  <Field id="c-email" label="이메일">
-                    <input
-                      id="c-email"
-                      type="email"
-                      value={contactEmail}
-                      onChange={(e) => setContactEmail(e.target.value)}
-                      placeholder="name@company.co.kr"
-                      className={FIELD}
-                    />
-                  </Field>
-                </div>
-              </div>
-            )}
 
             <div className="mt-4">
-              <p className="mb-1.5 text-sm font-medium text-slate-700">참조 수신</p>
-              <p className="mb-2 text-xs text-slate-400">발송 메일에 CC로 함께 들어가요.</p>
-              <div className="space-y-2">
-                {cc.map((v, i) => (
-                  <div key={i} className="flex gap-2">
-                    <input
-                      type="email"
-                      value={v}
-                      onChange={(e) => setCc((prev) => prev.map((x, j) => (j === i ? e.target.value : x)))}
-                      aria-label={`참조 수신 ${i + 1}`}
-                      placeholder="추가 이메일"
-                      className={`${FIELD} flex-1`}
-                    />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      aria-label={`참조 수신 ${i + 1} 삭제`}
-                      onClick={() => setCc((prev) => prev.filter((_, j) => j !== i))}
-                    >
-                      <IconX size={14} />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-              <Button
-                variant="secondary"
-                size="sm"
-                className={cc.length > 0 ? "mt-2" : undefined}
-                onClick={() => setCc((prev) => [...prev, ""])}
+              <Field
+                id="c-email"
+                label="이메일"
+                required
+                error={contactEmail && !emailOk ? "이메일 형식을 확인해 주세요." : undefined}
               >
-                <IconPlus size={13} />
-                한 줄 더
-              </Button>
+                <input
+                  id="c-email"
+                  type="email"
+                  value={contactEmail}
+                  onChange={(e) => setContactEmail(e.target.value)}
+                  placeholder="name@company.co.kr"
+                  aria-invalid={(!!contactEmail && !emailOk) || undefined}
+                  className={contactEmail && !emailOk ? FIELD_ERROR : FIELD}
+                />
+              </Field>
             </div>
+
           </Card>
 
           <Card>
             <SectionHeader title="워크스페이스 설정" />
             <div className="space-y-4">
-              <Field
-                id="slug"
-                label="워크스페이스 이름"
-                required
-                error={
-                  slug && !slugOk
-                    ? "영문 소문자·숫자·하이픈만, 3~40자로 지어 주세요."
-                    : slugTaken
-                      ? "이미 쓰는 이름이에요. 다른 이름을 지어 주세요."
-                      : undefined
-                }
-                hint="영문 소문자와 하이픈만. 만든 뒤에는 바꿀 수 없어요."
-              >
-                <input
-                  id="slug"
-                  value={slug}
-                  onChange={(e) => setSlug(e.target.value.toLowerCase())}
-                  placeholder="hanbit-prod"
-                  aria-invalid={(!!slug && (!slugOk || slugTaken)) || undefined}
-                  className={slug && (!slugOk || slugTaken) ? FIELD_ERROR : FIELD}
-                />
-              </Field>
-
               <Field id="plan" label="요금제">
                 <select
                   id="plan"
@@ -510,7 +333,7 @@ export default function AdminCreatePage() {
                 </select>
               </Field>
 
-              <Field id="memo" label="메모" hint="내부용이에요. 고객에게는 보이지 않아요.">
+              <Field id="memo" label="운영자 메모">
                 <textarea
                   id="memo"
                   value={memo}
@@ -526,27 +349,70 @@ export default function AdminCreatePage() {
           <Card className="bg-slate-50">
             <SectionHeader title="만들면 이렇게 됩니다" />
             <ol className="space-y-1.5 text-sm text-slate-600">
-              <li>1. 워크스페이스가 <span className="font-semibold text-slate-900">초대 메일 발송함</span> 상태로 생성돼요.</li>
-              <li>2. 접속 링크 받는 사람에게 메일이 나가요{cc.length > 0 && ` (참조 ${cc.length}명)`}.</li>
+              <li>1. 워크스페이스가 <span className="font-semibold text-slate-900">{WS_STATUS_LABEL.pending}</span> 상태로 생성되고, 테넌트 스키마가 자동 부여돼요.</li>
+              <li>2. 상세 화면에서 <span className="font-semibold text-slate-900">접속 링크를 복사</span>해 담당자에게 보내요.</li>
               <li>3. 링크를 연 사람이 첫 관리자로 등록돼요.</li>
-              <li>4. ERP·MES 연동은 상세 화면의 <span className="font-semibold text-slate-900">외부 시스템 연동</span> 탭에서 따로 진행해요.</li>
+              <li>4. ERP·MES 연동은 상세 화면의 <span className="font-semibold text-slate-900">온톨로지</span> 탭에서 따로 진행해요.</li>
             </ol>
           </Card>
+
+          <p className="text-xs text-slate-400">
+            임시 저장은 <span className="font-medium text-slate-600">이 브라우저에만</span> 남아요.
+            다른 PC에서는 보이지 않고, 이어서 작성하면 저장분은 지워집니다.
+          </p>
 
           <div className="sticky bottom-0 flex flex-wrap justify-end gap-2 rounded-xl border border-slate-200 bg-white/95 p-4 backdrop-blur">
             <Button variant="secondary" href="/admin/workspaces">
               취소
             </Button>
             <Button
+              variant="secondary"
+              onClick={() => {
+                const at = new Date().toLocaleString("ko-KR");
+                setSaved(saveDraft(collect(), at) ? "ok" : "fail");
+                setTimeout(() => setSaved("idle"), 2600);
+              }}
+            >
+              {saved === "ok" ? "저장했어요" : saved === "fail" ? "저장 못 했어요" : "임시 저장"}
+            </Button>
+            <Button
               disabled={!canSubmit}
               title={canSubmit ? undefined : "필수 항목을 모두 채우면 만들 수 있어요"}
-              onClick={() => router.push("/admin/workspaces")}
+              onClick={() => setCreated(nextSchemaName())}
             >
-              만들고 메일 보내기
+              만들기
             </Button>
           </div>
         </div>
       </div>
+
+      <Modal
+        open={created !== null}
+        onClose={() => router.push("/admin/workspaces")}
+        size="sm"
+        title="워크스페이스를 만들었어요"
+        footer={
+          <div className="flex justify-end">
+            <Button size="sm" onClick={() => router.push("/admin/workspaces")}>
+              목록으로
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-3 p-5 text-sm text-slate-600">
+          <p>
+            <span className="font-semibold text-slate-900">{company}</span>의 테넌트 스키마가
+            부여됐어요.
+          </p>
+          <p className="rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-2.5 font-mono text-base font-semibold text-slate-900">
+            {created}
+          </p>
+          <p>
+            상세 화면의 담당자 카드에서 <span className="font-semibold text-slate-900">접속 링크를 복사</span>해
+            {contactName || "담당자"}({contactEmail})에게 보내 주세요.
+          </p>
+        </div>
+      </Modal>
     </div>
   );
 }
