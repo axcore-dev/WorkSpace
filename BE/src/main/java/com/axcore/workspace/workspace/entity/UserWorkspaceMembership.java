@@ -10,6 +10,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 
@@ -61,6 +63,37 @@ public class UserWorkspaceMembership {
 
     protected UserWorkspaceMembership() {
         // JPA 용
+    }
+
+    private UserWorkspaceMembership(User user, Workspace workspace, MembershipStatus status) {
+        this.user = user;
+        this.workspace = workspace;
+        this.status = status;
+    }
+
+    /**
+     * 초대를 수락해 회사에 합류한다.
+     *
+     * <p>{@link MembershipStatus#INVITED} 가 아니라 곧바로 {@code ACTIVE} 다. 초대의 대기
+     * 상태는 {@code workspace_invitations} 가 들고 있고, 그쪽은 아직 가입하지 않은 주소도
+     * 담을 수 있다. 여기에 행이 생겼다는 것은 이미 수락이 끝났다는 뜻이다.
+     *
+     * <p>{@code INVITED} 는 이미 가입한 사용자를 회사가 직접 초대하는 흐름이 생길 때 쓴다.
+     */
+    public static UserWorkspaceMembership join(User user, Workspace workspace) {
+        return new UserWorkspaceMembership(user, workspace, MembershipStatus.ACTIVE);
+    }
+
+    @PrePersist
+    void onCreate() {
+        Instant now = Instant.now();
+        this.createdAt = now;
+        this.updatedAt = now;
+    }
+
+    @PreUpdate
+    void onUpdate() {
+        this.updatedAt = Instant.now();
     }
 
     /**

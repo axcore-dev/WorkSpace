@@ -1,13 +1,17 @@
 package com.axcore.workspace.workspace.admin.controller;
 
 import com.axcore.workspace.security.JwtPrincipal;
-import com.axcore.workspace.workspace.admin.service.AdminWorkspaceService;
+import com.axcore.workspace.workspace.admin.dto.InvitationCreateRequest;
+import com.axcore.workspace.workspace.admin.dto.InvitationIssuedResponse;
+import com.axcore.workspace.workspace.admin.dto.InvitationResponse;
 import com.axcore.workspace.workspace.admin.dto.WorkspaceCreateRequest;
 import com.axcore.workspace.workspace.admin.dto.WorkspaceResponse;
 import com.axcore.workspace.workspace.admin.dto.WorkspaceSummaryResponse;
 import com.axcore.workspace.workspace.admin.dto.WorkspaceUpdateRequest;
+import com.axcore.workspace.workspace.admin.service.AdminWorkspaceService;
 import com.axcore.workspace.workspace.entity.WorkspaceStatus;
 import com.axcore.workspace.workspace.provisioning.TenantMigrationRunner;
+import com.axcore.workspace.workspace.service.WorkspaceInvitationService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -27,6 +31,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -49,11 +55,15 @@ public class AdminWorkspaceController {
 
     private final AdminWorkspaceService service;
     private final TenantMigrationRunner migrationRunner;
+    private final WorkspaceInvitationService invitationService;
 
     public AdminWorkspaceController(
-            AdminWorkspaceService service, TenantMigrationRunner migrationRunner) {
+            AdminWorkspaceService service,
+            TenantMigrationRunner migrationRunner,
+            WorkspaceInvitationService invitationService) {
         this.service = service;
         this.migrationRunner = migrationRunner;
+        this.invitationService = invitationService;
     }
 
     /**
@@ -157,6 +167,45 @@ public class AdminWorkspaceController {
     public WorkspaceResponse terminate(@AuthenticationPrincipal Jwt jwt, @PathVariable Long id) {
         service.requireInternalAdmin(userId(jwt));
         return service.terminate(id);
+    }
+
+    /**
+     * 접속 링크를 발급한다. <b>메일은 보내지 않는다.</b>
+     *
+     * <p>응답의 {@code link} 를 콘솔이 복사해 담당자에게 전달한다. 화면의 "접속 링크 복사"
+     * 버튼이 이 엔드포인트를 부르면 된다 — 누를 때마다 새 링크가 나가고 이전 링크는 죽는다.
+     *
+     * <p>{@code link} 는 이 응답에서만 나간다. 토큰은 해시로만 저장해서 나중에 다시 꺼낼 수
+     * 없다. 실제로 보낸 사실은 {@code /link-sent} 로 따로 기록한다.
+     */
+    @PostMapping("/{id}/invitations")
+    public ResponseEntity<InvitationIssuedResponse> issueLink(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable Long id,
+            @Valid @RequestBody(required = false) InvitationCreateRequest request) {
+        UUID actor = userId(jwt);
+        service.requireInternalAdmin(actor);
+        InvitationIssuedResponse issued =
+                invitationService.issueLink(
+                        id, request == null ? null : request.email(), actor, Instant.now());
+        return ResponseEntity.status(HttpStatus.CREATED).body(issued);
+    }
+
+    @GetMapping("/{id}/invitations")
+    public List<InvitationResponse> invitations(
+            @AuthenticationPrincipal Jwt jwt, @PathVariable Long id) {
+        service.requireInternalAdmin(userId(jwt));
+        return invitationService.list(id, Instant.now());
+    }
+
+    /** 잘못 보낸 링크를 무효화한다. 이미 수락된 초대는 409 다 — 멤버십은 따로 끊어야 한다. */
+    @DeleteMapping("/{id}/invitations/{invitationId}")
+    public InvitationResponse revokeInvitation(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable Long id,
+            @PathVariable UUID invitationId) {
+        service.requireInternalAdmin(userId(jwt));
+        return invitationService.revoke(id, invitationId, Instant.now());
     }
 
     /**
