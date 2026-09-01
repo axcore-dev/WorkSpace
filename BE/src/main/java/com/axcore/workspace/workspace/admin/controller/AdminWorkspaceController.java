@@ -1,6 +1,7 @@
 package com.axcore.workspace.workspace.admin.controller;
 
 import com.axcore.workspace.security.JwtPrincipal;
+import com.axcore.workspace.workspace.admin.dto.ConsoleStatus;
 import com.axcore.workspace.workspace.admin.dto.InvitationCreateRequest;
 import com.axcore.workspace.workspace.admin.dto.InvitationIssuedResponse;
 import com.axcore.workspace.workspace.admin.dto.InvitationResponse;
@@ -107,8 +108,9 @@ public class AdminWorkspaceController {
     public ResponseEntity<WorkspaceResponse> create(
             @AuthenticationPrincipal Jwt jwt, @Valid @RequestBody WorkspaceCreateRequest request) {
 
-        service.requireInternalAdmin(userId(jwt));
-        WorkspaceResponse created = service.create(request);
+        UUID actor = userId(jwt);
+        service.requireInternalAdmin(actor);
+        WorkspaceResponse created = service.create(actor, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
@@ -124,8 +126,9 @@ public class AdminWorkspaceController {
             @PathVariable Long id,
             @Valid @RequestBody WorkspaceUpdateRequest request) {
 
-        service.requireInternalAdmin(userId(jwt));
-        return service.update(id, request);
+        UUID actor = userId(jwt);
+        service.requireInternalAdmin(actor);
+        return service.update(actor, id, request);
     }
 
     /** 개설에 실패해 {@code provisioning} 으로 남은 회사를 다시 시도한다. */
@@ -139,22 +142,25 @@ public class AdminWorkspaceController {
     /** 진입만 막는다. 스키마와 데이터는 그대로 둔다. */
     @PostMapping("/{id}/suspend")
     public WorkspaceResponse suspend(@AuthenticationPrincipal Jwt jwt, @PathVariable Long id) {
-        service.requireInternalAdmin(userId(jwt));
-        return service.suspend(id);
+        UUID actor = userId(jwt);
+        service.requireInternalAdmin(actor);
+        return service.suspend(actor, id);
     }
 
     @PostMapping("/{id}/resume")
     public WorkspaceResponse resume(@AuthenticationPrincipal Jwt jwt, @PathVariable Long id) {
-        service.requireInternalAdmin(userId(jwt));
-        return service.resume(id);
+        UUID actor = userId(jwt);
+        service.requireInternalAdmin(actor);
+        return service.resume(actor, id);
     }
 
     /** 접속 링크를 보냈다고 기록한다. 실제 발송은 별도 기능이다. */
     @PostMapping("/{id}/link-sent")
     public WorkspaceResponse markLinkSent(
             @AuthenticationPrincipal Jwt jwt, @PathVariable Long id) {
-        service.requireInternalAdmin(userId(jwt));
-        return service.markLinkSent(id);
+        UUID actor = userId(jwt);
+        service.requireInternalAdmin(actor);
+        return service.markLinkSent(actor, id);
     }
 
     /**
@@ -165,8 +171,9 @@ public class AdminWorkspaceController {
      */
     @DeleteMapping("/{id}")
     public WorkspaceResponse terminate(@AuthenticationPrincipal Jwt jwt, @PathVariable Long id) {
-        service.requireInternalAdmin(userId(jwt));
-        return service.terminate(id);
+        UUID actor = userId(jwt);
+        service.requireInternalAdmin(actor);
+        return service.terminate(actor, id);
     }
 
     /**
@@ -229,16 +236,24 @@ public class AdminWorkspaceController {
     }
 
     /** 모르는 상태 값은 400 이다. 조용히 전체 목록을 돌려주면 필터가 걸린 줄 알고 오해한다. */
+    /**
+     * 화면 어휘를 도메인 상태로 옮긴다.
+     *
+     * <p>응답이 {@code pending} 으로 나가므로 질의도 같은 말을 받아야 한다. DB 값
+     * ({@code provisioning})을 받으면 화면이 방금 받은 값으로 되물을 수 없다.
+     *
+     * @return null 이면 전체(해지 제외). {@code WorkspaceSpecifications} 가 처리한다
+     */
     private static WorkspaceStatus parseStatus(String status) {
         if (status == null || status.isBlank()) {
             return null;
         }
-        String normalized = status.strip().toLowerCase();
-        for (WorkspaceStatus candidate : WorkspaceStatus.values()) {
-            if (candidate.dbValue().equals(normalized)) {
-                return candidate;
-            }
-        }
-        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "알 수 없는 상태입니다: " + status);
+        return ConsoleStatus.from(status)
+                .map(ConsoleStatus::domain)
+                .orElseThrow(
+                        () ->
+                                new ResponseStatusException(
+                                        HttpStatus.BAD_REQUEST,
+                                        "알 수 없는 상태입니다: " + status));
     }
 }

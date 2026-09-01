@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -42,4 +43,28 @@ public interface UserWorkspaceMembershipRepository
             """)
     Optional<UserWorkspaceMembership> findByUserIdAndWorkspaceIdWithWorkspace(
             @Param("userId") UUID userId, @Param("workspaceId") Long workspaceId);
+
+    /**
+     * 여러 회사의 구성원 수를 한 번에 센다. 운영자 목록이 쓴다.
+     *
+     * <p>행마다 세면 한 페이지에 회사 수만큼 질의가 나간다(N+1). 목록은 최대 200행까지 열 수
+     * 있어서 그대로 두면 화면 하나에 200번을 부른다.
+     *
+     * <p>돌아온 목록에 없는 회사는 구성원이 0명이다 — 부르는 쪽이 0 으로 채워야 한다.
+     */
+    @Query(
+            """
+            select m.workspace.id as workspaceId, count(m) as memberCount
+              from UserWorkspaceMembership m
+             where m.workspace.id in :workspaceIds
+             group by m.workspace.id
+            """)
+    List<MemberCount> countByWorkspaceIds(@Param("workspaceIds") Collection<Long> workspaceIds);
+
+    /** {@link #countByWorkspaceIds} 결과 한 줄. */
+    interface MemberCount {
+        Long getWorkspaceId();
+
+        long getMemberCount();
+    }
 }

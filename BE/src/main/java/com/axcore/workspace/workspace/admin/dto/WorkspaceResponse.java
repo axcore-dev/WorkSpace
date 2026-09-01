@@ -32,6 +32,11 @@ public record WorkspaceResponse(
         String memo,
         Contacts contacts,
         List<Site> sites,
+        List<WorkspaceMemberResponse> members,
+        WorkspaceUsageResponse usage,
+        List<WorkspaceInvoiceResponse> invoices,
+        List<WorkspaceSystemResponse> systems,
+        Instant lastActiveAt,
         Instant linkSentAt,
         Instant linkOpenedAt,
         Instant createdAt,
@@ -59,7 +64,23 @@ public record WorkspaceResponse(
         }
     }
 
+    /**
+     * 구성원 없이. 상태 변경 응답처럼 구성원을 다시 읽을 이유가 없는 자리에서 쓴다.
+     *
+     * <p>화면은 부분 갱신으로 병합하므로 여기서 빠진 필드가 화면의 기존 값을 지우지 않는다.
+     */
     public static WorkspaceResponse from(Workspace w) {
+        return from(w, List.of(), null);
+    }
+
+    /**
+     * 상세 조회용. 구성원과 마지막 활동은 테넌트 스키마에서 따로 읽어 넘긴다.
+     *
+     * @param members 개설 전이거나 조회에 실패하면 빈 목록
+     * @param lastActiveAt 아무도 들어온 적이 없으면 null
+     */
+    public static WorkspaceResponse from(
+            Workspace w, List<WorkspaceMemberResponse> members, Instant lastActiveAt) {
         return new WorkspaceResponse(
                 w.getId(),
                 w.getName(),
@@ -72,7 +93,7 @@ public record WorkspaceResponse(
                 w.getWebsite(),
                 w.getTaxEmail(),
                 w.getPlan(),
-                w.getStatus().dbValue(),
+                ConsoleStatus.of(w.getStatus()),
                 w.getSchemaName(),
                 w.getSchemaVersion(),
                 w.getOperatorName(),
@@ -85,6 +106,12 @@ public record WorkspaceResponse(
                         w.getContactPhone(),
                         Set.copyOf(w.getCcEmails())),
                 w.getSites().stream().map(Site::from).toList(),
+                members,
+                // 집계·청구·연동은 아직 만드는 곳이 없다. 형태만 유지한다 — 각 DTO 주석 참고.
+                WorkspaceUsageResponse.empty(),
+                List.of(),
+                List.of(),
+                lastActiveAt,
                 w.getLinkSentAt(),
                 w.getLinkOpenedAt(),
                 w.getCreatedAt(),

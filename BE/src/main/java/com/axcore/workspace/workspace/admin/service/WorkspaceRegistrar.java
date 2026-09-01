@@ -4,6 +4,7 @@ import com.axcore.workspace.workspace.admin.exception.DuplicateBizNumberExceptio
 import com.axcore.workspace.workspace.admin.exception.WorkspaceNotFoundException;
 import com.axcore.workspace.workspace.admin.exception.WorkspaceStateException;
 import com.axcore.workspace.workspace.admin.dto.WorkspaceCreateRequest;
+import com.axcore.workspace.workspace.admin.dto.WorkspaceMemberResponse;
 import com.axcore.workspace.workspace.admin.dto.WorkspaceResponse;
 import com.axcore.workspace.workspace.admin.dto.WorkspaceSiteRequest;
 import com.axcore.workspace.workspace.admin.dto.WorkspaceUpdateRequest;
@@ -118,6 +119,25 @@ public class WorkspaceRegistrar {
     @Transactional(readOnly = true)
     public WorkspaceResponse detail(Long id) {
         return WorkspaceResponse.from(require(id));
+    }
+
+    /** 개설 전이면 null. 구성원을 읽을 스키마가 아직 없다는 뜻이다. */
+    @Transactional(readOnly = true)
+    public String schemaNameOf(Long id) {
+        return require(id).getSchemaName();
+    }
+
+    /**
+     * 구성원까지 담은 상세.
+     *
+     * <p>구성원은 테넌트 스키마에 있어 JPA 로 못 읽는다. 읽는 일은 부르는 쪽이 하고 여기서는
+     * 받아서 합치기만 한다 — 등록·상태 전이를 다루는 이 클래스가 스키마를 여는 일까지 맡으면
+     * 트랜잭션 경계가 뒤섞인다.
+     */
+    @Transactional(readOnly = true)
+    public WorkspaceResponse detail(
+            Long id, List<WorkspaceMemberResponse> members, Instant lastActiveAt) {
+        return WorkspaceResponse.from(require(id), members, lastActiveAt);
     }
 
     @Transactional(readOnly = true)
