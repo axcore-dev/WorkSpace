@@ -83,13 +83,13 @@ export type Invoice = {
 };
 
 /**
- * 담당자 — 접속 링크 받는 사람과 연락 담당을 나눈다.
- * 실무자가 링크를 받고 계약·정산 연락은 다른 사람에게 가는 경우가 있다.
+ * 담당자 — 고객사 쪽 창구 한 명.
+ *
+ * v10 전에는 「접속 링크 받는 사람」과 「연락 담당」을 나눠 두었는데,
+ * 접속 링크를 운영팀이 복사해 직접 보내는 방식으로 바뀌면서 둘을 나눌 이유가 없어졌다.
+ * (더미 7곳 중 4곳은 이미 같은 사람이었다.)
  */
 export type Contacts = {
-  /** 접속 링크가 나가는 주소. 이 사람이 첫 관리자가 된다 */
-  link: { name: string; email: string };
-  /** 평소 연락처. 링크는 여기로 가지 않는다 */
   contact: { name: string; email: string; phone: string };
   /** 참조 수신 — 발송 메일에 CC로 들어간다 */
   cc: string[];
@@ -124,9 +124,6 @@ export type AdminWorkspace = {
   /** 담당 운영자 (우리 쪽) */
   operator: string;
   lastActive: string;
-  linkSentAt: string;
-  /** 접속 링크를 실제로 열었는지 */
-  linkOpened: boolean;
   taxEmail: string;
   memo: string;
   contacts: Contacts;
@@ -152,12 +149,9 @@ export const ADMIN_WORKSPACES: AdminWorkspace[] = [
     createdAt: "2026-03-14",
     operator: "김운영",
     lastActive: "2시간 전",
-    linkSentAt: "2026-03-14",
-    linkOpened: true,
     taxEmail: "tax@hanbit.co.kr",
     memo: "포항 2공장 MES 인증 정보 재발급 대기 중.",
     contacts: {
-      link: { name: "홍길동", email: "hong@hanbit.co.kr" },
       contact: { name: "김구매", email: "kim@hanbit.co.kr", phone: "054-000-0000" },
       cc: ["it@hanbit.co.kr"],
     },
@@ -228,12 +222,9 @@ export const ADMIN_WORKSPACES: AdminWorkspace[] = [
     createdAt: "2026-05-02",
     operator: "박운영",
     lastActive: "어제",
-    linkSentAt: "2026-05-02",
-    linkOpened: true,
     taxEmail: "tax@daesung.co.kr",
     memo: "",
     contacts: {
-      link: { name: "정관리", email: "jung@daesung.co.kr" },
       contact: { name: "정관리", email: "jung@daesung.co.kr", phone: "052-000-0000" },
       cc: [],
     },
@@ -279,12 +270,9 @@ export const ADMIN_WORKSPACES: AdminWorkspace[] = [
     createdAt: "2026-08-25",
     operator: "김운영",
     lastActive: "3일 전",
-    linkSentAt: "2026-08-25",
-    linkOpened: false,
     taxEmail: "",
     memo: "접속 링크 미개봉. 8/28 유선 확인 예정.",
     contacts: {
-      link: { name: "최담당", email: "choi@seojin.co.kr" },
       contact: { name: "오총무", email: "oh@seojin.co.kr", phone: "031-000-0000" },
       cc: ["ceo@seojin.co.kr"],
     },
@@ -315,12 +303,9 @@ export const ADMIN_WORKSPACES: AdminWorkspace[] = [
     createdAt: "2025-11-08",
     operator: "박운영",
     lastActive: "2개월 전",
-    linkSentAt: "2025-11-08",
-    linkOpened: true,
     taxEmail: "tax@kumho-food.co.kr",
     memo: "7월분 미수금. 입금 확인 후 재개.",
     contacts: {
-      link: { name: "강대리", email: "kang@kumho-food.co.kr" },
       contact: { name: "강대리", email: "kang@kumho-food.co.kr", phone: "061-000-0000" },
       cc: [],
     },
@@ -362,12 +347,9 @@ export const ADMIN_WORKSPACES: AdminWorkspace[] = [
     createdAt: "2026-07-19",
     operator: "김운영",
     lastActive: "5일 전",
-    linkSentAt: "2026-07-19",
-    linkOpened: true,
     taxEmail: "tax@ny-precision.co.kr",
     memo: "",
     contacts: {
-      link: { name: "윤사원", email: "yoon@ny-precision.co.kr" },
       contact: { name: "윤사원", email: "yoon@ny-precision.co.kr", phone: "055-000-0000" },
       cc: [],
     },
@@ -407,12 +389,9 @@ export const ADMIN_WORKSPACES: AdminWorkspace[] = [
     createdAt: "2026-01-27",
     operator: "박운영",
     lastActive: "1시간 전",
-    linkSentAt: "2026-01-27",
-    linkOpened: true,
     taxEmail: "tax@ty-electronics.co.kr",
     memo: "",
     contacts: {
-      link: { name: "서차장", email: "seo@ty-electronics.co.kr" },
       contact: { name: "노팀장", email: "noh@ty-electronics.co.kr", phone: "043-000-0000" },
       cc: ["it@ty-electronics.co.kr", "tax@ty-electronics.co.kr"],
     },
@@ -473,12 +452,9 @@ export const ADMIN_WORKSPACES: AdminWorkspace[] = [
     createdAt: "2026-08-27",
     operator: "김운영",
     lastActive: "어제",
-    linkSentAt: "2026-08-27",
-    linkOpened: false,
     taxEmail: "",
     memo: "",
     contacts: {
-      link: { name: "임과장", email: "lim@sinheung.co.kr" },
       contact: { name: "임과장", email: "lim@sinheung.co.kr", phone: "032-000-0000" },
       cc: [],
     },
@@ -593,9 +569,6 @@ export type Draft = {
   address: string;
   addressDetail: string;
   website: string;
-  linkName: string;
-  linkEmail: string;
-  sameContact: boolean;
   contactName: string;
   contactEmail: string;
   contactPhone: string;

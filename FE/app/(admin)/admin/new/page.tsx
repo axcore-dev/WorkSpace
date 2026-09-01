@@ -42,10 +42,7 @@ export default function AdminCreatePage() {
   const [addressDetail, setAddressDetail] = useState("");
   const [website, setWebsite] = useState("");
 
-  // 담당자 — 접속 링크 받는 사람과 연락 담당을 나눈다
-  const [linkName, setLinkName] = useState("");
-  const [linkEmail, setLinkEmail] = useState("");
-  const [sameContact, setSameContact] = useState(true);
+  // 담당자 — 고객사 쪽 창구 한 명. 접속 링크는 운영팀이 복사해 직접 보낸다
   const [contactName, setContactName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
@@ -72,7 +69,7 @@ export default function AdminCreatePage() {
   function collect() {
     return {
       bizNumber, company, corpNumber, bizType, bizItem, address, addressDetail, website,
-      linkName, linkEmail, sameContact, contactName, contactEmail, contactPhone, cc,
+      contactName, contactEmail, contactPhone, cc,
       plan, memo,
     };
   }
@@ -86,9 +83,6 @@ export default function AdminCreatePage() {
     setAddress(d.address);
     setAddressDetail(d.addressDetail);
     setWebsite(d.website);
-    setLinkName(d.linkName);
-    setLinkEmail(d.linkEmail);
-    setSameContact(d.sameContact);
     setContactName(d.contactName);
     setContactEmail(d.contactEmail);
     setContactPhone(d.contactPhone);
@@ -102,8 +96,8 @@ export default function AdminCreatePage() {
   }
 
   const bizOk = lookup.kind === "ok";
-  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(linkEmail.trim());
-  const canSubmit = bizOk && !!company.trim() && !!address.trim() && !!linkName.trim() && emailOk;
+  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail.trim());
+  const canSubmit = bizOk && !!company.trim() && !!address.trim() && !!contactName.trim() && emailOk;
 
   function runLookup() {
     const digits = bizNumber.replace(/\D/g, "");
@@ -281,94 +275,49 @@ export default function AdminCreatePage() {
           <Card>
             <SectionHeader title="담당자" />
 
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-semibold text-slate-700">접속 링크 받는 사람</p>
-              <p className="mt-0.5 text-xs text-slate-500">
-                이 주소로 접속 링크가 나가고, 링크를 연 사람이 첫 관리자가 돼요.
-              </p>
-              <div className="mt-3 grid gap-4 sm:grid-cols-2">
-                <Field id="link-name" label="이름" required>
-                  <input
-                    id="link-name"
-                    value={linkName}
-                    onChange={(e) => setLinkName(e.target.value)}
-                    placeholder="홍길동"
-                    className={FIELD}
-                  />
-                </Field>
-                <Field
-                  id="link-email"
-                  label="이메일"
-                  required
-                  error={linkEmail && !emailOk ? "이메일 형식을 확인해 주세요." : undefined}
-                >
-                  <input
-                    id="link-email"
-                    type="email"
-                    value={linkEmail}
-                    onChange={(e) => setLinkEmail(e.target.value)}
-                    placeholder="name@company.co.kr"
-                    aria-invalid={(!!linkEmail && !emailOk) || undefined}
-                    className={linkEmail && !emailOk ? FIELD_ERROR : FIELD}
-                  />
-                </Field>
-              </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field id="c-name" label="이름" required>
+                <input
+                  id="c-name"
+                  value={contactName}
+                  onChange={(e) => setContactName(e.target.value)}
+                  placeholder="홍길동"
+                  className={FIELD}
+                />
+              </Field>
+              <Field id="c-phone" label="연락처">
+                <input
+                  id="c-phone"
+                  value={contactPhone}
+                  onChange={(e) => setContactPhone(e.target.value)}
+                  placeholder="02-000-0000"
+                  className={`${FIELD} tabular-nums`}
+                />
+              </Field>
             </div>
 
-            <label className="mt-4 flex cursor-pointer items-start gap-2.5 text-sm text-slate-700">
-              <input
-                type="checkbox"
-                checked={sameContact}
-                onChange={(e) => setSameContact(e.target.checked)}
-                className="mt-0.5 h-4 w-4 shrink-0 accent-slate-800"
-              />
-              연락 담당도 같은 사람이에요
-            </label>
-
-            {!sameContact && (
-              <div className="mt-3 rounded-lg border border-slate-200 p-4">
-                <p className="text-xs font-semibold text-slate-700">연락 담당</p>
-                <p className="mt-0.5 text-xs text-slate-500">
-                  계약·정산 연락을 받는 사람이에요. 접속 링크는 이 주소로 가지 않아요.
-                </p>
-                <div className="mt-3 grid gap-4 sm:grid-cols-2">
-                  <Field id="c-name" label="이름">
-                    <input
-                      id="c-name"
-                      value={contactName}
-                      onChange={(e) => setContactName(e.target.value)}
-                      placeholder="김담당"
-                      className={FIELD}
-                    />
-                  </Field>
-                  <Field id="c-phone" label="연락처">
-                    <input
-                      id="c-phone"
-                      value={contactPhone}
-                      onChange={(e) => setContactPhone(e.target.value)}
-                      placeholder="010-0000-0000"
-                      className={`${FIELD} tabular-nums`}
-                    />
-                  </Field>
-                </div>
-                <div className="mt-4">
-                  <Field id="c-email" label="이메일">
-                    <input
-                      id="c-email"
-                      type="email"
-                      value={contactEmail}
-                      onChange={(e) => setContactEmail(e.target.value)}
-                      placeholder="name@company.co.kr"
-                      className={FIELD}
-                    />
-                  </Field>
-                </div>
-              </div>
-            )}
+            <div className="mt-4">
+              <Field
+                id="c-email"
+                label="이메일"
+                required
+                error={contactEmail && !emailOk ? "이메일 형식을 확인해 주세요." : undefined}
+              >
+                <input
+                  id="c-email"
+                  type="email"
+                  value={contactEmail}
+                  onChange={(e) => setContactEmail(e.target.value)}
+                  placeholder="name@company.co.kr"
+                  aria-invalid={(!!contactEmail && !emailOk) || undefined}
+                  className={contactEmail && !emailOk ? FIELD_ERROR : FIELD}
+                />
+              </Field>
+            </div>
 
             <div className="mt-4">
               <p className="mb-1.5 text-sm font-medium text-slate-700">참조 수신</p>
-              <p className="mb-2 text-xs text-slate-400">발송 메일에 CC로 함께 들어가요.</p>
+              <p className="mb-2 text-xs text-slate-400">링크를 보낼 때 함께 넣을 주소예요.</p>
               <div className="space-y-2">
                 {cc.map((v, i) => (
                   <div key={i} className="flex gap-2">
@@ -421,7 +370,7 @@ export default function AdminCreatePage() {
                 </select>
               </Field>
 
-              <Field id="memo" label="내부 메모">
+              <Field id="memo" label="운영자 메모">
                 <textarea
                   id="memo"
                   value={memo}
@@ -438,7 +387,7 @@ export default function AdminCreatePage() {
             <SectionHeader title="만들면 이렇게 됩니다" />
             <ol className="space-y-1.5 text-sm text-slate-600">
               <li>1. 워크스페이스가 <span className="font-semibold text-slate-900">{WS_STATUS_LABEL.pending}</span> 상태로 생성되고, 테넌트 스키마가 자동 부여돼요.</li>
-              <li>2. 접속 링크 받는 사람에게 메일이 나가요{cc.length > 0 && ` (참조 ${cc.length}명)`}.</li>
+              <li>2. 상세 화면에서 <span className="font-semibold text-slate-900">접속 링크를 복사</span>해 담당자에게 보내요{cc.length > 0 && ` (참조 ${cc.length}명)`}.</li>
               <li>3. 링크를 연 사람이 첫 관리자로 등록돼요.</li>
               <li>4. ERP·MES 연동은 상세 화면의 <span className="font-semibold text-slate-900">온톨로지</span> 탭에서 따로 진행해요.</li>
             </ol>
@@ -468,7 +417,7 @@ export default function AdminCreatePage() {
               title={canSubmit ? undefined : "필수 항목을 모두 채우면 만들 수 있어요"}
               onClick={() => setCreated(nextSchemaName())}
             >
-              만들고 메일 보내기
+              만들기
             </Button>
           </div>
         </div>
@@ -495,7 +444,10 @@ export default function AdminCreatePage() {
           <p className="rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-2.5 font-mono text-base font-semibold text-slate-900">
             {created}
           </p>
-          <p>접속 링크 받는 사람({linkEmail})에게 메일이 나갔어요.</p>
+          <p>
+            상세 화면의 담당자 카드에서 <span className="font-semibold text-slate-900">접속 링크를 복사</span>해
+            {contactName || "담당자"}({contactEmail})에게 보내 주세요.
+          </p>
         </div>
       </Modal>
     </div>
