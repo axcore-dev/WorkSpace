@@ -1,6 +1,29 @@
-import type { Tone } from "./types";
+/** AI대화 더미 데이터 */
 
-/** AI대화 (3분할 워크스페이스) 더미 데이터 */
+/** 소스 문서 한 건 — 대화(노트북)마다 따로 들고 있다 */
+export interface SourceDoc {
+  name: string;
+  type: string;
+  scope: "개인" | "팀" | "전사";
+  updated: string;
+}
+
+/** 대화별 소스 상태 — 새 대화는 빈 노트북으로 시작한다 */
+export interface SourceState {
+  sources: SourceDoc[];
+  selected: string[];
+  /** 이 대화에서 업로드한 문서 — 지식도우미 답변의 최우선 출처로 인용 */
+  uploaded: string[];
+}
+
+/** 대화(노트북) 한 건. localStorage에 이 모양 그대로 저장된다 (`lib/chat-storage.ts`) */
+export interface Note {
+  id: number;
+  title: string;
+  messages: ChatMessage[];
+  replyIdx: number;
+  src: SourceState;
+}
 
 export const RAG_FOLDERS: {
   name: string;
@@ -372,20 +395,6 @@ export const REPLY_ROUTES: { pattern: RegExp; index: number }[] = [
 ];
 
 /** 시작 화면 추천 질문 — demo: 지식도우미(작업표준·FAQ) 시연 포인트 표시 */
-export const SUGGESTED_QUESTIONS: { q: string; demo?: boolean }[] = [
-  { q: "6월 CNC 1라인 불량률과 원인을 알려줘" },
-  { q: "안전 재고 미달 품목과 권장 발주량은?" },
-  { q: "CNC 공구 교체 기준, 작업표준서에서 찾아줘", demo: true },
-  { q: "불량품 발견 시 처리 절차는?", demo: true },
-  { q: "이번 주 일정, Google Calendar에서 확인해줘" },
-  { q: "한빛모터스 수주 진행 현황 알려줘" },
-];
-
-export const AI_TOOLS_TEASER: { name: string; desc: string; tone: Tone }[] = [
-  { name: "기안 생성", desc: "대화 내용을 사내 양식의 결재 기안 문서로 작성", tone: "slate" },
-  { name: "이메일 초안", desc: "분석 결과를 담은 공유 이메일 초안 작성", tone: "slate" },
-];
-
 /**
  * 커넥터 추가 팝업(Manus형) 목록 — 브랜드 로고는 simple-icons 사용.
  * loginUrl: '+' 클릭 시 이동할 해당 앱 로그인 페이지 (Google Calendar는 데모 즉시 연결이라 없음).
