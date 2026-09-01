@@ -127,6 +127,30 @@ public class AccountMailer {
                         .formatted(user.getName()));
     }
 
+    /**
+     * 계정이 잠겼다.
+     *
+     * <p>해제 방법을 반드시 적는다. 잠긴 계정의 로그인 응답은 다른 실패와 같은 401 이라
+     * 화면만 보고는 무엇이 잘못됐는지 알 수 없고, 시간이 지나도 풀리지 않기 때문이다.
+     *
+     * <p>재설정 링크는 여기에 넣지 않는다. 링크를 담으려면 토큰을 발급해야 하는데, 그러면
+     * 남의 주소로 로그인을 6번 틀리는 것만으로 유효한 재설정 토큰을 발송시킬 수 있다.
+     */
+    public void sendAccountLocked(User user) {
+        send(
+                user,
+                "[AXpoint] 계정이 잠겼습니다",
+                """
+                %s 님의 계정이 비밀번호 연속 실패 %d회로 잠겼습니다.
+                보안을 위해 시간이 지나도 자동으로 풀리지 않습니다.
+                로그인 화면의 "비밀번호를 잊으셨나요"에서 재설정을 요청하고 새 비밀번호를
+                설정하면 잠금이 함께 풀립니다.
+                본인이 시도한 것이 아니라면, 누군가 회원님의 계정 비밀번호를 추측하고
+                있다는 뜻입니다. 다른 곳에서 같은 비밀번호를 쓰고 있다면 그쪽도 바꾸세요.
+                """
+                        .formatted(user.getName(), User.MAX_LOGIN_ATTEMPTS));
+    }
+
     private void send(User user, String subject, String body) {
         mailSender.send(new MailMessage(user.getEmail(), subject, body));
     }

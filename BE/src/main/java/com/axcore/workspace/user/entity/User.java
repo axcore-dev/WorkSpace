@@ -27,6 +27,14 @@ import java.util.UUID;
         uniqueConstraints = @UniqueConstraint(name = "ux_users_email", columnNames = "email"))
 public class User {
 
+    /**
+     * 비밀번호를 연속으로 이만큼 틀리면 계정이 잠긴다.
+     *
+     * <p>잠금은 시간으로 풀리지 않고 비밀번호 재설정으로만 해제된다. 그래서 정상 사용자가
+     * 오타로 닿기는 어렵고 공격자에게는 충분히 좁은 값이어야 해서 6 으로 둔다.
+     */
+    public static final int MAX_LOGIN_ATTEMPTS = 6;
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
@@ -82,6 +90,20 @@ public class User {
     private boolean internalAdmin;
 
     /** 프로필 화면의 "비밀번호 마지막 변경" 표시에 쓴다. */
+    /**
+     * 연속 비밀번호 실패 횟수. {@link #MAX_LOGIN_ATTEMPTS} 에 닿으면 계정이 잠긴다.
+     *
+     * <p>실패한 순간의 요청은 예외로 끝나 트랜잭션이 되돌아간다. 그래서 이 값을 올리는 일은
+     * 로그인 트랜잭션이 아니라 별도 트랜잭션에서 해야 한다
+     * ({@code LoginAttemptRecorder}). 2단계 코드 시도 횟수와 같은 구조다.
+     */
+    @Column(name = "failed_login_attempts", nullable = false)
+    private int failedLoginAttempts;
+
+    /** 비밀번호 연속 실패로 잠긴 시각. NULL 이면 정상. */
+    @Column(name = "locked_at")
+    private Instant lockedAt;
+
     @Column(name = "password_changed_at")
     private Instant passwordChangedAt;
 
@@ -156,6 +178,46 @@ public class User {
     }
 
     /**
+     * 비밀번호가 틀렸다. 실패 횟수를 올리고, 상한에 닿으면 그 자리에서 잠근다.
+     *
+     * <p>이미 잠긴 계정은 더 올리지 않는다. 잠긴 뒤에도 계속 시도가 들어오면 숫자만 무한히
+     * 커지고, 그 값으로 판단하는 것이 아무것도 없다.
+     *
+     * @return 이번 실패로 잠겼으면 true. 잠금 안내 메일을 보낼지 정하는 데 쓴다
+     */
+    public boolean recordFailedLogin(Instant at) {
+        if (isLocked()) {
+            return false;
+        }
+        this.failedLoginAttempts++;
+        if (this.failedLoginAttempts >= MAX_LOGIN_ATTEMPTS) {
+            this.lockedAt = at;
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * 실패 기록과 잠금을 함께 지운다.
+     *
+     * <p>부르는 곳은 셋이다. 로그인 성공 · 비밀번호 변경 · 비밀번호 재설정. 셋 다 "비밀번호를
+     * 아는 사람" 이거나 "메일함을 여는 사람" 임이 증명된 시점이라 연속 실패 기록을 유지할
+     * 이유가 없다.
+     *
+     * <p>시간으로는 풀리지 않는다. 자동 해제를 두면 잠금이 사실상 지연 장치가 되고, 공격자는
+     * 기다렸다가 다시 시도하면 된다.
+     */
+    public void clearLoginFailures() {
+        this.failedLoginAttempts = 0;
+        this.lockedAt = null;
+    }
+
+    /** 잠긴 계정인가. 비밀번호 로그인만 막고 소셜 로그인은 막지 않는다 — 아래 참고. */
+    public boolean isLocked() {
+        return lockedAt != null;
+    }
+
+    /**
      * 비밀번호 자격증명을 가진 계정인가.
      *
      * <p>false 면 비밀번호 로그인이 불가능하고, 현재 비밀번호를 요구하는 조작(비밀번호 변경,
@@ -208,6 +270,14 @@ public class User {
 
     public Instant getEmailVerifiedAt() {
         return emailVerifiedAt;
+    }
+
+    public int getFailedLoginAttempts() {
+        return failedLoginAttempts;
+    }
+
+    public Instant getLockedAt() {
+        return lockedAt;
     }
 
     public Instant getPasswordChangedAt() {

@@ -89,7 +89,13 @@ public class SecurityConfig {
                                                 "/api/auth/mfa/verify",
                                                 "/api/auth/email/verify",
                                                 "/api/auth/password/reset-request",
-                                                "/api/auth/password/reset")
+                                                "/api/auth/password/reset",
+                                                // invitations/preview — 접속 링크를 연 사람은
+                                                //   아직 가입하지 않았을 수 있다. 무엇에 대한
+                                                //   초대인지 모르는 채로 가입을 요구할 수는 없다.
+                                                //   회사 이름과 대상 주소까지만 돌려준다.
+                                                //   수락(accept)은 로그인이 필요하다.
+                                                "/api/auth/invitations/preview")
                                         .permitAll()
                                         .requestMatchers("/actuator/health/**")
                                         .permitAll()

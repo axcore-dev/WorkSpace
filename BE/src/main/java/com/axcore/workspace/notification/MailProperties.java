@@ -39,6 +39,16 @@ public record MailProperties(
     }
 
     /** 설정값 끝에 슬래시가 붙어 있으면 링크에 {@code //} 가 생긴다. */
+    /**
+     * 워크스페이스 접속 링크.
+     *
+     * <p>토큰이 URL 에 실리는 것은 이메일 확인·비밀번호 재설정과 같다. 화면이 여기서 토큰을
+     * 꺼내 본문으로 보내는 구조라, 서버로 가는 요청에는 토큰이 URL 에 남지 않는다.
+     */
+    public String workspaceInviteLink(String token) {
+        return "%s/join-workspace?token=%s".formatted(trimmedBaseUrl(), token);
+    }
+
     private String trimmedBaseUrl() {
         return baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
     }

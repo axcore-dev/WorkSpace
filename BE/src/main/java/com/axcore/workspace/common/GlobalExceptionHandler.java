@@ -12,6 +12,7 @@ import com.axcore.workspace.user.service.SamePasswordException;
 import com.axcore.workspace.user.service.SessionNotFoundException;
 import com.axcore.workspace.workspace.admin.exception.DuplicateBizNumberException;
 import com.axcore.workspace.workspace.admin.exception.InternalAdminRequiredException;
+import com.axcore.workspace.workspace.admin.exception.InvitationNotFoundException;
 import com.axcore.workspace.workspace.admin.exception.WorkspaceNotFoundException;
 import com.axcore.workspace.workspace.admin.exception.WorkspaceStateException;
 import com.axcore.workspace.workspace.provisioning.TenantProvisioningException;
@@ -166,6 +167,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleWorkspaceNotFound(WorkspaceNotFoundException e) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ErrorResponse.of("WORKSPACE_NOT_FOUND", e.getMessage()));
+    }
+
+    @ExceptionHandler(InvitationNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleInvitationNotFound(InvitationNotFoundException e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ErrorResponse.of("INVITATION_NOT_FOUND", e.getMessage()));
     }
 
     /**

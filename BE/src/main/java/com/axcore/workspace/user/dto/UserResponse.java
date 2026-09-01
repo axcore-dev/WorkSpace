@@ -13,6 +13,10 @@ import java.util.UUID;
  *
  * @param emailVerified 화면이 "이메일 확인이 필요합니다" 배너를 띄울 근거. 확인 시각 자체는
  *                      쓸 곳이 없어 불리언으로만 내보낸다.
+ * @param internalAdmin 권한 판정에 쓰라고 두는 값이 아니다. 인가는 서버가 요청 시점의 DB 로
+ *                      다시 본다. 화면이 로그인 직후 운영자를 콘솔로 보낼지 정하는 데만 쓴다.
+ *                      access 토큰에 싣지 않는 것과 이유가 다르다 — 토큰은 회수가 늦어서
+ *                      안 싣고, 이 응답은 매 요청 DB 를 보므로 담아도 늦지 않는다.
  */
 public record UserResponse(
         UUID id,
@@ -20,6 +24,7 @@ public record UserResponse(
         String name,
         String avatarUrl,
         boolean emailVerified,
+        boolean internalAdmin,
         Instant passwordChangedAt,
         Instant lastLoginAt,
         Instant createdAt) {
@@ -31,6 +36,7 @@ public record UserResponse(
                 user.getName(),
                 user.getAvatarUrl(),
                 user.isEmailVerified(),
+                user.isInternalAdmin(),
                 user.getPasswordChangedAt(),
                 user.getLastLoginAt(),
                 user.getCreatedAt());
