@@ -18,19 +18,19 @@ import { ADMIN_WORKSPACES, WS_STATUS_LABEL, type AdminWorkspace, type WsStatus }
  * 알 수 있게 배치로 나눈다 — 「읽기 전용」 라벨이나 아이콘을 붙이지 않는다
  * (문구를 늘리지 않는다: 수정요청v9 ⑤ 5-4).
  */
-const TABS = ["개요", "사용량 · 요금", "멤버", "외부 시스템 연동"] as const;
+const TABS = ["개요", "사용량 · 요금", "멤버", "온톨로지"] as const;
 type Tab = (typeof TABS)[number];
 
 /** 이 인덱스부터 읽기 전용 — 탭 띠에 구분을 준다 */
 const READONLY_FROM = 2;
 
 export default function AdminWorkspaceDetailPage() {
-  const slug = useParams().slug as string;
+  const schema = useParams().schema as string;
   /**
    * 수정 결과는 이 화면 안에서만 유지된다 — 저장할 BE가 없다.
    * 새로고침하면 `data/admin.ts`의 원래 값으로 돌아간다.
    */
-  const [ws, setWs] = useState(() => ADMIN_WORKSPACES.find((w) => w.slug === slug));
+  const [ws, setWs] = useState(() => ADMIN_WORKSPACES.find((w) => w.schemaName === schema));
 
   function save(patch: Partial<AdminWorkspace>) {
     setWs((prev) => (prev ? { ...prev, ...patch } : prev));
@@ -45,7 +45,7 @@ export default function AdminWorkspaceDetailPage() {
     return (
       <div className="mx-auto max-w-2xl py-16 text-center">
         <p className="text-sm font-semibold text-slate-900">워크스페이스를 찾을 수 없어요</p>
-        <p className="mt-1 text-sm text-slate-500">주소의 워크스페이스 이름을 확인해 주세요.</p>
+        <p className="mt-1 text-sm text-slate-500">주소의 스키마 이름을 확인해 주세요.</p>
         <Button variant="secondary" className="mt-5" href="/admin/workspaces">
           목록으로
         </Button>
@@ -64,23 +64,17 @@ export default function AdminWorkspaceDetailPage() {
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="truncate text-xl font-bold tracking-tight text-slate-900">
-            {ws.company} · <span className="font-mono text-lg text-slate-600">{ws.slug}</span>
-          </h1>
-          <p className="mt-0.5 text-sm text-slate-500">
-            사업자등록번호 <span className="tabular-nums">{ws.bizNumber}</span> · 생성 {ws.createdAt} ·
-            담당 운영자 {ws.operator}
-          </p>
+          <h1 className="truncate text-xl font-bold tracking-tight text-slate-900">{ws.company}</h1>
         </div>
         <div className="flex shrink-0 items-center gap-3">
           <Badge tone={STATUS_TONE[current]}>{WS_STATUS_LABEL[current]}</Badge>
           {suspended ? (
-            <Button variant="secondary" onClick={() => setStatus("live")}>
-              재개
+            <Button variant="secondary" onClick={() => setStatus("active")}>
+              활성화
             </Button>
           ) : (
             <Button variant="secondary" onClick={() => setConfirmSuspend(true)}>
-              중지
+              비활성화
             </Button>
           )}
         </div>
@@ -112,7 +106,7 @@ export default function AdminWorkspaceDetailPage() {
       <div className="mt-5">
         {tab === "개요" && <OverviewTab ws={ws} onSave={save} />}
         {tab === "멤버" && <MembersTab ws={ws} />}
-        {tab === "외부 시스템 연동" && <IntegrationsTab ws={ws} />}
+        {tab === "온톨로지" && <IntegrationsTab />}
         {tab === "사용량 · 요금" && <UsageTab ws={ws} onSave={save} />}
       </div>
 
@@ -120,11 +114,11 @@ export default function AdminWorkspaceDetailPage() {
         open={confirmSuspend}
         onClose={() => setConfirmSuspend(false)}
         size="sm"
-        title="워크스페이스를 중지할까요?"
+        title="워크스페이스를 비활성화할까요?"
         footer={
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setConfirmSuspend(false)}>
-              취소
+              닫기
             </Button>
             <Button
               variant="danger"
@@ -133,7 +127,7 @@ export default function AdminWorkspaceDetailPage() {
                 setConfirmSuspend(false);
               }}
             >
-              중지
+              비활성화
             </Button>
           </div>
         }
@@ -147,8 +141,8 @@ export default function AdminWorkspaceDetailPage() {
             </span>
           </p>
           <p>
-            데이터와 연동 설정은 그대로 남아 있고, 언제든 재개할 수 있어요. 외부 시스템 동기화는
-            중지 동안 멈춥니다.
+            데이터와 연동 설정은 그대로 남아 있고, 언제든 다시 활성화할 수 있어요. 외부 시스템
+            동기화는 비활성화 동안 멈춥니다.
           </p>
         </div>
       </Modal>

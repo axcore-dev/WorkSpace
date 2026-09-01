@@ -6,17 +6,24 @@
  * 사업자등록번호는 국세청 체크섬을 통과하는 값으로 맞춰 뒀다(조회 버튼 검증을 실제로 통과해야 하므로).
  */
 
-export type WsStatus = "live" | "invited" | "suspended";
+export type WsStatus = "active" | "pending" | "suspended";
 export type IntegrationHealth = "ok" | "error" | "none";
 export type SystemState = "ok" | "authFail" | "idle";
 export type MappingState = "mapped" | "review" | "unmapped";
 export type BillingState = "paid" | "due" | "overdue";
 export type MemberState = "active" | "pending";
 
+/**
+ * 상태 3종 — 값과 라벨을 1:1로 맞춘다.
+ *
+ * BE(`shared.workspaces.status`)는 `provisioning/active/suspended/terminated` 4종이지만
+ * **FE가 기준이고 BE가 여기에 맞춘다**(수정요청v10 ⑦).
+ * `terminated`는 FE에 두지 않는다 — 삭제 없이 비활성화만 있다.
+ */
 export const WS_STATUS_LABEL: Record<WsStatus, string> = {
-  live: "운영 중",
-  invited: "초대 메일 발송함",
-  suspended: "중지",
+  active: "활성화",
+  pending: "대기중",
+  suspended: "비활성화",
 };
 
 export const SYSTEM_STATE_LABEL: Record<SystemState, string> = {
@@ -39,15 +46,6 @@ export const BILLING_STATE_LABEL: Record<BillingState, string> = {
 
 export const PLANS = ["Enterprise", "Growth", "Starter"] as const;
 export type Plan = (typeof PLANS)[number];
-
-/** 본사 외 사업장 */
-export type Site = {
-  name: string;
-  bizNumber: string;
-  address: string;
-  bizType: string;
-  bizItem: string;
-};
 
 export type ExternalSystem = {
   name: string;
@@ -108,8 +106,11 @@ export type Usage = {
 };
 
 export type AdminWorkspace = {
-  /** 워크스페이스 이름 = URL 식별자. 만든 뒤 바꿀 수 없다 */
-  slug: string;
+  /**
+   * 테넌트 스키마 이름 = URL 식별자. 생성 후 BE가 자동 부여하며 바꿀 수 없다.
+   * 규칙은 `ax_` + PK를 5자리로 채운 값 (BE `V2__workspaces.sql`).
+   */
+  schemaName: string;
   company: string;
   bizNumber: string;
   corpNumber: string;
@@ -129,7 +130,6 @@ export type AdminWorkspace = {
   taxEmail: string;
   memo: string;
   contacts: Contacts;
-  sites: Site[];
   systems: ExternalSystem[];
   mappings: Mapping[];
   members: Member[];
@@ -139,7 +139,7 @@ export type AdminWorkspace = {
 
 export const ADMIN_WORKSPACES: AdminWorkspace[] = [
   {
-    slug: "hanbit-prod",
+    schemaName: "ax_00001",
     company: "한빛제철 주식회사",
     bizNumber: "123-45-67891",
     corpNumber: "110111-1234567",
@@ -147,7 +147,7 @@ export const ADMIN_WORKSPACES: AdminWorkspace[] = [
     bizItem: "1차 철강 제조",
     address: "경북 포항시 남구 철강로 12",
     website: "https://hanbit-steel.co.kr",
-    status: "live",
+    status: "active",
     plan: "Enterprise",
     createdAt: "2026-03-14",
     operator: "김운영",
@@ -161,22 +161,6 @@ export const ADMIN_WORKSPACES: AdminWorkspace[] = [
       contact: { name: "김구매", email: "kim@hanbit.co.kr", phone: "054-000-0000" },
       cc: ["it@hanbit.co.kr"],
     },
-    sites: [
-      {
-        name: "포항 2공장",
-        bizNumber: "123-45-67891",
-        address: "경북 포항시 남구 공단로 55",
-        bizType: "제조업",
-        bizItem: "철강 압연",
-      },
-      {
-        name: "서울 사무소",
-        bizNumber: "123-45-67891",
-        address: "서울 강남구 테헤란로 200",
-        bizType: "서비스업",
-        bizItem: "경영 관리",
-      },
-    ],
     systems: [
       { name: "SAP ECC", kind: "ERP", site: "본사", state: "ok", lastSync: "10분 전" },
       { name: "포항 2공장 MES", kind: "MES", site: "포항 2공장", state: "authFail", lastSync: "3일 전" },
@@ -231,7 +215,7 @@ export const ADMIN_WORKSPACES: AdminWorkspace[] = [
     ],
   },
   {
-    slug: "daesung-prod",
+    schemaName: "ax_00002",
     company: "대성화학 주식회사",
     bizNumber: "214-88-01232",
     corpNumber: "110111-2345678",
@@ -239,7 +223,7 @@ export const ADMIN_WORKSPACES: AdminWorkspace[] = [
     bizItem: "기초 화학물질 제조",
     address: "울산 남구 여천로 88",
     website: "https://daesung-chem.co.kr",
-    status: "live",
+    status: "active",
     plan: "Growth",
     createdAt: "2026-05-02",
     operator: "박운영",
@@ -253,7 +237,6 @@ export const ADMIN_WORKSPACES: AdminWorkspace[] = [
       contact: { name: "정관리", email: "jung@daesung.co.kr", phone: "052-000-0000" },
       cc: [],
     },
-    sites: [],
     systems: [
       { name: "Oracle EBS", kind: "ERP", site: "본사", state: "authFail", lastSync: "5일 전" },
     ],
@@ -283,7 +266,7 @@ export const ADMIN_WORKSPACES: AdminWorkspace[] = [
     invoices: [{ period: "2026-07", plan: "Growth", usage: "88 GB", amount: 1200000, state: "paid" }],
   },
   {
-    slug: "seojin-prod",
+    schemaName: "ax_00003",
     company: "서진모빌리티 주식회사",
     bizNumber: "305-81-55511",
     corpNumber: "110111-3456789",
@@ -291,7 +274,7 @@ export const ADMIN_WORKSPACES: AdminWorkspace[] = [
     bizItem: "자동차 부품 제조",
     address: "경기 화성시 동탄산단로 7",
     website: "",
-    status: "invited",
+    status: "pending",
     plan: "Growth",
     createdAt: "2026-08-25",
     operator: "김운영",
@@ -305,7 +288,6 @@ export const ADMIN_WORKSPACES: AdminWorkspace[] = [
       contact: { name: "오총무", email: "oh@seojin.co.kr", phone: "031-000-0000" },
       cc: ["ceo@seojin.co.kr"],
     },
-    sites: [],
     systems: [],
     mappings: [],
     members: [],
@@ -320,7 +302,7 @@ export const ADMIN_WORKSPACES: AdminWorkspace[] = [
     invoices: [],
   },
   {
-    slug: "kumho-prod",
+    schemaName: "ax_00004",
     company: "금호식품 주식회사",
     bizNumber: "412-86-77123",
     corpNumber: "110111-4567890",
@@ -342,7 +324,6 @@ export const ADMIN_WORKSPACES: AdminWorkspace[] = [
       contact: { name: "강대리", email: "kang@kumho-food.co.kr", phone: "061-000-0000" },
       cc: [],
     },
-    sites: [],
     systems: [{ name: "더존 ERP", kind: "ERP", site: "본사", state: "idle", lastSync: "2개월 전" }],
     mappings: [
       { system: "더존 ERP", source: "PROD_CD", concept: "품목 코드", confidence: 95, state: "mapped" },
@@ -368,7 +349,7 @@ export const ADMIN_WORKSPACES: AdminWorkspace[] = [
     invoices: [{ period: "2026-07", plan: "Growth", usage: "12 GB", amount: 1200000, state: "overdue" }],
   },
   {
-    slug: "namyang-prod",
+    schemaName: "ax_00005",
     company: "남양정밀 주식회사",
     bizNumber: "501-81-12347",
     corpNumber: "110111-5678901",
@@ -376,7 +357,7 @@ export const ADMIN_WORKSPACES: AdminWorkspace[] = [
     bizItem: "금속 가공기계 제조",
     address: "경남 창원시 성산구 공단로 41",
     website: "https://ny-precision.co.kr",
-    status: "live",
+    status: "active",
     plan: "Starter",
     createdAt: "2026-07-19",
     operator: "김운영",
@@ -390,7 +371,6 @@ export const ADMIN_WORKSPACES: AdminWorkspace[] = [
       contact: { name: "윤사원", email: "yoon@ny-precision.co.kr", phone: "055-000-0000" },
       cc: [],
     },
-    sites: [],
     systems: [],
     mappings: [],
     members: [
@@ -414,7 +394,7 @@ export const ADMIN_WORKSPACES: AdminWorkspace[] = [
     invoices: [{ period: "2026-07", plan: "Starter", usage: "14 GB", amount: 390000, state: "paid" }],
   },
   {
-    slug: "taeyang-prod",
+    schemaName: "ax_00006",
     company: "태양전자 주식회사",
     bizNumber: "606-86-23450",
     corpNumber: "110111-6789012",
@@ -422,7 +402,7 @@ export const ADMIN_WORKSPACES: AdminWorkspace[] = [
     bizItem: "전자부품 제조",
     address: "충북 청주시 흥덕구 산단로 22",
     website: "https://ty-electronics.co.kr",
-    status: "live",
+    status: "active",
     plan: "Enterprise",
     createdAt: "2026-01-27",
     operator: "박운영",
@@ -436,15 +416,6 @@ export const ADMIN_WORKSPACES: AdminWorkspace[] = [
       contact: { name: "노팀장", email: "noh@ty-electronics.co.kr", phone: "043-000-0000" },
       cc: ["it@ty-electronics.co.kr", "tax@ty-electronics.co.kr"],
     },
-    sites: [
-      {
-        name: "청주 1공장",
-        bizNumber: "606-86-23450",
-        address: "충북 청주시 흥덕구 산단로 22",
-        bizType: "제조업",
-        bizItem: "전자부품 제조",
-      },
-    ],
     systems: [
       { name: "SAP S/4HANA", kind: "ERP", site: "본사", state: "ok", lastSync: "8분 전" },
       { name: "청주 MES", kind: "MES", site: "청주 1공장", state: "ok", lastSync: "12분 전" },
@@ -489,7 +460,7 @@ export const ADMIN_WORKSPACES: AdminWorkspace[] = [
     ],
   },
   {
-    slug: "sinheung-prod",
+    schemaName: "ax_00007",
     company: "신흥포장 주식회사",
     bizNumber: "718-81-34560",
     corpNumber: "110111-7890123",
@@ -497,7 +468,7 @@ export const ADMIN_WORKSPACES: AdminWorkspace[] = [
     bizItem: "골판지 상자 제조",
     address: "인천 서구 검단로 9",
     website: "",
-    status: "invited",
+    status: "pending",
     plan: "Starter",
     createdAt: "2026-08-27",
     operator: "김운영",
@@ -511,7 +482,6 @@ export const ADMIN_WORKSPACES: AdminWorkspace[] = [
       contact: { name: "임과장", email: "lim@sinheung.co.kr", phone: "032-000-0000" },
       cc: [],
     },
-    sites: [],
     systems: [],
     mappings: [],
     members: [],
@@ -552,9 +522,20 @@ export function formatBizNumber(input: string) {
   return `${d.slice(0, 3)}-${d.slice(3, 5)}-${d.slice(5)}`;
 }
 
-/** 워크스페이스 이름 규칙 — 영문 소문자·숫자·하이픈. 만든 뒤 바꿀 수 없다 */
-export function isValidSlug(v: string) {
-  return /^[a-z0-9]([a-z0-9-]{1,38})[a-z0-9]$/.test(v);
+/**
+ * 테넌트 스키마 이름 규칙 — BE `ck_workspaces_schema_name` 제약과 같은 식이다.
+ * 소문자 `ax_` + 5자리 이상 숫자. 대문자로 쓰지 않는다 — 저장값·URL과 화면이 갈린다.
+ */
+export const SCHEMA_NAME_RE = /^ax_[0-9]{5,}$/;
+
+/**
+ * 다음에 부여될 스키마 이름 — **더미 단계의 후내다.**
+ *
+ * 실제로는 BE가 INSERT 뒤 PK를 채번하고 나서야 정한다(`ax_` + lpad(id,5,'0')).
+ * 그래서 생성 폼에서 미리 보여줄 수 없고, 만든 **뒤에** 결과로만 보여준다.
+ */
+export function nextSchemaName(list: AdminWorkspace[] = ADMIN_WORKSPACES) {
+  return `ax_${String(list.length + 1).padStart(5, "0")}`;
 }
 
 export const KRW = new Intl.NumberFormat("ko-KR");
@@ -571,74 +552,10 @@ export function estimateAmount(ws: AdminWorkspace) {
   return base[ws.plan] + ws.usage.storageGb * 2000;
 }
 
-/* ────────────────────── 지금 손볼 것 (대시보드) ────────────────────── */
-
-/**
- * 운영자가 손대야 하는 신호. 우선순위 순서다.
- *
- * - `integration` 고객이 지금 피해를 본다 (데이터가 멈춰 있다)
- * - `link`        온보딩이 멈춰 있다
- * - `overdue`     돈
- * - `limit`       상위 요금제를 안내할 시점 (기회지 문제가 아니다)
- */
-export type TaskKind = "integration" | "link" | "overdue" | "limit";
-
-export type Task = {
-  kind: TaskKind;
-  slug: string;
-  company: string;
-  /** 무엇이 문제인지 한 줄 */
-  detail: string;
-  /** 언제부터인지 — 날짜 또는 상대 표현 */
-  since: string;
-  /**
-   * 급한 정도 — 클수록 위에 온다.
-   *
-   * **같은 `kind` 안에서만 비교 가능하다.** 척도가 신호마다 다르다:
-   * 연동=실패 시스템 수 · 링크=음수 발송일 · 미수금=원 · 한도=퍼센트.
-   * 전역으로 정렬하면 금액이 퍼센트를 항상 이긴다 — 그렇게 쓰지 말 것.
-   */
-  severity: number;
-};
-
-export const TASK_LABEL: Record<TaskKind, string> = {
-  integration: "연동 실패",
-  link: "접속 링크 미개봉",
-  overdue: "미수금",
-  limit: "사용량 한도 임박",
-};
-
-/** 해당 신호가 무엇을 하라는 뜻인지 — 화면에 그대로 띄운다 */
-export const TASK_ACTION: Record<TaskKind, string> = {
-  integration: "고객사에 접속 정보 재발급을 요청해 주세요.",
-  link: "담당자에게 링크를 다시 보내거나 유선으로 확인해 주세요.",
-  overdue: "청구 담당자에게 입금을 확인해 주세요.",
-  limit: "상위 요금제를 안내할 시점이에요.",
-};
-
-/** 사용량이 이 비율을 넘으면 한도 임박으로 본다 */
-export const LIMIT_WARN_PCT = 75;
-
-/** 저장 용량 사용률(%) */
-export function storagePct(ws: AdminWorkspace) {
-  if (ws.usage.storageLimitGb === 0) return 0;
-  return Math.min(100, Math.round((ws.usage.storageGb / ws.usage.storageLimitGb) * 100));
-}
-
-/**
- * 저장 용량 한도에 임박했나 — 대시보드 신호와 요금 화면 요약이 같은 판정을 쓴다.
- *
- * 중지된 워크스페이스는 제외한다. 쓰지 않는 곳의 한도는 손볼 일이 아니다.
- * 이 판정이 두 곳에 흩어져 있으면 같은 라벨(「한도 임박」) 아래 다른 숫자가 나온다.
- */
-export function isNearLimit(ws: AdminWorkspace) {
-  return ws.status !== "suspended" && storagePct(ws) >= LIMIT_WARN_PCT;
-}
-
 /**
  * 청구 상태 — 미수금이 있으면 그게 상태다. 없으면 청구 예정.
  *
- * 화면 세 곳(요금 목록·상세 사용량 탭·대시보드 미수금 신호)이 같은 판정을 쓰므로
+ * 화면 두 곳(요금 목록·상세 청구 내역)이 같은 판정을 쓰므로
  * 여기 한 곳에만 둔다. 흩어져 있으면 한쪽만 고쳐서 같은 고객사에 대해
  * 두 화면이 다른 말을 하게 된다.
  */
@@ -653,79 +570,6 @@ export const BILLING_TONE: Record<BillingState, "green" | "slate" | "red"> = {
   due: "slate",
   overdue: "red",
 };
-
-/**
- * 처리 대기 목록. 한 워크스페이스가 여러 신호에 걸릴 수 있다.
- *
- * ponytail: "며칠 지났는지"는 계산하지 않는다 — `new Date()`를 렌더에서 쓰면 프리렌더와
- * 하이드레이션 결과가 갈린다. 발송일을 그대로 보여주고 판단은 사람이 한다.
- * 서버가 기준 시각을 내려주면 그때 경과일을 붙이는 게 맞다.
- */
-export function pendingTasks(list: AdminWorkspace[] = ADMIN_WORKSPACES): Task[] {
-  const tasks: Task[] = [];
-
-  for (const ws of list) {
-    const authFailCount = ws.systems.filter((s) => s.state === "authFail").length;
-
-    for (const s of ws.systems) {
-      if (s.state === "authFail") {
-        tasks.push({
-          kind: "integration",
-          slug: ws.slug,
-          company: ws.company,
-          detail: `${s.name} 인증 실패`,
-          since: `마지막 동기화 ${s.lastSync}`,
-          // 여러 시스템이 동시에 끊긴 곳이 더 급하다.
-          // lastSync 는 "3일 전" 같은 사람용 문자열이라 정렬에 쓸 수 없다.
-          severity: authFailCount,
-        });
-      }
-    }
-
-    if (ws.status === "invited" && !ws.linkOpened) {
-      tasks.push({
-        kind: "link",
-        slug: ws.slug,
-        company: ws.company,
-        detail: `${ws.contacts.link.name}(${ws.contacts.link.email})`,
-        since: `${ws.linkSentAt} 발송`,
-        // linkSentAt 은 "2026-03-14" 형태다. 하이픈을 빼면 20260314 이 되어
-        // 크기 비교가 날짜 비교와 같다. 오래된 것이 급하므로 부호를 뒤집는다.
-        // 저장된 문자열을 파싱하는 것이라 `new Date()` 와 달리 하이드레이션 문제가 없다.
-        severity: -Number(ws.linkSentAt.replace(/-/g, "")),
-      });
-    }
-
-    const overdue = ws.invoices.find((i) => i.state === "overdue");
-    if (overdue) {
-      tasks.push({
-        kind: "overdue",
-        slug: ws.slug,
-        company: ws.company,
-        detail: `${overdue.period} ${KRW.format(overdue.amount)}원`,
-        since: `${overdue.plan} 요금제`,
-        severity: overdue.amount,
-      });
-    }
-
-    const pct = storagePct(ws);
-    if (isNearLimit(ws)) {
-      tasks.push({
-        kind: "limit",
-        slug: ws.slug,
-        company: ws.company,
-        detail: `저장 용량 ${pct}% (${ws.usage.storageGb} / ${ws.usage.storageLimitGb} GB)`,
-        since: `${ws.plan} 요금제`,
-        severity: pct,
-      });
-    }
-  }
-
-  const order: TaskKind[] = ["integration", "link", "overdue", "limit"];
-  return tasks.sort(
-    (a, b) => order.indexOf(a.kind) - order.indexOf(b.kind) || b.severity - a.severity,
-  );
-}
 
 /* ────────────────────── 생성 폼 임시 저장 ────────────────────── */
 
@@ -749,7 +593,6 @@ export type Draft = {
   address: string;
   addressDetail: string;
   website: string;
-  sites: Site[];
   linkName: string;
   linkEmail: string;
   sameContact: boolean;
@@ -757,7 +600,6 @@ export type Draft = {
   contactEmail: string;
   contactPhone: string;
   cc: string[];
-  slug: string;
   plan: Plan;
   memo: string;
   /** 저장 시각 — 화면에 "언제 저장했는지" 보여준다 */
@@ -780,7 +622,7 @@ export function readDraft(): Draft | null {
     if (!raw) return null;
     const d = JSON.parse(raw) as Draft;
     // 형태가 바뀐 옛 데이터가 남아 있을 수 있다 — 최소한만 확인한다
-    return typeof d?.slug === "string" && Array.isArray(d?.sites) ? d : null;
+    return typeof d?.bizNumber === "string" && typeof d?.company === "string" ? d : null;
   } catch {
     return null;
   }
@@ -793,6 +635,66 @@ export function clearDraft() {
     // 지우지 못해도 화면 흐름은 계속된다
   }
 }
+
+/* ────────────────────────── 감사 로그 (목업) ────────────────────────── */
+
+/**
+ * **이것은 감사 증적이 아니다.** 화면 형태를 보여주기 위한 더미다.
+ *
+ * 감사 로그의 가치는 믿을 수 있다는 것 하나에서 나오는데, 지금 콘솔은 접근 판정이
+ * 브라우저에 있고(`INTERNAL_ADMIN_EMAILS`), 기록 주체가 클라이언트이며, 아무것도 저장하지
+ * 않는다. 서버 기록과 역할 검사가 붙기 전까지 화면에 경고 배너를 고정한다.
+ */
+export type AuditAction = "create" | "update" | "deactivate" | "activate";
+
+export const AUDIT_ACTION_LABEL: Record<AuditAction, string> = {
+  create: "생성",
+  update: "수정",
+  deactivate: "비활성화",
+  activate: "활성화",
+};
+
+export type AuditEntry = {
+  /** "2026-09-01 14:20" — 저장된 문자열이다. 렌더에서 `new Date()`로 만들지 않는다 */
+  at: string;
+  operator: string;
+  action: AuditAction;
+  /** 워크스페이스 스키마 이름 — 상세 링크에 쓴다 */
+  targetSchema: string;
+  targetName: string;
+  /** 무엇이 어떻게 바뀌었는지 한 줄. 없으면 "—" */
+  detail: string;
+};
+
+/**
+ * 시각 내림차순으로 저장한다. `at`이 "YYYY-MM-DD HH:MM" 고정 폭이라
+ * 문자열 비교가 곳 시각 비교다 — 화면에서도 `localeCompare`로 정렬한다.
+ *
+ * 상태 변화는 더미의 현재 상태와 앞뒤가 맞다:
+ * ax_00004 금호식품은 08-21 활성화 뒤 08-31 비활성화(현재 suspended),
+ * ax_00005 남양정밀은 08-26 비활성화 뒤 08-28 활성화(현재 active).
+ */
+export const AUDIT_LOG: AuditEntry[] = [
+  { at: "2026-09-01 14:20", operator: "김운영", action: "update", targetSchema: "ax_00001", targetName: "한빛제철 주식회사", detail: "요금제 Growth → Enterprise" },
+  { at: "2026-09-01 11:05", operator: "박운영", action: "update", targetSchema: "ax_00006", targetName: "태양전자 주식회사", detail: "세금계산서 수신 주소 변경" },
+  { at: "2026-09-01 09:40", operator: "이운영", action: "update", targetSchema: "ax_00005", targetName: "남양정밀 주식회사", detail: "운영자 메모 수정" },
+  { at: "2026-08-31 17:40", operator: "김운영", action: "deactivate", targetSchema: "ax_00004", targetName: "금호식품 주식회사", detail: "—" },
+  { at: "2026-08-31 16:12", operator: "박운영", action: "update", targetSchema: "ax_00002", targetName: "대성화학 주식회사", detail: "담당자 이메일 변경" },
+  { at: "2026-08-31 10:05", operator: "이운영", action: "update", targetSchema: "ax_00003", targetName: "서진모빌리티 주식회사", detail: "본사 주소 수정" },
+  { at: "2026-08-29 15:33", operator: "김운영", action: "update", targetSchema: "ax_00001", targetName: "한빛제철 주식회사", detail: "운영자 메모 수정" },
+  { at: "2026-08-28 13:47", operator: "박운영", action: "activate", targetSchema: "ax_00005", targetName: "남양정밀 주식회사", detail: "—" },
+  { at: "2026-08-28 11:20", operator: "이운영", action: "update", targetSchema: "ax_00007", targetName: "신흥포장 주식회사", detail: "세금계산서 수신 추가" },
+  { at: "2026-08-27 16:58", operator: "김운영", action: "create", targetSchema: "ax_00007", targetName: "신흥포장 주식회사", detail: "—" },
+  { at: "2026-08-27 09:15", operator: "박운영", action: "update", targetSchema: "ax_00006", targetName: "태양전자 주식회사", detail: "참조 수신 1명 추가" },
+  { at: "2026-08-26 14:02", operator: "이운영", action: "deactivate", targetSchema: "ax_00005", targetName: "남양정밀 주식회사", detail: "—" },
+  { at: "2026-08-25 17:22", operator: "김운영", action: "create", targetSchema: "ax_00003", targetName: "서진모빌리티 주식회사", detail: "—" },
+  { at: "2026-08-25 10:41", operator: "박운영", action: "update", targetSchema: "ax_00002", targetName: "대성화학 주식회사", detail: "요금제 Starter → Growth" },
+  { at: "2026-08-24 15:09", operator: "이운영", action: "update", targetSchema: "ax_00004", targetName: "금호식품 주식회사", detail: "운영자 메모 수정" },
+  { at: "2026-08-22 11:37", operator: "김운영", action: "update", targetSchema: "ax_00001", targetName: "한빛제철 주식회사", detail: "법인등록번호 수정" },
+  { at: "2026-08-21 16:44", operator: "박운영", action: "activate", targetSchema: "ax_00004", targetName: "금호식품 주식회사", detail: "—" },
+  { at: "2026-08-20 09:58", operator: "이운영", action: "update", targetSchema: "ax_00006", targetName: "태양전자 주식회사", detail: "담당자 연락처 수정" },
+];
+
 
 /* ────────────────────────── CSV 내려받기 ────────────────────────── */
 

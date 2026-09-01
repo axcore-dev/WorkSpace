@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { AdminTable, TD, TD_KEY, TR } from "@/components/admin/admin-table";
+import { useRouter } from "next/navigation";
+import { AdminTable, TD, TD_KEY, rowClick } from "@/components/admin/admin-table";
 import { Breadcrumb } from "@/components/admin/breadcrumb";
 import { IconPlus, IconSearch } from "@/components/icons";
 import { Badge, Button, Card, FIELD, FIELD_INLINE } from "@/components/ui";
@@ -14,11 +15,11 @@ import {
   type WsStatus,
 } from "@/data/admin";
 
-const PAGE_SIZE = 5;
+const PAGE_SIZE = 20;
 
 const STATUS_TONE: Record<WsStatus, "green" | "slate" | "amber"> = {
-  live: "green",
-  invited: "slate",
+  active: "green",
+  pending: "slate",
   suspended: "amber",
 };
 
@@ -26,16 +27,20 @@ type StatusFilter = WsStatus | "all";
 type HealthFilter = IntegrationHealth | "all";
 
 export default function AdminWorkspaceListPage() {
+  const router = useRouter();
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<StatusFilter>("all");
   const [health, setHealth] = useState<HealthFilter>("all");
   const [page, setPage] = useState(1);
 
+  /**
+   * 세 칸이 전체를 분할하지 않는다 — `pending`은 「전체」에만 들어간다.
+   * 아직 활성도 비활성도 아니기 때문이다. 상태 필터에는 3종이 모두 남는다.
+   */
   const counts = useMemo(
     () => ({
       total: ADMIN_WORKSPACES.length,
-      live: ADMIN_WORKSPACES.filter((w) => w.status === "live").length,
-      error: ADMIN_WORKSPACES.filter((w) => integrationHealth(w) === "error").length,
+      active: ADMIN_WORKSPACES.filter((w) => w.status === "active").length,
       suspended: ADMIN_WORKSPACES.filter((w) => w.status === "suspended").length,
     }),
     [],
@@ -51,7 +56,7 @@ export default function AdminWorkspaceListPage() {
       // 사업자번호는 하이픈을 빼고 비교한다 — 운영자가 붙여넣는 형태가 일정하지 않다.
       const hit =
         w.company.toLowerCase().includes(needle) ||
-        w.slug.includes(needle) ||
+        w.schemaName.includes(needle) ||
         (digits.length > 0 && w.bizNumber.replace(/\D/g, "").includes(digits));
       return hit;
     });
@@ -73,24 +78,18 @@ export default function AdminWorkspaceListPage() {
     <div>
       <Breadcrumb items={[{ label: "워크스페이스" }]} />
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight text-slate-900">워크스페이스</h1>
-          <p className="mt-0.5 text-sm text-slate-500">
-            고객사 1곳당 워크스페이스 1개. 생성과 수정은 운영자만 할 수 있어요.
-          </p>
-        </div>
+        <h1 className="text-xl font-bold tracking-tight text-slate-900">워크스페이스</h1>
         <Button href="/admin/new">
           <IconPlus size={15} />
           워크스페이스 만들기
         </Button>
       </div>
 
-      <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="mt-5 grid grid-cols-3 gap-3">
         {[
           { label: "전체", value: counts.total },
-          { label: "운영 중", value: counts.live },
-          { label: "연동 오류", value: counts.error },
-          { label: "중지", value: counts.suspended },
+          { label: WS_STATUS_LABEL.active, value: counts.active },
+          { label: WS_STATUS_LABEL.suspended, value: counts.suspended },
         ].map((s) => (
           <Card key={s.label}>
             <p className="text-sm text-slate-500">{s.label}</p>
@@ -109,7 +108,7 @@ export default function AdminWorkspaceListPage() {
             <input
               value={q}
               onChange={(e) => reset(setQ)(e.target.value)}
-              placeholder="회사명 · 사업자등록번호 · 워크스페이스 이름"
+              placeholder="회사명 · 사업자등록번호 · 스키마 이름"
               aria-label="워크스페이스 검색"
               className={`${FIELD} pl-9`}
             />
@@ -130,10 +129,10 @@ export default function AdminWorkspaceListPage() {
           <select
             value={health}
             onChange={(e) => reset(setHealth)(e.target.value as HealthFilter)}
-            aria-label="연동 필터"
+            aria-label="온톨로지 필터"
             className={`${FIELD_INLINE} cursor-pointer`}
           >
-            <option value="all">연동: 전체</option>
+            <option value="all">온톨로지: 전체</option>
             <option value="ok">정상</option>
             <option value="error">오류</option>
             <option value="none">미연결</option>
@@ -143,56 +142,37 @@ export default function AdminWorkspaceListPage() {
 
         <div className="mt-4">
           <AdminTable
-            columns={[
-              "회사명",
-              "사업자등록번호",
-              "워크스페이스",
-              "상태",
-              "멤버",
-              "이번 달 사용량",
-              "연동",
-              "최근 활동",
-              "",
-            ]}
-            minWidth={940}
+            columns={["회사명", "사업자등록번호", "상태", "멤버", "온톨로지"]}
+            minWidth={640}
           >
             {rows.map((w) => {
               const h = integrationHealth(w);
               return (
-                <tr key={w.slug} className={TR}>
-                  <td className={TD_KEY}>{w.company}</td>
-                  <td className={`${TD} tabular-nums`}>{w.bizNumber}</td>
-                  <td className={TD}>
+                <tr
+                  key={w.schemaName}
+                  {...rowClick(() => router.push(`/admin/workspaces/${w.schemaName}`))}
+                >
+                  <td className={TD_KEY}>
                     <Link
-                      href={`/admin/workspaces/${w.slug}`}
-                      className="font-medium text-primary-700 transition-colors hover:text-primary-800"
+                      href={`/admin/workspaces/${w.schemaName}`}
+                      className="transition-colors hover:text-primary-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400"
                     >
-                      {w.slug}
+                      {w.company}
                     </Link>
                   </td>
+                  <td className={`${TD} tabular-nums`}>{w.bizNumber}</td>
                   <td className={TD}>
                     <Badge tone={STATUS_TONE[w.status]}>{WS_STATUS_LABEL[w.status]}</Badge>
                   </td>
                   <td className={`${TD} tabular-nums`}>{w.members.length}</td>
-                  <td className={`${TD} tabular-nums`}>
-                    {w.usage.storageGb > 0 ? `${w.usage.storageGb} GB` : "—"}
-                  </td>
                   <td className={TD}>
                     {h === "error" ? (
                       <Badge tone="red">연동 오류</Badge>
                     ) : (
                       <span className={h === "none" ? "text-slate-400" : undefined}>
-                        {w.systems.length > 0
-                          ? w.systems.map((s) => s.kind).join("·")
-                          : "미연결"}
+                        {w.systems.length > 0 ? w.systems.map((s) => s.kind).join("·") : "미연결"}
                       </span>
                     )}
-                  </td>
-                  <td className={TD}>{w.lastActive}</td>
-                  <td className={TD}>
-                    <Button variant="secondary" size="sm" href={`/admin/workspaces/${w.slug}`}>
-                      열기
-                    </Button>
                   </td>
                 </tr>
               );

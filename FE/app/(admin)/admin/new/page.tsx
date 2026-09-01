@@ -3,28 +3,29 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Breadcrumb } from "@/components/admin/breadcrumb";
-import { Field, SiteFields } from "@/components/admin/form-parts";
+import { Field } from "@/components/admin/form-parts";
+import { Modal } from "@/components/modal";
 import { IconCheck, IconInfo, IconPlus, IconSearch, IconX } from "@/components/icons";
 import { Button, Card, FIELD, FIELD_ERROR, SectionHeader } from "@/components/ui";
 import {
   ADMIN_WORKSPACES,
   PLANS,
+  WS_STATUS_LABEL,
   formatBizNumber,
   isValidBizNumber,
   clearDraft,
-  isValidSlug,
+  nextSchemaName,
   readDraft,
   saveDraft,
   type Draft,
   type Plan,
-  type Site,
 } from "@/data/admin";
 
 /** 사업자번호 조회 결과 — 지금은 형식·중복만 본다 (외부 연동 미도입) */
 type Lookup =
   | { kind: "idle" }
   | { kind: "invalid" }
-  | { kind: "taken"; slug: string; company: string }
+  | { kind: "taken"; schemaName: string; company: string }
   | { kind: "ok" };
 
 export default function AdminCreatePage() {
@@ -41,9 +42,6 @@ export default function AdminCreatePage() {
   const [addressDetail, setAddressDetail] = useState("");
   const [website, setWebsite] = useState("");
 
-  // 종사업장
-  const [sites, setSites] = useState<Site[]>([]);
-
   // 담당자 — 접속 링크 받는 사람과 연락 담당을 나눈다
   const [linkName, setLinkName] = useState("");
   const [linkEmail, setLinkEmail] = useState("");
@@ -54,9 +52,11 @@ export default function AdminCreatePage() {
   const [cc, setCc] = useState<string[]>([]);
 
   // 워크스페이스 설정
-  const [slug, setSlug] = useState("");
   const [plan, setPlan] = useState<Plan>("Growth");
   const [memo, setMemo] = useState("");
+
+  /** 만든 뒤 BE가 부여한 스키마 이름. null 이면 아직 만들지 않았다 */
+  const [created, setCreated] = useState<string | null>(null);
 
   /** 이 브라우저에 남아 있던 작성분 — 배너로 물어보고 사용자가 고른다 */
   const [found, setFound] = useState<Draft | null>(null);
@@ -72,8 +72,8 @@ export default function AdminCreatePage() {
   function collect() {
     return {
       bizNumber, company, corpNumber, bizType, bizItem, address, addressDetail, website,
-      sites, linkName, linkEmail, sameContact, contactName, contactEmail, contactPhone, cc,
-      slug, plan, memo,
+      linkName, linkEmail, sameContact, contactName, contactEmail, contactPhone, cc,
+      plan, memo,
     };
   }
 
@@ -86,7 +86,6 @@ export default function AdminCreatePage() {
     setAddress(d.address);
     setAddressDetail(d.addressDetail);
     setWebsite(d.website);
-    setSites(d.sites);
     setLinkName(d.linkName);
     setLinkEmail(d.linkEmail);
     setSameContact(d.sameContact);
@@ -94,7 +93,6 @@ export default function AdminCreatePage() {
     setContactEmail(d.contactEmail);
     setContactPhone(d.contactPhone);
     setCc(d.cc);
-    setSlug(d.slug);
     setPlan(d.plan);
     setMemo(d.memo);
     // 사업자번호는 조회를 다시 거치게 한다 — 그 사이 다른 사람이 같은 번호로 개설했을 수 있다.
@@ -105,17 +103,7 @@ export default function AdminCreatePage() {
 
   const bizOk = lookup.kind === "ok";
   const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(linkEmail.trim());
-  const slugOk = isValidSlug(slug);
-  const slugTaken = ADMIN_WORKSPACES.some((w) => w.slug === slug.trim());
-
-  const canSubmit =
-    bizOk &&
-    !!company.trim() &&
-    !!address.trim() &&
-    !!linkName.trim() &&
-    emailOk &&
-    slugOk &&
-    !slugTaken;
+  const canSubmit = bizOk && !!company.trim() && !!address.trim() && !!linkName.trim() && emailOk;
 
   function runLookup() {
     const digits = bizNumber.replace(/\D/g, "");
@@ -125,7 +113,7 @@ export default function AdminCreatePage() {
     }
     const dup = ADMIN_WORKSPACES.find((w) => w.bizNumber.replace(/\D/g, "") === digits);
     if (dup) {
-      setLookup({ kind: "taken", slug: dup.slug, company: dup.company });
+      setLookup({ kind: "taken", schemaName: dup.schemaName, company: dup.company });
       return;
     }
     setLookup({ kind: "ok" });
@@ -138,9 +126,6 @@ export default function AdminCreatePage() {
       <Breadcrumb items={[{ label: "워크스페이스", href: "/admin/workspaces" }, { label: "만들기" }]} />
 
       <h1 className="text-xl font-bold tracking-tight text-slate-900">워크스페이스 만들기</h1>
-      <p className="mt-0.5 text-sm text-slate-500">
-        사업자 정보를 등록하면 접속 링크 받는 담당자에게 메일이 나가요.
-      </p>
 
       {found && (
         <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-300 bg-slate-50 px-4 py-3.5">
@@ -168,7 +153,7 @@ export default function AdminCreatePage() {
       )}
 
       <div className="mt-6 grid items-start gap-4 lg:grid-cols-2">
-        {/* ── 왼쪽: 사업자 정보 + 종사업장 ── */}
+        {/* ── 왼쪽: 사업자 정보 ── */}
         <div className="space-y-4">
           <Card>
             <SectionHeader title="사업자 정보" />
@@ -181,7 +166,7 @@ export default function AdminCreatePage() {
                 lookup.kind === "invalid"
                   ? "사업자등록번호 형식이 맞지 않아요. 10자리를 다시 확인해 주세요."
                   : lookup.kind === "taken"
-                    ? `이미 등록된 사업자예요. ${lookup.company}(${lookup.slug})에서 확인해 주세요.`
+                    ? `이미 등록된 사업자예요. ${lookup.company}(${lookup.schemaName})에서 확인해 주세요.`
                     : undefined
               }
               hint={
@@ -289,11 +274,6 @@ export default function AdminCreatePage() {
             </div>
           </Card>
 
-          <Card>
-            <SectionHeader title="종사업장" />
-
-            <SiteFields sites={sites} onChange={setSites} />
-          </Card>
         </div>
 
         {/* ── 오른쪽: 담당자 + 설정 + 안내 ── */}
@@ -426,29 +406,6 @@ export default function AdminCreatePage() {
           <Card>
             <SectionHeader title="워크스페이스 설정" />
             <div className="space-y-4">
-              <Field
-                id="slug"
-                label="워크스페이스 이름"
-                required
-                error={
-                  slug && !slugOk
-                    ? "영문 소문자·숫자·하이픈만, 3~40자로 지어 주세요."
-                    : slugTaken
-                      ? "이미 쓰는 이름이에요. 다른 이름을 지어 주세요."
-                      : undefined
-                }
-                hint="영문 소문자와 하이픈만. 만든 뒤에는 바꿀 수 없어요."
-              >
-                <input
-                  id="slug"
-                  value={slug}
-                  onChange={(e) => setSlug(e.target.value.toLowerCase())}
-                  placeholder="hanbit-prod"
-                  aria-invalid={(!!slug && (!slugOk || slugTaken)) || undefined}
-                  className={slug && (!slugOk || slugTaken) ? FIELD_ERROR : FIELD}
-                />
-              </Field>
-
               <Field id="plan" label="요금제">
                 <select
                   id="plan"
@@ -480,10 +437,10 @@ export default function AdminCreatePage() {
           <Card className="bg-slate-50">
             <SectionHeader title="만들면 이렇게 됩니다" />
             <ol className="space-y-1.5 text-sm text-slate-600">
-              <li>1. 워크스페이스가 <span className="font-semibold text-slate-900">초대 메일 발송함</span> 상태로 생성돼요.</li>
+              <li>1. 워크스페이스가 <span className="font-semibold text-slate-900">{WS_STATUS_LABEL.pending}</span> 상태로 생성되고, 테넌트 스키마가 자동 부여돼요.</li>
               <li>2. 접속 링크 받는 사람에게 메일이 나가요{cc.length > 0 && ` (참조 ${cc.length}명)`}.</li>
               <li>3. 링크를 연 사람이 첫 관리자로 등록돼요.</li>
-              <li>4. ERP·MES 연동은 상세 화면의 <span className="font-semibold text-slate-900">외부 시스템 연동</span> 탭에서 따로 진행해요.</li>
+              <li>4. ERP·MES 연동은 상세 화면의 <span className="font-semibold text-slate-900">온톨로지</span> 탭에서 따로 진행해요.</li>
             </ol>
           </Card>
 
@@ -509,13 +466,38 @@ export default function AdminCreatePage() {
             <Button
               disabled={!canSubmit}
               title={canSubmit ? undefined : "필수 항목을 모두 채우면 만들 수 있어요"}
-              onClick={() => router.push("/admin/workspaces")}
+              onClick={() => setCreated(nextSchemaName())}
             >
               만들고 메일 보내기
             </Button>
           </div>
         </div>
       </div>
+
+      <Modal
+        open={created !== null}
+        onClose={() => router.push("/admin/workspaces")}
+        size="sm"
+        title="워크스페이스를 만들었어요"
+        footer={
+          <div className="flex justify-end">
+            <Button size="sm" onClick={() => router.push("/admin/workspaces")}>
+              목록으로
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-3 p-5 text-sm text-slate-600">
+          <p>
+            <span className="font-semibold text-slate-900">{company}</span>의 테넌트 스키마가
+            부여됐어요.
+          </p>
+          <p className="rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-2.5 font-mono text-base font-semibold text-slate-900">
+            {created}
+          </p>
+          <p>접속 링크 받는 사람({linkEmail})에게 메일이 나갔어요.</p>
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -19,10 +19,7 @@ export function MembersTab({ ws }: { ws: AdminWorkspace }) {
 
   return (
     <Card>
-      <SectionHeader
-        title={`멤버 ${ws.members.length}명`}
-        desc="멤버 초대·권한 변경은 고객사 담당자가 자기 화면에서 해요."
-      />
+      <SectionHeader title={`멤버 ${ws.members.length}명`} desc="(읽기 전용)" />
 
       {ws.members.length === 0 ? (
         <p className="text-sm text-slate-400">
@@ -45,8 +42,8 @@ export function MembersTab({ ws }: { ws: AdminWorkspace }) {
           </div>
 
           <AdminTable
-            columns={["이름", "이메일", "권한", "상태", "초대일", "마지막 접속"]}
-            minWidth={720}
+            columns={["이름", "이메일", "권한", "상태", "초대일"]}
+            minWidth={640}
           >
             {rows.map((m) => (
               <tr key={m.email} className={TR}>
@@ -61,7 +58,6 @@ export function MembersTab({ ws }: { ws: AdminWorkspace }) {
                   )}
                 </td>
                 <td className={TD}>{m.invitedAt}</td>
-                <td className={TD}>{m.lastSeen}</td>
               </tr>
             ))}
           </AdminTable>

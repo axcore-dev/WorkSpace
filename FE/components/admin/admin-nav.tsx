@@ -2,10 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { IconBuilding, IconDashboard, IconGauge } from "@/components/icons";
+import { IconBuilding, IconGauge, IconHistory } from "@/components/icons";
 
 const ITEMS = [
-  { href: "/admin", label: "대시보드", icon: IconDashboard },
   {
     href: "/admin/workspaces",
     label: "워크스페이스",
@@ -15,6 +14,7 @@ const ITEMS = [
     owns: ["/admin/workspaces", "/admin/new"],
   },
   { href: "/admin/billing", label: "사용량 · 요금", icon: IconGauge },
+  { href: "/admin/audit", label: "감사 로그", icon: IconHistory },
 ];
 
 export function AdminNav({ collapsed = false }: { collapsed?: boolean }) {
