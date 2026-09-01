@@ -1,5 +1,6 @@
 package com.axcore.workspace.user.dto;
 
+import com.axcore.workspace.oauth.client.OAuthClient;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
@@ -20,7 +21,7 @@ import jakarta.validation.constraints.Size;
  *                   내려가지 않게 하려는 것이다
  * @param state      FE 가 발급해 제공자를 거쳐 돌아온 값. 네이버는 필수, Google 은 무시한다.
  *                   여기서 {@code @NotBlank} 를 걸지 않는 것은 제공자마다 필요 여부가 달라서다 —
- *                   없을 때 무엇을 할지는 각 {@link com.axcore.workspace.oauth.OAuthClient} 가
+ *                   없을 때 무엇을 할지는 각 {@link OAuthClient} 가
  *                   정한다
  * @param rememberMe 로그인 화면의 "로그인 유지" 체크값. 이메일 로그인과 같은 규칙으로 없으면
  *                   해제로 본다

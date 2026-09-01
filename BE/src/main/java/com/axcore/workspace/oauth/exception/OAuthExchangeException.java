@@ -1,4 +1,4 @@
-package com.axcore.workspace.oauth;
+package com.axcore.workspace.oauth.exception;
 
 /**
  * 제공자와의 통신이 실패했다.

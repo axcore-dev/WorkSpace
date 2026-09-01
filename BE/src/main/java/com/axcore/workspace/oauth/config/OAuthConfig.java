@@ -1,5 +1,7 @@
-package com.axcore.workspace.oauth;
+package com.axcore.workspace.oauth.config;
 
+import com.axcore.workspace.oauth.OAuthProperties;
+import com.axcore.workspace.oauth.client.OAuthClient;
 import com.axcore.workspace.user.entity.AuthProvider;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
