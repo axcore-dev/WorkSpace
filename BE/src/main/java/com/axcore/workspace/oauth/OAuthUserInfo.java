@@ -1,5 +1,6 @@
 package com.axcore.workspace.oauth;
 
+import com.axcore.workspace.oauth.client.OAuthClient;
 import com.axcore.workspace.user.entity.AuthProvider;
 
 /**

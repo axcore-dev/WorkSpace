@@ -98,6 +98,16 @@ public class SecurityConfig {
                                         // 전부 401 로 뒤바뀌어 원인을 못 찾는다.
                                         .requestMatchers("/error")
                                         .permitAll()
+                                        // 운영자 콘솔. 여기서는 "로그인했는가" 까지만 가른다.
+                                        //
+                                        // 운영자인지는 shared.users.is_internal_admin 이고,
+                                        // 그 값을 토큰에 싣지 않기 때문에 경로 규칙으로 막을 수
+                                        // 없다. access 토큰은 최대 TTL 만큼 살아 있어서
+                                        // 클레임으로 두면 권한을 회수해도 그동안 계속 통한다.
+                                        // 실제 판정은 AdminWorkspaceService#requireInternalAdmin
+                                        // 이 요청 시점의 DB 로 한다.
+                                        .requestMatchers("/api/admin/**")
+                                        .authenticated()
                                         .anyRequest()
                                         .authenticated())
                 .oauth2ResourceServer(

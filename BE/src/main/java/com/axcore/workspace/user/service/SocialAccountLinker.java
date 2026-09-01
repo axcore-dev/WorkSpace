@@ -1,8 +1,9 @@
 package com.axcore.workspace.user.service;
 
 import com.axcore.workspace.oauth.OAuthUserInfo;
-import com.axcore.workspace.oauth.SocialEmailUnavailableException;
-import com.axcore.workspace.oauth.SocialLinkBlockedException;
+import com.axcore.workspace.oauth.exception.SocialEmailUnavailableException;
+import com.axcore.workspace.oauth.exception.SocialLinkBlockedException;
+import com.axcore.workspace.oauth.client.OAuthClient;
 import com.axcore.workspace.user.entity.TokenPurpose;
 import com.axcore.workspace.user.entity.User;
 import com.axcore.workspace.user.entity.UserIdentity;
@@ -33,7 +34,7 @@ import java.util.Optional;
  *       만들고, 확인해 주지 않았으면 어느 쪽도 주인이라는 증거가 없으므로 거절한다.
  * </ol>
  *
- * <p>{@link com.axcore.workspace.oauth.OAuthClient} 호출과 분리된 별도 빈인 이유는 트랜잭션
+ * <p>{@link OAuthClient} 호출과 분리된 별도 빈인 이유는 트랜잭션
  * 경계다. 제공자 왕복은 두 번의 네트워크 호출이고, 그 동안 DB 커넥션을 붙잡고 있으면 제공자가
  * 느려질 때 커넥션 풀이 먼저 마른다. 네트워크는 트랜잭션 밖에서, DB 작업은 여기서 한다.
  */

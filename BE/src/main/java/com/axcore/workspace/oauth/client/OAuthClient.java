@@ -1,5 +1,7 @@
-package com.axcore.workspace.oauth;
+package com.axcore.workspace.oauth.client;
 
+import com.axcore.workspace.oauth.exception.OAuthExchangeException;
+import com.axcore.workspace.oauth.OAuthUserInfo;
 import com.axcore.workspace.user.entity.AuthProvider;
 
 /**

@@ -68,6 +68,19 @@ public class User {
     @Column(name = "email_verified_at")
     private Instant emailVerifiedAt;
 
+    /**
+     * 우리 쪽 운영자인가. ({@code /api/admin/**} 접근 가부)
+     *
+     * <p>워크스페이스는 고객이 직접 만들지 않고 우리가 만들어 준다. 그 API 를 부를 수 있는
+     * 사람을 가르는 값이다. 고객 계정은 항상 false 다.
+     *
+     * <p><b>토큰에 싣지 않는다.</b> access 토큰은 최대 TTL 만큼 살아 있어서, 클레임으로 두면
+     * 권한을 회수해도 그 시간 동안 계속 통한다. 회사 선택이 매번 소속을 다시 확인하는 것과
+     * 같은 이유로 요청 시점의 이 값을 본다.
+     */
+    @Column(name = "is_internal_admin", nullable = false)
+    private boolean internalAdmin;
+
     /** 프로필 화면의 "비밀번호 마지막 변경" 표시에 쓴다. */
     @Column(name = "password_changed_at")
     private Instant passwordChangedAt;
@@ -154,6 +167,11 @@ public class User {
 
     public boolean isEmailVerified() {
         return emailVerifiedAt != null;
+    }
+
+    /** 운영자 API 를 부를 수 있는가. 값을 바꾸는 경로는 애플리케이션에 두지 않는다 — 아래 참고. */
+    public boolean isInternalAdmin() {
+        return internalAdmin;
     }
 
     /** 이미 확인된 계정에 다시 확인 링크가 들어와도 최초 시각을 유지한다. */
