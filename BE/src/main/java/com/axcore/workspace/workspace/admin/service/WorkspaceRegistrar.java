@@ -1,5 +1,8 @@
-package com.axcore.workspace.workspace.admin;
+package com.axcore.workspace.workspace.admin.service;
 
+import com.axcore.workspace.workspace.admin.exception.DuplicateBizNumberException;
+import com.axcore.workspace.workspace.admin.exception.WorkspaceNotFoundException;
+import com.axcore.workspace.workspace.admin.exception.WorkspaceStateException;
 import com.axcore.workspace.workspace.admin.dto.WorkspaceCreateRequest;
 import com.axcore.workspace.workspace.admin.dto.WorkspaceResponse;
 import com.axcore.workspace.workspace.admin.dto.WorkspaceSiteRequest;

@@ -1,4 +1,4 @@
-package com.axcore.workspace.workspace.admin;
+package com.axcore.workspace.workspace.admin.exception;
 
 /**
  * 지금 상태에서는 할 수 없는 조작이다. (중지된 회사를 또 중지하는 등)

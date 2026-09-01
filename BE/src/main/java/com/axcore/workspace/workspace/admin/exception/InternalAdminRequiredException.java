@@ -1,4 +1,4 @@
-package com.axcore.workspace.workspace.admin;
+package com.axcore.workspace.workspace.admin.exception;
 
 /**
  * 운영자 전용 API 를 운영자가 아닌 계정이 불렀다.

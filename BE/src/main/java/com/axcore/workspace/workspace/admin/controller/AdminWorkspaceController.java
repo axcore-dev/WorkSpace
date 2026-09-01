@@ -1,6 +1,7 @@
-package com.axcore.workspace.workspace.admin;
+package com.axcore.workspace.workspace.admin.controller;
 
 import com.axcore.workspace.security.JwtPrincipal;
+import com.axcore.workspace.workspace.admin.service.AdminWorkspaceService;
 import com.axcore.workspace.workspace.admin.dto.WorkspaceCreateRequest;
 import com.axcore.workspace.workspace.admin.dto.WorkspaceResponse;
 import com.axcore.workspace.workspace.admin.dto.WorkspaceSummaryResponse;

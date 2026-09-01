@@ -1,4 +1,4 @@
-package com.axcore.workspace.workspace.admin;
+package com.axcore.workspace.workspace.admin.exception;
 
 /** 그런 워크스페이스가 없다. 404 다. */
 public class WorkspaceNotFoundException extends RuntimeException {

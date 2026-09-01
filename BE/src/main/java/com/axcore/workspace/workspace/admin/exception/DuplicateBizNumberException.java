@@ -1,4 +1,4 @@
-package com.axcore.workspace.workspace.admin;
+package com.axcore.workspace.workspace.admin.exception;
 
 /**
  * 같은 사업자등록번호로 이미 워크스페이스가 열려 있다.

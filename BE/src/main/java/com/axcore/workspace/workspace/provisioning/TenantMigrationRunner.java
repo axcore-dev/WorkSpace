@@ -1,6 +1,6 @@
 package com.axcore.workspace.workspace.provisioning;
 
-import com.axcore.workspace.workspace.admin.WorkspaceRegistrar;
+import com.axcore.workspace.workspace.admin.service.WorkspaceRegistrar;
 import com.axcore.workspace.workspace.entity.Workspace;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
