@@ -112,9 +112,10 @@ WorkSpace 데모의 시각 언어와 공용 컴포넌트 규칙. 코드가 단�
 | base | `duration-200` | 공용 컴포넌트 기본 (`Button`, `Toggle` — `transition-colors`) |
 | slow | `duration-300` | 크기·레이아웃 변화 (`ProgressBar` width) |
 
-- 명명 애니메이션 예외 3개: `.shimmer-text`(AI 추론 로딩, 1.8s — **AI 표면 전용**), `.spinner`(일반 대기 표시, 0.8s), `.tab-wiggle`(탭 편집 모드, 0.28s).
-- 금지: 바운스 오버슈트, 패럴랙스, 300ms 초과 UI 전환, AI 표면 밖의 shimmer/skeleton.
-- `prefers-reduced-motion` 대응이 전역에 있다 — 개별 컴포넌트에서 다시 처리하지 않는다.
+- 명명 애니메이션 예외: `.shimmer-text`(AI 추론 로딩, 1.8s — **AI 표면 전용**), `.spinner`(일반 대기 표시, 0.8s), `.tab-wiggle`(탭 편집 모드, 0.28s), `.agent-fade`(AI 답변 요소 등장, 0.28s), `.pixel-dots`(AI 작업 중 3×3 도트, 0.65s stagger), `.ai-aurora`(AI 첫 화면 앰비언트 배경, 20s 루프).
+- **AI 표면 한정 허용**: skeleton(`animate-pulse`, 대화 복원·전환 대기), 타자 효과(새 답변 1회 — 복원된 메시지엔 쓰지 않는다), 앰비언트 배경(빈 상태에서만 — primary ≤10% 알파 그라데이션 오로라 + 커서 추종 글로우, 대화가 시작되면 렌더하지 않는다).
+- 금지: 바운스 오버슈트, 패럴랙스, 300ms 초과 UI 전환(위 명명 예외·앰비언트 배경 제외), AI 표면 밖의 shimmer/skeleton/타자 효과/앰비언트 배경.
+- `prefers-reduced-motion` 대응이 전역에 있다 — 개별 컴포넌트에서 다시 처리하지 않는다. 앰비언트 배경은 여기서 정지 상태(중앙 고정 글로우)로 떨어진다.
 
 ## 상태 정책
 
@@ -158,7 +159,7 @@ WorkSpace 데모의 시각 언어와 공용 컴포넌트 규칙. 코드가 단�
 
 브랜드·아이콘: `Logo`(PNG, 종횡비 3.87:1 — height 기준 지정, flex 컨테이너에서 stretch되지 않게 주의), `Icon*` + `ICON_MAP`(인라인 SVG, `icons.tsx`), `BrandIcon` + `BRANDS`(외부 서비스 로고, `brand-icons.tsx`).
 
-AI 표현(전역 CSS, `globals.css`): `.shimmer-text`(추론 로딩 쉬머). AI 관련 표면에만 사용한다. AI대화는 프로필/아바타 없이 텍스트만으로 표현한다(ChatGPT·Gemini식 심플 레이아웃).
+AI 표현(전역 CSS, `globals.css`): `.shimmer-text`·`.agent-fade`·`.pixel-dots`·`.ai-aurora`. AI 관련 표면에만 사용한다. AI대화는 프로필/아바타 없이 텍스트만으로 표현한다(ChatGPT·Gemini식 심플 레이아웃). 답변 블록은 `components/chat/agent-trace.tsx`의 `AgentTrace`(도구 타임라인 — 헤더 "{n}개 도구 사용 · {n}s", 작업 중 자동 펼침·완료 시 접힘, 행을 펼치면 입력/출력 블록) + 본문(`StreamingText`) + 액션바(복사·다시 시도·평가·출처)로 구성하고, 출처는 우측 드로어(`SourceDrawer`)에서 AI 활동 시간과 함께 펼친다. 사용자 말풍선은 hover 시 복사·편집. 액션 아이콘은 모두 `icons.tsx`에서 온다.
 
 ## 사이드바 (좌측 내비)
 
@@ -276,7 +277,7 @@ AI 표현(전역 CSS, `globals.css`): `.shimmer-text`(추론 로딩 쉬머). AI 
 - 인라인 `style`로 컴포넌트를 우회하지 않는다 — `className` 관통은 허용, 그 이상이 필요하면 변형 추가.
 - 카드에 그림자 금지 (떠 있는 표면 전용).
 - 입력 focus에 블루 금지 (블루는 액션 전용).
-- AI 표면 밖에서 shimmer 금지. skeleton 미사용.
+- AI 표면 밖에서 shimmer·skeleton·타자 효과·앰비언트 배경 금지.
 - 이모지를 UI에 쓰지 않는다 — `icons.tsx` SVG만.
 - 한 화면에 `primary` 버튼을 여러 개 두지 않는다.
 
