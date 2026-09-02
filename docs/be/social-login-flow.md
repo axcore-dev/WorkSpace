@@ -138,7 +138,7 @@ DB 커넥션을 잡고 있으면 제공자가 느려질 때 커넥션 풀이 먼
 | 이름 | `name` | `name`, 없으면 `nickname` |
 | 실패 신호 | HTTP 4xx | **HTTP 200 + 본문의 `error`** |
 | 응답 모양 | 평평함 | **`{resultcode, message, response:{…}}`** |
-| `email_verified` | 준다 | **주지 않는다 → 항상 미확인으로 둔다** |
+| `email_verified` | 준다 | **주지 않는다 → 우리가 `true` 로 채운다** |
 
 #### 네이버가 Google 과 다른 네 지점
 
