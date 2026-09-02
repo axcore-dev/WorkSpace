@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { Breadcrumb } from "@/components/admin/breadcrumb";
 import { STATUS_TONE } from "@/components/admin/workspace-detail/shared";
@@ -11,7 +11,13 @@ import { UsageTab } from "@/components/admin/workspace-detail/usage-tab";
 import { IconAlertTriangle } from "@/components/icons";
 import { Modal } from "@/components/modal";
 import { Badge, Button } from "@/components/ui";
-import { ADMIN_WORKSPACES, WS_STATUS_LABEL, type AdminWorkspace, type WsStatus } from "@/data/admin";
+import { WS_STATUS_LABEL, type AdminWorkspace, type WsStatus } from "@/data/admin";
+import {
+  activateWorkspace,
+  deactivateWorkspace,
+  getWorkspace,
+  workspaceIdFromSchema,
+} from "@/lib/admin-api";
 
 /**
  * 수정 가능한 탭이 앞, 읽기 전용이 뒤다. 탭 띠만 보고 어디서 뭘 할 수 있는지
@@ -30,7 +36,31 @@ export default function AdminWorkspaceDetailPage() {
    * 수정 결과는 이 화면 안에서만 유지된다 — 저장할 BE가 없다.
    * 새로고침하면 `data/admin.ts`의 원래 값으로 돌아간다.
    */
-  const [ws, setWs] = useState(() => ADMIN_WORKSPACES.find((w) => w.schemaName === schema));
+  /**
+   * 주소의 스키마 이름에서 id 를 되찾아 부른다. 목록을 거치지 않고 이 주소로 바로 들어와도
+   * 동작해야 해서, 목록에서 넘겨받는 대신 여기서 다시 계산한다.
+   */
+  const id = workspaceIdFromSchema(schema);
+  const [ws, setWs] = useState<AdminWorkspace | undefined>(undefined);
+  const [loading, setLoading] = useState(id !== null);
+
+  useEffect(() => {
+    let alive = true;
+    if (id === null) return;
+    getWorkspace(id)
+      .then((w) => {
+        if (alive) setWs(w ?? undefined);
+      })
+      .catch(() => {
+        if (alive) setWs(undefined);
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [id]);
 
   function save(patch: Partial<AdminWorkspace>) {
     setWs((prev) => (prev ? { ...prev, ...patch } : prev));
@@ -40,6 +70,10 @@ export default function AdminWorkspaceDetailPage() {
   /** 중지·재개는 데모라 화면 안에서만 바뀐다 */
   const [status, setStatus] = useState<WsStatus | null>(null);
   const [confirmSuspend, setConfirmSuspend] = useState(false);
+
+  if (loading) {
+    return <p className="py-16 text-center text-sm text-slate-500">불러오는 중…</p>;
+  }
 
   if (!ws) {
     return (
@@ -69,7 +103,15 @@ export default function AdminWorkspaceDetailPage() {
         <div className="flex shrink-0 items-center gap-3">
           <Badge tone={STATUS_TONE[current]}>{WS_STATUS_LABEL[current]}</Badge>
           {suspended ? (
-            <Button variant="secondary" onClick={() => setStatus("active")}>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                if (id === null) return;
+                setStatus("active");
+                // 실패하면 화면을 되돌린다. 서버가 거절했는데 활성으로 보이면 안 된다.
+                activateWorkspace(id).catch(() => setStatus("suspended"));
+              }}
+            >
               활성화
             </Button>
           ) : (
@@ -123,8 +165,10 @@ export default function AdminWorkspaceDetailPage() {
             <Button
               variant="danger"
               onClick={() => {
+                if (id === null) return;
                 setStatus("suspended");
                 setConfirmSuspend(false);
+                deactivateWorkspace(id).catch(() => setStatus("active"));
               }}
             >
               비활성화

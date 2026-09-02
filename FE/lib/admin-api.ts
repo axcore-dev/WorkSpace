@@ -199,8 +199,25 @@ function toContacts(dto: WorkspaceDto["contacts"]): Contacts {
   };
 }
 
+/**
+ * 스키마 이름에서 워크스페이스 id 를 되찾는다.
+ *
+ * 주소는 `/admin/workspaces/ax_00003` 인데 API 는 id 로 받는다. 규칙이
+ * `ax_` + PK를 5자리로 채운 값이라(BE `SchemaName`) 뒷자리를 숫자로 읽으면 그대로 id 다.
+ * 목록을 다시 부르지 않아도 되고, 새로고침으로 상세에 바로 들어와도 동작한다.
+ *
+ * @returns 형식이 어긋나면 null — 화면이 "찾을 수 없어요" 로 처리한다
+ */
+export function workspaceIdFromSchema(schemaName: string): number | null {
+  const m = /^ax_(\d{5,})$/.exec(schemaName);
+  if (!m) return null;
+  const id = Number(m[1]);
+  return Number.isSafeInteger(id) && id > 0 ? id : null;
+}
+
 /** 목록 한 줄. 화면이 쓰는 것만 담는다 — 상세를 부르지 않고도 표를 그릴 수 있어야 한다 */
 export type AdminWorkspaceRow = {
+  id: number;
   schemaName: string;
   company: string;
   bizNumber: string;
@@ -214,6 +231,7 @@ export type AdminWorkspaceRow = {
 
 export function toRow(dto: WorkspaceSummaryDto): AdminWorkspaceRow {
   return {
+    id: dto.id,
     // 개설 전이면 스키마가 없다. 목록 링크가 깨지지 않게 id 로 대신한다.
     schemaName: dto.schemaName ?? `#${dto.id}`,
     company: dto.name,
