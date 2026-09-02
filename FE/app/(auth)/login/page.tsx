@@ -12,14 +12,26 @@ import {
   SocialProvider,
   startSocialLogin,
 } from "@/lib/auth";
+import { ApiRequestError, apiGet, apiPost } from "@/lib/api";
+import { setAccessToken } from "@/lib/session";
 
 /** 데모: 매직링크 대기 화면 진입 후 이 시간(ms)이 지나면 링크를 클릭한 것으로 간주한다 */
 const DEMO_LINK_CLICK_MS = 5000;
 const LINK_TTL_SEC = 600;
 
+type LoginResult = {
+  next: string;
+  accessToken?: string | null;
+  accessTokenExpiresAt?: string | null;
+};
+
 export default function LoginPage() {
   const router = useRouter();
   const [step, setStep] = useState<"login" | "await">("login");
+  const [submitting, setSubmitting] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+  /** BE 가 없을 때만 켜진다. 데모로 넘어갔다는 사실을 숨기지 않는다 */
+  const [offline, setOffline] = useState(false);
   const [email, setEmail] = useState(DEMO_USER.email);
   const [password, setPassword] = useState("demo1234!");
   const [left, setLeft] = useState(LINK_TTL_SEC);
@@ -47,15 +59,67 @@ export default function LoginPage() {
     }
   }
 
-  function finish() {
+  /**
+   * 데모 진입 — BE 가 없을 때만 쓴다.
+   *
+   * 화면만 보는 작업이 BE 기동을 요구하면 디자인 확인이 막힌다. 대신 이 경로로 들어왔다는
+   * 표시를 화면에 남긴다(`offline`) — 조용히 가짜 데이터로 넘어가면 실제 연동이 깨진 것을
+   * 못 알아챈다.
+   */
+  function finishDemo() {
     localStorage.setItem("axpoint-user", JSON.stringify({ ...DEMO_USER, email }));
-    // 진입 지점 분기 — 데모 판정이고 **보안 경계가 아니다.**
-    // 실제로는 BE 세션의 내부 역할·워크스페이스 보유 여부로 갈린다.
     if (INTERNAL_ADMIN_EMAILS.includes(email.trim().toLowerCase())) {
       router.push("/admin");
       return;
     }
     router.push(WORKSPACES.length > 0 ? "/dashboard" : "/workspace");
+  }
+
+  /**
+   * 실제 로그인.
+   *
+   * 운영자 여부는 `/api/auth/me` 로 확인한다. 이메일 목록으로 가르지 않는 이유는 그것이
+   * 보안 경계가 아니기 때문이다 — 실제 인가는 서버가 요청마다 DB 로 다시 본다. 여기서는
+   * 어느 화면으로 보낼지만 정한다.
+   */
+  async function signIn() {
+    setLoginError(null);
+    setSubmitting(true);
+    try {
+      const result = await apiPost<LoginResult>("/api/auth/login", {
+        email: email.trim(),
+        password,
+        rememberMe: true,
+      });
+
+      if (result?.next === "MFA_REQUIRED") {
+        // 2단계는 아직 화면이 없다. 무엇을 해야 하는지는 알려 준다.
+        setLoginError("2단계 인증이 켜진 계정이에요. 지금은 이 화면에서 진행할 수 없어요.");
+        return;
+      }
+
+      setAccessToken(result?.accessToken ?? null, result?.accessTokenExpiresAt ?? null);
+
+      const me = await apiGet<{ internalAdmin: boolean }>("/api/auth/me");
+      if (me?.internalAdmin) {
+        router.push("/admin");
+        return;
+      }
+
+      // 회사를 아직 안 골랐으면 고르는 화면으로. 소속이 하나도 없으면 그 화면이 개설 대기
+      // 안내를 대신 보여 준다 — 어느 쪽인지는 목록을 받아 봐야 알 수 있어서 화면이 정한다.
+      router.push(result?.next === "READY" ? "/dashboard" : "/workspace");
+    } catch (e: unknown) {
+      if (e instanceof ApiRequestError) {
+        setLoginError(e.body.message);
+        return;
+      }
+      // 네트워크 자체가 안 됐다. BE 를 안 띄운 상태로 화면만 보는 경우다.
+      setOffline(true);
+      goAwait();
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   /** 대기 화면 진입 — 타이머·확인 상태는 여기서 리셋한다 (effect 내 동기 setState 회피) */
@@ -79,7 +143,7 @@ export default function LoginPage() {
   // 링크 확인 표시를 잠깐 보여준 뒤 로그인 완료
   useEffect(() => {
     if (!confirmed) return;
-    const t = setTimeout(finish, 900);
+    const t = setTimeout(finishDemo, 900);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [confirmed]);
@@ -106,7 +170,7 @@ export default function LoginPage() {
             className="mt-9 space-y-5"
             onSubmit={(e) => {
               e.preventDefault();
-              goAwait();
+              void signIn();
             }}
           >
             <div>
@@ -153,7 +217,12 @@ export default function LoginPage() {
                 비밀번호 찾기
               </button>
             </div>
-            <AuthPrimaryButton>로그인</AuthPrimaryButton>
+            {loginError && (
+              <p className="text-sm text-red-600" role="alert">
+                {loginError}
+              </p>
+            )}
+            <AuthPrimaryButton>{submitting ? "확인 중…" : "로그인"}</AuthPrimaryButton>
           </form>
 
           {/* 버튼 모양과 "또는" 구분선은 SocialAuthButtons 안에 있다. 회원가입 화면과 같은
@@ -168,6 +237,11 @@ export default function LoginPage() {
         </>
       ) : (
         <>
+          {offline && (
+            <p className="mb-4 rounded-md bg-amber-50 px-3.5 py-2.5 text-xs text-amber-700" role="status">
+              서버에 연결하지 못해 데모 화면으로 진행해요. 보이는 값은 실제 데이터가 아니에요.
+            </p>
+          )}
           <p className="text-xs font-semibold text-primary-600">2단계 인증</p>
           <h2 className="mt-2.5 text-[31px] font-bold leading-[1.25] tracking-tight text-slate-900">
             이메일의 로그인 링크를

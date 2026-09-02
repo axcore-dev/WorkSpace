@@ -32,7 +32,14 @@ public class TenantMemberWriter {
      */
     private static final String OWNER = "owner";
 
-    private static final String MEMBER = "member";
+    /**
+     * 두 번째부터는 관리자.
+     *
+     * <p>초대는 고객사 담당자에게 간다. 회사를 운영할 사람이지 구경만 할 사람이 아니라,
+     * 받자마자 사람을 더 부르고 설정을 만질 수 있어야 한다. 일반 구성원으로 부르는 흐름이
+     * 생기면 그때 역할을 골라 보내면 된다.
+     */
+    private static final String INVITED = "admin";
 
     private final JdbcTemplate jdbcTemplate;
     private final TenantSearchPath searchPath;
@@ -70,7 +77,7 @@ public class TenantMemberWriter {
                 on conflict (user_id) do nothing
                 """,
                 userId,
-                MEMBER,
+                INVITED,
                 OWNER);
 
         log.info("테넌트 {} 에 구성원 {} 를 넣었다", schemaName, userId);
