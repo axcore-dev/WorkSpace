@@ -88,6 +88,9 @@ export interface TraceStep {
   text: string;
   /** 우측에 표시되는 결과 요약 (예: "결과 9개") */
   result?: string;
+  /** 행을 펼쳤을 때 보이는 도구 입력·출력 — 없으면 펼치지 못한다 */
+  input?: string;
+  output?: string;
 }
 
 export interface ChatProcess {
@@ -104,6 +107,8 @@ export interface OcrProposal {
   docName: string;
   targetModule: string;
   fields: { label: string; value: string }[];
+  /** 승인/거절이 끝났는지 — 새로고침 뒤에도 버튼이 되살아나지 않도록 메시지에 남긴다 */
+  resolved?: boolean;
 }
 
 export interface ChatMessage {
@@ -117,6 +122,10 @@ export interface ChatMessage {
   cta?: { label: string; href: string };
   /** 답변 전 순차 표시되는 추론 과정 문구 (행동 라이팅) */
   reasoning?: string[];
+  /** 사용자 평가 — 추후 성능 평가용으로 보관 */
+  rating?: "up" | "down";
+  /** AI 활동(추론) 시간 — 출처 드로어 상단 "{n}s" */
+  durationMs?: number;
 }
 
 /** 데모용 시나리오 대화 스크립트 — 질문 키워드에 맞춰 재생 */
@@ -140,9 +149,27 @@ export const SCRIPTED_REPLIES: ChatMessage[] = [
       tools: ["데이터 조회", "상관 분석", "RAG 검색"],
       summary: "3개의 도구 사용됨, 품질 데이터 조회됨, 문서 검색됨",
       trace: [
-        { icon: "data", text: "품질검사 > 불량 분석 방문 — 6월 CNC 1라인 불량률 집계", result: "결과 4건" },
-        { icon: "data", text: "장비관리 센서 데이터와 상관관계 분석", result: "상관 1건" },
-        { icon: "doc", text: "소스 문서에서 근거 검색 (불량 분석 리포트 6월)", result: "인용 2건" },
+        {
+          icon: "data",
+          text: "품질검사 > 불량 분석 방문 — 6월 CNC 1라인 불량률 집계",
+          result: "결과 4건",
+          input: "period=2026-06, line=CNC-1, group_by=defect_type",
+          output: "총 0.91% · 치수 38% · 외관 27% · 조립 21% · 기타 14%",
+        },
+        {
+          icon: "data",
+          text: "장비관리 센서 데이터와 상관관계 분석",
+          result: "상관 1건",
+          input: "equipment=CNC-01..08, signal=spindle_vibration, window=30d",
+          output: "CNC-07 진동 RMS 2.1→3.4mm/s (6/24~) · 치수 불량과 r=0.78",
+        },
+        {
+          icon: "doc",
+          text: "소스 문서에서 근거 검색 (불량 분석 리포트 6월)",
+          result: "인용 2건",
+          input: 'query="치수 불량 CNC-07", top_k=3',
+          output: "불량 분석 리포트 6월.docx §2 · 검사성적서_LOT-260701-C.pdf p.2",
+        },
         { icon: "model", text: "원인 가설 정리 및 답변 생성" },
       ],
     },
@@ -207,7 +234,13 @@ export const SCRIPTED_REPLIES: ChatMessage[] = [
       tools: ["데이터 조회", "수요 예측 모델", "RAG 검색"],
       summary: "3개의 도구 사용됨, 재고 데이터 조회됨, 예측 모델 사용됨",
       trace: [
-        { icon: "app", text: "재고·물류 > 안전 재고 방문 — 기준 미달 품목 집계", result: "3품목" },
+        {
+          icon: "app",
+          text: "재고·물류 > 안전 재고 방문 — 기준 미달 품목 집계",
+          result: "3품목",
+          input: "filter=below_safety_stock, sort=fulfillment_rate asc",
+          output: "AL6061 85.5% · 608ZZ 82.4% · 절삭유 90.0%",
+        },
         { icon: "model", text: "8월 수요 예측 결과 결합 (신뢰도 88%)" },
         { icon: "doc", text: "공급업체 단가표에서 대량 단가 확인", result: "인용 1건" },
         { icon: "model", text: "최적 주문량(EOQ) 산출" },
@@ -230,8 +263,20 @@ export const SCRIPTED_REPLIES: ChatMessage[] = [
       tools: ["데이터 조회", "예측 모델", "Google Calendar"],
       summary: "3개의 도구 사용됨, 센서 데이터 조회됨, Google Calendar 사용됨",
       trace: [
-        { icon: "data", text: "장비관리 센서 이상 신호 집계 (진동·유온·전력)", result: "21대" },
-        { icon: "model", text: "고장 예측 모델로 상위 위험 설비 선별", result: "2대" },
+        {
+          icon: "data",
+          text: "장비관리 센서 이상 신호 집계 (진동·유온·전력)",
+          result: "21대",
+          input: "signals=[vibration, oil_temp, power], window=7d",
+          output: "이상 신호 21대 중 임계 초과 4대",
+        },
+        {
+          icon: "model",
+          text: "고장 예측 모델로 상위 위험 설비 선별",
+          result: "2대",
+          input: "model=pdm-v3, threshold=0.6",
+          output: "CNC-07 0.87 · PRS-02 0.64",
+        },
         { icon: "app", text: "장비관리 > 정비 예측 방문 — 권고 조치 확인" },
         { icon: "calendar", text: "Google Calendar 정비 일정 등록 (7/4 오전)", result: "등록됨" },
       ],
@@ -396,28 +441,36 @@ export const REPLY_ROUTES: { pattern: RegExp; index: number }[] = [
 
 /** 시작 화면 추천 질문 — demo: 지식도우미(작업표준·FAQ) 시연 포인트 표시 */
 /**
- * 커넥터 추가 팝업(Manus형) 목록 — 브랜드 로고는 simple-icons 사용.
- * loginUrl: '+' 클릭 시 이동할 해당 앱 로그인 페이지 (Google Calendar는 데모 즉시 연결이라 없음).
- * url: 상세 팝업의 '웹사이트' 링크.
+ * 커넥터 목록 — 한국 제조 현장이 실제로 쓰는 협업·문서·ERP 앱. 브랜드 마크는 `public/brands/`.
+ * loginUrl: 연결 클릭 시 여는 로그인 페이지 (Google Calendar는 데모 즉시 연결이라 없음). url: 상세 팝업의 '웹사이트'.
  */
+export type ConnectorCategory = "메신저·협업" | "문서·데이터" | "메일·일정" | "ERP·회계";
+
+export const CONNECTOR_CATEGORIES: ConnectorCategory[] = ["메신저·협업", "문서·데이터", "메일·일정", "ERP·회계"];
+
 export const CONNECTOR_LIB: {
   slug: string;
   name: string;
   desc: string;
+  category: ConnectorCategory;
   connected?: boolean;
   url: string;
   loginUrl?: string;
 }[] = [
-  { slug: "slack", name: "Slack", desc: "이상 감지·작업 지시 알림을 전송하고 스레드를 요약해요.", connected: true, url: "https://slack.com", loginUrl: "https://slack.com/signin" },
-  { slug: "gmail", name: "Gmail", desc: "분석 결과 리포트를 작성·검색하고 메일을 요약해요.", connected: true, url: "https://mail.google.com", loginUrl: "https://accounts.google.com/ServiceLogin?service=mail" },
-  { slug: "googledrive", name: "Google Drive", desc: "파일에 빠르게 접근하고 문서를 지능적으로 관리해요.", url: "https://drive.google.com", loginUrl: "https://accounts.google.com/ServiceLogin?service=wise" },
-  { slug: "googlecalendar", name: "Google Calendar", desc: "정비 일정을 등록하고 일정을 최적화해요.", url: "https://calendar.google.com" },
-  { slug: "notion", name: "Notion", desc: "이슈·조치 내역을 기록하고 워크플로를 자동화해요.", url: "https://www.notion.so", loginUrl: "https://www.notion.so/login" },
-  { slug: "github", name: "GitHub", desc: "저장소를 관리하고 변경 사항을 추적해요.", url: "https://github.com", loginUrl: "https://github.com/login" },
-  { slug: "googlesheets", name: "Google Sheets", desc: "수율·원가 데이터를 표로 정리하고 계산해요.", url: "https://docs.google.com/spreadsheets", loginUrl: "https://accounts.google.com/ServiceLogin?service=wise" },
-  { slug: "jira", name: "Jira", desc: "개선 과제를 이슈로 만들고 진행을 추적해요.", url: "https://www.atlassian.com/software/jira", loginUrl: "https://id.atlassian.com/login" },
-  { slug: "figma", name: "Figma", desc: "설계·라벨 시안을 불러와 검토해요.", url: "https://www.figma.com", loginUrl: "https://www.figma.com/login" },
-  { slug: "dropbox", name: "Dropbox", desc: "외부 협력사 문서를 가져와요.", url: "https://www.dropbox.com", loginUrl: "https://www.dropbox.com/login" },
+  { slug: "slack", name: "Slack", desc: "이상 감지·작업 지시 알림을 보내고 스레드를 요약해요.", category: "메신저·협업", connected: true, url: "https://slack.com", loginUrl: "https://slack.com/signin" },
+  { slug: "kakaowork", name: "카카오워크", desc: "현장 알림을 채팅방으로 보내고 결재 요청을 전달해요.", category: "메신저·협업", url: "https://www.kakaowork.com", loginUrl: "https://www.kakaowork.com/login" },
+  { slug: "naverworks", name: "네이버웍스", desc: "메시지·게시판·드라이브를 연결해 공지와 문서를 찾아요.", category: "메신저·협업", url: "https://naver.worksmobile.com", loginUrl: "https://auth.worksmobile.com/login" },
+  { slug: "jandi", name: "잔디", desc: "토픽에 생산·품질 알림을 올리고 대화를 요약해요.", category: "메신저·협업", url: "https://www.jandi.com", loginUrl: "https://www.jandi.com/landing/kr/login" },
+  { slug: "teams", name: "Microsoft Teams", desc: "팀 채널에 리포트를 공유하고 회의록을 정리해요.", category: "메신저·협업", url: "https://www.microsoft.com/microsoft-teams", loginUrl: "https://teams.microsoft.com" },
+  { slug: "googledrive", name: "Google Drive", desc: "도면·시방서 파일에 바로 접근하고 정리해요.", category: "문서·데이터", url: "https://drive.google.com", loginUrl: "https://accounts.google.com/ServiceLogin?service=wise" },
+  { slug: "googlesheets", name: "Google Sheets", desc: "수율·원가 데이터를 표로 정리하고 계산해요.", category: "문서·데이터", url: "https://docs.google.com/spreadsheets", loginUrl: "https://accounts.google.com/ServiceLogin?service=wise" },
+  { slug: "excel", name: "Microsoft Excel", desc: "생산 실적·재고 시트를 읽고 집계표를 만들어요.", category: "문서·데이터", url: "https://www.microsoft.com/microsoft-365/excel", loginUrl: "https://www.office.com/launch/excel" },
+  { slug: "notion", name: "Notion", desc: "이슈·조치 내역을 기록하고 워크플로를 자동화해요.", category: "문서·데이터", url: "https://www.notion.so", loginUrl: "https://www.notion.so/login" },
+  { slug: "gmail", name: "Gmail", desc: "분석 결과 리포트를 작성·검색하고 메일을 요약해요.", category: "메일·일정", connected: true, url: "https://mail.google.com", loginUrl: "https://accounts.google.com/ServiceLogin?service=mail" },
+  { slug: "googlecalendar", name: "Google Calendar", desc: "정비 일정을 등록하고 일정을 최적화해요.", category: "메일·일정", url: "https://calendar.google.com" },
+  { slug: "outlook", name: "Microsoft Outlook", desc: "협력사 메일을 요약하고 회의 일정을 잡아요.", category: "메일·일정", url: "https://outlook.office.com", loginUrl: "https://outlook.office.com" },
+  { slug: "ecount", name: "이카운트 ERP", desc: "매입·매출·재고 전표를 조회하고 발주를 등록해요.", category: "ERP·회계", url: "https://www.ecount.com", loginUrl: "https://login.ecount.com" },
+  { slug: "douzone", name: "더존 ERP", desc: "회계·인사·생산 데이터를 조회하고 전표를 만들어요.", category: "ERP·회계", url: "https://www.douzone.com", loginUrl: "https://www.douzone.com" },
 ];
 
 /**
