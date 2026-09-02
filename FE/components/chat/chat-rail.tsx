@@ -13,13 +13,14 @@ import {
 import { Button } from "@/components/ui";
 import type { Note, SourceState } from "@/data/chat";
 
-type Panel = "notes" | "sources" | null;
+type Panel = "notes" | "sources";
 
 /**
- * 대화 좌측 아이콘 레일 + 오버레이 패널.
+ * 대화 좌측 아이콘 레일 + 패널 둘.
  *
- * 패널은 대화 위로 떠서 대화 폭을 밀지 않는다. 닫히는 길은 셋이다 —
- * 같은 아이콘 재클릭·바깥 클릭·ESC. 패널 안 클릭은 닫지 않는다 (소스를 여러 개 켜야 하니까).
+ * 소스 패널은 기본으로 열려 레일 옆에 고정(docked)된다 — 답변 근거가 되는 문서를 늘 보이게.
+ * 대화 기록은 필요할 때만 대화 위로 떠서(overlay) 폭을 밀지 않는다. 닫히는 길은 셋이다 —
+ * 같은 아이콘 재클릭·바깥 클릭·ESC. 패널 안 클릭은 닫지 않는다.
  */
 export function ChatRail({
   notes,
@@ -48,16 +49,17 @@ export function ChatRail({
   onInheritSources: () => void;
   canInherit: boolean;
 }) {
-  const [panel, setPanel] = useState<Panel>(null);
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [sourcesOpen, setSourcesOpen] = useState(true);
   const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!panel) return;
+    if (!notesOpen) return;
     function onDown(e: MouseEvent) {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setPanel(null);
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setNotesOpen(false);
     }
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setPanel(null);
+      if (e.key === "Escape") setNotesOpen(false);
     }
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
@@ -65,18 +67,17 @@ export function ChatRail({
       document.removeEventListener("mousedown", onDown);
       document.removeEventListener("keydown", onKey);
     };
-  }, [panel]);
+  }, [notesOpen]);
 
   const { sources, selected } = src;
   const allSelected = sources.length > 0 && selected.length === sources.length;
   const someSelected = selected.length > 0 && !allSelected;
 
-  function railButton(id: Exclude<Panel, null>, Icon: typeof IconHistory, label: string, count: string) {
-    const on = panel === id;
+  function railButton(id: Panel, on: boolean, toggle: () => void, Icon: typeof IconHistory, label: string, count: string) {
     return (
       <button
         type="button"
-        onClick={() => setPanel(on ? null : id)}
+        onClick={toggle}
         aria-label={label}
         aria-expanded={on}
         aria-controls={`chat-rail-${id}`}
@@ -91,13 +92,20 @@ export function ChatRail({
   }
 
   return (
-    <div ref={wrapRef} className="relative shrink-0">
+    <div ref={wrapRef} className="relative flex shrink-0 gap-3">
       <div className="flex h-full w-14 flex-col gap-1.5 rounded-2xl border border-slate-200 bg-white p-1.5">
-        {railButton("notes", IconHistory, "대화 기록", String(notes.length))}
-        {railButton("sources", IconFolder, "소스", sources.length ? `${selected.length}/${sources.length}` : "0")}
+        {railButton("notes", notesOpen, () => setNotesOpen((v) => !v), IconHistory, "대화 기록", String(notes.length))}
+        {railButton(
+          "sources",
+          sourcesOpen,
+          () => setSourcesOpen((v) => !v),
+          IconFolder,
+          "소스",
+          sources.length ? `${selected.length}/${sources.length}` : "0",
+        )}
       </div>
 
-      {panel === "notes" && (
+      {notesOpen && (
         <section
           id="chat-rail-notes"
           aria-label="대화 기록"
@@ -109,7 +117,7 @@ export function ChatRail({
             </h2>
             <button
               type="button"
-              onClick={() => setPanel(null)}
+              onClick={() => setNotesOpen(false)}
               aria-label="대화 기록 닫기"
               className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
             >
@@ -162,11 +170,11 @@ export function ChatRail({
         </section>
       )}
 
-      {panel === "sources" && (
+      {sourcesOpen && (
         <section
           id="chat-rail-sources"
           aria-label="소스"
-          className="absolute left-[68px] top-0 z-20 flex h-full w-72 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg"
+          className="flex h-full w-72 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white max-lg:absolute max-lg:left-[68px] max-lg:top-0 max-lg:z-20 max-lg:shadow-lg"
         >
           <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
             <h2 className="text-sm font-bold text-slate-900">
@@ -177,7 +185,7 @@ export function ChatRail({
             </h2>
             <button
               type="button"
-              onClick={() => setPanel(null)}
+              onClick={() => setSourcesOpen(false)}
               aria-label="소스 닫기"
               className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
             >
