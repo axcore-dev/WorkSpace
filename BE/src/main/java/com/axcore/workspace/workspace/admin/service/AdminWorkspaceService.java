@@ -2,6 +2,9 @@ package com.axcore.workspace.workspace.admin.service;
 
 import com.axcore.workspace.user.entity.User;
 import com.axcore.workspace.user.repository.UserRepository;
+import com.axcore.workspace.workspace.admin.entity.AdminAuditAction;
+import com.axcore.workspace.workspace.entity.Workspace;
+import com.axcore.workspace.workspace.repository.UserWorkspaceMembershipRepository;
 import com.axcore.workspace.workspace.admin.exception.InternalAdminRequiredException;
 import com.axcore.workspace.workspace.admin.exception.WorkspaceStateException;
 import com.axcore.workspace.workspace.admin.dto.WorkspaceCreateRequest;
@@ -18,7 +21,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * 워크스페이스 개설·관리. 운영자만 쓴다.
@@ -49,14 +55,23 @@ public class AdminWorkspaceService {
     private final WorkspaceRegistrar registrar;
     private final TenantProvisioner provisioner;
     private final UserRepository userRepository;
+    private final UserWorkspaceMembershipRepository membershipRepository;
+    private final WorkspaceMemberReader memberReader;
+    private final AdminAuditRecorder audit;
 
     public AdminWorkspaceService(
             WorkspaceRegistrar registrar,
             TenantProvisioner provisioner,
-            UserRepository userRepository) {
+            UserRepository userRepository,
+            UserWorkspaceMembershipRepository membershipRepository,
+            WorkspaceMemberReader memberReader,
+            AdminAuditRecorder audit) {
         this.registrar = registrar;
         this.provisioner = provisioner;
         this.userRepository = userRepository;
+        this.membershipRepository = membershipRepository;
+        this.memberReader = memberReader;
+        this.audit = audit;
     }
 
     /**
@@ -78,13 +93,46 @@ public class AdminWorkspaceService {
 
     // ── 조회 ───────────────────────────────────────────────────────────────
 
+    /**
+     * 목록. 구성원 수는 한 번의 집계 질의로 붙인다.
+     *
+     * @param status null 이면 해지를 뺀 전부. 해지된 회사는 명시적으로 골라야 보인다
+     */
+    @Transactional(readOnly = true)
     public Page<WorkspaceSummaryResponse> search(
             String keyword, WorkspaceStatus status, Pageable pageable) {
-        return registrar.search(keyword, status, pageable).map(WorkspaceSummaryResponse::from);
+        Page<Workspace> page = registrar.search(keyword, status, pageable);
+
+        List<Long> ids = page.getContent().stream().map(Workspace::getId).toList();
+        Map<Long, Long> counts =
+                ids.isEmpty()
+                        ? Map.of()
+                        : membershipRepository.countByWorkspaceIds(ids).stream()
+                                .collect(
+                                        Collectors.toMap(
+                                                UserWorkspaceMembershipRepository.MemberCount
+                                                        ::getWorkspaceId,
+                                                UserWorkspaceMembershipRepository.MemberCount
+                                                        ::getMemberCount));
+
+        // 집계에 없는 회사는 구성원이 0명이다. 없는 키를 0 으로 읽는 책임이 여기에 있다.
+        return page.map(
+                w ->
+                        WorkspaceSummaryResponse.from(
+                                w, counts.getOrDefault(w.getId(), 0L).intValue()));
     }
 
+    /**
+     * 상세. 구성원과 마지막 활동은 테넌트 스키마에서 읽는다.
+     *
+     * <p>한 트랜잭션 안에서 {@code search_path} 를 열었다 닫는다. 열어 둔 상태로 다른 조회가
+     * 섞여도 {@code shared} 엔티티는 스키마를 명시하고 있어 영향이 없다.
+     */
+    @Transactional(readOnly = true)
     public WorkspaceResponse get(Long id) {
-        return registrar.detail(id);
+        String schemaName = registrar.schemaNameOf(id);
+        return registrar.detail(
+                id, memberReader.membersOf(schemaName), memberReader.lastActiveAt(schemaName));
     }
 
     // ── 개설 ───────────────────────────────────────────────────────────────
@@ -96,9 +144,10 @@ public class AdminWorkspaceService {
      * 실패했는지가 남아야 하기 때문이고, 그 행은 목록에서 상태로 구분된다. 다시 시도하려면
      * {@link #retryProvisioning(Long)} 을 부른다.
      */
-    public WorkspaceResponse create(WorkspaceCreateRequest request) {
+    public WorkspaceResponse create(UUID actor, WorkspaceCreateRequest request) {
         WorkspaceRegistrar.Registration registration = registrar.register(request);
         provision(registration);
+        audit.record(actor, AdminAuditAction.CREATE, registration.id(), null);
         return registrar.detail(registration.id());
     }
 
@@ -143,23 +192,41 @@ public class AdminWorkspaceService {
 
     // ── 수정·상태 ──────────────────────────────────────────────────────────
 
-    public WorkspaceResponse update(Long id, WorkspaceUpdateRequest request) {
-        return registrar.update(id, request);
+    /**
+     * 정보 수정.
+     *
+     * <p>무엇이 바뀌었는지까지는 남기지 않는다. 전체 교체 방식이라 바뀐 필드를 알려면 이전 값을
+     * 통째로 떠 두고 비교해야 하는데, 그 비교를 여기서 하기 시작하면 필드가 늘 때마다 같이
+     * 늘어난다. 변경 내역이 필요해지면 그때 별도 구조로 다룬다.
+     */
+    public WorkspaceResponse update(UUID actor, Long id, WorkspaceUpdateRequest request) {
+        WorkspaceResponse updated = registrar.update(id, request);
+        audit.record(actor, AdminAuditAction.UPDATE, id, "회사 정보 수정");
+        return updated;
     }
 
-    public WorkspaceResponse suspend(Long id) {
-        return registrar.suspend(id);
+    public WorkspaceResponse suspend(UUID actor, Long id) {
+        WorkspaceResponse result = registrar.suspend(id);
+        audit.record(actor, AdminAuditAction.DEACTIVATE, id, null);
+        return result;
     }
 
-    public WorkspaceResponse resume(Long id) {
-        return registrar.resume(id);
+    public WorkspaceResponse resume(UUID actor, Long id) {
+        WorkspaceResponse result = registrar.resume(id);
+        audit.record(actor, AdminAuditAction.ACTIVATE, id, null);
+        return result;
     }
 
-    public WorkspaceResponse terminate(Long id) {
-        return registrar.terminate(id);
+    public WorkspaceResponse terminate(UUID actor, Long id) {
+        WorkspaceResponse result = registrar.terminate(id);
+        audit.record(actor, AdminAuditAction.TERMINATE, id, null);
+        return result;
     }
 
-    public WorkspaceResponse markLinkSent(Long id) {
-        return registrar.markLinkSent(id);
+    /** 링크를 다른 경로로 보냈다는 기록. 발급은 {@code WorkspaceInvitationService} 가 한다. */
+    public WorkspaceResponse markLinkSent(UUID actor, Long id) {
+        WorkspaceResponse result = registrar.markLinkSent(id);
+        audit.record(actor, AdminAuditAction.ISSUE_LINK, id, "접속 링크 발송 기록");
+        return result;
     }
 }

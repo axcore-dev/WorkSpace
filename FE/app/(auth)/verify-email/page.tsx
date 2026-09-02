@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { AuthSplit } from "@/components/auth-shell";
 import { ApiRequestError, apiPost } from "@/lib/api";
+import { readInvite } from "@/lib/pending-invite";
 
 type UserResponse = { email: string; name: string; emailVerified: boolean };
 
@@ -44,7 +45,16 @@ function VerifyEmailContent() {
 
     apiPost<UserResponse>("/api/auth/email/verify", { token })
       .then((user) => {
-        if (user) setState({ kind: "done", user });
+        if (!user) return;
+
+        // 초대를 받고 가입한 사람이면 원래 자리로 돌려보낸다. 메일 링크는 보통 새 탭에서
+        // 열려서, 여기서 이어 주지 않으면 "확인은 됐는데 어느 회사였지" 로 끊긴다.
+        const invite = readInvite();
+        if (invite) {
+          window.location.replace(`/invite/accept?token=${encodeURIComponent(invite.token)}`);
+          return;
+        }
+        setState({ kind: "done", user });
       })
       .catch((e: unknown) => {
         const message =

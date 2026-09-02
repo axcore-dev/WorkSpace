@@ -5,6 +5,8 @@ import com.axcore.workspace.user.entity.User;
 import com.axcore.workspace.user.entity.UserSession;
 import com.axcore.workspace.user.service.SessionIssuer;
 import com.axcore.workspace.user.service.UserSessionService;
+import com.axcore.workspace.workspace.admin.entity.AdminAuditAction;
+import com.axcore.workspace.workspace.admin.service.AdminAuditRecorder;
 import com.axcore.workspace.workspace.entity.UserWorkspaceMembership;
 import com.axcore.workspace.workspace.entity.Workspace;
 import com.axcore.workspace.workspace.repository.UserWorkspaceMembershipRepository;
@@ -38,16 +40,19 @@ public class WorkspaceService {
     private final WorkspaceRepository workspaceRepository;
     private final UserSessionService sessionService;
     private final SessionIssuer sessionIssuer;
+    private final AdminAuditRecorder audit;
 
     public WorkspaceService(
             UserWorkspaceMembershipRepository membershipRepository,
             WorkspaceRepository workspaceRepository,
             UserSessionService sessionService,
-            SessionIssuer sessionIssuer) {
+            SessionIssuer sessionIssuer,
+            AdminAuditRecorder audit) {
         this.membershipRepository = membershipRepository;
         this.workspaceRepository = workspaceRepository;
         this.sessionService = sessionService;
         this.sessionIssuer = sessionIssuer;
+        this.audit = audit;
     }
 
     /** 내 소속 목록. 들어갈 수 없는 것도 상태와 함께 돌려준다. 화면이 이유를 보여줘야 한다. */
@@ -132,6 +137,13 @@ public class WorkspaceService {
                 workspace.getName(),
                 workspace.getStatus().dbValue(),
                 sessionId);
+        // 애플리케이션 로그는 보존 기간이 짧고 콘솔에서 볼 수 없다. 고객 데이터에 손이
+        // 닿은 기록은 조회 가능한 곳에 남아야 한다.
+        audit.record(
+                user.getId(),
+                AdminAuditAction.ENTER,
+                workspaceId,
+                "상태 " + workspace.getStatus().dbValue() + " 인 회사에 소속 없이 진입");
 
         return sessionIssuer.reissueAccessToken(session, now);
     }

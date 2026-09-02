@@ -1,19 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AdminTable, TD, TD_KEY, rowClick } from "@/components/admin/admin-table";
 import { Breadcrumb } from "@/components/admin/breadcrumb";
 import { IconPlus, IconSearch } from "@/components/icons";
 import { Badge, Button, Card, FIELD, FIELD_INLINE } from "@/components/ui";
-import {
-  ADMIN_WORKSPACES,
-  WS_STATUS_LABEL,
-  integrationHealth,
-  type IntegrationHealth,
-  type WsStatus,
-} from "@/data/admin";
+import { WS_STATUS_LABEL, type IntegrationHealth, type WsStatus } from "@/data/admin";
+import { listWorkspaces, type AdminWorkspaceRow } from "@/lib/admin-api";
 
 const PAGE_SIZE = 20;
 
@@ -26,8 +21,48 @@ const STATUS_TONE: Record<WsStatus, "green" | "slate" | "amber"> = {
 type StatusFilter = WsStatus | "all";
 type HealthFilter = IntegrationHealth | "all";
 
+/**
+ * 연동 건강도 — 목록은 시스템 개수만 안다.
+ *
+ * 인증 실패 같은 세부 상태는 연동 기능이 붙어야 알 수 있다. 그때까지는 "연결됐는가"만
+ * 구분하고 「오류」는 나오지 않는다. 없는 정보를 있는 척 만들지 않는다.
+ */
+function healthOf(row: AdminWorkspaceRow): IntegrationHealth {
+  return row.systemCount > 0 ? "ok" : "none";
+}
+
 export default function AdminWorkspaceListPage() {
   const router = useRouter();
+
+  /**
+   * 서버에서 한 번에 받아 두고 거르기·페이지는 화면에서 한다.
+   *
+   * 운영 콘솔은 회사가 수백 곳 규모라 한 번에 받아도 무리가 없고, 검색어를 칠 때마다
+   * 왕복하지 않아 반응이 즉각적이다. 회사가 그 이상으로 늘면 서버 페이지네이션으로 옮긴다.
+   *
+   * 해지된 회사는 서버가 기본으로 빼 준다 — 화면의 상태 3종과 정확히 맞는다.
+   */
+  const [all, setAll] = useState<AdminWorkspaceRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    listWorkspaces({ size: 200 })
+      .then((r) => {
+        if (alive) setAll(r.rows);
+      })
+      .catch(() => {
+        if (alive) setError("목록을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<StatusFilter>("all");
   const [health, setHealth] = useState<HealthFilter>("all");
@@ -39,19 +74,19 @@ export default function AdminWorkspaceListPage() {
    */
   const counts = useMemo(
     () => ({
-      total: ADMIN_WORKSPACES.length,
-      active: ADMIN_WORKSPACES.filter((w) => w.status === "active").length,
-      suspended: ADMIN_WORKSPACES.filter((w) => w.status === "suspended").length,
+      total: all.length,
+      active: all.filter((w) => w.status === "active").length,
+      suspended: all.filter((w) => w.status === "suspended").length,
     }),
-    [],
+    [all],
   );
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     const digits = needle.replace(/\D/g, "");
-    return ADMIN_WORKSPACES.filter((w) => {
+    return all.filter((w) => {
       if (status !== "all" && w.status !== status) return false;
-      if (health !== "all" && integrationHealth(w) !== health) return false;
+      if (health !== "all" && healthOf(w) !== health) return false;
       if (!needle) return true;
       // 사업자번호는 하이픈을 빼고 비교한다 — 운영자가 붙여넣는 형태가 일정하지 않다.
       const hit =
@@ -60,7 +95,7 @@ export default function AdminWorkspaceListPage() {
         (digits.length > 0 && w.bizNumber.replace(/\D/g, "").includes(digits));
       return hit;
     });
-  }, [q, status, health]);
+  }, [all, q, status, health]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const current = Math.min(page, pageCount);
@@ -97,6 +132,12 @@ export default function AdminWorkspaceListPage() {
           </Card>
         ))}
       </div>
+
+      {error && (
+        <p className="mt-4 rounded-md bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
+          {error}
+        </p>
+      )}
 
       <Card className="mt-4">
         <div className="flex flex-wrap items-center gap-2.5">
@@ -137,7 +178,9 @@ export default function AdminWorkspaceListPage() {
             <option value="error">오류</option>
             <option value="none">미연결</option>
           </select>
-          <span className="ml-auto shrink-0 text-xs text-slate-400">{filtered.length}건</span>
+          <span className="ml-auto shrink-0 text-xs text-slate-400">
+            {loading ? "불러오는 중" : `${filtered.length}건`}
+          </span>
         </div>
 
         <div className="mt-4">
@@ -146,7 +189,7 @@ export default function AdminWorkspaceListPage() {
             minWidth={640}
           >
             {rows.map((w) => {
-              const h = integrationHealth(w);
+              const h = healthOf(w);
               return (
                 <tr
                   key={w.schemaName}
@@ -164,13 +207,13 @@ export default function AdminWorkspaceListPage() {
                   <td className={TD}>
                     <Badge tone={STATUS_TONE[w.status]}>{WS_STATUS_LABEL[w.status]}</Badge>
                   </td>
-                  <td className={`${TD} tabular-nums`}>{w.members.length}</td>
+                  <td className={`${TD} tabular-nums`}>{w.memberCount}</td>
                   <td className={TD}>
                     {h === "error" ? (
                       <Badge tone="red">연동 오류</Badge>
                     ) : (
                       <span className={h === "none" ? "text-slate-400" : undefined}>
-                        {w.systems.length > 0 ? w.systems.map((s) => s.kind).join("·") : "미연결"}
+                        {w.systemCount > 0 ? `${w.systemCount}개` : "미연결"}
                       </span>
                     )}
                   </td>

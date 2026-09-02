@@ -32,6 +32,12 @@ public final class WorkspaceSpecifications {
 
             if (status != null) {
                 predicates.add(cb.equal(root.get("status"), status));
+            } else {
+                // 해지된 회사는 기본 목록에서 뺀다. 계약이 끝난 곳이 매일 보는 목록에 계속
+                // 쌓이면 살아 있는 회사를 찾기 어려워진다. 보려면 status=terminated 로
+                // 명시해야 한다 — 지우는 것이 아니라 접어 두는 것이다.
+                predicates.add(
+                        cb.notEqual(root.get("status"), WorkspaceStatus.TERMINATED));
             }
             if (keyword != null && !keyword.isBlank()) {
                 String trimmed = keyword.strip();

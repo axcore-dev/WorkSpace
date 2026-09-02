@@ -525,7 +525,9 @@ export const ADMIN_OPERATOR = { name: "김운영", team: "운영팀" };
  */
 export function estimateAmount(ws: AdminWorkspace) {
   const base: Record<Plan, number> = { Enterprise: 4000000, Growth: 900000, Starter: 300000 };
-  return base[ws.plan] + ws.usage.storageGb * 2000;
+  // BE의 `plan`은 자유 문자열이라 여기 없는 값이 올 수 있다. 그대로 더하면 undefined가 섞여
+  // 화면에 NaN원이 뜬다. 모르는 요금제는 기본료 0으로 두고 사용량만 계산한다.
+  return (base[ws.plan] ?? 0) + ws.usage.storageGb * 2000;
 }
 
 /**
@@ -617,13 +619,29 @@ export function clearDraft() {
  * 브라우저에 있고(`INTERNAL_ADMIN_EMAILS`), 기록 주체가 클라이언트이며, 아무것도 저장하지
  * 않는다. 서버 기록과 역할 검사가 붙기 전까지 화면에 경고 배너를 고정한다.
  */
-export type AuditAction = "create" | "update" | "deactivate" | "activate";
+/**
+ * BE(`shared.admin_audit_logs.action`)가 남기는 종류와 1:1이다.
+ *
+ * `terminate`(해지)는 `deactivate`(비활성화)와 다르다 — 계약이 끝난 것과 잠시 멈춘 것이다.
+ * `enter`는 운영자가 소속 없이 고객 워크스페이스 안으로 들어간 기록이라 가장 무겁다.
+ */
+export type AuditAction =
+  | "create"
+  | "update"
+  | "deactivate"
+  | "activate"
+  | "terminate"
+  | "issue_link"
+  | "enter";
 
 export const AUDIT_ACTION_LABEL: Record<AuditAction, string> = {
   create: "생성",
   update: "수정",
   deactivate: "비활성화",
   activate: "활성화",
+  terminate: "해지",
+  issue_link: "링크 발급",
+  enter: "워크스페이스 진입",
 };
 
 export type AuditEntry = {
