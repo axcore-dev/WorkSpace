@@ -1,25 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
-import {
-  IconArrowRight,
-  IconCheck,
-  IconCheckCircle,
-  IconChevronRight,
-  IconCpu,
-  IconDatabase,
-  IconExternalLink,
-  IconFile,
-  IconPlus,
-  IconSearch,
-} from "@/components/icons";
-import { BrandIcon } from "@/components/brand-icons";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { IconPlus } from "@/components/icons";
 import { ConnectorModal, SkillModal } from "@/components/connector-modal";
 import { Button } from "@/components/ui";
+import { AgentTrace } from "@/components/chat/agent-trace";
+import { AiBackdrop } from "@/components/chat/ai-backdrop";
 import { ChatComposer } from "@/components/chat/chat-composer";
+import { AiMessage, UserMessage } from "@/components/chat/chat-message";
 import { ChatRail } from "@/components/chat/chat-rail";
 import { OcrProposalCard } from "@/components/chat/ocr-proposal-card";
+import { SourceDrawer } from "@/components/chat/source-drawer";
 import { loadChat, saveChat } from "@/lib/chat-storage";
 import {
   RAG_FOLDERS,
@@ -29,7 +20,6 @@ import {
   ragIngestMessage,
   withUploadedCitation,
   type ChatMessage,
-  type ChatProcess,
   type Note,
   type SourceState,
   type TraceStep,
@@ -37,81 +27,6 @@ import {
 
 // NotebookLM식 소스 목록 (폴더 없이 평면)
 const INITIAL_SOURCES = RAG_FOLDERS.flatMap((f) => f.docs).map((d) => ({ ...d }));
-
-/** 일반 단계 아이콘 — 외부 서비스(calendar·mail)는 TraceIcon에서 브랜드 로고로 처리 */
-const TRACE_ICONS = {
-  search: IconSearch,
-  data: IconDatabase,
-  doc: IconFile,
-  app: IconExternalLink,
-  model: IconCpu,
-} as const;
-
-/** 트레이스 아이콘 — 실제 연동된 외부 서비스(구글 캘린더·Gmail)는 브랜드 로고, 그 외는 일반 아이콘 */
-function TraceIcon({ icon }: { icon?: TraceStep["icon"] }) {
-  if (icon === "calendar") return <BrandIcon slug="googlecalendar" size={15} />;
-  if (icon === "mail") return <BrandIcon slug="gmail" size={15} />;
-  const Icon = icon && icon in TRACE_ICONS ? TRACE_ICONS[icon as keyof typeof TRACE_ICONS] : IconSearch;
-  return <Icon size={14} className="text-slate-400" />;
-}
-
-/**
- * 추론 과정 — 말풍선 없이 답변 위에 표시.
- * 접힘(기본): 한 줄 요약 · hover 시 '>' 노출 · 클릭하면 세로 타임라인으로 단계별 도구·앱 방문 내역.
- *
- * 이 UI는 Vercel AI SDK 점검 후 별도로 다룬다 — 이번 리뉴얼에서는 손대지 않았다.
- */
-function ReasoningTrace({ process }: { process: ChatProcess }) {
-  const [open, setOpen] = useState(false);
-  const trace: TraceStep[] = process.trace ?? process.steps.map((text) => ({ text }));
-  const summary = process.summary ?? `${process.tools.length}개의 도구 사용됨, ${process.tools.join(", ")}`;
-  return (
-    <div className="mb-2">
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
-        className="group flex cursor-pointer items-center gap-1 text-left text-[13px] text-slate-500 transition-colors hover:text-slate-700"
-      >
-        {summary}
-        <IconChevronRight
-          size={13}
-          className={`shrink-0 text-slate-400 transition-all duration-150 ${
-            open ? "rotate-90 opacity-100" : "opacity-0 group-hover:opacity-100"
-          }`}
-        />
-      </button>
-      {open && (
-        <div className="mt-2.5">
-          {trace.map((t, i) => (
-            <div key={`${t.text}-${i}`} className="flex gap-2.5">
-              <div className="flex flex-col items-center">
-                <span className="flex h-4 w-4 shrink-0 items-center justify-center">
-                  <TraceIcon icon={t.icon} />
-                </span>
-                <span className="w-px flex-1 bg-slate-200" />
-              </div>
-              <div className="min-w-0 flex-1 pb-3 text-[13px]">
-                <p className="leading-relaxed text-slate-600">{t.text}</p>
-                {t.result && (
-                  <span className="mt-1.5 inline-block rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-500">
-                    {t.result}
-                  </span>
-                )}
-              </div>
-            </div>
-          ))}
-          <div className="flex gap-2.5">
-            <span className="flex h-4 w-4 shrink-0 items-center justify-center">
-              <IconCheckCircle size={14} className="text-slate-400" />
-            </span>
-            <span className="text-[13px] text-slate-500">완료</span>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 /* ── 실제 AI 연동 (발주서 제안 · 구글 캘린더 확인 시나리오) ── */
 
@@ -166,12 +81,28 @@ function scenarioToMessage(r: ScenarioResult, ocrDoc?: { docName: string; target
 
 const EMPTY_SRC: SourceState = { sources: [], selected: [], uploaded: [] };
 
+/** 답변 생성 중 상태 — 한 번에 한 대화만. 도구 행이 하나씩 드러나고 끝나면 메시지로 굳는다 */
+interface Pending {
+  noteId: number;
+  rows: TraceStep[];
+  /** 지금까지 드러난 행 수 */
+  shown: number;
+  /** 헤더에 흐르는 추론 문구 — shown 인덱스로 현재 문구를 고른다 */
+  labels: string[];
+  startedAt: number;
+}
+
+const DEFAULT_LABELS = ["질문의 의도를 파악하고 있어요", "관련 데이터를 살펴보고 있어요", "답변을 정리하고 있어요"];
+const ROW_MS = 900;
+
 export default function AiChatPage() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [activeId, setActiveId] = useState<number | null>(null);
   const [input, setInput] = useState("");
-  const [thinking, setThinking] = useState(false);
-  const [thinkingSteps, setThinkingSteps] = useState<string[]>([]);
+  const [pending, setPendingState] = useState<Pending | null>(null);
+  /** 타자 효과를 재생할 대화 id — 마지막 답변이 새로 도착했을 때만 */
+  const [streaming, setStreaming] = useState<number | null>(null);
+  const [drawer, setDrawer] = useState<{ noteId: number; idx: number } | null>(null);
   const [connectorOpen, setConnectorOpen] = useState(false);
   const [skillOpen, setSkillOpen] = useState(false);
   /** 첫 대화 생성 전(시작 화면)의 소스 — 첫 대화가 이 상태를 승계한다 */
@@ -180,12 +111,32 @@ export default function AiChatPage() {
     selected: INITIAL_SOURCES.map((s) => s.name),
     uploaded: [],
   });
-  const [ocrPending, setOcrPending] = useState(false);
   /** localStorage 복원이 끝나기 전에는 저장하지 않는다 — 빈 상태로 덮어쓰는 걸 막는다 */
   const [restored, setRestored] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const innerRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const noteSeq = useRef(1);
+  // 타이머 콜백은 stale closure를 보므로 pending의 최신값은 ref로 함께 든다
+  const pendingRef = useRef<Pending | null>(null);
+  const timers = useRef<number[]>([]);
+
+  function setPending(p: Pending | null) {
+    pendingRef.current = p;
+    setPendingState(p);
+  }
+  function clearTimers() {
+    timers.current.forEach(clearTimeout);
+    timers.current = [];
+  }
+  function after(ms: number, fn: () => void) {
+    timers.current.push(window.setTimeout(fn, ms));
+  }
+  // 페이지를 떠나면 진행 중인 재생을 끊는다 — 답변이 붙지 않은 사용자 메시지는 복귀 시 '다시 시도'로 이어진다
+  useEffect(() => {
+    const t = timers;
+    return () => t.current.forEach(clearTimeout);
+  }, []);
 
   const active = notes.find((n) => n.id === activeId) ?? null;
 
@@ -222,9 +173,23 @@ export default function AiChatPage() {
     if (restored) saveChat<Note>({ notes, activeId });
   }, [notes, activeId, restored]);
 
+  const empty = !active || active.messages.length === 0;
+
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [active?.messages, thinking, thinkingSteps]);
+  }, [active?.messages, pending]);
+
+  // 타자 효과·트레이스 펼침으로 본문이 자라는 동안 바닥에 붙어 따라간다 — 위로 올려 읽는 중이면 두지 않는다
+  useEffect(() => {
+    const el = scrollRef.current;
+    const inner = innerRef.current;
+    if (!el || !inner) return;
+    const ro = new ResizeObserver(() => {
+      if (el.scrollHeight - el.scrollTop - el.clientHeight < 160) el.scrollTop = el.scrollHeight;
+    });
+    ro.observe(inner);
+    return () => ro.disconnect();
+  }, [empty, restored]);
 
   // Google OAuth 콜백 복귀 안내 — /api/google/callback이 ?google_connected=1|google_error=... 로 리다이렉트한다
   useEffect(() => {
@@ -244,12 +209,19 @@ export default function AiChatPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /** 보는 대화를 바꾼다 — 타자 효과·드로어는 대화에 묶여 있으니 함께 접는다 */
+  function showNote(id: number | null) {
+    setActiveId(id);
+    setStreaming(null);
+    setDrawer(null);
+  }
+
   function createNote(title = "새 대화", srcInit?: SourceState): number {
     const id = ++noteSeq.current;
     // 시작 화면에서 자동 생성되는 첫 대화는 화면에 보이던 소스(초안)를 승계한다
     const s = srcInit ?? (active ? EMPTY_SRC : draftSrc);
     setNotes((prev) => [...prev, { id, title, messages: [], replyIdx: 0, src: s }]);
-    setActiveId(id);
+    showNote(id);
     return id;
   }
 
@@ -262,7 +234,7 @@ export default function AiChatPage() {
   function deleteNote(id: number) {
     setNotes((prev) => {
       const next = prev.filter((n) => n.id !== id);
-      if (id === activeId) setActiveId(next.length ? next[next.length - 1].id : null);
+      if (id === activeId) showNote(next.length ? next[next.length - 1].id : null);
       return next;
     });
   }
@@ -299,53 +271,79 @@ export default function AiChatPage() {
     );
   }
 
-  /** 추론 과정 문구를 하나씩 순차 표시한 뒤 답변을 붙인다 — 실제 AI 응답은 trace 문구로 재생 */
-  function pushAi(noteId: number, msg: ChatMessage, stepsOverride?: string[]) {
-    const steps =
-      stepsOverride ??
-      msg.reasoning ?? ["질문의 의도를 파악하고 있어요", "관련 데이터를 살펴보고 있어요", "답변을 정리하고 있어요"];
-    setThinking(true);
-    setThinkingSteps([]);
-    steps.forEach((s, i) => {
-      setTimeout(() => setThinkingSteps((prev) => [...prev, s]), i * 850);
-    });
-    setTimeout(() => {
-      setThinking(false);
-      setThinkingSteps([]);
-      appendMessage(noteId, msg);
-      if (msg.ocrProposal) setOcrPending(true);
-    }, steps.length * 850 + 600);
+  /** len 뒤를 잘라낸다 — 다시 시도로 답변을 새로 만들 때 */
+  function truncate(noteId: number, len: number) {
+    setNotes((prev) => prev.map((n) => (n.id === noteId ? { ...n, messages: n.messages.slice(0, len) } : n)));
   }
 
-  function send(text?: string, noteId?: number) {
-    const q = (text ?? input).trim();
-    if (!q || thinking) return;
-    const nid = noteId ?? activeId ?? createNote(q.length > 18 ? q.slice(0, 18) + "…" : q);
-    setInput("");
-    nameNoteIfUntitled(nid, q.length > 18 ? q.slice(0, 18) + "…" : q);
-    appendMessage(nid, { role: "user", text: q });
+  /** 응답을 기다리는 동안(API 호출 등) 헤더 문구만 먼저 띄운다 */
+  function startPending(noteId: number, label: string) {
+    clearTimers();
+    setPending({ noteId, rows: [], shown: 0, labels: [label], startedAt: Date.now() });
+  }
+
+  /** 대기 중 추론 문구를 하나 더 붙인다 — 같은 대화의 pending일 때만 */
+  function addLabel(noteId: number, label: string, ms: number) {
+    after(ms, () => {
+      const p = pendingRef.current;
+      if (p?.noteId === noteId) setPending({ ...p, labels: [...p.labels, label], shown: p.shown + 1 });
+    });
+  }
+
+  /**
+   * 도구 행을 하나씩(ROW_MS) 드러낸 뒤 답변을 붙인다 — 실제 AI 응답도 trace로 같은 재생을 탄다.
+   * 붙는 순간 활동 시간(durationMs)을 기록하고 타자 효과를 켠다.
+   */
+  function pushAi(noteId: number, msg: ChatMessage, labels?: string[]) {
+    clearTimers();
+    const rows = msg.process?.trace ?? msg.process?.steps.map((text) => ({ text })) ?? [];
+    const startedAt = pendingRef.current?.noteId === noteId ? pendingRef.current.startedAt : Date.now();
+    setPending({ noteId, rows, shown: 0, labels: labels ?? msg.reasoning ?? DEFAULT_LABELS, startedAt });
+    rows.forEach((_, i) =>
+      after((i + 1) * ROW_MS, () => {
+        const p = pendingRef.current;
+        if (p) setPending({ ...p, shown: i + 1 });
+      }),
+    );
+    after(Math.max(rows.length, 1) * ROW_MS + 500, () => {
+      appendMessage(noteId, { ...msg, durationMs: Date.now() - startedAt });
+      setStreaming(noteId);
+      setPending(null);
+    });
+  }
+
+  /** 사용자 메시지 하나에 답한다 — 전송·편집·다시 시도가 모두 여기로 모인다 */
+  async function respond(nid: number, u: ChatMessage) {
+    const q = u.text;
+
+    // 발주서 OCR — 실제 AI가 OCR 텍스트를 근거로 제안·추론 과정을 생성 (키 미설정 시 스크립트 폴백)
+    if (u.attachment) {
+      startPending(nid, "발주서를 읽고 있어요");
+      const r = await callScenario(
+        "purchase-order",
+        "첨부한 발주서(대신금속, 황동봉 C3604 Ø12 800kg)를 읽고 구매 관리 등록을 제안해줘",
+      );
+      if (r?.proposal) {
+        pushAi(
+          nid,
+          scenarioToMessage(r, { docName: u.attachment, targetModule: "경영지원 > 구매 관리" }),
+          r.trace.map((t) => t.text),
+        );
+      } else {
+        pushAi(nid, SCRIPTED_REPLIES[1]);
+      }
+      return;
+    }
 
     // 구글 캘린더 확인 시나리오 — BE API 연동 전까지는 스크립트 폴백으로 동작한다
     if (/캘린더|일정|calendar/i.test(q)) {
-      setThinking(true);
+      startPending(nid, "질문의 의도를 파악하고 있어요");
       // 응답 대기 중에도 어떤 도구(Google Calendar)와 소스를 쓰는지 보이게 순차 표시
-      setThinkingSteps(["질문의 의도를 파악하고 있어요"]);
-      const loadingTimers = [
-        setTimeout(() => setThinkingSteps((prev) => [...prev, "Google Calendar에서 일정을 불러오고 있어요"]), 850),
-      ];
-      if (selectedSources.length > 0) {
-        loadingTimers.push(
-          setTimeout(() => setThinkingSteps((prev) => [...prev, "선택한 소스 문서를 함께 확인하고 있어요"]), 1900),
-        );
-      }
-      void callScenario("calendar", q, selectedSources).then((r) => {
-        loadingTimers.forEach(clearTimeout);
-        if (r) {
-          pushAi(nid, scenarioToMessage(r), r.trace.map((t) => t.text));
-        } else {
-          pushAi(nid, SCRIPTED_CALENDAR_REPLY);
-        }
-      });
+      addLabel(nid, "Google Calendar에서 일정을 불러오고 있어요", 850);
+      if (selectedSources.length > 0) addLabel(nid, "선택한 소스 문서를 함께 확인하고 있어요", 1900);
+      const r = await callScenario("calendar", q, selectedSources);
+      if (r) pushAi(nid, scenarioToMessage(r), r.trace.map((t) => t.text));
+      else pushAi(nid, SCRIPTED_CALENDAR_REPLY);
       return;
     }
 
@@ -360,8 +358,7 @@ export default function AiChatPage() {
     }
     const order = [0, 3];
     const note = notes.find((n) => n.id === nid);
-    const idxPos = note?.replyIdx ?? 0;
-    const scriptIdx = order[idxPos];
+    const scriptIdx = order[note?.replyIdx ?? 0];
     setNotes((prev) => prev.map((n) => (n.id === nid ? { ...n, replyIdx: Math.min(n.replyIdx + 1, order.length) } : n)));
     pushAi(
       nid,
@@ -369,9 +366,44 @@ export default function AiChatPage() {
         ? SCRIPTED_REPLIES[scriptIdx]
         : {
             role: "ai",
-            text: "데모 시나리오 응답을 모두 재생했습니다. 실제 서비스에서는 연결된 커넥터·스킬과 ON 상태 기능 데이터를 기반으로 답변이 생성됩니다.",
+            text: "데모 시나리오 응답을 모두 재생했어요. 실제 서비스에서는 연결된 커넥터·스킬과 ON 상태 기능 데이터를 기반으로 답변이 생성돼요.",
           },
     );
+  }
+
+  function send() {
+    const q = input.trim();
+    if (!q || pending) return;
+    const title = q.length > 18 ? q.slice(0, 18) + "…" : q;
+    const nid = activeId ?? createNote(title);
+    setInput("");
+    nameNoteIfUntitled(nid, title);
+    const u: ChatMessage = { role: "user", text: q };
+    appendMessage(nid, u);
+    void respond(nid, u);
+  }
+
+  /** 사용자 메시지 제자리 편집 — 그 뒤 답변을 버리고 다시 생성한다 */
+  function editUser(noteId: number, idx: number, text: string) {
+    const old = notes.find((n) => n.id === noteId)?.messages[idx];
+    if (!old || pending) return;
+    const u = { ...old, text };
+    setNotes((prev) => prev.map((n) => (n.id === noteId ? { ...n, messages: [...n.messages.slice(0, idx), u] } : n)));
+    void respond(noteId, u);
+  }
+
+  /** 답변 다시 시도 — 바로 앞 사용자 메시지로 다시 답한다 */
+  function retry(noteId: number, aiIdx: number) {
+    const u = notes.find((n) => n.id === noteId)?.messages[aiIdx - 1];
+    if (!u || u.role !== "user" || pending) return;
+    truncate(noteId, aiIdx);
+    void respond(noteId, u);
+  }
+
+  /** 응답 평가 — 같은 걸 다시 누르면 해제. 추후 성능 평가 데이터로 보낸다 */
+  function rate(noteId: number, idx: number, r: "up" | "down") {
+    const cur = notes.find((n) => n.id === noteId)?.messages[idx]?.rating;
+    updateMessage(noteId, idx, { rating: cur === r ? undefined : r });
   }
 
   /**
@@ -403,7 +435,7 @@ export default function AiChatPage() {
       nameNoteIfUntitled(nid, "문서 분석");
       patchSrc(() => nextSrc);
     }
-    if (!thinking) pushAi(nid, ragIngestMessage(fresh.map((f) => f.name)));
+    if (!pending) pushAi(nid, ragIngestMessage(fresh.map((f) => f.name)));
   }
 
   /** 소스 삭제 — 목록·선택·업로드 추적에서 함께 제거 */
@@ -415,41 +447,33 @@ export default function AiChatPage() {
     }));
   }
 
-  /** 발주서 제안 시나리오 — 실제 AI가 OCR 텍스트를 근거로 제안·추론 과정을 생성 (키 미설정 시 스크립트 폴백) */
-  async function triggerOcr() {
-    if (thinking) return;
+  /** 발주서 제안 시나리오 시작 — 첨부가 달린 사용자 메시지를 보내면 respond가 OCR 경로를 탄다 */
+  function triggerOcr() {
+    if (pending) return;
     const nid = activeId ?? createNote("발주서 OCR 반영");
     nameNoteIfUntitled(nid, "발주서 OCR 반영");
-    appendMessage(nid, { role: "user", text: "이 발주서 반영해줘", attachment: "발주서_대신금속_26-0702.pdf" });
-    setThinking(true);
-    setThinkingSteps(["발주서를 읽고 있어요"]);
-    const r = await callScenario(
-      "purchase-order",
-      "첨부한 발주서(대신금속, 황동봉 C3604 Ø12 800kg)를 읽고 구매 관리 등록을 제안해줘",
-    );
-    if (r?.proposal) {
-      pushAi(
-        nid,
-        scenarioToMessage(r, { docName: "발주서_대신금속_26-0702.pdf", targetModule: "경영지원 > 구매 관리" }),
-        r.trace.map((t) => t.text),
-      );
-    } else {
-      pushAi(nid, SCRIPTED_REPLIES[1]);
-    }
+    const u: ChatMessage = { role: "user", text: "이 발주서 반영해줘", attachment: "발주서_대신금속_26-0702.pdf" };
+    appendMessage(nid, u);
+    void respond(nid, u);
   }
 
-  function resolveOcr(noteId: number, approved: boolean) {
-    setOcrPending(false);
+  /** 발주서 제안 승인/취소 — 카드를 resolved로 굳혀 새로고침 뒤에도 버튼이 다시 뜨지 않게 한다 */
+  function resolveOcr(noteId: number, idx: number, approved: boolean) {
+    const m = notes.find((n) => n.id === noteId)?.messages[idx];
+    if (m?.ocrProposal) updateMessage(noteId, idx, { ocrProposal: { ...m.ocrProposal, resolved: true } });
     if (approved) pushAi(noteId, SCRIPTED_REPLIES[2]);
-    else appendMessage(noteId, { role: "ai", text: "반영을 취소했습니다. 문서는 소스로만 보관됩니다." });
+    else appendMessage(noteId, { role: "ai", text: "반영을 취소했어요. 문서는 소스로만 보관돼요." });
   }
+
+  const stopStreaming = useCallback(() => setStreaming(null), []);
+  const closeDrawer = useCallback(() => setDrawer(null), []);
 
   const composer = (
     <ChatComposer
       value={input}
       onChange={setInput}
-      onSend={() => send()}
-      thinking={thinking}
+      onSend={send}
+      thinking={!!pending}
       onAddSource={() => fileRef.current?.click()}
       onOcrDemo={triggerOcr}
       onOpenConnectors={() => setConnectorOpen(true)}
@@ -461,10 +485,12 @@ export default function AiChatPage() {
       AI 액션은 ON 상태 기능만 호출하며 실행 전 사용자 확인을 거쳐요.
     </p>
   );
-  const empty = !active || active.messages.length === 0;
+
+  const last = active?.messages[active.messages.length - 1];
+  const drawerMsg = drawer && drawer.noteId === active?.id ? active.messages[drawer.idx] : undefined;
 
   return (
-    <div className="flex h-screen gap-3 bg-slate-50 p-3">
+    <div className="relative flex h-screen gap-3 bg-slate-50 p-3">
       <input
         ref={fileRef}
         type="file"
@@ -483,7 +509,7 @@ export default function AiChatPage() {
         notes={notes}
         activeId={activeId}
         src={src}
-        onSelectNote={setActiveId}
+        onSelectNote={showNote}
         onNewNote={startNewNote}
         onDeleteNote={deleteNote}
         onToggleSource={(name) =>
@@ -513,10 +539,20 @@ export default function AiChatPage() {
           </Button>
         </header>
 
-        {empty ? (
-          // 첫 화면 — 입력바가 수직 중앙에 선다. 첫 메시지를 보내면 아래 분기로 넘어가 하단에 고정된다
-          <div className="flex flex-1 items-center justify-center px-5 pb-10">
-            <div className="w-full max-w-3xl">
+        {!restored ? (
+          // 저장된 대화를 읽어오는 동안 — 빈 화면이 번쩍 지나가지 않게 스켈레톤을 둔다
+          <div className="flex-1 px-5 py-5" role="status" aria-label="대화 불러오는 중">
+            <div className="mx-auto max-w-3xl space-y-5">
+              <div className="ml-auto h-10 w-2/5 animate-pulse rounded-2xl bg-slate-200/70" />
+              <div className="h-24 w-4/5 animate-pulse rounded-2xl bg-slate-200/70" />
+              <div className="ml-auto h-10 w-1/3 animate-pulse rounded-2xl bg-slate-200/70" />
+            </div>
+          </div>
+        ) : empty ? (
+          // 첫 화면 — 오로라·커서 글로우 위에 입력바가 수직 중앙에 선다. 첫 메시지를 보내면 아래 분기로 넘어간다
+          <div className="relative flex flex-1 items-center justify-center px-5 pb-10">
+            <AiBackdrop />
+            <div className="relative w-full max-w-3xl">
               {composer}
               {disclaimer}
             </div>
@@ -524,93 +560,64 @@ export default function AiChatPage() {
         ) : (
           <>
             <div ref={scrollRef} className="thin-scroll flex-1 overflow-y-auto px-5 py-5">
-              <div className="mx-auto max-w-3xl space-y-5">
+              <div ref={innerRef} className="mx-auto max-w-3xl space-y-5">
                 {active.messages.map((msg, i) =>
                   msg.role === "user" ? (
-                    <div key={i} className="flex justify-end">
-                      <div className="max-w-[80%] rounded-2xl bg-slate-200/70 px-4 py-2.5 text-sm leading-relaxed text-slate-800">
-                        {msg.attachment && (
-                          <p className="mb-1.5 flex items-center gap-1.5 rounded-lg bg-white/70 px-2.5 py-1.5 text-xs">
-                            <IconFile size={13} /> {msg.attachment}
-                          </p>
-                        )}
-                        {msg.text}
-                      </div>
-                    </div>
+                    <UserMessage
+                      key={i}
+                      msg={msg}
+                      disabled={!!pending}
+                      onEdit={(text) => editUser(active.id, i, text)}
+                    />
                   ) : (
-                    <div key={i} className="min-w-0 max-w-[85%]">
-                      {/* 추론 과정 — 말풍선 없이 답변 위에 표시 */}
-                      {msg.process && <ReasoningTrace process={msg.process} />}
-                      <div className="whitespace-pre-line text-sm leading-relaxed text-slate-700">
-                        {msg.text}
-                        {msg.ocrProposal && (
-                          <OcrProposalCard
-                            proposal={msg.ocrProposal}
-                            pending={i === active.messages.length - 1 && ocrPending}
-                            onResolve={(approved) => resolveOcr(active.id, approved)}
-                            onUpdate={(fields) =>
-                              updateMessage(active.id, i, { ocrProposal: { ...msg.ocrProposal!, fields } })
-                            }
-                          />
-                        )}
-                      </div>
-                      {msg.cta && (
-                        <Link
-                          href={msg.cta.href}
-                          className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-slate-700"
-                        >
-                          {msg.cta.label} <IconArrowRight size={13} />
-                        </Link>
+                    <AiMessage
+                      key={i}
+                      msg={msg}
+                      last={i === active.messages.length - 1}
+                      streaming={streaming === active.id && i === active.messages.length - 1}
+                      disabled={!!pending}
+                      onStreamDone={stopStreaming}
+                      onRetry={() => retry(active.id, i)}
+                      onRate={(r) => rate(active.id, i, r)}
+                      onOpenSources={() => setDrawer({ noteId: active.id, idx: i })}
+                    >
+                      {msg.ocrProposal && (
+                        <OcrProposalCard
+                          proposal={msg.ocrProposal}
+                          pending={!msg.ocrProposal.resolved}
+                          onResolve={(approved) => resolveOcr(active.id, i, approved)}
+                          onUpdate={(fields) =>
+                            updateMessage(active.id, i, { ocrProposal: { ...msg.ocrProposal!, fields } })
+                          }
+                        />
                       )}
-                      {msg.sources && msg.sources.length > 0 && (
-                        <div className="mt-2 space-y-1">
-                          <p className="text-[11px] font-semibold text-slate-400">출처 인용</p>
-                          {msg.sources.map((s) => (
-                            <button
-                              key={s.doc}
-                              type="button"
-                              className="flex w-full cursor-pointer items-start gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left transition-colors hover:border-slate-300"
-                              title="클릭 시 원문으로 이동"
-                            >
-                              <IconFile size={13} className="mt-0.5 shrink-0 text-slate-400" />
-                              <span className="min-w-0">
-                                <span className="block truncate text-xs font-medium text-slate-700">{s.doc}</span>
-                                <span className="block truncate text-[11px] text-slate-400">
-                                  &ldquo;{s.snippet}&rdquo;
-                                </span>
-                              </span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    </AiMessage>
                   ),
                 )}
 
-                {/* 추론 로딩 — 말풍선 없이 쉬머 텍스트만 */}
-                {thinking && (
+                {/* 답변 생성 중 — 트레이스가 살아 움직인다 */}
+                {pending?.noteId === active.id && (
                   <div className="min-w-0 max-w-[85%]">
-                    <ul className="space-y-1.5">
-                      {thinkingSteps.map((s, i) => {
-                        const isCurrent = i === thinkingSteps.length - 1;
-                        return (
-                          <li key={s} className="flex items-center gap-2 text-[13px]">
-                            {isCurrent ? (
-                              <span className="shimmer-text font-medium">{s}…</span>
-                            ) : (
-                              <>
-                                <IconCheck size={12} className="shrink-0 text-slate-400" />
-                                <span className="text-slate-400">{s}</span>
-                              </>
-                            )}
-                          </li>
-                        );
-                      })}
-                      {thinkingSteps.length === 0 && (
-                        <li className="shimmer-text text-[13px] font-medium">생각하는 중…</li>
-                      )}
-                    </ul>
+                    <AgentTrace
+                      working
+                      rows={pending.rows.slice(0, pending.shown)}
+                      label={pending.labels[Math.min(pending.shown, pending.labels.length - 1)]}
+                    />
                   </div>
+                )}
+
+                {/* 답변 중 새로고침·이탈로 끊긴 자리 — 마지막이 사용자 메시지면 다시 보낼 수 있게 */}
+                {!pending && last?.role === "user" && (
+                  <p className="flex items-center gap-2 text-[13px] text-slate-500">
+                    답변을 받지 못했어요.
+                    <button
+                      type="button"
+                      onClick={() => void respond(active.id, last)}
+                      className="cursor-pointer font-semibold text-slate-700 underline-offset-2 transition-colors hover:text-slate-900 hover:underline"
+                    >
+                      다시 시도
+                    </button>
+                  </p>
                 )}
               </div>
             </div>
@@ -625,6 +632,7 @@ export default function AiChatPage() {
         )}
       </section>
 
+      {drawerMsg && <SourceDrawer msg={drawerMsg} onClose={closeDrawer} />}
       <ConnectorModal open={connectorOpen} onClose={() => setConnectorOpen(false)} />
       <SkillModal open={skillOpen} onClose={() => setSkillOpen(false)} />
     </div>
