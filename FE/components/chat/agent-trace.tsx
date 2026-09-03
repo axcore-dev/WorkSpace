@@ -139,6 +139,7 @@ export function AgentTrace({
   label,
   thoughts,
   durationMs,
+  collapseOnMount = false,
 }: {
   rows: TraceStep[];
   working?: boolean;
@@ -147,10 +148,23 @@ export function AgentTrace({
   /** 완료 후 "{n}초 생각함" 행에 펼쳐지는 추론 문구 */
   thoughts?: string[];
   durationMs?: number;
+  /**
+   * 방금 도착한 답변 — 펼친 상태로 마운트한 뒤 한 프레임 뒤에 접어서 접히는 전환을 재생한다.
+   * 작업 중 트레이스는 답변이 붙는 순간 언마운트되므로, 이걸 켜지 않으면 행이 그냥 사라진다.
+   */
+  collapseOnMount?: boolean;
 }) {
-  const [manual, setManual] = useState<boolean | null>(null);
+  const [manual, setManual] = useState<boolean | null>(
+    collapseOnMount ? true : null,
+  );
   const [openRow, setOpenRow] = useState<number | null>(null);
   const expanded = manual ?? working;
+
+  useEffect(() => {
+    if (!collapseOnMount) return;
+    const raf = requestAnimationFrame(() => setManual(false));
+    return () => cancelAnimationFrame(raf);
+  }, [collapseOnMount]);
   const s = sec(durationMs);
   // 접힘 헤더에 겹쳐 보여줄 앱 마크 — 중복을 걷고 앞의 네 개만
   const brands = [

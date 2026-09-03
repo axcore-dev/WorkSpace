@@ -45,6 +45,11 @@ export default function AiChatPage() {
   const [error, setError] = useState<Failure | null>(null);
   /** 타자 효과를 재생할 대화 id — 답변이 delta 없이 한 번에 도착했을 때만 */
   const [streaming, setStreaming] = useState<number | null>(null);
+  /**
+   * 방금 답변이 붙은 대화 id — 그 답변의 트레이스가 펼친 상태로 마운트해 접히는 전환을 재생한다.
+   * 작업 중 트레이스는 답변이 붙는 순간 언마운트되므로 이 신호 없이는 행이 그냥 사라진다.
+   */
+  const [justArrived, setJustArrived] = useState<number | null>(null);
   /** 출처 패널 — open이 false여도 닫히는 동안 내용을 유지하다가 전환이 끝나면 비운다 */
   const [drawer, setDrawer] = useState<{
     noteId: number;
@@ -257,6 +262,9 @@ export default function AiChatPage() {
       appendMessage(nid, msg);
       // 본문이 이미 조각으로 흘러왔으면 타자 효과를 다시 틀지 않는다
       setStreaming(streamed ? null : nid);
+      setJustArrived(nid);
+      // 접히는 전환(300ms)이 끝나면 신호를 내린다 — 대화를 다시 열 때 또 접히지 않게
+      setTimeout(() => setJustArrived((n) => (n === nid ? null : n)), 400);
       setPending(null);
       return true;
     } catch (e) {
@@ -406,7 +414,7 @@ export default function AiChatPage() {
   );
   const disclaimer = (
     <p className="mt-2 text-center text-[13px] text-slate-400">
-      AI 액션은 ON 상태 기능만 호출하며 실행 전 사용자 확인을 거쳐요.
+      AI는 실수를 할 수 있습니다. 중요한 정보는 재차 확인하세요.
     </p>
   );
 
@@ -533,6 +541,10 @@ export default function AiChatPage() {
                         drawer.noteId === active.id &&
                         drawer.idx === i
                       }
+                      justArrived={
+                        justArrived === active.id &&
+                        i === active.messages.length - 1
+                      }
                       onStreamDone={stopStreaming}
                       onRetry={() => retry(active.id, i)}
                       onRate={(r) => rate(active.id, i, r)}
@@ -558,7 +570,7 @@ export default function AiChatPage() {
 
                 {/* 답변 생성 중 — 도구 행과 본문 조각이 도착하는 대로 살아 움직인다 */}
                 {active && pending?.noteId === active.id && (
-                  <div className="min-w-0 max-w-[85%] space-y-3">
+                  <div className="min-w-0 max-w-[85%]">
                     <AgentTrace
                       working
                       rows={pending.rows}

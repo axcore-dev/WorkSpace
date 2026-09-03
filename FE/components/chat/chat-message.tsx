@@ -179,12 +179,15 @@ export function AiMessage({
   onRate,
   sourcesOpen,
   onOpenSources,
+  justArrived = false,
   children,
 }: {
   msg: ChatMessage;
   last: boolean;
   /** 새로 도착한 답변 — 타자 효과로 흐른다 */
   streaming: boolean;
+  /** 방금 도착한 답변 — 트레이스가 펼친 상태에서 접히는 전환을 재생한다 */
+  justArrived?: boolean;
   /** 다른 답변 생성 중에는 다시 시도를 막는다 */
   disabled: boolean;
   onStreamDone: () => void;
@@ -209,6 +212,7 @@ export function AiMessage({
           rows={trace}
           thoughts={msg.reasoning}
           durationMs={msg.durationMs}
+          collapseOnMount={justArrived}
         />
       )}
       <div className="whitespace-pre-line text-base leading-relaxed text-slate-700">
