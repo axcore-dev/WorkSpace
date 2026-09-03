@@ -1,4 +1,5 @@
 import type { ICON_MAP } from "@/components/icons";
+import type { SocialProvider } from "@/lib/auth";
 import type { Tone } from "./types";
 
 /** 조직/워크스페이스·설정 관련 더미 데이터 */
@@ -8,9 +9,18 @@ export const DEMO_USER = {
   name: "박데모",
   email: "demo@axcore.it.kr",
   role: "관리자",
-  title: "제조혁신팀 팀장",
+  /** 부서를 별도 필드로 뺐으므로 직책만 남긴다 (이전 값: "제조혁신팀 팀장") */
+  title: "팀장",
+  dept: "제조혁신팀",
+  empNo: "D-20180417",
+  /** 지금까지 account-settings.tsx가 SMS 2FA 대상으로 하드코딩하던 값 */
+  phone: "010-1234-5678",
+  site: "본사",
+  timezone: "Asia/Seoul",
   company: "(주)데모컴퍼니",
   initials: "박",
+  /** 문의·감사 로그 조회용 식별자 */
+  userId: "3a5d872b-594c-816f-8386-0002e81c3bdc",
 };
 
 /** 내부 관리자(AXCORE 운영) 데모 계정 — 계약 시 고객 워크스페이스를 개설하는 쪽 */
@@ -53,6 +63,87 @@ export const USERS_ROLES: {
   { name: "정민호", email: "mhjung@democompany.co.kr", role: "설비 관리자", dept: "설비보전팀", lastActive: "3시간 전", status: { badge: "활성", tone: "green" } },
   { name: "오세라", email: "sroh@democompany.co.kr", role: "구매 담당", dept: "구매자재팀", lastActive: "어제", status: { badge: "활성", tone: "green" } },
   { name: "문가영", email: "gymoon@democompany.co.kr", role: "일반 사용자", dept: "해외영업팀", lastActive: "5일 전", status: { badge: "초대 대기", tone: "amber" } },
+];
+
+/**
+ * 부서 목록 — 단일 소스.
+ *
+ * `USERS_ROLES[].dept`에 실제로 쓰인 값을 기준으로 했다.
+ * `invite-modal.tsx`가 다른 목록(`경영지원본부`·`영업본부`·`고객지원팀`)을 하드코딩하고
+ * 있는데, 그 정리는 역할 단일 소스(`ROLES`)를 만드는 작업과 같은 묶음이다.
+ */
+export const DEPARTMENTS = [
+  "제조혁신팀",
+  "생산본부",
+  "품질관리팀",
+  "설비보전팀",
+  "구매자재팀",
+  "해외영업팀",
+] as const;
+
+/** 사업장 — `EXTERNAL_SYSTEMS`에 "1공장 MES"가 있는 전제 */
+export const SITES = ["본사", "1공장", "2공장"] as const;
+
+/** 시간대 — 해외영업팀과 해외 사업장이 있어 절대 시각 기준이 필요하다 */
+export const TIMEZONES: { value: string; label: string }[] = [
+  { value: "Asia/Seoul", label: "(GMT+09:00) 서울" },
+  { value: "Asia/Ho_Chi_Minh", label: "(GMT+07:00) 하노이" },
+  { value: "America/Mexico_City", label: "(GMT-06:00) 멕시코시티" },
+];
+
+/**
+ * 계정 › 이메일.
+ *
+ * BE에는 **대표 이메일 재인증만** 있다 (`POST /api/auth/email/verify-request`). 추가 이메일
+ * API는 없어서, 두 번째 항목은 화면에 자리만 두고 버튼을 비활성으로 둔다.
+ */
+export const ACCOUNT_EMAILS: {
+  address: string;
+  primary: boolean;
+  verified: boolean;
+  /** 인증 대기 중일 때 마지막 발송 시점 (표시용 문구) */
+  sentAt?: string;
+}[] = [
+  { address: "demo@axcore.it.kr", primary: true, verified: true },
+  { address: "demo@democompany.co.kr", primary: false, verified: false, sentAt: "2일 전" },
+];
+
+/**
+ * 계정 › 소셜 로그인.
+ *
+ * **제공자는 `lib/auth.ts`의 `SocialProvider`가 단일 소스다** — `google`·`naver` 둘뿐이다.
+ * 이름은 `PROVIDER_LABELS`를 읽어 쓴다. Microsoft·Kakao를 넣지 않는 이유는 그 제공자가
+ * `lib/auth.ts`에 없어서다 — 눌러도 아무 일이 일어나지 않는다.
+ *
+ * 연동 해제 API는 BE에 없다. 화면은 상태만 보이고 해제 버튼은 비활성으로 둔다.
+ */
+export const SOCIAL_LOGINS: {
+  provider: SocialProvider;
+  account?: string;
+  connected: boolean;
+}[] = [
+  { provider: "google", account: "demo@democompany.co.kr", connected: true },
+  { provider: "naver", connected: false },
+];
+
+/**
+ * 계정 › 기기 — 활성 세션.
+ *
+ * 현장 공용 단말을 로그아웃하지 않고 떠나는 일이 잦아서 넣었다.
+ * BE에 `GET /api/auth/sessions`가 이미 있다 — 이 더미는 연동 전까지만 쓴다.
+ */
+export const DEVICES: {
+  id: string;
+  name: string;
+  detail?: string;
+  lastActive: string;
+  location: string;
+  /** 지금 보고 있는 기기 — 로그아웃 버튼을 주지 않는다 */
+  current: boolean;
+}[] = [
+  { id: "d1", name: "Windows · Chrome", lastActive: "지금", location: "본사 · KR", current: true },
+  { id: "d2", name: "1공장 공용 태블릿 · Android", detail: "현장 검사 단말", lastActive: "2026-09-02 14:20", location: "1공장 · KR", current: false },
+  { id: "d3", name: "iPhone · Safari", lastActive: "2026-08-28 09:10", location: "알 수 없음", current: false },
 ];
 
 /** 설정 > 외부 시스템 연동 — name은 사용자 설정 이름, system은 실제 시스템 명 */
