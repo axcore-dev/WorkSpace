@@ -42,8 +42,6 @@ export function ChatRail({
   onToggleAll,
   onAddSource,
   onRemoveSource,
-  onInheritSources,
-  canInherit,
 }: {
   notes: Note[];
   activeId: number | null;
@@ -55,8 +53,6 @@ export function ChatRail({
   onToggleAll: () => void;
   onAddSource: () => void;
   onRemoveSource: (name: string) => void;
-  onInheritSources: () => void;
-  canInherit: boolean;
 }) {
   // 어느 패널인지와 열렸는지를 나눠 든다 — 닫히는 전환 동안 마지막 패널을 계속 그리기 위해
   const [panel, setPanel] = useState<Panel>("sources");
@@ -276,15 +272,6 @@ export function ChatRail({
               {sources.length === 0 && (
                 <li className="mx-1 mt-1 rounded-lg border border-dashed border-slate-200 px-3 py-6 text-center text-[15px] leading-relaxed text-slate-400">
                   문서를 추가해 주세요.
-                  {canInherit && (
-                    <button
-                      type="button"
-                      onClick={onInheritSources}
-                      className="mt-3 block w-full cursor-pointer rounded-lg border border-slate-200 px-2 py-1.5 text-[15px] font-semibold text-slate-600 transition-colors hover:bg-slate-50"
-                    >
-                      직전 대화 소스 가져오기
-                    </button>
-                  )}
                 </li>
               )}
               {sources.map((doc) => {

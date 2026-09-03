@@ -177,22 +177,6 @@ export default function AiChatPage() {
     });
   }
 
-  /** 직전 대화의 소스를 현재 빈 대화로 복사한다 — 새 대화마다 다시 고르는 수고를 던다 */
-  function inheritSources() {
-    const prev = notes
-      .filter((n) => n.id !== activeId && n.src.sources.length > 0)
-      .pop();
-    if (!prev) return;
-    patchSrc(() => ({
-      sources: prev.src.sources.map((d) => ({ ...d })),
-      selected: [...prev.src.selected],
-    }));
-  }
-
-  const canInherit = notes.some(
-    (n) => n.id !== activeId && n.src.sources.length > 0,
-  );
-
   /** 비어 있는 '새 대화' 노트북에 첫 활동이 생기면 제목을 붙인다 — 대화 기록에서 구분되도록 */
   function nameNoteIfUntitled(id: number, title: string) {
     setNotes((prev) =>
@@ -504,8 +488,6 @@ export default function AiChatPage() {
         }
         onAddSource={() => fileRef.current?.click()}
         onRemoveSource={removeSource}
-        onInheritSources={inheritSources}
-        canInherit={canInherit}
       />
 
       {/* ── 대화 — 카드 없이 배경을 그대로 캔버스로 쓴다 ── */}
