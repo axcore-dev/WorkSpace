@@ -102,7 +102,7 @@ export function ChatRail({
       >
         <Icon size={19} />
         <span
-          className={`text-[10px] font-medium ${on ? "text-slate-500" : "text-slate-400"}`}
+          className={`text-[13px] font-medium ${on ? "text-slate-500" : "text-slate-400"}`}
         >
           {count}
         </span>
@@ -145,7 +145,7 @@ export function ChatRail({
             className={PANEL}
           >
             <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-              <h2 className="text-sm font-bold text-slate-900">
+              <h2 className="text-[15px] font-bold text-slate-900">
                 대화{" "}
                 <span className="ml-1 font-normal text-slate-400">
                   {notes.length}
@@ -172,7 +172,7 @@ export function ChatRail({
             </div>
             <ul className="thin-scroll flex-1 space-y-0.5 overflow-y-auto px-2 pb-2">
               {notes.length === 0 && (
-                <li className="mx-1 mt-1 rounded-lg border border-dashed border-slate-200 px-3 py-8 text-center text-xs leading-relaxed text-slate-400">
+                <li className="mx-1 mt-1 rounded-lg border border-dashed border-slate-200 px-3 py-8 text-center text-[15px] leading-relaxed text-slate-400">
                   아직 대화가 없어요.
                   <br />
                   질문을 보내면 여기에 쌓여요.
@@ -188,13 +188,13 @@ export function ChatRail({
                     }`}
                   >
                     <span
-                      className={`block w-full truncate text-xs font-medium ${
+                      className={`block w-full truncate text-[15px] font-medium ${
                         n.id === activeId ? "text-slate-900" : "text-slate-700"
                       }`}
                     >
                       {n.title}
                     </span>
-                    <span className="mt-0.5 text-[10px] text-slate-400">
+                    <span className="mt-0.5 text-[13px] text-slate-400">
                       메시지 {n.messages.length}개
                     </span>
                   </button>
@@ -216,7 +216,7 @@ export function ChatRail({
         {panel === "sources" && (
           <section id="chat-rail-sources" aria-label="소스" className={PANEL}>
             <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-              <h2 className="text-sm font-bold text-slate-900">
+              <h2 className="text-[15px] font-bold text-slate-900">
                 소스{" "}
                 <span className="ml-1 font-normal text-slate-400">
                   {selected.length}/{sources.length}
@@ -242,7 +242,7 @@ export function ChatRail({
                 소스 추가
               </Button>
               {sources.length > 0 && (
-                <label className="flex cursor-pointer items-center gap-2 px-1 text-xs text-slate-600">
+                <label className="flex cursor-pointer items-center gap-2 px-1 text-[15px] text-slate-600">
                   <input
                     type="checkbox"
                     checked={allSelected}
@@ -262,7 +262,7 @@ export function ChatRail({
             </div>
             <ul className="thin-scroll flex-1 space-y-0.5 overflow-y-auto p-2">
               {sources.length === 0 && (
-                <li className="mx-1 mt-1 rounded-lg border border-dashed border-slate-200 px-3 py-6 text-center text-xs leading-relaxed text-slate-400">
+                <li className="mx-1 mt-1 rounded-lg border border-dashed border-slate-200 px-3 py-6 text-center text-[15px] leading-relaxed text-slate-400">
                   새 대화라 소스가 비어 있어요.
                   <br />
                   문서를 추가하면 AI가 분석해
@@ -272,7 +272,7 @@ export function ChatRail({
                     <button
                       type="button"
                       onClick={onInheritSources}
-                      className="mt-3 block w-full cursor-pointer rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50"
+                      className="mt-3 block w-full cursor-pointer rounded-lg border border-slate-200 px-2 py-1.5 text-[15px] font-semibold text-slate-600 transition-colors hover:bg-slate-50"
                     >
                       직전 대화 소스 가져오기
                     </button>
@@ -302,10 +302,10 @@ export function ChatRail({
                         className="mt-0.5 shrink-0 text-slate-400"
                       />
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-xs font-medium text-slate-700">
+                        <span className="block truncate text-[15px] font-medium text-slate-700">
                           {doc.name}
                         </span>
-                        <span className="mt-0.5 block text-[10px] text-slate-400">
+                        <span className="mt-0.5 block text-[13px] text-slate-400">
                           {doc.type} · {doc.scope} · {doc.updated}
                         </span>
                       </span>
@@ -323,7 +323,7 @@ export function ChatRail({
                 );
               })}
             </ul>
-            <p className="border-t border-slate-100 px-4 py-2.5 text-[10px] leading-relaxed text-slate-400">
+            <p className="border-t border-slate-100 px-4 py-2.5 text-[13px] leading-relaxed text-slate-400">
               PDF·이미지·XLSX·DOCX를 올릴 수 있어요. 공개 범위와 역할 권한에
               따라 접근이 제어돼요.
             </p>

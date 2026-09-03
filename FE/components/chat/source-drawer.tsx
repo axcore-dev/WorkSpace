@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { TraceIcon } from "@/components/chat/agent-trace";
-import { IconClock, IconCpu, IconFile, IconX } from "@/components/icons";
+import { IconClock, IconFile, IconSparkles, IconX } from "@/components/icons";
 import type { ChatMessage, TraceStep } from "@/data/chat";
 
 /**
@@ -66,7 +66,7 @@ export function SourceDrawer({
         className="flex h-full w-96 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white"
       >
         <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-          <h2 className="text-sm font-bold text-slate-900">출처</h2>
+          <h2 className="text-[15px] font-bold text-slate-900">출처</h2>
           <button
             type="button"
             autoFocus
@@ -78,7 +78,7 @@ export function SourceDrawer({
           </button>
         </div>
 
-        <div className="thin-scroll flex-1 space-y-5 overflow-y-auto px-4 py-4 text-[13px]">
+        <div className="thin-scroll flex-1 space-y-5 overflow-y-auto px-4 py-4 text-[15px]">
           {sec !== undefined && (
             <p className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2.5 font-medium text-slate-700">
               <IconClock size={14} className="text-slate-400" />
@@ -88,8 +88,8 @@ export function SourceDrawer({
 
           {msg.reasoning && msg.reasoning.length > 0 && (
             <section aria-label="생각 과정">
-              <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-slate-400">
-                <IconCpu size={13} />
+              <h3 className="mb-2 flex items-center gap-1.5 text-[13px] font-semibold text-slate-400">
+                <IconSparkles size={15} strokeWidth={1.75} />
                 생각 과정
               </h3>
               <ol className="ml-1.5 space-y-1.5 border-l border-slate-200 pl-3 text-slate-600">
@@ -102,7 +102,7 @@ export function SourceDrawer({
 
           {trace.length > 0 && (
             <section aria-label="도구 호출">
-              <h3 className="mb-2 text-xs font-semibold text-slate-400">
+              <h3 className="mb-2 text-[13px] font-semibold text-slate-400">
                 도구 호출 {trace.length}
               </h3>
               <ol className="space-y-3">
@@ -114,28 +114,28 @@ export function SourceDrawer({
                     <div className="min-w-0 flex-1">
                       <p className="text-slate-700">{t.text}</p>
                       {t.result && (
-                        <p className="mt-0.5 text-[11px] tabular-nums text-slate-400">
+                        <p className="mt-0.5 text-[13px] tabular-nums text-slate-400">
                           {t.result}
                         </p>
                       )}
                       {(t.input || t.output) && (
-                        <dl className="mt-1.5 space-y-1.5 text-[12px]">
+                        <dl className="mt-1.5 space-y-1.5 text-[13px]">
                           {t.input && (
                             <div>
-                              <dt className="text-[10px] font-semibold text-slate-400">
+                              <dt className="text-[13px] font-semibold text-slate-400">
                                 입력
                               </dt>
-                              <dd className="mt-0.5 whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 font-mono text-[11.5px] text-slate-600">
+                              <dd className="mt-0.5 whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 font-mono text-[13px] text-slate-600">
                                 {t.input}
                               </dd>
                             </div>
                           )}
                           {t.output && (
                             <div>
-                              <dt className="text-[10px] font-semibold text-slate-400">
+                              <dt className="text-[13px] font-semibold text-slate-400">
                                 출력
                               </dt>
-                              <dd className="mt-0.5 whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 font-mono text-[11.5px] text-slate-600">
+                              <dd className="mt-0.5 whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 font-mono text-[13px] text-slate-600">
                                 {t.output}
                               </dd>
                             </div>
@@ -151,7 +151,7 @@ export function SourceDrawer({
 
           {(cited.length > 0 || consulted.length > 0) && (
             <section aria-label="인용 문서">
-              <h3 className="mb-2 text-xs font-semibold text-slate-400">
+              <h3 className="mb-2 text-[13px] font-semibold text-slate-400">
                 인용 문서 {cited.length + consulted.length}
               </h3>
               <ul className="space-y-1.5">
@@ -165,10 +165,10 @@ export function SourceDrawer({
                       className="mt-0.5 shrink-0 text-slate-400"
                     />
                     <span className="min-w-0">
-                      <span className="block truncate text-xs font-medium text-slate-700">
+                      <span className="block truncate text-[15px] font-medium text-slate-700">
                         {s.doc}
                       </span>
-                      <span className="mt-0.5 block text-[11px] leading-relaxed text-slate-500">
+                      <span className="mt-0.5 block text-[15px] leading-relaxed text-slate-500">
                         &ldquo;{s.snippet}&rdquo;
                       </span>
                     </span>
@@ -183,7 +183,7 @@ export function SourceDrawer({
                   {consulted.map((d) => (
                     <li
                       key={d}
-                      className="flex items-center gap-1 rounded-full border border-slate-200 px-2 py-0.5 text-[11px] text-slate-500"
+                      className="flex items-center gap-1 rounded-full border border-slate-200 px-2 py-0.5 text-[13px] text-slate-500"
                     >
                       <IconFile size={11} />
                       {d}

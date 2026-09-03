@@ -23,7 +23,9 @@ export function OcrProposalCard({
     <div className="mt-3 overflow-hidden rounded-lg border border-slate-200 bg-white">
       <div className="flex items-center gap-2 border-b border-slate-100 bg-slate-50 px-3.5 py-2.5">
         <IconScanText size={15} className="text-slate-500" />
-        <p className="text-xs font-semibold text-slate-700">OCR 반영 제안 — {proposal.targetModule}</p>
+        <p className="text-[13px] font-semibold text-slate-700">
+          OCR 반영 제안 — {proposal.targetModule}
+        </p>
         {pending && !editing && (
           <button
             type="button"
@@ -31,7 +33,7 @@ export function OcrProposalCard({
               setDraft(proposal.fields);
               setEditing(true);
             }}
-            className="ml-auto inline-flex cursor-pointer items-center gap-1 text-xs font-medium text-slate-500 transition-colors hover:text-slate-700"
+            className="ml-auto inline-flex cursor-pointer items-center gap-1 text-[13px] font-medium text-slate-500 transition-colors hover:text-slate-700"
           >
             <IconPencil size={12} />
             편집
@@ -39,27 +41,40 @@ export function OcrProposalCard({
         )}
       </div>
       {editing ? (
-        <div className="divide-y divide-slate-100 px-3.5 text-xs">
+        <div className="divide-y divide-slate-100 px-3.5 text-[13px]">
           {draft.map((f, i) => (
-            <div key={f.label} className="flex items-center justify-between gap-3 py-1.5">
-              <label htmlFor={`ocr-field-${i}`} className="shrink-0 text-slate-500">
+            <div
+              key={f.label}
+              className="flex items-center justify-between gap-3 py-1.5"
+            >
+              <label
+                htmlFor={`ocr-field-${i}`}
+                className="shrink-0 text-slate-500"
+              >
                 {f.label}
               </label>
               <input
                 id={`ocr-field-${i}`}
                 value={f.value}
                 onChange={(e) =>
-                  setDraft((prev) => prev.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)))
+                  setDraft((prev) =>
+                    prev.map((x, j) =>
+                      j === i ? { ...x, value: e.target.value } : x,
+                    ),
+                  )
                 }
-                className="w-56 max-w-full rounded-md border border-slate-300 px-2 py-1 text-right text-xs font-semibold text-slate-800 transition-colors focus:border-slate-400 focus:outline-none"
+                className="w-56 max-w-full rounded-md border border-slate-300 px-2 py-1 text-right text-[13px] font-semibold text-slate-800 transition-colors focus:border-slate-400 focus:outline-none"
               />
             </div>
           ))}
         </div>
       ) : (
-        <dl className="divide-y divide-slate-100 px-3.5 text-xs">
+        <dl className="divide-y divide-slate-100 px-3.5 text-[13px]">
           {proposal.fields.map((f) => (
-            <div key={f.label} className="flex items-center justify-between py-2">
+            <div
+              key={f.label}
+              className="flex items-center justify-between py-2"
+            >
               <dt className="text-slate-500">{f.label}</dt>
               <dd className="font-semibold text-slate-800">{f.value}</dd>
             </div>
@@ -78,7 +93,11 @@ export function OcrProposalCard({
             <IconCheck size={13} />
             수정 내용 저장
           </Button>
-          <Button size="sm" variant="secondary" onClick={() => setEditing(false)}>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => setEditing(false)}
+          >
             취소
           </Button>
         </div>
@@ -88,13 +107,17 @@ export function OcrProposalCard({
             <IconCheck size={13} />
             승인하고 반영
           </Button>
-          <Button size="sm" variant="secondary" onClick={() => onResolve(false)}>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => onResolve(false)}
+          >
             <IconX size={13} />
             거절
           </Button>
         </div>
       ) : (
-        <p className="border-t border-slate-100 bg-slate-50 px-3.5 py-2 text-[11px] text-slate-400">
+        <p className="border-t border-slate-100 bg-slate-50 px-3.5 py-2 text-[13px] text-slate-400">
           처리 완료된 제안입니다.
         </p>
       )}

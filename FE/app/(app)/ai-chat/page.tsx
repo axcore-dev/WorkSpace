@@ -403,7 +403,7 @@ export default function AiChatPage() {
     />
   );
   const disclaimer = (
-    <p className="mt-2 text-center text-[11px] text-slate-400">
+    <p className="mt-2 text-center text-[13px] text-slate-400">
       AI 액션은 ON 상태 기능만 호출하며 실행 전 사용자 확인을 거쳐요.
     </p>
   );
@@ -471,7 +471,7 @@ export default function AiChatPage() {
       {/* ── 대화 — 카드 없이 배경을 그대로 캔버스로 쓴다 ── */}
       <section className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="relative flex items-center justify-between px-6 py-3.5">
-          <h1 className="min-w-0 truncate text-sm font-bold text-slate-900">
+          <h1 className="min-w-0 truncate text-[15px] font-bold text-slate-900">
             {active ? active.title : "AI대화"}
           </h1>
           <Button variant="secondary" size="sm" onClick={startNewNote}>
@@ -556,7 +556,7 @@ export default function AiChatPage() {
                       label={pending.label}
                     />
                     {pending.draft && (
-                      <div className="whitespace-pre-line text-sm leading-relaxed text-slate-700">
+                      <div className="whitespace-pre-line text-base leading-relaxed text-slate-700">
                         {pending.draft}
                       </div>
                     )}
@@ -567,7 +567,7 @@ export default function AiChatPage() {
                 {!pending && shownError && (
                   <p
                     role="alert"
-                    className="flex items-center gap-2 text-[13px] text-slate-500"
+                    className="flex items-center gap-2 text-[15px] text-slate-500"
                   >
                     {shownError.text}
                     <button
@@ -586,7 +586,7 @@ export default function AiChatPage() {
 
                 {/* 답변 중 새로고침·이탈로 끊긴 자리 — 마지막이 사용자 메시지면 다시 보낼 수 있게 */}
                 {active && !pending && !shownError && last?.role === "user" && (
-                  <p className="flex items-center gap-2 text-[13px] text-slate-500">
+                  <p className="flex items-center gap-2 text-[15px] text-slate-500">
                     답변을 받지 못했어요.
                     <button
                       type="button"

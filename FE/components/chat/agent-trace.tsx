@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { BrandIcon } from "@/components/brand-icons";
 import {
   IconChevronDown,
-  IconCpu,
+  IconSparkles,
   IconDatabase,
   IconExternalLink,
   IconFile,
@@ -17,8 +17,17 @@ const TRACE_ICONS = {
   data: IconDatabase,
   doc: IconFile,
   app: IconExternalLink,
-  model: IconCpu,
+  // 칩(IconCpu)은 획이 10개라 작은 크기에서 뭉개진다 — 획 4개짜리 반짝임을 쓴다
+  model: IconSparkles,
 } as const;
+
+/**
+ * 트레이스 아이콘 크기·획.
+ * 24 뷰박스에 stroke 2인 아이콘을 14px로 줄이면 실효 획이 1.17px이라 형태가 뭉개진다.
+ * 16px로 키우고 획을 1.75로 낮춰 같은 무게를 유지하면서 안쪽 모양이 살아난다.
+ */
+const ICON_SIZE = 16;
+const ICON_STROKE = 1.75;
 
 /** 단계가 부른 외부 앱의 slug — `brand`가 우선이고, 없으면 아이콘 종류로 유추한다 */
 function brandOf(step: TraceStep) {
@@ -34,12 +43,18 @@ function brandOf(step: TraceStep) {
  */
 export function TraceIcon({ step }: { step: TraceStep }) {
   const brand = brandOf(step);
-  if (brand) return <BrandIcon slug={brand} size={14} />;
+  if (brand) return <BrandIcon slug={brand} size={ICON_SIZE} />;
   const Icon =
     step.icon && step.icon in TRACE_ICONS
       ? TRACE_ICONS[step.icon as keyof typeof TRACE_ICONS]
       : IconSearch;
-  return <Icon size={14} className="text-slate-400" />;
+  return (
+    <Icon
+      size={ICON_SIZE}
+      strokeWidth={ICON_STROKE}
+      className="text-slate-500"
+    />
+  );
 }
 
 /** AI 작업 중 3×3 픽셀 도트 (`.pixel-dots`) */
@@ -143,7 +158,7 @@ export function AgentTrace({
   ].slice(0, 4);
 
   return (
-    <div className="mb-2 select-none text-[13px]">
+    <div className="mb-2 select-none text-[15px]">
       <button
         type="button"
         aria-expanded={expanded}
@@ -165,9 +180,9 @@ export function AgentTrace({
                 {brands.map((b) => (
                   <span
                     key={b}
-                    className="flex h-[18px] w-[18px] items-center justify-center rounded-full bg-white ring-1 ring-white"
+                    className="flex h-5 w-5 items-center justify-center rounded-full bg-white ring-1 ring-white"
                   >
-                    <BrandIcon slug={b} size={13} />
+                    <BrandIcon slug={b} size={15} />
                   </span>
                 ))}
               </span>
@@ -196,8 +211,12 @@ export function AgentTrace({
                 onClick={() => setOpenRow(openRow === -1 ? null : -1)}
                 className="flex w-full cursor-pointer items-center gap-2 rounded-md py-1 text-left text-slate-600 transition-colors hover:text-slate-900"
               >
-                <span className="flex h-4 w-4 shrink-0 items-center justify-center">
-                  <IconCpu size={14} className="text-slate-400" />
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center">
+                  <IconSparkles
+                    size={ICON_SIZE}
+                    strokeWidth={ICON_STROKE}
+                    className="text-slate-500"
+                  />
                 </span>
                 <span className="font-medium">
                   {s !== undefined ? `${s}초 생각함` : "생각 과정"}
@@ -232,12 +251,12 @@ export function AgentTrace({
                       : "cursor-default"
                   }`}
                 >
-                  <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center">
                     <TraceIcon step={t} />
                   </span>
                   <span className="min-w-0 flex-1 truncate">{t.text}</span>
                   {t.result && (
-                    <span className="shrink-0 text-[11px] tabular-nums text-slate-400">
+                    <span className="shrink-0 text-[13px] tabular-nums text-slate-400">
                       {t.result}
                     </span>
                   )}
@@ -250,23 +269,23 @@ export function AgentTrace({
                 </button>
                 {detail && (
                   <Collapse open={on}>
-                    <dl className="mb-2 ml-6 space-y-1.5 text-[12px]">
+                    <dl className="mb-2 ml-6 space-y-1.5 text-[13px]">
                       {t.input && (
                         <div>
-                          <dt className="text-[10px] font-semibold text-slate-400">
+                          <dt className="text-[13px] font-semibold text-slate-400">
                             입력
                           </dt>
-                          <dd className="mt-0.5 whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 font-mono text-[11.5px] text-slate-600">
+                          <dd className="mt-0.5 whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 font-mono text-[13px] text-slate-600">
                             {t.input}
                           </dd>
                         </div>
                       )}
                       {t.output && (
                         <div>
-                          <dt className="text-[10px] font-semibold text-slate-400">
+                          <dt className="text-[13px] font-semibold text-slate-400">
                             출력
                           </dt>
-                          <dd className="mt-0.5 whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 font-mono text-[11.5px] text-slate-600">
+                          <dd className="mt-0.5 whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 font-mono text-[13px] text-slate-600">
                             {t.output}
                           </dd>
                         </div>

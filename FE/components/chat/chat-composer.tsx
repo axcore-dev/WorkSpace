@@ -1,7 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { IconArrowRight, IconCheck, IconPlus, IconSparkles } from "@/components/icons";
+import {
+  IconArrowRight,
+  IconCheck,
+  IconPlus,
+  IconSparkles,
+} from "@/components/icons";
 import { BrandIcon } from "@/components/brand-icons";
 import { CONNECTOR_LIB, SKILL_LIB } from "@/data/chat";
 
@@ -16,7 +21,8 @@ function useAutoResizeTextarea(minHeight: number, maxHeight: number) {
       const el = ref.current;
       if (!el) return;
       el.style.height = `${minHeight}px`;
-      if (!reset) el.style.height = `${Math.max(minHeight, Math.min(el.scrollHeight, maxHeight))}px`;
+      if (!reset)
+        el.style.height = `${Math.max(minHeight, Math.min(el.scrollHeight, maxHeight))}px`;
     },
     [minHeight, maxHeight],
   );
@@ -58,7 +64,8 @@ export function ChatComposer({
   useEffect(() => {
     if (!menu) return;
     function onDown(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenu(false);
+      if (menuRef.current && !menuRef.current.contains(e.target as Node))
+        setMenu(false);
     }
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") setMenu(false);
@@ -92,13 +99,17 @@ export function ChatComposer({
             adjust();
           }}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+            if (
+              e.key === "Enter" &&
+              !e.shiftKey &&
+              !e.nativeEvent.isComposing
+            ) {
               e.preventDefault();
               onSend();
             }
           }}
           placeholder="무엇을 시작할까요?"
-          className="thin-scroll block w-full resize-none border-none bg-transparent px-4 pt-3.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none"
+          className="thin-scroll block w-full resize-none border-none bg-transparent px-4 pt-3.5 text-base text-slate-900 placeholder:text-slate-400 focus:outline-none"
         />
         <div className="flex items-center justify-between px-2.5 pb-2.5 pt-2">
           <div className="flex items-center gap-0.5">
@@ -135,7 +146,11 @@ export function ChatComposer({
                       </span>
                     ))}
                   </span>
-                  {rest > 0 && <span className="text-[11px] font-semibold text-slate-500">+{rest}</span>}
+                  {rest > 0 && (
+                    <span className="text-[13px] font-semibold text-slate-500">
+                      +{rest}
+                    </span>
+                  )}
                 </button>
               </>
             )}
@@ -158,7 +173,9 @@ export function ChatComposer({
 
       {menu && (
         <div className="absolute bottom-full left-0 z-30 mb-2 w-[300px] overflow-hidden rounded-xl border border-slate-200 bg-white py-1.5 shadow-lg">
-          <p className="px-3 py-1.5 text-[11px] font-semibold text-slate-400">연결된 앱</p>
+          <p className="px-3 py-1.5 text-[13px] font-semibold text-slate-400">
+            연결된 앱
+          </p>
           {CONNECTOR_LIB.slice(0, 4).map((c) => (
             <button
               key={c.slug}
@@ -170,11 +187,15 @@ export function ChatComposer({
               className="flex w-full cursor-pointer items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-slate-50"
             >
               <BrandIcon slug={c.slug} size={18} />
-              <span className="flex-1 truncate text-[13px] text-slate-700">{c.name}</span>
+              <span className="flex-1 truncate text-[15px] text-slate-700">
+                {c.name}
+              </span>
               {c.connected ? (
                 <IconCheck size={14} className="shrink-0 text-slate-400" />
               ) : (
-                <span className="shrink-0 text-[11px] font-semibold text-slate-500">연결</span>
+                <span className="shrink-0 text-[13px] font-semibold text-slate-500">
+                  연결
+                </span>
               )}
             </button>
           ))}
@@ -184,7 +205,7 @@ export function ChatComposer({
               setMenu(false);
               onOpenConnectors();
             }}
-            className="flex w-full cursor-pointer items-center gap-2.5 px-3 py-2 text-left text-[13px] text-slate-500 transition-colors hover:bg-slate-50"
+            className="flex w-full cursor-pointer items-center gap-2.5 px-3 py-2 text-left text-[15px] text-slate-500 transition-colors hover:bg-slate-50"
           >
             <span className="flex h-[18px] w-[18px] items-center justify-center text-slate-400">
               <IconPlus size={14} />
@@ -193,7 +214,9 @@ export function ChatComposer({
           </button>
 
           <div className="my-1.5 h-px bg-slate-100" />
-          <p className="px-3 py-1.5 text-[11px] font-semibold text-slate-400">스킬</p>
+          <p className="px-3 py-1.5 text-[13px] font-semibold text-slate-400">
+            스킬
+          </p>
           {SKILL_LIB.slice(0, 2).map((s) => (
             <button
               key={s.id}
@@ -205,7 +228,9 @@ export function ChatComposer({
               className="flex w-full cursor-pointer items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-slate-50"
             >
               <IconSparkles size={18} className="shrink-0 text-slate-400" />
-              <span className="flex-1 truncate text-[13px] text-slate-700">{s.name}</span>
+              <span className="flex-1 truncate text-[15px] text-slate-700">
+                {s.name}
+              </span>
             </button>
           ))}
           <button
@@ -214,7 +239,7 @@ export function ChatComposer({
               setMenu(false);
               onOpenSkills();
             }}
-            className="flex w-full cursor-pointer items-center gap-2.5 px-3 py-2 text-left text-[13px] text-slate-500 transition-colors hover:bg-slate-50"
+            className="flex w-full cursor-pointer items-center gap-2.5 px-3 py-2 text-left text-[15px] text-slate-500 transition-colors hover:bg-slate-50"
           >
             <span className="flex h-[18px] w-[18px] items-center justify-center text-slate-400">
               <IconPlus size={14} />

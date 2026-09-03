@@ -30,12 +30,21 @@ function CopyButton({ text }: { text: string }) {
   return (
     <button
       type="button"
-      onClick={() => void navigator.clipboard?.writeText(text).then(() => setCopied(true), () => {})}
+      onClick={() =>
+        void navigator.clipboard?.writeText(text).then(
+          () => setCopied(true),
+          () => {},
+        )
+      }
       aria-label={copied ? "복사됨" : "복사"}
       title="복사"
       className={ICON_BTN}
     >
-      {copied ? <IconCheck size={14} className="text-slate-700" /> : <IconCopy size={14} />}
+      {copied ? (
+        <IconCheck size={14} className="text-slate-700" />
+      ) : (
+        <IconCopy size={14} />
+      )}
     </button>
   );
 }
@@ -86,15 +95,23 @@ export function UserMessage({
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Escape") setEditing(false);
-              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+              if (
+                e.key === "Enter" &&
+                !e.shiftKey &&
+                !e.nativeEvent.isComposing
+              ) {
                 e.preventDefault();
                 save();
               }
             }}
-            className="thin-scroll block w-full resize-none bg-transparent px-2 pt-1.5 text-sm leading-relaxed text-slate-900 focus:outline-none"
+            className="thin-scroll block w-full resize-none bg-transparent px-2 pt-1.5 text-base leading-relaxed text-slate-900 focus:outline-none"
           />
           <div className="mt-1.5 flex justify-end gap-1.5">
-            <Button variant="secondary" size="sm" onClick={() => setEditing(false)}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setEditing(false)}
+            >
               취소
             </Button>
             <Button size="sm" onClick={save} disabled={!draft.trim()}>
@@ -128,9 +145,9 @@ export function UserMessage({
           <IconPencil size={14} />
         </button>
       </div>
-      <div className="max-w-[80%] rounded-2xl bg-slate-200/70 px-4 py-2.5 text-sm leading-relaxed text-slate-800">
+      <div className="max-w-[80%] rounded-2xl bg-slate-200/70 px-4 py-2.5 text-base leading-relaxed text-slate-800">
         {msg.attachment && (
-          <p className="mb-1.5 flex items-center gap-1.5 rounded-lg bg-white/70 px-2.5 py-1.5 text-xs">
+          <p className="mb-1.5 flex items-center gap-1.5 rounded-lg bg-white/70 px-2.5 py-1.5 text-[13px]">
             <IconFile size={13} /> {msg.attachment}
           </p>
         )}
@@ -142,7 +159,10 @@ export function UserMessage({
 
 /** 답변에 딸린 출처 문서 수 — 인용 스니펫과 조회 소스를 합쳐 중복 없이 센다 */
 export function sourceCount(msg: ChatMessage) {
-  return new Set([...(msg.sources?.map((s) => s.doc) ?? []), ...(msg.process?.sources ?? [])]).size;
+  return new Set([
+    ...(msg.sources?.map((s) => s.doc) ?? []),
+    ...(msg.process?.sources ?? []),
+  ]).size;
 }
 
 /**
@@ -176,21 +196,33 @@ export function AiMessage({
   /** 본문 뒤에 붙는 카드(발주서 제안 등) */
   children?: React.ReactNode;
 }) {
-  const trace = msg.process?.trace ?? msg.process?.steps.map((text) => ({ text })) ?? [];
+  const trace =
+    msg.process?.trace ?? msg.process?.steps.map((text) => ({ text })) ?? [];
   const srcN = sourceCount(msg);
-  const rateCls = (r: "up" | "down") => `${ICON_BTN} ${msg.rating === r ? "bg-slate-100 text-slate-900" : ""}`;
+  const rateCls = (r: "up" | "down") =>
+    `${ICON_BTN} ${msg.rating === r ? "bg-slate-100 text-slate-900" : ""}`;
 
   return (
     <div className="group min-w-0 max-w-[85%]">
-      {msg.process && <AgentTrace rows={trace} thoughts={msg.reasoning} durationMs={msg.durationMs} />}
-      <div className="whitespace-pre-line text-sm leading-relaxed text-slate-700">
-        {streaming ? <StreamingText text={msg.text} onDone={onStreamDone} /> : msg.text}
+      {msg.process && (
+        <AgentTrace
+          rows={trace}
+          thoughts={msg.reasoning}
+          durationMs={msg.durationMs}
+        />
+      )}
+      <div className="whitespace-pre-line text-base leading-relaxed text-slate-700">
+        {streaming ? (
+          <StreamingText text={msg.text} onDone={onStreamDone} />
+        ) : (
+          msg.text
+        )}
         {!streaming && children}
       </div>
       {!streaming && msg.cta && (
         <Link
           href={msg.cta.href}
-          className="agent-fade mt-2 inline-flex items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-slate-700"
+          className="agent-fade mt-2 inline-flex items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-slate-700"
         >
           {msg.cta.label} <IconArrowRight size={13} />
         </Link>
@@ -200,7 +232,9 @@ export function AiMessage({
           role="group"
           aria-label="답변 동작"
           className={`agent-fade mt-1.5 -ml-1.5 flex items-center gap-0.5 ${
-            last ? "" : "opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100"
+            last
+              ? ""
+              : "opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100"
           }`}
         >
           <CopyButton text={msg.text} />
@@ -239,7 +273,7 @@ export function AiMessage({
               type="button"
               onClick={onOpenSources}
               aria-expanded={sourcesOpen}
-              className={`ml-1 flex h-7 cursor-pointer items-center gap-1 rounded-lg px-2 text-xs font-medium transition-colors hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400 ${
+              className={`ml-1 flex h-7 cursor-pointer items-center gap-1 rounded-lg px-2 text-[13px] font-medium transition-colors hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400 ${
                 sourcesOpen ? "bg-slate-100 text-slate-900" : "text-slate-500"
               }`}
             >

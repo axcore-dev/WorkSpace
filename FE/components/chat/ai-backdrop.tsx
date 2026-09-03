@@ -17,7 +17,13 @@ const REST = 0.74;
  * 부모(`relative`)의 mousemove를 rAF로 묶어 opacity만 바꾸고, 커서가 나가면 휴지 밝기로 돌아온다.
  * `visible`이 false가 되면 500ms로 옅어진 뒤 `onHidden`을 부른다. reduced-motion이면 광원 반응을 끈다.
  */
-export function AiBackdrop({ visible, onHidden }: { visible: boolean; onHidden: () => void }) {
+export function AiBackdrop({
+  visible,
+  onHidden,
+}: {
+  visible: boolean;
+  onHidden: () => void;
+}) {
   const root = useRef<HTMLDivElement>(null);
   // 마운트 직후 한 프레임 뒤에 켜서 페이드인이 걸리게 한다
   const [shown, setShown] = useState(false);
@@ -30,7 +36,12 @@ export function AiBackdrop({ visible, onHidden }: { visible: boolean; onHidden: 
   useEffect(() => {
     const el = root.current;
     const host = el?.parentElement;
-    if (!el || !host || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (
+      !el ||
+      !host ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    )
+      return;
     const blobs = Array.from(el.children) as HTMLElement[];
     let raf = 0;
     function onMove(e: MouseEvent) {
@@ -43,7 +54,9 @@ export function AiBackdrop({ visible, onHidden }: { visible: boolean; onHidden: 
         CENTERS.forEach((c, i) => {
           // 0(커서가 덩이 위) ~ 약 1.2(대각 반대편). 가까우면 1.0, 멀면 0.6×REST
           const d = Math.hypot(mx - c.x, my - c.y) / 100;
-          blobs[i].style.opacity = String(Math.min(1, Math.max(REST * 0.6, 1 - d * 0.9)));
+          blobs[i].style.opacity = String(
+            Math.min(1, Math.max(REST * 0.6, 1 - d * 0.9)),
+          );
         });
       });
     }
