@@ -531,8 +531,10 @@ export default function AiChatPage() {
       />
 
       {/* ── 대화 — 카드 없이 배경을 그대로 캔버스로 쓴다 ── */}
-      <section className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="flex items-center justify-between px-6 py-3.5">
+      <section className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
+        {/* 첫 화면 배경 — 헤더까지 포함한 대화 영역 전체를 캔버스로 쓴다. 첫 메시지를 보내면 사라진다 */}
+        {restored && empty && <AiBackdrop />}
+        <header className="relative flex items-center justify-between px-6 py-3.5">
           <h1 className="min-w-0 truncate text-sm font-bold text-slate-900">{active ? active.title : "AI대화"}</h1>
           <Button variant="secondary" size="sm" onClick={startNewNote}>
             <IconPlus size={14} />새 대화
@@ -551,8 +553,7 @@ export default function AiChatPage() {
         ) : empty ? (
           // 첫 화면 — 오로라·커서 글로우 위에 입력바가 수직 중앙에 선다. 첫 메시지를 보내면 아래 분기로 넘어간다
           <div className="relative flex flex-1 items-center justify-center px-5 pb-10">
-            <AiBackdrop />
-            <div className="relative w-full max-w-3xl">
+            <div className="w-full max-w-3xl">
               {composer}
               {disclaimer}
             </div>
