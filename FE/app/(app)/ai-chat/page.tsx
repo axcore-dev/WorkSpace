@@ -410,6 +410,7 @@ export default function AiChatPage() {
       onAddSource={() => fileRef.current?.click()}
       onOpenConnectors={() => setConnectorOpen(true)}
       onOpenSkills={() => setSkillOpen(true)}
+      menuBelow={empty}
     />
   );
   const disclaimer = (

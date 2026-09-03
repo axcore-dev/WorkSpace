@@ -15,6 +15,10 @@ import type { Note, SourceState } from "@/data/chat";
 
 type Panel = "notes" | "sources";
 
+/** 체크박스 한 칸 — 전체 선택과 개별 소스가 같은 모양을 쓴다 */
+const CHECKBOX =
+  "flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors";
+
 /** 두 패널 공통 껍데기 — 고정 폭. 폭 전환은 바깥 슬롯이 맡는다 */
 const PANEL =
   "flex h-full w-72 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white";
@@ -183,7 +187,7 @@ export function ChatRail({
                   <button
                     type="button"
                     onClick={() => onSelectNote(n.id)}
-                    className={`flex w-full cursor-pointer flex-col items-start rounded-lg px-2.5 py-2 pr-8 text-left transition-colors ${
+                    className={`flex w-full cursor-pointer items-center rounded-lg px-2.5 py-2 pr-8 text-left transition-colors ${
                       n.id === activeId ? "bg-slate-100" : "hover:bg-slate-50"
                     }`}
                   >
@@ -193,9 +197,6 @@ export function ChatRail({
                       }`}
                     >
                       {n.title}
-                    </span>
-                    <span className="mt-0.5 text-[13px] text-slate-400">
-                      메시지 {n.messages.length}개
                     </span>
                   </button>
                   <button
@@ -242,32 +243,39 @@ export function ChatRail({
                 소스 추가
               </Button>
               {sources.length > 0 && (
-                <label className="flex cursor-pointer items-center gap-2 px-1 text-[15px] text-slate-600">
-                  <input
-                    type="checkbox"
-                    checked={allSelected}
-                    ref={(el) => {
-                      if (el) el.indeterminate = someSelected;
-                    }}
-                    onChange={onToggleAll}
-                    className="h-3.5 w-3.5 cursor-pointer accent-slate-800"
-                    aria-label="소스 전체 선택/해제"
-                  />
+                <button
+                  type="button"
+                  role="checkbox"
+                  aria-checked={
+                    allSelected ? "true" : someSelected ? "mixed" : "false"
+                  }
+                  onClick={onToggleAll}
+                  className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-1 py-1 text-left text-[15px] text-slate-600 transition-colors hover:bg-slate-50"
+                >
+                  <span
+                    className={`${CHECKBOX} ${
+                      allSelected || someSelected
+                        ? "border-slate-800 bg-slate-800 text-white"
+                        : "border-slate-300"
+                    }`}
+                  >
+                    {allSelected ? (
+                      <IconCheck size={11} />
+                    ) : someSelected ? (
+                      <span className="h-0.5 w-2 rounded-full bg-white" />
+                    ) : null}
+                  </span>
                   전체 선택
-                  <span className="ml-auto text-slate-400">
+                  <span className="ml-auto tabular-nums text-slate-400">
                     {selected.length}/{sources.length}
                   </span>
-                </label>
+                </button>
               )}
             </div>
             <ul className="thin-scroll flex-1 space-y-0.5 overflow-y-auto p-2">
               {sources.length === 0 && (
                 <li className="mx-1 mt-1 rounded-lg border border-dashed border-slate-200 px-3 py-6 text-center text-[15px] leading-relaxed text-slate-400">
-                  새 대화라 소스가 비어 있어요.
-                  <br />
-                  문서를 추가하면 AI가 분석해
-                  <br />
-                  답변 근거로 사용해요.
+                  문서를 추가해 주세요.
                   {canInherit && (
                     <button
                       type="button"
@@ -289,7 +297,7 @@ export function ChatRail({
                       className="flex w-full cursor-pointer items-start gap-2.5 rounded-lg px-2 py-2 pr-8 text-left transition-colors hover:bg-slate-50"
                     >
                       <span
-                        className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                        className={`${CHECKBOX} mt-0.5 ${
                           on
                             ? "border-slate-800 bg-slate-800 text-white"
                             : "border-slate-300"
@@ -324,8 +332,9 @@ export function ChatRail({
               })}
             </ul>
             <p className="border-t border-slate-100 px-4 py-2.5 text-[13px] leading-relaxed text-slate-400">
-              PDF·이미지·XLSX·DOCX를 올릴 수 있어요. 공개 범위와 역할 권한에
-              따라 접근이 제어돼요.
+              PDF·이미지·XLSX·DOCX를 올릴 수 있어요.
+              <br />
+              공개 범위와 역할 권한에 따라 접근이 제어돼요.
             </p>
           </section>
         )}
