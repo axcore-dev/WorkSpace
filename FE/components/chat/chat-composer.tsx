@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  IconArrowRight,
+  IconArrowUp,
   IconCheck,
   IconPlus,
   IconSparkles,
@@ -166,7 +166,7 @@ export function ChatComposer({
                 : "cursor-not-allowed bg-slate-100 text-slate-300"
             }`}
           >
-            <IconArrowRight size={16} />
+            <IconArrowUp size={16} />
           </button>
         </div>
       </div>

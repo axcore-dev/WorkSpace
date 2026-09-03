@@ -313,6 +313,12 @@ export const IconArrowRight = (p: IconProps) =>
     <path d="m12 5 7 7-7 7" />
   </>);
 
+export const IconArrowUp = (p: IconProps) =>
+  base(p, <>
+    <path d="M12 19V5" />
+    <path d="m5 12 7-7 7 7" />
+  </>);
+
 export const IconArrowUpRight = (p: IconProps) =>
   base(p, <>
     <path d="M7 7h10v10" />
