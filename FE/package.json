@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start -p 8000",
     "lint": "eslint",
-    "test": "node --test data/admin.test.ts"
+    "test": "node --test data/admin.test.ts data/settings-nav.test.ts"
   },
   "dependencies": {
     "@ai-sdk/react": "^4.0.95",
