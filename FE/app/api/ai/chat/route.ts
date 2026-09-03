@@ -8,7 +8,7 @@
  * BE는 이 라우트를 참고 구현으로 쓰면 된다.
  *   label {"text"} · trace TraceStep · delta {"text"} · message ChatMessage · error ApiError
  */
-import type { ChatMessage } from "@/data/chat";
+import { SKILL_LIB, type ChatMessage, type TraceStep } from "@/data/chat";
 import {
   REPLY_ROUTES,
   SCRIPTED_CALENDAR_REPLY,
@@ -25,11 +25,13 @@ const DELTA_MS = 18;
 
 const MAX_MESSAGE = 4000;
 const MAX_SOURCES = 50;
+const MAX_SKILLS = 20;
 
 interface ChatBody {
   conversationId: number;
   message: string;
   sources: string[];
+  skills: string[];
   action?: { type: "approve-proposal" };
 }
 
@@ -53,6 +55,9 @@ function parseBody(raw: unknown): ChatBody | null {
     sources.some((s) => typeof s !== "string")
   )
     return null;
+  const skills = Array.isArray(v.skills) ? v.skills : [];
+  if (skills.length > MAX_SKILLS || skills.some((s) => typeof s !== "string"))
+    return null;
   const action =
     typeof v.action === "object" &&
     v.action !== null &&
@@ -63,6 +68,7 @@ function parseBody(raw: unknown): ChatBody | null {
     conversationId: v.conversationId,
     message: v.message,
     sources: sources as string[],
+    skills: skills as string[],
     action,
   };
 }
@@ -94,6 +100,21 @@ export async function POST(req: Request) {
 
   const reply = pickReply(body);
   const startedAt = Date.now();
+  // 스킬이 물려 있으면 도구 행 맨 앞에 한 줄 끼운다 — 요청이 서버까지 닿았는지 눈으로 확인된다
+  const skillNames = body.skills
+    .map((id) => SKILL_LIB.find((s) => s.id === id)?.name)
+    .filter((n) => n !== undefined);
+  const rows: TraceStep[] = [
+    ...(skillNames.length
+      ? [
+          {
+            icon: "model" as const,
+            text: `스킬 적용 — ${skillNames.join(", ")}`,
+          },
+        ]
+      : []),
+    ...(reply.process?.trace ?? []),
+  ];
   const enc = new TextEncoder();
 
   const stream = new ReadableStream<Uint8Array>({
@@ -106,7 +127,7 @@ export async function POST(req: Request) {
           push("label", { text });
           await sleep(LABEL_MS);
         }
-        for (const row of reply.process?.trace ?? []) {
+        for (const row of rows) {
           if (req.signal.aborted) break;
           push("trace", row);
           await sleep(TRACE_MS);
@@ -119,7 +140,13 @@ export async function POST(req: Request) {
           push("delta", { text: reply.text.slice(i, i + DELTA_CHARS) });
           await sleep(DELTA_MS);
         }
-        push("message", { ...reply, durationMs: Date.now() - startedAt });
+        // 최종 message는 스트림으로 보낸 도구 행과 같은 것을 담아야 한다 —
+        // 화면은 굳은 뒤 이 trace를 그리므로, 다르면 방금 흐른 행이 사라진다
+        push("message", {
+          ...reply,
+          process: reply.process && { ...reply.process, trace: rows },
+          durationMs: Date.now() - startedAt,
+        });
       } catch {
         push("error", { code: "MOCK_FAILED", message: "답변을 받지 못했어요" });
       } finally {

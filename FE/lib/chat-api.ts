@@ -6,7 +6,7 @@
  * 실패하면 예외를 던진다 — 화면 코드에 데모 폴백은 없다. '답변을 받지 못했어요 · 다시 시도'로 받는다.
  *
  * ── POST /api/ai/chat  (Accept: text/event-stream) ────────────────────────────
- * 요청  ChatRequest (JSON)
+ * 요청  ChatRequest (JSON) — 선택된 소스 이름과 이 턴에 적용할 스킬 id를 함께 보낸다
  * 응답  SSE. `event:` 이름과 `data:` JSON 한 덩이씩. 순서는 label/trace/delta가 섞여 오고 message로 끝난다.
  *   label    {"text": string}   헤더에 흐르는 추론 문구를 교체한다
  *   trace    TraceStep          도구 행을 하나 추가한다
@@ -44,6 +44,8 @@ export interface ChatRequest {
   message: string;
   /** 선택된 소스 문서 이름 */
   sources: string[];
+  /** 이 턴에 적용할 스킬 id (`SKILL_LIB`) — 업무 절차·양식·규칙을 AI에게 미리 물린다 */
+  skills?: string[];
   action?: ChatAction;
 }
 

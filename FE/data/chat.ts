@@ -222,30 +222,41 @@ export const CONNECTOR_LIB: {
  * 스킬은 특정 업무의 수행 절차·양식·규칙을 AI에게 가르치는 지침 패키지로,
  * 추가하면 AI가 해당 업무를 사내 규칙대로 수행한다.
  */
-export const SKILL_LIB: { id: string; name: string; desc: string }[] = [
+export const SKILL_LIB: {
+  id: string;
+  name: string;
+  desc: string;
+  /** 워크스페이스가 기본 제공하는 스킬 — 사용자가 만든 스킬과 구분해 배지를 붙인다 */
+  official?: boolean;
+}[] = [
   {
     id: "daily-report",
     name: "일일 생산보고 작성",
     desc: "사내 보고 양식과 결재선 규칙대로 일일 생산·품질 보고서를 작성하는 스킬",
+    official: true,
   },
   {
     id: "rca",
     name: "불량 원인 분석(RCA)",
     desc: "5Why·특성요인도 절차에 따라 근본 원인을 도출하고 시정조치를 제안하는 스킬",
+    official: true,
   },
   {
     id: "po-draft",
     name: "구매 기안 작성",
     desc: "품의 규정·승인 한도에 맞춰 구매 기안 문서를 작성하는 스킬",
+    official: true,
   },
   {
     id: "sop-answer",
     name: "작업표준 안내",
     desc: "작업표준서(SOP) 해당 조항을 인용해 현장 질문에 답변하는 스킬",
+    official: true,
   },
   {
     id: "meeting",
     name: "회의록 정리",
     desc: "회의 내용을 사내 회의록 양식으로 요약하고 액션 아이템을 추출하는 스킬",
+    official: true,
   },
 ];

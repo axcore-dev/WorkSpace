@@ -8,9 +8,10 @@ import {
   IconFile,
   IconPlus,
   IconSparkles,
+  IconX,
 } from "@/components/icons";
 import { BrandIcon } from "@/components/brand-icons";
-import { CONNECTOR_LIB } from "@/data/chat";
+import { CONNECTOR_LIB, SKILL_LIB } from "@/data/chat";
 
 /** 겹친 스택에 얼굴을 내미는 앱 수 — 나머지는 +n으로 접는다 */
 const STACK_MAX = 3;
@@ -51,6 +52,8 @@ export function ChatComposer({
   onOpenConnectors,
   onOpenSkills,
   menuBelow = false,
+  skills = [],
+  onRemoveSkill,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -61,8 +64,13 @@ export function ChatComposer({
   onOpenSkills: () => void;
   /** 입력바가 화면 가운데에 있을 때 true — 메뉴를 아래로 연다 */
   menuBelow?: boolean;
+  /** 이 턴에 물린 스킬 id */
+  skills?: string[];
+  onRemoveSkill?: (id: string) => void;
 }) {
   const [menu, setMenu] = useState<"plus" | "apps" | null>(null);
+  /** 백스페이스로 삭제 예고된 스킬 — 한 번 더 누르면 지운다 */
+  const [armed, setArmed] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   // border-box 기준 — pt-3.5(14px) + 한 줄(20px) = 최소 38px
   const { ref: inputRef, adjust } = useAutoResizeTextarea(38, 160);
@@ -89,17 +97,63 @@ export function ChatComposer({
     };
   }, [menu]);
 
+  const picked = skills
+    .map((id) => SKILL_LIB.find((s) => s.id === id))
+    .filter((s) => s !== undefined);
+  // 목록에서 빠진 칩의 예고는 저절로 무효가 된다 — 상태를 따로 정리하지 않는다
+  const armedId = armed && skills.includes(armed) ? armed : null;
   const connected = CONNECTOR_LIB.filter((c) => c.connected);
   const shown = connected.slice(0, STACK_MAX);
   const rest = connected.length - shown.length;
   const canSend = value.trim().length > 0 && !thinking;
 
   return (
-    <div className="relative" ref={menuRef}>
+    <div
+      className="relative"
+      ref={menuRef}
+      onClick={() => armedId && setArmed(null)}
+    >
       <div className="rounded-2xl border border-slate-200 bg-white shadow-sm transition-colors focus-within:border-slate-400">
         <label htmlFor="chat-input" className="sr-only">
           질문 입력
         </label>
+        {picked.length > 0 && (
+          <ul className="flex flex-wrap gap-1.5 px-3.5 pt-3">
+            {picked.map((sk) => (
+              <li key={sk.id} className="group/skill relative">
+                <button
+                  type="button"
+                  onClick={() => onRemoveSkill?.(sk.id)}
+                  aria-label={`${sk.name} 빼기`}
+                  className={`flex cursor-pointer items-center gap-1.5 rounded-lg border px-2 py-1 text-[13px] transition-colors ${
+                    armedId === sk.id
+                      ? "border-primary-600 bg-primary-50 text-primary-700"
+                      : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  <IconSparkles size={13} strokeWidth={1.75} />
+                  {sk.id}
+                  <IconX size={12} className="text-slate-400" />
+                </button>
+                {/* 호버 상세 — 스킬이 무엇을 하는지 */}
+                <div className="pointer-events-none absolute bottom-full left-0 z-40 mb-1.5 hidden w-64 rounded-xl border border-slate-200 bg-white p-3 shadow-lg group-hover/skill:block">
+                  <p className="flex items-center gap-1.5 text-[15px] font-semibold text-slate-900">
+                    <IconSparkles size={15} strokeWidth={1.75} />
+                    {sk.name}
+                  </p>
+                  <p className="mt-1 text-[13px] leading-relaxed text-slate-500">
+                    {sk.desc}
+                  </p>
+                  {sk.official && (
+                    <span className="mt-2 inline-block rounded border border-slate-200 px-1.5 text-[13px] text-slate-400">
+                      기본 제공
+                    </span>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
         <textarea
           id="chat-input"
           ref={inputRef}
@@ -110,6 +164,23 @@ export function ChatComposer({
             adjust();
           }}
           onKeyDown={(e) => {
+            // 커서가 맨 앞이고 스킬이 물려 있으면 백스페이스 두 번으로 지운다 — 예고 후 삭제
+            if (e.key === "Backspace" && picked.length > 0) {
+              const el = e.currentTarget;
+              const atStart = el.selectionStart === 0 && el.selectionEnd === 0;
+              const last = picked[picked.length - 1];
+              if (armedId) {
+                e.preventDefault();
+                onRemoveSkill?.(armedId);
+                return;
+              }
+              if (atStart) {
+                e.preventDefault();
+                setArmed(last.id);
+                return;
+              }
+            }
+            if (armedId) setArmed(null);
             if (
               e.key === "Enter" &&
               !e.shiftKey &&
@@ -120,7 +191,9 @@ export function ChatComposer({
             }
           }}
           placeholder="무엇을 시작할까요?"
-          className="thin-scroll block w-full resize-none border-none bg-transparent px-4 pt-3.5 text-base text-slate-900 placeholder:text-slate-400 focus:outline-none"
+          className={`thin-scroll block w-full resize-none border-none bg-transparent px-4 text-base text-slate-900 placeholder:text-slate-400 focus:outline-none ${
+            picked.length > 0 ? "pt-2" : "pt-3.5"
+          }`}
         />
         <div className="flex items-center justify-between px-2.5 pb-2.5 pt-2">
           <div className="flex items-center gap-0.5">

@@ -58,6 +58,8 @@ export default function AiChatPage() {
   } | null>(null);
   const [connectorOpen, setConnectorOpen] = useState(false);
   const [skillOpen, setSkillOpen] = useState(false);
+  /** 이 턴에 물린 스킬 id — 전송하면 비운다 */
+  const [skills, setSkills] = useState<string[]>([]);
   /** 첫 대화 생성 전(시작 화면)의 소스 — 첫 대화가 이 상태를 승계한다 */
   const [draftSrc, setDraftSrc] = useState<SourceState>(EMPTY_SRC);
   /** localStorage 복원이 끝나기 전에는 저장하지 않는다 — 빈 상태로 덮어쓰는 걸 막는다 */
@@ -248,7 +250,7 @@ export default function AiChatPage() {
       setPending((p) => (p?.noteId === nid ? f(p) : p));
     try {
       const msg = await streamChat(
-        { conversationId: nid, sources: selectedSources, ...turn },
+        { conversationId: nid, sources: selectedSources, skills, ...turn },
         {
           onLabel: (label) => patch((p) => ({ ...p, label })),
           onTrace: (row) => patch((p) => ({ ...p, rows: [...p.rows, row] })),
@@ -291,6 +293,7 @@ export default function AiChatPage() {
     nameNoteIfUntitled(nid, title);
     appendMessage(nid, { role: "user", text: q });
     void respond(nid, { message: q });
+    setSkills([]);
   }
 
   /** 사용자 메시지 제자리 편집 — 그 뒤 답변을 버리고 다시 생성한다 */
@@ -411,6 +414,8 @@ export default function AiChatPage() {
       onOpenConnectors={() => setConnectorOpen(true)}
       onOpenSkills={() => setSkillOpen(true)}
       menuBelow={empty}
+      skills={skills}
+      onRemoveSkill={(id) => setSkills((prev) => prev.filter((x) => x !== id))}
     />
   );
   const disclaimer = (
@@ -652,7 +657,16 @@ export default function AiChatPage() {
         open={connectorOpen}
         onClose={() => setConnectorOpen(false)}
       />
-      <SkillModal open={skillOpen} onClose={() => setSkillOpen(false)} />
+      <SkillModal
+        open={skillOpen}
+        onClose={() => setSkillOpen(false)}
+        selected={skills}
+        onToggle={(id) =>
+          setSkills((prev) =>
+            prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+          )
+        }
+      />
     </div>
   );
 }
