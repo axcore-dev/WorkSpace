@@ -16,7 +16,10 @@ import com.axcore.workspace.user.entity.AuthProvider;
  *                       주지 않는다)
  * @param emailVerified  제공자가 이 이메일의 소유를 확인했는가. <b>기존 계정에 자동 연결할지를
  *                       가르는 값이다.</b> 확인되지 않은 주소로 자동 연결하면, 남의 주소를 적어 둔
- *                       제공자 계정으로 그 사람의 계정에 들어갈 수 있다
+ *                       제공자 계정으로 그 사람의 계정에 들어갈 수 있다.
+ *                       <b>제공자가 알려 준 값이 아닐 수 있다</b> — Google 은 응답에 담아 주지만
+ *                       네이버는 이 필드가 없어 클라이언트가 정한다. 근거는 각
+ *                       {@link com.axcore.workspace.oauth.client.OAuthClient} 구현의 주석에 있다
  * @param name           표시 이름. 없으면 이메일의 앞부분을 쓴다
  * @param avatarUrl      프로필 사진. 없을 수 있다
  */

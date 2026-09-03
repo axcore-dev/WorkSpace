@@ -35,3 +35,7 @@ out/
 
 ### VS Code ###
 .vscode/
+
+### MCP (로컬 IDE 연결 설정) ###
+# IntelliJ MCP 서버 주소는 사람마다 포트가 다르다. 저장소에 두면 남의 포트로 덮인다.
+.mcp.json

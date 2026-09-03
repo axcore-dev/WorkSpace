@@ -1,8 +1,12 @@
 package com.axcore.workspace.workspace.service;
 
 import com.axcore.workspace.notification.MailProperties;
+import com.axcore.workspace.workspace.admin.entity.AdminAuditAction;
+import com.axcore.workspace.workspace.admin.service.AdminAuditRecorder;
 import com.axcore.workspace.security.SecureTokens;
 import com.axcore.workspace.user.entity.User;
+import com.axcore.workspace.user.entity.UserIdentity;
+import com.axcore.workspace.user.repository.UserIdentityRepository;
 import com.axcore.workspace.user.repository.UserRepository;
 import com.axcore.workspace.workspace.admin.dto.InvitationIssuedResponse;
 import com.axcore.workspace.workspace.admin.dto.InvitationResponse;
@@ -52,19 +56,28 @@ public class WorkspaceInvitationService {
     private final WorkspaceRepository workspaceRepository;
     private final UserWorkspaceMembershipRepository membershipRepository;
     private final UserRepository userRepository;
+    private final UserIdentityRepository identityRepository;
     private final MailProperties mailProperties;
+    private final TenantMemberWriter tenantMembers;
+    private final AdminAuditRecorder audit;
 
     public WorkspaceInvitationService(
             WorkspaceInvitationRepository invitationRepository,
             WorkspaceRepository workspaceRepository,
             UserWorkspaceMembershipRepository membershipRepository,
             UserRepository userRepository,
-            MailProperties mailProperties) {
+            UserIdentityRepository identityRepository,
+            MailProperties mailProperties,
+            TenantMemberWriter tenantMembers,
+            AdminAuditRecorder audit) {
         this.invitationRepository = invitationRepository;
         this.workspaceRepository = workspaceRepository;
         this.membershipRepository = membershipRepository;
         this.userRepository = userRepository;
+        this.identityRepository = identityRepository;
         this.mailProperties = mailProperties;
+        this.tenantMembers = tenantMembers;
+        this.audit = audit;
     }
 
     // ---------------------------------------------------------------- 운영자
@@ -107,6 +120,7 @@ public class WorkspaceInvitationService {
                         WorkspaceInvitation.issue(workspace, email, rawToken, inviter, now));
 
         log.info("워크스페이스 {} 접속 링크를 발급했다. 초대 {}", workspaceId, invitation.getId());
+        audit.record(invitedBy, AdminAuditAction.ISSUE_LINK, workspaceId, email + " 앞 링크 발급");
 
         return new InvitationIssuedResponse(
                 mailProperties.workspaceInviteLink(rawToken),
@@ -152,7 +166,15 @@ public class WorkspaceInvitationService {
         // 운영자 목록의 "링크 열람" 열이 이 값을 본다. 회사 단위로는 최초 1회만 기록된다.
         invitation.getWorkspace().markLinkOpened(now);
 
-        return InvitationPreviewResponse.from(invitation);
+        // 그 주소의 계정이 어떻게 로그인하는지 화면에 알려 준다. 없으면 가입 탭, 비밀번호가 있으면
+        // 비밀번호 칸, 소셜만 있으면 그 제공자 버튼 — 이걸 모르면 소셜 계정 사용자가 비밀번호
+        // 칸 앞에서 막힌다.
+        User account =
+                userRepository.findByEmail(User.normalizeEmail(invitation.getEmail())).orElse(null);
+        List<UserIdentity> identities =
+                account == null ? List.of() : identityRepository.findByUserId(account.getId());
+
+        return InvitationPreviewResponse.from(invitation, account, identities);
     }
 
     /**
@@ -190,6 +212,10 @@ public class WorkspaceInvitationService {
 
         // 이미 소속돼 있으면 초대만 소진하고 기존 소속을 돌려준다. 링크를 두 번 눌러 400 을
         // 받는 것보다, 같은 결과로 끝나는 편이 낫다.
+        // 회사 안에서의 신분은 테넌트 스키마에 있다. 라우팅 인덱스만 만들면 로그인은
+        // 되는데 회사 안에서는 아무것도 아닌 사람이 된다.
+        tenantMembers.join(workspace.getSchemaName(), user.getId());
+
         return membershipRepository
                 .findByUserIdAndWorkspaceIdWithWorkspace(user.getId(), workspace.getId())
                 .orElseGet(

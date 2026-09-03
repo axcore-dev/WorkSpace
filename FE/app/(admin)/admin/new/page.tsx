@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ApiRequestError } from "@/lib/api";
+import { createWorkspace, issueInviteLink, workspaceIdFromSchema } from "@/lib/admin-api";
 import { useRouter } from "next/navigation";
 import { Breadcrumb } from "@/components/admin/breadcrumb";
 import { Field } from "@/components/admin/form-parts";
@@ -14,7 +16,6 @@ import {
   formatBizNumber,
   isValidBizNumber,
   clearDraft,
-  nextSchemaName,
   readDraft,
   saveDraft,
   type Draft,
@@ -53,6 +54,67 @@ export default function AdminCreatePage() {
 
   /** 만든 뒤 BE가 부여한 스키마 이름. null 이면 아직 만들지 않았다 */
   const [created, setCreated] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  /** 만든 직후 한 번만 받는 접속 링크. 목록·상세에서는 다시 볼 수 없다 */
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  /**
+   * 개설한다. 응답이 돌아온 시점에는 테넌트 스키마까지 서 있다.
+   *
+   * 스키마 이름을 미리 보여줄 수 없다. BE 가 행을 INSERT 하고 PK 를 채번한 뒤에야 정해지기
+   * 때문이다(`ax_` + id 5자리). 그래서 만든 **뒤에** 결과로만 보여 준다.
+   */
+  async function submit() {
+    setSubmitError(null);
+    setSubmitting(true);
+    try {
+      const ws = await createWorkspace({
+        name: company.trim(),
+        bizNumber,
+        corpNumber: corpNumber || undefined,
+        bizType: bizType || undefined,
+        bizItem: bizItem || undefined,
+        // 주소는 화면에서 두 칸으로 받고 저장은 한 칸이다. 상세 주소만 따로 쓸 곳이 없다.
+        address: [address, addressDetail].filter(Boolean).join(" ") || undefined,
+        website: website || undefined,
+        plan,
+        memo: memo || undefined,
+        contacts: {
+          contactName: contactName || undefined,
+          contactEmail: contactEmail || undefined,
+          contactPhone: contactPhone || undefined,
+        },
+      });
+      if (!ws) {
+        setSubmitError("만들었는데 응답을 읽지 못했어요. 목록에서 확인해 주세요.");
+        return;
+      }
+      clearDraft();
+      setCreated(ws.schemaName);
+
+      // 담당자 주소가 있으면 링크까지 만들어 둔다. 개설과 링크 발급을 따로 누르게 하면
+      // "만들었는데 아무 일도 안 일어난 것" 처럼 보이고, 링크를 못 보낸 채 잊히기 쉽다.
+      const id = workspaceIdFromSchema(ws.schemaName);
+      if (id !== null && contactEmail) {
+        try {
+          const issued = await issueInviteLink(id);
+          setInviteLink(issued?.link ?? null);
+        } catch {
+          // 링크는 상세 화면에서 다시 발급할 수 있다. 개설 자체는 이미 끝났으니
+          // 여기서 실패를 크게 알릴 이유가 없다.
+          setInviteLink(null);
+        }
+      }
+    } catch (e: unknown) {
+      setSubmitError(
+        e instanceof ApiRequestError ? e.body.message : "워크스페이스를 만들지 못했어요.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   /** 이 브라우저에 남아 있던 작성분 — 배너로 물어보고 사용자가 고른다 */
   const [found, setFound] = useState<Draft | null>(null);
@@ -376,13 +438,18 @@ export default function AdminCreatePage() {
               {saved === "ok" ? "저장했어요" : saved === "fail" ? "저장 못 했어요" : "임시 저장"}
             </Button>
             <Button
-              disabled={!canSubmit}
+              disabled={!canSubmit || submitting}
               title={canSubmit ? undefined : "필수 항목을 모두 채우면 만들 수 있어요"}
-              onClick={() => setCreated(nextSchemaName())}
+              onClick={() => void submit()}
             >
-              만들기
+              {submitting ? "만드는 중…" : "만들기"}
             </Button>
           </div>
+          {submitError && (
+            <p className="mt-3 text-right text-sm text-red-600" role="alert">
+              {submitError}
+            </p>
+          )}
         </div>
       </div>
 
@@ -407,10 +474,45 @@ export default function AdminCreatePage() {
           <p className="rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-2.5 font-mono text-base font-semibold text-slate-900">
             {created}
           </p>
-          <p>
-            상세 화면의 담당자 카드에서 <span className="font-semibold text-slate-900">접속 링크를 복사</span>해
-            {contactName || "담당자"}({contactEmail})에게 보내 주세요.
-          </p>
+          {inviteLink ? (
+            <>
+              <p>
+                아래 <span className="font-semibold text-slate-900">접속 링크</span>를 복사해{" "}
+                {contactName || "담당자"}({contactEmail})에게 보내 주세요.
+              </p>
+              <div className="flex items-center gap-2">
+                <input
+                  readOnly
+                  value={inviteLink}
+                  onFocus={(e) => e.currentTarget.select()}
+                  aria-label="접속 링크"
+                  className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-xs text-slate-700"
+                />
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    void navigator.clipboard.writeText(inviteLink).then(() => {
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 2000);
+                    });
+                  }}
+                >
+                  {copied ? "복사했어요" : "복사"}
+                </Button>
+              </div>
+              <p className="text-xs text-slate-500">
+                이 링크는 지금만 볼 수 있어요. 놓치면 상세 화면에서 다시 발급하면 되고, 그때
+                이 링크는 못 쓰게 돼요.
+              </p>
+            </>
+          ) : (
+            <p>
+              상세 화면의 담당자 카드에서{" "}
+              <span className="font-semibold text-slate-900">접속 링크를 발급</span>해{" "}
+              {contactName || "담당자"}에게 보내 주세요.
+            </p>
+          )}
         </div>
       </Modal>
     </div>

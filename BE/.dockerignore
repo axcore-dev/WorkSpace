@@ -1,0 +1,8 @@
+# 빌드 컨텍스트 축소. Dockerfile 이 COPY 하는 건 gradlew/gradle/*.kts/src 뿐이지만
+# 컨텍스트 전송량과 .env 유출 가능성을 줄이기 위해 명시한다.
+build
+.gradle
+.env*
+*.md
+.idea
+*.iml

@@ -46,7 +46,7 @@ public record MailProperties(
      * 꺼내 본문으로 보내는 구조라, 서버로 가는 요청에는 토큰이 URL 에 남지 않는다.
      */
     public String workspaceInviteLink(String token) {
-        return "%s/join-workspace?token=%s".formatted(trimmedBaseUrl(), token);
+        return "%s/invite/accept?token=%s".formatted(trimmedBaseUrl(), token);
     }
 
     private String trimmedBaseUrl() {

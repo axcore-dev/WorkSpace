@@ -25,7 +25,7 @@ import java.util.Optional;
  *
  * <ol>
  *   <li><b>이미 연결된 소셜 계정</b> — 그 계정으로 로그인한다. 이메일은 보지 않는다.
- *   <li><b>처음 보는 주소</b> — 계정을 새로 만든다.
+ *   <li><b>처음 보는 주소</b> — 계정을 새로 만들고 <b>우리 확인 메일을 보낸다</b>.
  *   <li><b>확인된 계정이 쥐고 있음 + 제공자가 확인해 줌</b> — 그 계정에 연결한다.
  *   <li><b>확인된 계정이 쥐고 있음 + 제공자가 확인해 주지 않음</b> — 거절한다. 허용하면 남의
  *       주소를 적어 둔 제공자 계정으로 그 사람의 계정에 들어갈 수 있다.
@@ -33,6 +33,16 @@ import java.util.Optional;
  *       ({@link UnverifiedAccountReclaimer}). 제공자가 소유를 확인해 줬으면 밀어내고 새로
  *       만들고, 확인해 주지 않았으면 어느 쪽도 주인이라는 증거가 없으므로 거절한다.
  * </ol>
+ *
+ * <p><b>제공자의 주장({@code info.emailVerified()})은 보안 판단에만 쓴다.</b> 위 3·4·5 번이다 —
+ * 남의 계정을 넘겨줄지, 남의 미확인 계정을 밀어낼지. <b>새 계정을 확인 처리할지에는 쓰지 않는다</b>
+ * (2번). 소셜로 가입한 사람도 이메일로 가입한 사람과 같은 조건을 통과해야 해서,
+ * {@link #createFromSocial} 이 언제나 확인 메일을 보낸다.
+ *
+ * <p>두 결정을 한 값으로 함께 정하지 않는 이유는 실패의 무게가 다르기 때문이다. 연결을 잘못하면
+ * 계정 탈취이고, 확인 메일을 생략하면 소유가 증명되지 않은 주소가 남을 뿐이다. 묶어 두면 무거운
+ * 쪽을 열려고 가벼운 쪽까지 같이 꺼진다 — 네이버를 {@code emailVerified=true} 로 올렸을 때
+ * 실제로 그렇게 됐다.
  *
  * <p>{@link OAuthClient} 호출과 분리된 별도 빈인 이유는 트랜잭션
  * 경계다. 제공자 왕복은 두 번의 네트워크 호출이고, 그 동안 DB 커넥션을 붙잡고 있으면 제공자가
@@ -175,28 +185,40 @@ public class SocialAccountLinker {
         return user;
     }
 
-    /** 처음 보는 사람. 비밀번호 없는 계정을 만든다. */
+    /**
+     * 처음 보는 사람. 비밀번호 없는 계정을 만든다.
+     *
+     * <p><b>제공자가 무엇을 말했든 우리가 직접 확인한다.</b> {@code info.emailVerified()} 를 보지
+     * 않고 언제나 확인 메일을 보낸다. 이메일로 가입한 사람과 소셜로 가입한 사람이 같은 조건을
+     * 통과하게 하려는 것이다 — 그래야 {@code users.email_verified_at} 이 가입 경로와 무관하게
+     * 「우리가 소유를 증명한 주소」라는 한 가지 뜻을 갖는다. 청구서와 알림이 실제로 닿는지가
+     * 그 값에 걸려 있다.
+     *
+     * <p>{@code emailVerified} 를 여기서 쓰지 않는 이유를 적어 둔다. 그 값은 <b>제공자의 주장</b>
+     * 이고, {@link #resolve} 의 보안 판단 전용이다 — 같은 주소를 쥔 확인된 계정에 자동 연결할지,
+     * 주소를 쥔 미확인 계정을 밀어낼지. 두 결정은 실패했을 때의 무게가 다르다. 연결을 잘못하면
+     * 남의 계정을 넘겨주는 것이고, 확인 메일을 생략하면 소유가 증명되지 않은 주소가 남을 뿐이다.
+     * 한 값으로 둘을 함께 정하면 무거운 쪽을 열려고 가벼운 쪽까지 같이 꺼진다.
+     *
+     * <p>확인을 마치기 전에는 {@link SessionIssuer#nextStep} 이 회사 선택 앞에서 막으므로 고객사
+     * 데이터에 닿지 못한다. 메일을 놓쳐도 갇히지 않는다 — 로그인한 미확인 사용자가
+     * {@code POST /api/auth/email/verify-request} 로 다시 받을 수 있다.
+     */
     private User createFromSocial(String email, OAuthUserInfo info, Instant now) {
         User user =
                 userRepository.save(
                         User.createSocial(email, info.displayName(), info.safeAvatarUrl()));
 
-        if (info.emailVerified()) {
-            user.verifyEmail(now);
-        } else {
-            // 제공자가 확인해 주지 않았으면 우리가 확인해야 한다. 여기서 보내지 않으면
-            // next=EMAIL_VERIFICATION_REQUIRED 상태로 계정이 만들어지는데 확인 메일은 오지 않아,
-            // 사용자가 스스로 빠져나올 수 없는 상태가 된다.
-            String token =
-                    verificationTokenService.issue(user, TokenPurpose.EMAIL_VERIFICATION, now);
-            mailer.sendEmailVerification(user, token, TokenPurpose.EMAIL_VERIFICATION.ttl());
-        }
+        // 여기서 보내지 않으면 next=EMAIL_VERIFICATION_REQUIRED 상태로 계정이 만들어지는데 확인
+        // 메일은 오지 않아, 사용자가 스스로 빠져나올 수 없는 상태가 된다.
+        String token = verificationTokenService.issue(user, TokenPurpose.EMAIL_VERIFICATION, now);
+        mailer.sendEmailVerification(user, token, TokenPurpose.EMAIL_VERIFICATION.ttl());
 
         identityRepository.save(
                 UserIdentity.link(user, info.provider(), info.providerUserId(), info.email()));
 
         log.info(
-                "{} 로 계정 {} 를 새로 만들었다 (이메일 확인={})",
+                "{} 로 계정 {} 를 새로 만들었다. 확인 메일을 보냈다 (제공자 주장={})",
                 info.provider().dbValue(),
                 user.getId(),
                 info.emailVerified());

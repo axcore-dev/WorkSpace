@@ -46,6 +46,7 @@ docs/*
 !docs/branch/
 !docs/commit/
 !docs/db/
+!docs/infra/
 
 
 # claude code local settings

@@ -6,6 +6,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { AuthSplit } from "@/components/auth-shell";
 import { ApiRequestError, apiPost } from "@/lib/api";
 import { PROVIDER_LABELS, SocialProvider, consumeState } from "@/lib/auth";
+import { readInvite } from "@/lib/pending-invite";
 import { DEMO_USER } from "@/data/org";
 
 /** BE의 LoginResponse.AuthStep 과 같은 값이어야 한다. */
@@ -107,11 +108,21 @@ function OAuthCallbackContent() {
           setState({ kind: "verifyEmail", email: result.user?.email ?? "" });
           return;
         }
-        // SELECT_WORKSPACE · READY — 회사 선택 화면으로 넘긴다.
         localStorage.setItem(
           "axpoint-user",
           JSON.stringify({ ...DEMO_USER, name: result.user?.name, email: result.user?.email }),
         );
+
+        // 초대 링크에서 소셜 로그인으로 넘어온 사람은 초대로 돌려보낸다. 여기서 회사 선택
+        // 화면으로 보내면 초대 링크를 다시 찾아 열어야 한다. 이메일 확인 화면이 초대로 돌아가는
+        // 것과 같은 판단이다. 주소가 맞는지는 초대 화면이 /me 로 다시 확인한다.
+        const invite = readInvite();
+        if (invite) {
+          router.replace(`/invite/accept?token=${encodeURIComponent(invite.token)}`);
+          return;
+        }
+
+        // SELECT_WORKSPACE · READY — 회사 선택 화면으로 넘긴다.
         router.replace("/workspace");
       })
       .catch((e: unknown) => {
