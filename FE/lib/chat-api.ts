@@ -58,10 +58,7 @@ export interface ChatStreamHandlers {
 const UNKNOWN: ApiError = { code: "UNKNOWN", message: "답변을 받지 못했어요" };
 
 /** SSE 본문을 (event, data) 단위로 넘긴다. 이벤트 경계는 빈 줄이다 */
-async function* sseEvents(
-  body: ReadableStream<Uint8Array>,
-  signal?: AbortSignal,
-) {
+async function* sseEvents(body: ReadableStream<Uint8Array>) {
   const reader = body.getReader();
   const dec = new TextDecoder();
   let buf = "";
@@ -85,7 +82,9 @@ async function* sseEvents(
       }
     }
   } finally {
-    if (signal?.aborted) await reader.cancel().catch(() => {});
+    // 정상 종료·오류·중단 어느 쪽으로 나가도 body를 놓아준다 —
+    // 여기서 취소하지 않으면 서버가 스트림을 끝낼 때까지 연결이 살아 있다
+    await reader.cancel().catch(() => {});
   }
 }
 
@@ -115,8 +114,14 @@ export async function streamChat(
   }
 
   let draft = "";
-  for await (const { event, data } of sseEvents(res.body, signal)) {
-    const payload = JSON.parse(data) as unknown;
+  for await (const { event, data } of sseEvents(res.body)) {
+    // 프록시가 끼운 프레임이나 잘린 프레임은 건너뛴다 — SyntaxError가 ApiError 경로를 덮지 않게
+    let payload: unknown;
+    try {
+      payload = JSON.parse(data);
+    } catch {
+      continue;
+    }
     switch (event) {
       case "label":
         handlers.onLabel?.((payload as { text: string }).text);
@@ -164,5 +169,11 @@ export async function uploadSources(files: File[]): Promise<SourceDoc[]> {
       res.status,
       (parsed as ApiError | null) ?? UNKNOWN,
     );
+  // 200인데 배열이 아니면(프록시 HTML, `{items:[…]}` 같은 다른 형태) 화면이 터지기 전에 오류로 돌린다
+  if (!Array.isArray(parsed))
+    throw new ApiRequestError(res.status, {
+      code: "MALFORMED",
+      message: "문서를 등록하지 못했어요",
+    });
   return parsed as SourceDoc[];
 }

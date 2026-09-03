@@ -40,7 +40,8 @@ const ACCENT_RGB = [10, 80, 255] as const;
  *
  * 점은 커서에 자기장처럼 반응하되 방향은 틀지 않는다. 커서가 멈추면 배경도 완전히 정지한다.
  * `visible`이 false가 되면 아래로 80px 미끄러지며 400ms에 옅어진 뒤 `onHidden`을 부른다 — 그 동안 커서 반응은 멈춘다.
- * 새 대화로 돌아오면 같은 길이로 아래에서 다시 올라온다. reduced-motion이면 반응과 미끄러짐을 모두 끈다.
+ * 새 대화로 돌아오면 같은 길이로 아래에서 다시 올라온다. reduced-motion이면 반응과 미끄러짐을 모두 끄고,
+ * 전환이 없어 `transitionend`가 오지 않으므로 타이머로도 퇴장을 끝낸다(안 그러면 rAF 루프가 계속 돈다).
  */
 export function AiBackdrop({
   visible,
@@ -66,6 +67,14 @@ export function AiBackdrop({
     const raf = requestAnimationFrame(() => setShown(true));
     return () => cancelAnimationFrame(raf);
   }, []);
+
+  // 퇴장은 transitionend로 끝나지만, reduced-motion이면 전환이 없어 그 이벤트가 오지 않는다.
+  // 그러면 배경이 영원히 마운트된 채 rAF 루프가 계속 돌므로 시간으로도 한 번 끝내 준다.
+  useEffect(() => {
+    if (visible) return;
+    const t = setTimeout(onHidden, 500);
+    return () => clearTimeout(t);
+  }, [visible, onHidden]);
 
   useEffect(() => {
     const el = root.current;

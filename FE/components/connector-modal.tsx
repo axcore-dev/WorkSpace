@@ -84,7 +84,7 @@ function ConnectorDetailModal({
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-0.5 text-sm font-medium text-primary-600 transition-colors hover:text-primary-700"
                 >
-                  {new URL(connector.url).hostname.replace(/^www./, "")}{" "}
+                  {new URL(connector.url).hostname.replace(/^www\./, "")}{" "}
                   <IconArrowUpRight size={13} />
                 </a>
               </dd>
@@ -106,20 +106,26 @@ function ConnectorDetailModal({
 
 /**
  * 커넥터 팝업 — 분류별(메신저·협업 / 문서·데이터 / 메일·일정 / ERP·회계) 앱 카드.
- * 데모: 연결 상태는 전부 로컬 state다. Google Calendar는 즉시 연결 처리되고,
- * 나머지 앱은 '+' 클릭 시 해당 앱 로그인 페이지로 이동하는 목업이다.
+ *
+ * 연결 상태는 **부모가 갖는다** — 입력창의 앱 스택·토글이 같은 값을 봐야 하기 때문이다.
+ * 여기서 따로 들고 있으면 여기서 연결한 앱이 입력창에 나타나지 않는다.
+ * 데모: Google Calendar는 즉시 연결 처리되고, 나머지 앱은 해당 앱 로그인 페이지로 보내는 목업이다.
  */
 export function ConnectorModal({
   open,
   onClose,
+  connected,
+  onConnect,
+  onDisconnect,
 }: {
   open: boolean;
   onClose: () => void;
+  /** 연결된 앱 slug */
+  connected: string[];
+  onConnect: (slug: string) => void;
+  onDisconnect: (slug: string) => void;
 }) {
   const [q, setQ] = useState("");
-  const [connected, setConnected] = useState<string[]>(
-    CONNECTOR_LIB.filter((c) => c.connected).map((c) => c.slug),
-  );
   const [detail, setDetail] = useState<Connector | null>(null);
 
   const needle = q.trim().toLowerCase();
@@ -142,14 +148,14 @@ export function ConnectorModal({
   /** 연결 — 데모: 즉시 연결 처리. OAuth 등 실연동은 BE 이관 후 BE API를 거친다 */
   function connect(c: Connector) {
     if (c.slug === "googlecalendar") {
-      setConnected((prev) => [...prev, c.slug]);
+      onConnect(c.slug);
       return;
     }
     if (c.loginUrl) window.open(c.loginUrl, "_blank", "noopener,noreferrer");
   }
 
   function disconnect(c: Connector) {
-    setConnected((prev) => prev.filter((x) => x !== c.slug));
+    onDisconnect(c.slug);
   }
 
   if (!open) return null;

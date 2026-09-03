@@ -6,11 +6,37 @@
  */
 const PNG = new Set(["kakaowork", "naverworks", "jandi", "ecount", "douzone"]);
 
-export function BrandIcon({ slug, size = 20, className = "" }: { slug: string; size?: number; className?: string }) {
+/**
+ * 파일이 실제로 있는 slug — `public/brands/`와 같아야 한다.
+ * BE가 내려주는 도구 행의 `brand`가 그대로 들어오므로, 모르는 값이면 404 이미지를 그리지 않고 아무것도 그리지 않는다.
+ */
+const SVG = new Set([
+  "excel",
+  "gmail",
+  "googlecalendar",
+  "googledrive",
+  "googlesheets",
+  "notion",
+  "outlook",
+  "slack",
+  "teams",
+]);
+
+export function BrandIcon({
+  slug,
+  size = 20,
+  className = "",
+}: {
+  slug: string;
+  size?: number;
+  className?: string;
+}) {
+  const png = PNG.has(slug);
+  if (!png && !SVG.has(slug)) return null;
   return (
     // eslint-disable-next-line @next/next/no-img-element -- 정적 브랜드 마크, 최적화 불필요
     <img
-      src={`/brands/${slug}.${PNG.has(slug) ? "png" : "svg"}`}
+      src={`/brands/${slug}.${png ? "png" : "svg"}`}
       alt=""
       aria-hidden
       width={size}

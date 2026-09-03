@@ -140,6 +140,8 @@ body {
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    /* 반복 횟수를 함께 눌러야 한다 — 시간만 줄이면 0.01ms 루프가 영원히 다시 시작된다 */
+    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
 }

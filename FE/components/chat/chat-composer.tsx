@@ -55,6 +55,7 @@ export function ChatComposer({
   menuBelow = false,
   skills = [],
   onRemoveSkill,
+  linkedApps,
   enabledApps,
   onToggleApp,
 }: {
@@ -70,10 +71,9 @@ export function ChatComposer({
   /** 이 턴에 물린 스킬 id */
   skills?: string[];
   onRemoveSkill?: (id: string) => void;
-  /**
-   * 켜 둔 앱 slug — 연결된 앱 중 이 대화에서 쓸 것들. 스택과 토글이 같은 값을 본다.
-   * '연결됨'(계정 연동)은 `CONNECTOR_LIB.connected`가 갖는 별개의 사실이다.
-   */
+  /** 연결된 앱 slug — 계정이 연동된 앱. 커넥터 팝업에서 바뀐다 */
+  linkedApps: string[];
+  /** 켜 둔 앱 slug — 연결된 앱 중 이 대화에서 쓸 것들. 스택과 토글이 같은 값을 본다 */
   enabledApps: string[];
   onToggleApp: (slug: string) => void;
 }) {
@@ -112,7 +112,7 @@ export function ChatComposer({
   // 목록에서 빠진 칩의 예고는 저절로 무효가 된다 — 상태를 따로 정리하지 않는다
   const armedId = armed && skills.includes(armed) ? armed : null;
   // 연결됨(계정 연동)과 켜 둠(이 대화에서 사용)은 다른 층이다
-  const linked = CONNECTOR_LIB.filter((c) => c.connected);
+  const linked = CONNECTOR_LIB.filter((c) => linkedApps.includes(c.slug));
   const active = linked.filter((c) => enabledApps.includes(c.slug));
   const shown = active.slice(0, STACK_MAX);
   const rest = active.length - shown.length;
@@ -325,7 +325,7 @@ export function ChatComposer({
               {/* 잘라내면 연결된 앱이 목록 밖으로 밀려 끌 수 없다 — 전부 두고 스크롤에 맡긴다 */}
               {CONNECTOR_LIB.map((c) =>
                 // 연결된 앱은 토글로 켜고 끈다. 연결 안 된 앱은 로그인이 필요하니 연결하기로 보낸다
-                c.connected ? (
+                linkedApps.includes(c.slug) ? (
                   <div key={c.slug} className={`${MENU_ITEM} cursor-default`}>
                     <BrandIcon slug={c.slug} size={18} />
                     <span className="flex-1 truncate">{c.name}</span>

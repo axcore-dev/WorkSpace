@@ -8,26 +8,22 @@ import type { SourceDoc } from "@/data/chat";
 
 const MAX_FILES = 10;
 const MAX_BYTES = 20 * 1024 * 1024;
-/** 화면 안내 문구("PDF·이미지·XLSX·DOCX")와 같은 목록 */
-const ALLOWED = new Set([
-  "pdf",
-  "png",
-  "jpg",
-  "jpeg",
-  "webp",
-  "xlsx",
-  "xls",
-  "docx",
-  "doc",
-  "csv",
-  "txt",
-]);
+const MAX_NAME = 200;
+/** 파일 선택창의 `accept`와 같은 목록이어야 한다 (page.tsx의 input) */
+const ALLOWED = new Set(["pdf", "png", "jpg", "jpeg", "xlsx", "docx"]);
 
-/** 확장자 위조·경로 조작 방지 — 경로 구분자를 잘라내고 마지막 확장자만 본다 */
+/** 경로 조작 방지 — `/`와 `\` 둘 다 잘라낸다. 길이는 확장자를 살린 채 줄인다 */
 function safeName(raw: string) {
-  return raw.split(/[\\/]/).pop()?.slice(0, 200) || "문서";
+  const base = raw.split(/[\\/]/).pop() || "문서";
+  if (base.length <= MAX_NAME) return base;
+  const e = ext(base);
+  // 그냥 자르면 확장자가 날아가 정상 파일이 415로 막힌다
+  return e
+    ? `${base.slice(0, MAX_NAME - e.length - 1)}.${e}`
+    : base.slice(0, MAX_NAME);
 }
 
+/** 확장자 위조 방지 — 마지막 점 뒤만 본다 */
 function ext(name: string) {
   return name.includes(".") ? name.split(".").pop()!.toLowerCase() : "";
 }

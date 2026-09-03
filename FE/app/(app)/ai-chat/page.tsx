@@ -29,12 +29,21 @@ interface Pending {
   draft: string;
 }
 
-/** 한 턴의 내용 — 질문 또는 제안 승인. 다시 시도는 같은 턴을 다시 보낸다 */
-type Turn = Pick<ChatRequest, "message" | "action">;
+/**
+ * 한 턴의 내용 — 질문 또는 제안 승인. 다시 시도는 같은 턴을 그대로 다시 보낸다.
+ * 소스·스킬까지 턴에 담는 이유: 전송 직후 스킬 칩을 비우므로, 담아 두지 않으면 재시도가 스킬 없이 나간다.
+ */
+type Turn = Pick<ChatRequest, "message" | "sources" | "skills" | "action">;
 
 /** 실패 한 건 — 대화 영역에 문구와 다시 시도로 뜬다. 턴 실패는 그 대화에서만, 업로드 실패는 어디서나 보인다 */
 type Failure = { text: string } & (
-  | { kind: "turn"; noteId: number; turn: Turn }
+  | {
+      kind: "turn";
+      noteId: number;
+      turn: Turn;
+      /** 성공 뒤에 해야 할 일 — 제안 승인처럼 답변만으로 끝나지 않는 턴이 쓴다 */
+      after?: () => void;
+    }
   | { kind: "upload"; files: File[] }
 );
 
@@ -69,12 +78,21 @@ export default function AiChatPage() {
   const [enabledApps, setEnabledApps] = useState<string[]>(() =>
     CONNECTOR_LIB.filter((c) => c.connected).map((c) => c.slug),
   );
+  /**
+   * 연결된 앱 slug — 커넥터 팝업과 입력창이 같은 값을 봐야 해서 여기서 갖는다.
+   * 팝업이 따로 들고 있으면 거기서 연결한 앱이 입력창에 나타나지 않는다.
+   */
+  const [linkedApps, setLinkedApps] = useState<string[]>(() =>
+    CONNECTOR_LIB.filter((c) => c.connected).map((c) => c.slug),
+  );
   /** 첫 대화 생성 전(시작 화면)의 소스 — 첫 대화가 이 상태를 승계한다 */
   const [draftSrc, setDraftSrc] = useState<SourceState>(EMPTY_SRC);
   /** localStorage 복원이 끝나기 전에는 저장하지 않는다 — 빈 상태로 덮어쓰는 걸 막는다 */
   const [restored, setRestored] = useState(false);
   /** 첫 화면 배경이 페이드아웃을 끝내고 내려갔는지. 빈 상태로 돌아오면 렌더 중에 되돌린다 */
   const [backdropGone, setBackdropGone] = useState(false);
+  // 배경의 퇴장 완료 신호 — 신원이 매 렌더 바뀌면 안전장치 타이머가 계속 리셋된다
+  const hideBackdrop = useCallback(() => setBackdropGone(true), []);
   const scrollRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -169,12 +187,11 @@ export default function AiChatPage() {
 
   /** 대화 삭제 — 지운 게 보고 있던 대화면 가장 최근 것으로 옮겨간다 */
   function deleteNote(id: number) {
-    setNotes((prev) => {
-      const next = prev.filter((n) => n.id !== id);
-      if (id === activeId)
-        showNote(next.length ? next[next.length - 1].id : null);
-      return next;
-    });
+    // 상태 업데이터는 순수해야 한다 — 목록을 먼저 계산하고 화면 전환은 밖에서 한다
+    const next = notes.filter((n) => n.id !== id);
+    setNotes(next);
+    if (id === activeId)
+      showNote(next.length ? next[next.length - 1].id : null);
   }
 
   /** 비어 있는 '새 대화' 노트북에 첫 활동이 생기면 제목을 붙인다 — 대화 기록에서 구분되도록 */
@@ -228,7 +245,11 @@ export default function AiChatPage() {
    * 한 턴을 BE에 보내고 스트림을 끝까지 받는다 — 전송·편집·다시 시도·제안 승인이 모두 여기로 모인다.
    * 흘러드는 문구·도구 행·본문 조각은 pending에 쌓이고, 최종 답변이 오면 메시지로 굳는다. 성공 여부를 돌려준다.
    */
-  async function respond(nid: number, turn: Turn): Promise<boolean> {
+  async function respond(
+    nid: number,
+    turn: Turn,
+    after?: () => void,
+  ): Promise<boolean> {
     const ac = new AbortController();
     abortRef.current = ac;
     let streamed = false;
@@ -243,7 +264,7 @@ export default function AiChatPage() {
       setPending((p) => (p?.noteId === nid ? f(p) : p));
     try {
       const msg = await streamChat(
-        { conversationId: nid, sources: selectedSources, skills, ...turn },
+        { conversationId: nid, ...turn },
         {
           onLabel: (label) => patch((p) => ({ ...p, label })),
           onTrace: (row) => patch((p) => ({ ...p, rows: [...p.rows, row] })),
@@ -261,6 +282,7 @@ export default function AiChatPage() {
       // 접히는 전환(300ms)이 끝나면 신호를 내린다 — 대화를 다시 열 때 또 접히지 않게
       setTimeout(() => setJustArrived((n) => (n === nid ? null : n)), 400);
       setPending(null);
+      after?.();
       return true;
     } catch (e) {
       if (ac.signal.aborted) return false;
@@ -269,6 +291,7 @@ export default function AiChatPage() {
         kind: "turn",
         noteId: nid,
         turn,
+        after,
         text: e instanceof ApiRequestError ? e.message : "답변을 받지 못했어요",
       });
       return false;
@@ -285,7 +308,7 @@ export default function AiChatPage() {
     setInput("");
     nameNoteIfUntitled(nid, title);
     appendMessage(nid, { role: "user", text: q });
-    void respond(nid, { message: q });
+    void respond(nid, { message: q, sources: selectedSources, skills });
     setSkills([]);
   }
 
@@ -300,7 +323,7 @@ export default function AiChatPage() {
           : n,
       ),
     );
-    void respond(noteId, { message: text });
+    void respond(noteId, { message: text, sources: selectedSources, skills });
   }
 
   /** 답변 다시 시도 — 바로 앞 사용자 메시지로 다시 답한다 */
@@ -308,7 +331,11 @@ export default function AiChatPage() {
     const u = notes.find((n) => n.id === noteId)?.messages[aiIdx - 1];
     if (!u || u.role !== "user" || pending) return;
     truncate(noteId, aiIdx);
-    void respond(noteId, { message: u.text });
+    void respond(noteId, {
+      message: u.text,
+      sources: selectedSources,
+      skills,
+    });
   }
 
   /** 응답 평가 — 같은 걸 다시 누르면 해제. 추후 성능 평가 데이터로 보낸다 */
@@ -369,13 +396,17 @@ export default function AiChatPage() {
       });
       return;
     }
-    if (
-      await respond(noteId, {
+    // 성공 뒤 카드를 닫는 일을 respond에 맡긴다 — 실패 후 '다시 시도'로 성공했을 때도 같이 닫히게
+    await respond(
+      noteId,
+      {
         message: "",
+        sources: selectedSources,
+        skills,
         action: { type: "approve-proposal", proposal },
-      })
-    )
-      resolve();
+      },
+      resolve,
+    );
   }
 
   /** 출처 패널 토글 — 같은 답변의 '출처'를 다시 누르면 닫히고, 다른 답변이면 내용만 갈아탄다 */
@@ -409,6 +440,7 @@ export default function AiChatPage() {
       menuBelow={empty}
       skills={skills}
       onRemoveSkill={(id) => setSkills((prev) => prev.filter((x) => x !== id))}
+      linkedApps={linkedApps}
       enabledApps={enabledApps}
       onToggleApp={(slug) =>
         setEnabledApps((prev) =>
@@ -444,7 +476,7 @@ export default function AiChatPage() {
       {restored && !backdropGone && (
         <AiBackdrop
           visible={empty}
-          onHidden={() => setBackdropGone(true)}
+          onHidden={hideBackdrop}
           anchorRef={composerRef}
         />
       )}
@@ -600,7 +632,11 @@ export default function AiChatPage() {
                       type="button"
                       onClick={() =>
                         void (shownError.kind === "turn"
-                          ? respond(shownError.noteId, shownError.turn)
+                          ? respond(
+                              shownError.noteId,
+                              shownError.turn,
+                              shownError.after,
+                            )
                           : addSourceFiles(shownError.files))
                       }
                       className="cursor-pointer font-semibold text-slate-700 underline-offset-2 transition-colors hover:text-slate-900 hover:underline"
@@ -617,7 +653,11 @@ export default function AiChatPage() {
                     <button
                       type="button"
                       onClick={() =>
-                        void respond(active.id, { message: last.text })
+                        void respond(active.id, {
+                          message: last.text,
+                          sources: selectedSources,
+                          skills,
+                        })
                       }
                       className="cursor-pointer font-semibold text-slate-700 underline-offset-2 transition-colors hover:text-slate-900 hover:underline"
                     >
@@ -655,6 +695,16 @@ export default function AiChatPage() {
       <ConnectorModal
         open={connectorOpen}
         onClose={() => setConnectorOpen(false)}
+        connected={linkedApps}
+        onConnect={(slug) => {
+          setLinkedApps((prev) => [...prev, slug]);
+          // 새로 연결한 앱은 켜진 상태로 시작한다
+          setEnabledApps((prev) => [...prev, slug]);
+        }}
+        onDisconnect={(slug) => {
+          setLinkedApps((prev) => prev.filter((x) => x !== slug));
+          setEnabledApps((prev) => prev.filter((x) => x !== slug));
+        }}
       />
       <SkillModal
         open={skillOpen}

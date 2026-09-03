@@ -119,8 +119,16 @@ export async function POST(req: Request) {
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
-      const push = (event: string, data: unknown) =>
-        controller.enqueue(enc.encode(sse(event, data)));
+      // 중단된 뒤에 쓰면 던진다 — catch·finally까지 연쇄로 던져 요청이 예외로 끝난다
+      let dead = false;
+      const push = (event: string, data: unknown) => {
+        if (dead || req.signal.aborted) return;
+        try {
+          controller.enqueue(enc.encode(sse(event, data)));
+        } catch {
+          dead = true;
+        }
+      };
       try {
         for (const text of reply.reasoning ?? []) {
           if (req.signal.aborted) break;
@@ -150,7 +158,11 @@ export async function POST(req: Request) {
       } catch {
         push("error", { code: "MOCK_FAILED", message: "답변을 받지 못했어요" });
       } finally {
-        controller.close();
+        try {
+          controller.close();
+        } catch {
+          // 이미 닫힌 스트림 — 중단된 요청에서 정상이다
+        }
       }
     },
   });

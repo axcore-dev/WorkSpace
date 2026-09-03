@@ -167,9 +167,9 @@ WorkSpace 데모의 시각 언어와 공용 컴포넌트 규칙. 코드가 단�
 
 차트(`charts.tsx`, 의존성 없는 순수 SVG): `LineChart`·`BarChart`(막대별 색 `perBarColors` — 예측 구간 연하게)·`ComboChart`(막대+선 혼합)·`DonutChart`·`GaugeChart`·`Sparkline`(KPI 카드용 미니 라인 — `color` **필수**, 기본값 없음)·`ChartFromSpec`(`ChartSpec.type`으로 위 차트를 분기 렌더).
 
-브랜드·아이콘: `Logo`(PNG, 종횡비 3.87:1 — height 기준 지정, flex 컨테이너에서 stretch되지 않게 주의), `Icon*` + `ICON_MAP`(인라인 SVG, `icons.tsx`), `BrandIcon` + `BRANDS`(외부 서비스 로고, `brand-icons.tsx`).
+브랜드·아이콘: `Logo`(PNG, 종횡비 3.87:1 — height 기준 지정, flex 컨테이너에서 stretch되지 않게 주의), `Icon*` + `ICON_MAP`(인라인 SVG, `icons.tsx`), `BrandIcon`(외부 서비스 로고 — `public/brands/<slug>.<svg|png>`, 모르는 slug는 그리지 않는다, `brand-icons.tsx`).
 
-AI 표현(전역 CSS, `globals.css`): `.shimmer-text`·`.agent-fade`·`.pixel-dots`·`.ai-aurora`. AI 관련 표면에만 사용한다. AI대화는 프로필/아바타 없이 텍스트만으로 표현한다(ChatGPT·Gemini식 심플 레이아웃). 답변 블록은 `components/chat/agent-trace.tsx`의 `AgentTrace`(도구 타임라인 — 헤더 "{n}개 도구 사용 · {n}s", 작업 중 자동 펼침·완료 시 접힘, 행을 펼치면 입력/출력 블록) + 본문(`StreamingText`) + 액션바(복사·다시 시도·평가·출처)로 구성하고, 출처는 우측 드로어(`SourceDrawer`)에서 AI 활동 시간과 함께 펼친다. 사용자 말풍선은 hover 시 복사·편집. 액션 아이콘은 모두 `icons.tsx`에서 온다.
+AI 표현(전역 CSS, `globals.css`): `.shimmer-text`·`.agent-fade`·`.pixel-dots`·`.ai-bloom`. AI 관련 표면에만 사용한다. AI대화는 프로필/아바타 없이 텍스트만으로 표현한다(ChatGPT·Gemini식 심플 레이아웃). 답변 블록은 `components/chat/agent-trace.tsx`의 `AgentTrace`(도구 타임라인 — 헤더 "{n}개 도구 사용 · {n}s", 작업 중 자동 펼침·완료 시 접힘, 행을 펼치면 입력/출력 블록) + 본문(`StreamingText`) + 액션바(복사·다시 시도·평가·출처)로 구성하고, 출처는 우측 드로어(`SourceDrawer`)에서 AI 활동 시간과 함께 펼친다. 사용자 말풍선은 hover 시 복사·편집. 액션 아이콘은 모두 `icons.tsx`에서 온다.
 
 ## 사이드바 (좌측 내비)
 
