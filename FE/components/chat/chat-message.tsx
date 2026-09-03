@@ -124,11 +124,20 @@ export function UserMessage({
   }
 
   return (
-    <div className="agent-fade group flex items-end justify-end gap-1">
+    // 동작 바는 말풍선 아래에 붙는다 — AI 답변과 같은 규칙이고, 긴 말풍선에서 아이콘이 세로 가운데에 떠 있지 않다
+    <div className="agent-fade group flex flex-col items-end">
+      <div className="max-w-[80%] rounded-2xl bg-slate-200/70 px-4 py-2.5 text-base leading-relaxed text-slate-800">
+        {msg.attachment && (
+          <p className="mb-1.5 flex items-center gap-1.5 rounded-lg bg-white/70 px-2.5 py-1.5 text-[13px]">
+            <IconFile size={13} /> {msg.attachment}
+          </p>
+        )}
+        <span className="whitespace-pre-line">{msg.text}</span>
+      </div>
       <div
         role="group"
         aria-label="메시지 동작"
-        className="flex opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100"
+        className="-mr-1.5 mt-1 flex opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100"
       >
         <CopyButton text={msg.text} />
         <button
@@ -144,14 +153,6 @@ export function UserMessage({
         >
           <IconPencil size={14} />
         </button>
-      </div>
-      <div className="max-w-[80%] rounded-2xl bg-slate-200/70 px-4 py-2.5 text-base leading-relaxed text-slate-800">
-        {msg.attachment && (
-          <p className="mb-1.5 flex items-center gap-1.5 rounded-lg bg-white/70 px-2.5 py-1.5 text-[13px]">
-            <IconFile size={13} /> {msg.attachment}
-          </p>
-        )}
-        <span className="whitespace-pre-line">{msg.text}</span>
       </div>
     </div>
   );
