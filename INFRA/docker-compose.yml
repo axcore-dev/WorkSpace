@@ -13,7 +13,7 @@
 #   docker network create axcore-net
 #
 # 값은 전부 INFRA/.env 에서 온다(.env* 는 .gitignore 대상). 이 파일에는 기본값이 없어서 키가 빠지면
-# 빈 값으로 들어간다(포트 키가 비면 up 이 실패한다). 필요한 키 목록(24개)은
+# 빈 값으로 들어간다(포트 키가 비면 up 이 실패한다). 필요한 키 목록(28개)은
 # docs/infra/ci-cd.md 의 「INFRA/.env」 절에 있다. 이 파일에 값을 적지 않는다.
 #
 # 외부에서 들어오는 문은 nginx 의 ${HTTP_PORT} 하나다. app/frontend 의 호스트 포트는
@@ -67,9 +67,14 @@ services:
       NAVER_REDIRECT_URI: ${PUBLIC_URL}/oauth/callback/naver
 
       # --- 메일 · 로그 ---
-      # log 모드는 확인 링크가 로그에 남는다. 실제 발송 구현이 붙으면 바꾼다 (docs/infra/ci-cd.md 「남은 일」).
+      # log: 보내지 않고 로그에 찍는다(확인 링크가 로그에 남는다). smtp: 아래 MAIL_HOST.. 로 실제 발송.
+      # smtp 인데 MAIL_HOST/USERNAME/PASSWORD 가 비면 BE 가 부팅에서 막힌다 (SmtpMailSender).
       MAIL_MODE: ${MAIL_MODE}
       MAIL_FROM: ${MAIL_FROM}
+      MAIL_HOST: ${MAIL_HOST}
+      MAIL_PORT: ${MAIL_PORT}
+      MAIL_USERNAME: ${MAIL_USERNAME}
+      MAIL_PASSWORD: ${MAIL_PASSWORD}
       LOG_REQUESTS: ${LOG_REQUESTS}
       LOG_APP_LEVEL: ${LOG_APP_LEVEL}
     healthcheck:
