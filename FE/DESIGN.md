@@ -77,6 +77,9 @@ WorkSpace 데모의 시각 언어와 공용 컴포넌트 규칙. 코드가 단�
 
 - 폰트: **Pretendard Variable** (CDN), `--font-sans`으로 등록.
 - 페이지 제목 `text-2xl font-bold tracking-tight`, 섹션 제목 `text-[15px] font-semibold`(`SectionHeader`), 본문 `text-sm`, 보조 `text-xs`.
+- **AI대화(`/ai-chat`)는 읽는 화면이라 한 단 위 사다리를 쓴다** — 본문(답변·말풍선·입력창) `text-base`(16),
+  트레이스 행·목록 항목·패널 제목 `text-[15px]`, 보조(결과 수·시간·캡션·배지·도구 입출력) `text-[13px]`.
+  세 단이 전부이고 그 아래로 내려가지 않는다 — 10·11·12px를 새로 만들지 않는다.
 - **숫자는 전역 tnum 고정폭.** ERP 화면의 숫자는 항상 표·KPI·금액 맥락이므로 비례폭(proportional) 분리를 두지 않는다 — 예외가 필요해지기 전까지 정책은 "전부 tabular" 하나다.
 
 ## 간격
@@ -112,9 +115,17 @@ WorkSpace 데모의 시각 언어와 공용 컴포넌트 규칙. 코드가 단�
 | base | `duration-200` | 공용 컴포넌트 기본 (`Button`, `Toggle` — `transition-colors`) |
 | slow | `duration-300` | 크기·레이아웃 변화 (`ProgressBar` width) |
 
-- 명명 애니메이션 예외 3개: `.shimmer-text`(AI 추론 로딩, 1.8s — **AI 표면 전용**), `.spinner`(일반 대기 표시, 0.8s), `.tab-wiggle`(탭 편집 모드, 0.28s).
-- 금지: 바운스 오버슈트, 패럴랙스, 300ms 초과 UI 전환, AI 표면 밖의 shimmer/skeleton.
-- `prefers-reduced-motion` 대응이 전역에 있다 — 개별 컴포넌트에서 다시 처리하지 않는다.
+- 명명 애니메이션 예외: `.shimmer-text`(AI 추론 로딩, 1.8s — **AI 표면 전용**), `.spinner`(일반 대기 표시, 0.8s), `.tab-wiggle`(탭 편집 모드, 0.28s), `.agent-fade`(AI 답변 요소 등장, 0.28s), `.pixel-dots`(AI 작업 중 3×3 도트, 0.65s stagger).
+- **AI 표면 한정 허용**: skeleton(`animate-pulse`, 대화 복원·전환 대기), 타자 효과(새 답변 1회 — 복원된 메시지엔 쓰지 않는다), 앰비언트 배경(빈 상태에서만, `components/chat/ai-backdrop.tsx`).
+
+  - **중앙 블룸 + 점 격자 두 겹**이다. 블룸은 primary 12% 저알파 타원 하나로 **정적**이고, 중심(`--bloom-x`/`--bloom-y`)만 입력창을 따라간다 — 입력창이 첫 화면↔대화 전환에 세로로 미끄러져도 어긋나지 않고, 퇴장할 때 배경과 한 몸으로 움직인다. 블룸은 커서를 따라다니지 않는다.
+  - 반응하는 건 점뿐이다. **커서는 자기장이고 점은 방향을 틀지 않는다** — 가까운 점이 밝아지고(0.22→0.5) 살짝 커지고(×1.6까지) 커서 쪽으로 1px 끌려온다. 반경 150px, 경계는 smoothstep으로 감춘다. 가장자리로 갈수록 옅어지는 페이드의 중심도 입력창이다.
+  - **커서가 멈추면 배경도 완전히 정지한다** — 떠다니는 루프 애니메이션을 두지 않는다. 값은 시안 '은은'으로 확정됐다(2026-09-03).
+  - 첫 메시지에 **아래로 80px 미끄러지며 400ms에** 옅어진 뒤 렌더하지 않고, 새 대화로 돌아오면 같은 길이로 아래에서 올라온다. 전환 중에는 커서 반응을 멈춘다.
+- **AI 첫 화면↔대화 전환은 화면을 갈아끼우지 않는다** — 같은 DOM에서 입력바가 세로 중앙↔바닥을 `flex` 스페이서 전환 300ms(slow)로 미끄러지고, 배경은 아래로 80px 미끄러지며 400ms에 빠진다. 새 대화는 역방향으로 같은 길이.
+- **AI 대화의 docked 패널(대화 기록·소스·출처)은 뜨지 않고 민다** — 대화와 같은 flex 행에 놓고 바깥 슬롯의 폭을 0↔고정폭(레일 18rem, 출처 24rem)으로 `transition-[width,margin-left]` 300ms(slow) 미끄러지게 한다. 안쪽 패널은 고정폭이라 전환 중 내용이 다시 흐르지 않고, 닫히는 동안에도 마지막 내용을 그대로 그린다(`inert`로 조작만 막는다). **출처 패널은 떠 있는 카드가 아니라 창 오른쪽 벽이다** — 페이지 `p-3`를 음수 마진(`-my-3 -mr-3`)으로 빠져나가 오른쪽·위·아래가 창에 밀착하고 왼쪽 모서리만 둥글며 오른쪽 경계선이 없다. 안쪽 패널은 **상자 왼쪽에 붙은 흐름 요소**로 두어 내용이 패널과 함께 이동하게 하고, 잘리는 경계(상자의 `overflow-hidden`)가 창 끝과 일치해 화면 밖에서 통째로 들어오는 것으로 읽힌다. 패널을 오른쪽에 고정하면 제자리에서 드러나는 커튼이 되고, 잘리는 경계가 창 안쪽이면 잘린 단면이 보인다. 여기에 `transition-opacity`를 겹친다. **포커스를 빼앗지 않는다** — 모달이 아니고, 폭 0인 상자 안의 버튼에 `autoFocus`를 주면 브라우저가 스크롤을 튕겨 열리는 첫 프레임이 흔들린다. 같은 트리거 재클릭·×·ESC로 닫히고, 여는 트리거는 `aria-expanded`로 눌린 상태를 보인다. lg 미만에서는 슬롯이 대화 위로 뜬다(overlay, `shadow-lg`) — 폭을 밀지 않는다.
+- 금지: 바운스 오버슈트, 패럴랙스, 300ms 초과 UI 전환(위 명명 예외·앰비언트 배경 제외), AI 표면 밖의 shimmer/skeleton/타자 효과/앰비언트 배경.
+- `prefers-reduced-motion` 대응이 전역에 있다 — 개별 컴포넌트에서 다시 처리하지 않는다. 앰비언트 배경은 여기서 정지 상태(루프 정지·광원 반응 없음)로 떨어진다.
 
 ## 상태 정책
 
@@ -156,9 +167,9 @@ WorkSpace 데모의 시각 언어와 공용 컴포넌트 규칙. 코드가 단�
 
 차트(`charts.tsx`, 의존성 없는 순수 SVG): `LineChart`·`BarChart`(막대별 색 `perBarColors` — 예측 구간 연하게)·`ComboChart`(막대+선 혼합)·`DonutChart`·`GaugeChart`·`Sparkline`(KPI 카드용 미니 라인 — `color` **필수**, 기본값 없음)·`ChartFromSpec`(`ChartSpec.type`으로 위 차트를 분기 렌더).
 
-브랜드·아이콘: `Logo`(PNG, 종횡비 3.87:1 — height 기준 지정, flex 컨테이너에서 stretch되지 않게 주의), `Icon*` + `ICON_MAP`(인라인 SVG, `icons.tsx`), `BrandIcon` + `BRANDS`(외부 서비스 로고, `brand-icons.tsx`).
+브랜드·아이콘: `Logo`(PNG, 종횡비 3.87:1 — height 기준 지정, flex 컨테이너에서 stretch되지 않게 주의), `Icon*` + `ICON_MAP`(인라인 SVG, `icons.tsx`), `BrandIcon`(외부 서비스 로고 — `public/brands/<slug>.<svg|png>`, 모르는 slug는 그리지 않는다, `brand-icons.tsx`).
 
-AI 표현(전역 CSS, `globals.css`): `.shimmer-text`(추론 로딩 쉬머). AI 관련 표면에만 사용한다. AI대화는 프로필/아바타 없이 텍스트만으로 표현한다(ChatGPT·Gemini식 심플 레이아웃).
+AI 표현(전역 CSS, `globals.css`): `.shimmer-text`·`.agent-fade`·`.pixel-dots`·`.ai-bloom`. AI 관련 표면에만 사용한다. AI대화는 프로필/아바타 없이 텍스트만으로 표현한다(ChatGPT·Gemini식 심플 레이아웃). 답변 블록은 `components/chat/agent-trace.tsx`의 `AgentTrace`(도구 타임라인 — 헤더 "{n}개 도구 사용 · {n}s", 작업 중 자동 펼침·완료 시 접힘, 행을 펼치면 입력/출력 블록) + 본문(`StreamingText`) + 액션바(복사·다시 시도·평가·출처)로 구성하고, 출처는 우측 드로어(`SourceDrawer`)에서 AI 활동 시간과 함께 펼친다. 사용자 말풍선은 hover 시 복사·편집. 액션 아이콘은 모두 `icons.tsx`에서 온다.
 
 ## 사이드바 (좌측 내비)
 
@@ -276,7 +287,7 @@ AI 표현(전역 CSS, `globals.css`): `.shimmer-text`(추론 로딩 쉬머). AI 
 - 인라인 `style`로 컴포넌트를 우회하지 않는다 — `className` 관통은 허용, 그 이상이 필요하면 변형 추가.
 - 카드에 그림자 금지 (떠 있는 표면 전용).
 - 입력 focus에 블루 금지 (블루는 액션 전용).
-- AI 표면 밖에서 shimmer 금지. skeleton 미사용.
+- AI 표면 밖에서 shimmer·skeleton·타자 효과·앰비언트 배경 금지.
 - 이모지를 UI에 쓰지 않는다 — `icons.tsx` SVG만.
 - 한 화면에 `primary` 버튼을 여러 개 두지 않는다.
 

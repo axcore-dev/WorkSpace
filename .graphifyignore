@@ -1,0 +1,2 @@
+# graphify 전용 제외 — 아이콘 라이브러리는 모든 화면에 import돼 god 노드로 커뮤니티 구조를 흐린다
+FE/components/icons.tsx

@@ -4,17 +4,18 @@ import { useState } from "react";
 import { Modal } from "@/components/modal";
 import { BrandIcon } from "@/components/brand-icons";
 import { Badge, Button } from "@/components/ui";
-import { IconArrowUpRight, IconCheck, IconChevronDown, IconPlus, IconSearch, IconX } from "@/components/icons";
-import { CONNECTOR_LIB, SKILL_LIB } from "@/data/chat";
-
-const TABS = ["앱", "사용자 정의 API", "사용자 정의 MCP", "프로젝트"];
+import {
+  IconArrowUpRight,
+  IconCheck,
+  IconPlus,
+  IconSearch,
+  IconX,
+} from "@/components/icons";
+import { CONNECTOR_CATEGORIES, CONNECTOR_LIB, SKILL_LIB } from "@/data/chat";
 
 type Connector = (typeof CONNECTOR_LIB)[number];
 
-/**
- * 커넥터 상세 팝업 (레퍼런스: 커넥터 카드 클릭 팝업 — 샘플 프롬프트 제외).
- * 아이콘·설명·연결 CTA와 세부사항만 표시한다.
- */
+/** 커넥터 상세 팝업 — 아이콘·설명·연결 CTA와 세부사항(분류·웹사이트·상태) */
 function ConnectorDetailModal({
   connector,
   connected,
@@ -45,11 +46,18 @@ function ConnectorDetailModal({
           <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl border border-slate-200 bg-white">
             <BrandIcon slug={connector.slug} size={30} />
           </span>
-          <h2 className="mt-4 text-lg font-bold text-slate-900">{connector.name}</h2>
-          <p className="mx-auto mt-1.5 max-w-sm text-sm leading-relaxed text-slate-500">{connector.desc}</p>
+          <h2 className="mt-4 text-lg font-bold text-slate-900">
+            {connector.name}
+          </h2>
+          <p className="mx-auto mt-1.5 max-w-sm text-sm leading-relaxed text-slate-500">
+            {connector.desc}
+          </p>
           <div className="mt-5">
             {connected ? (
-              <Button variant="secondary" onClick={() => onDisconnect(connector)}>
+              <Button
+                variant="secondary"
+                onClick={() => onDisconnect(connector)}
+              >
                 연결 해제
               </Button>
             ) : (
@@ -60,17 +68,15 @@ function ConnectorDetailModal({
 
         <div className="mt-8">
           <h3 className="text-sm font-semibold text-slate-900">세부사항</h3>
-          <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-4 rounded-xl border border-slate-200 p-4">
+          <dl className="mt-3 grid grid-cols-3 gap-x-6 gap-y-4 rounded-xl border border-slate-200 p-4">
             <div>
-              <dt className="text-xs font-medium text-slate-400">커넥터 유형</dt>
-              <dd className="mt-1 text-sm text-slate-700">앱</dd>
+              <dt className="text-xs font-medium text-slate-400">분류</dt>
+              <dd className="mt-1 text-sm text-slate-700">
+                {connector.category}
+              </dd>
             </div>
             <div>
-              <dt className="text-xs font-medium text-slate-400">작성자</dt>
-              <dd className="mt-1 text-sm text-slate-700">WorkSpace</dd>
-            </div>
-            <div>
-              <dt className="text-xs font-medium text-slate-400">추가 정보</dt>
+              <dt className="text-xs font-medium text-slate-400">웹사이트</dt>
               <dd className="mt-1">
                 <a
                   href={connector.url}
@@ -78,7 +84,8 @@ function ConnectorDetailModal({
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-0.5 text-sm font-medium text-primary-600 transition-colors hover:text-primary-700"
                 >
-                  웹사이트 <IconArrowUpRight size={13} />
+                  {new URL(connector.url).hostname.replace(/^www\./, "")}{" "}
+                  <IconArrowUpRight size={13} />
                 </a>
               </dd>
             </div>
@@ -98,19 +105,41 @@ function ConnectorDetailModal({
 }
 
 /**
- * 커넥터 추가 팝업 (Manus형) — 브랜드 로고 포함.
- * 데모: 연결 상태는 전부 로컬 state다. Google Calendar는 즉시 연결 처리되고,
- * 나머지 앱은 '+' 클릭 시 해당 앱 로그인 페이지로 이동하는 목업이다.
+ * 커넥터 팝업 — 분류별(메신저·협업 / 문서·데이터 / 메일·일정 / ERP·회계) 앱 카드.
+ *
+ * 연결 상태는 **부모가 갖는다** — 입력창의 앱 스택·토글이 같은 값을 봐야 하기 때문이다.
+ * 여기서 따로 들고 있으면 여기서 연결한 앱이 입력창에 나타나지 않는다.
+ * 데모: Google Calendar는 즉시 연결 처리되고, 나머지 앱은 해당 앱 로그인 페이지로 보내는 목업이다.
  */
-export function ConnectorModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [tab, setTab] = useState("앱");
+export function ConnectorModal({
+  open,
+  onClose,
+  connected,
+  onConnect,
+  onDisconnect,
+}: {
+  open: boolean;
+  onClose: () => void;
+  /** 연결된 앱 slug */
+  connected: string[];
+  onConnect: (slug: string) => void;
+  onDisconnect: (slug: string) => void;
+}) {
   const [q, setQ] = useState("");
-  const [connected, setConnected] = useState<string[]>(
-    CONNECTOR_LIB.filter((c) => c.connected).map((c) => c.slug),
-  );
   const [detail, setDetail] = useState<Connector | null>(null);
 
-  const list = CONNECTOR_LIB.filter((c) => c.name.toLowerCase().includes(q.toLowerCase()));
+  const needle = q.trim().toLowerCase();
+  const list = CONNECTOR_LIB.filter(
+    (c) =>
+      !needle ||
+      c.name.toLowerCase().includes(needle) ||
+      c.slug.includes(needle) ||
+      c.category.includes(needle),
+  );
+  const groups = CONNECTOR_CATEGORIES.map((cat) => ({
+    cat,
+    items: list.filter((c) => c.category === cat),
+  })).filter((g) => g.items.length > 0);
 
   function isConnected(c: Connector) {
     return connected.includes(c.slug);
@@ -119,25 +148,34 @@ export function ConnectorModal({ open, onClose }: { open: boolean; onClose: () =
   /** 연결 — 데모: 즉시 연결 처리. OAuth 등 실연동은 BE 이관 후 BE API를 거친다 */
   function connect(c: Connector) {
     if (c.slug === "googlecalendar") {
-      setConnected((prev) => [...prev, c.slug]);
+      onConnect(c.slug);
       return;
     }
     if (c.loginUrl) window.open(c.loginUrl, "_blank", "noopener,noreferrer");
   }
 
   function disconnect(c: Connector) {
-    setConnected((prev) => prev.filter((x) => x !== c.slug));
+    onDisconnect(c.slug);
   }
 
   if (!open) return null;
 
   return (
     <>
-      <Modal open={open} onClose={detail ? () => setDetail(null) : onClose} size="xl" title="커넥터">
-        <div className="px-5 pb-5 pt-4">
+      <Modal
+        open={open}
+        onClose={detail ? () => setDetail(null) : onClose}
+        size="xl"
+        title="커넥터"
+        desc={`연결한 앱은 AI가 답변 근거로 조회하고, 확인을 거쳐 알림·등록 같은 작업을 실행해요. ${connected.length}개 연결됨`}
+      >
+        <div className="thin-scroll overflow-y-auto px-5 pb-5 pt-4">
           {/* 검색 */}
           <div className="relative">
-            <IconSearch size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <IconSearch
+              size={15}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+            />
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
@@ -147,85 +185,65 @@ export function ConnectorModal({ open, onClose }: { open: boolean; onClose: () =
             />
           </div>
 
-          {/* 탭 + 생성 */}
-          <div className="mt-3 flex items-center justify-between border-b border-slate-100">
-            <div className="flex gap-1" role="tablist">
-              {TABS.map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  role="tab"
-                  aria-selected={tab === t}
-                  onClick={() => setTab(t)}
-                  className={`-mb-px cursor-pointer border-b-2 px-3 py-2.5 text-sm font-medium transition-colors ${
-                    tab === t ? "border-slate-900 text-slate-900" : "border-transparent text-slate-500 hover:text-slate-700"
-                  }`}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              className="mb-1 inline-flex cursor-pointer items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50"
-            >
-              생성 <IconChevronDown size={13} />
-            </button>
-          </div>
-
-          {tab === "앱" ? (
-            <ul className="mt-4 grid gap-2.5 sm:grid-cols-2">
-              {list.map((c) => {
-                const on = isConnected(c);
-                return (
-                  <li
-                    key={c.slug}
-                    role="button"
-                    tabIndex={0}
-                    aria-label={`${c.name} 상세 보기`}
-                    onClick={() => setDetail(c)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        setDetail(c);
-                      }
-                    }}
-                    className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-3.5 transition-colors hover:border-slate-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400"
-                  >
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-50">
-                      <BrandIcon slug={c.slug} size={20} />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-slate-900">{c.name}</p>
-                      <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-slate-500">{c.desc}</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (on) disconnect(c);
-                        else connect(c);
-                      }}
-                      aria-label={on ? `${c.name} 연결 해제` : `${c.name} 연결`}
-                      title={on ? "연결 해제" : "연결 (해당 앱 로그인 페이지로 이동)"}
-                      className={`flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-lg transition-colors ${
-                        on ? "bg-slate-800 text-white hover:bg-slate-700" : "border border-slate-200 text-slate-500 hover:bg-slate-50"
-                      }`}
-                    >
-                      {on ? <IconCheck size={15} /> : <IconPlus size={15} />}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-14 text-center">
-              <p className="text-sm font-medium text-slate-600">{tab}</p>
-              <p className="mt-1 text-xs text-slate-400">
-                {tab === "프로젝트" ? "연결된 프로젝트가 없습니다." : `직접 등록한 ${tab.replace("사용자 정의 ", "")}가 없습니다.`} 우측 상단 &lsquo;생성&rsquo;에서 추가하세요.
-              </p>
-            </div>
+          {groups.length === 0 && (
+            <p className="py-14 text-center text-sm text-slate-400">
+              &lsquo;{q}&rsquo;에 맞는 커넥터가 없어요.
+            </p>
           )}
+          {groups.map(({ cat, items }) => (
+            <section key={cat} aria-label={cat} className="mt-5">
+              <h3 className="text-xs font-semibold text-slate-400">{cat}</h3>
+              <ul className="mt-2 grid gap-2.5 sm:grid-cols-2">
+                {items.map((c) => {
+                  const on = isConnected(c);
+                  return (
+                    <li
+                      key={c.slug}
+                      className="flex items-start gap-3 rounded-xl border border-slate-200 p-3.5 transition-colors hover:border-slate-300"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setDetail(c)}
+                        aria-label={`${c.name} 상세 보기`}
+                        className="flex min-w-0 flex-1 cursor-pointer items-start gap-3 rounded-lg text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400"
+                      >
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-100 bg-white">
+                          <BrandIcon slug={c.slug} size={20} />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm font-semibold text-slate-900">
+                            {c.name}
+                          </span>
+                          <span className="mt-0.5 line-clamp-2 block text-xs leading-relaxed text-slate-500">
+                            {c.desc}
+                          </span>
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => (on ? disconnect(c) : connect(c))}
+                        aria-label={
+                          on ? `${c.name} 연결 해제` : `${c.name} 연결`
+                        }
+                        title={
+                          on
+                            ? "연결 해제"
+                            : "연결 (해당 앱 로그인 페이지로 이동)"
+                        }
+                        className={`flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-lg transition-colors ${
+                          on
+                            ? "bg-slate-800 text-white hover:bg-slate-700"
+                            : "border border-slate-200 text-slate-500 hover:bg-slate-50"
+                        }`}
+                      >
+                        {on ? <IconCheck size={15} /> : <IconPlus size={15} />}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ))}
         </div>
       </Modal>
 
@@ -246,33 +264,83 @@ export function ConnectorModal({ open, onClose }: { open: boolean; onClose: () =
 }
 
 /** 스킬 추가 팝업 */
-export function SkillModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [added, setAdded] = useState<string[]>([]);
+export function SkillModal({
+  open,
+  onClose,
+  selected,
+  onToggle,
+}: {
+  open: boolean;
+  onClose: () => void;
+  /** 이 턴에 물린 스킬 id */
+  selected: string[];
+  onToggle: (id: string) => void;
+}) {
+  const [q, setQ] = useState("");
+  const needle = q.trim().toLowerCase();
+  const list = SKILL_LIB.filter(
+    (s) =>
+      !needle ||
+      s.name.toLowerCase().includes(needle) ||
+      s.desc.toLowerCase().includes(needle) ||
+      s.id.includes(needle),
+  );
+
   return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      size="md"
-      title="스킬"
-    >
+    <Modal open={open} onClose={onClose} size="md" title="스킬 사용">
+      <div className="border-b border-slate-100 px-4 py-3">
+        <label htmlFor="skill-search" className="sr-only">
+          스킬 검색
+        </label>
+        <div className="flex items-center gap-2 rounded-lg border border-slate-200 px-2.5 py-2 focus-within:border-slate-400">
+          <IconSearch size={15} className="shrink-0 text-slate-400" />
+          <input
+            id="skill-search"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="스킬 검색"
+            className="w-full border-none bg-transparent text-[15px] text-slate-900 placeholder:text-slate-400 focus:outline-none"
+          />
+        </div>
+      </div>
       <ul className="divide-y divide-slate-100 p-2">
-        {SKILL_LIB.map((s) => {
-          const on = added.includes(s.id);
+        {list.length === 0 && (
+          <li className="px-3 py-8 text-center text-[15px] text-slate-400">
+            찾는 스킬이 없어요.
+          </li>
+        )}
+        {list.map((s) => {
+          const on = selected.includes(s.id);
           return (
-            <li key={s.id} className="flex items-center justify-between gap-3 px-3 py-3">
+            <li
+              key={s.id}
+              className="flex items-center justify-between gap-3 px-3 py-3"
+            >
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-slate-900">{s.name}</p>
-                <p className="mt-0.5 text-xs text-slate-500">{s.desc}</p>
+                <p className="flex items-center gap-1.5 text-[15px] font-semibold text-slate-900">
+                  {s.name}
+                  {s.official && (
+                    <span className="rounded border border-slate-200 px-1.5 text-[13px] font-normal text-slate-400">
+                      기본 제공
+                    </span>
+                  )}
+                </p>
+                <p className="mt-0.5 text-[13px] leading-relaxed text-slate-500">
+                  {s.desc}
+                </p>
               </div>
               <button
                 type="button"
-                onClick={() => setAdded((prev) => (on ? prev.filter((x) => x !== s.id) : [...prev, s.id]))}
-                className={`inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
-                  on ? "bg-slate-800 text-white hover:bg-slate-700" : "border border-slate-200 text-slate-600 hover:bg-slate-50"
+                onClick={() => onToggle(s.id)}
+                aria-pressed={on}
+                className={`inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-colors ${
+                  on
+                    ? "bg-slate-800 text-white hover:bg-slate-700"
+                    : "border border-slate-200 text-slate-600 hover:bg-slate-50"
                 }`}
               >
                 {on ? <IconCheck size={13} /> : <IconPlus size={13} />}
-                {on ? "추가됨" : "추가"}
+                {on ? "사용 중" : "사용"}
               </button>
             </li>
           );
