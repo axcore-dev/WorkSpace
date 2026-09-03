@@ -14,6 +14,7 @@ import { SourceDrawer } from "@/components/chat/source-drawer";
 import { ApiRequestError } from "@/lib/api";
 import { streamChat, uploadSources, type ChatRequest } from "@/lib/chat-api";
 import { loadChat, saveChat } from "@/lib/chat-storage";
+import { CONNECTOR_LIB } from "@/data/chat";
 import type { ChatMessage, Note, SourceState, TraceStep } from "@/data/chat";
 
 const EMPTY_SRC: SourceState = { sources: [], selected: [] };
@@ -60,6 +61,10 @@ export default function AiChatPage() {
   const [skillOpen, setSkillOpen] = useState(false);
   /** 이 턴에 물린 스킬 id — 전송하면 비운다 */
   const [skills, setSkills] = useState<string[]>([]);
+  /** 연결된 앱 slug — 지금은 화면 안에만 있다. BE가 생기면 커넥터 API로 옮긴다 */
+  const [connectedApps, setConnectedApps] = useState<string[]>(() =>
+    CONNECTOR_LIB.filter((c) => c.connected).map((c) => c.slug),
+  );
   /** 첫 대화 생성 전(시작 화면)의 소스 — 첫 대화가 이 상태를 승계한다 */
   const [draftSrc, setDraftSrc] = useState<SourceState>(EMPTY_SRC);
   /** localStorage 복원이 끝나기 전에는 저장하지 않는다 — 빈 상태로 덮어쓰는 걸 막는다 */
@@ -416,6 +421,14 @@ export default function AiChatPage() {
       menuBelow={empty}
       skills={skills}
       onRemoveSkill={(id) => setSkills((prev) => prev.filter((x) => x !== id))}
+      connectedApps={connectedApps}
+      onToggleApp={(slug) =>
+        setConnectedApps((prev) =>
+          prev.includes(slug)
+            ? prev.filter((x) => x !== slug)
+            : [...prev, slug],
+        )
+      }
     />
   );
   const disclaimer = (

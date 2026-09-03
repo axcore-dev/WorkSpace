@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   IconArrowUp,
-  IconCheck,
   IconChevronRight,
   IconFile,
   IconPlus,
@@ -11,6 +10,7 @@ import {
   IconX,
 } from "@/components/icons";
 import { BrandIcon } from "@/components/brand-icons";
+import { Toggle } from "@/components/ui";
 import { CONNECTOR_LIB, SKILL_LIB } from "@/data/chat";
 
 /** 겹친 스택에 얼굴을 내미는 앱 수 — 나머지는 +n으로 접는다 */
@@ -54,6 +54,8 @@ export function ChatComposer({
   menuBelow = false,
   skills = [],
   onRemoveSkill,
+  connectedApps,
+  onToggleApp,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -67,6 +69,9 @@ export function ChatComposer({
   /** 이 턴에 물린 스킬 id */
   skills?: string[];
   onRemoveSkill?: (id: string) => void;
+  /** 연결된 앱 slug — 스택과 토글이 같은 값을 본다 */
+  connectedApps: string[];
+  onToggleApp: (slug: string) => void;
 }) {
   const [menu, setMenu] = useState<"plus" | "apps" | null>(null);
   /** 백스페이스로 삭제 예고된 스킬 — 한 번 더 누르면 지운다 */
@@ -102,7 +107,7 @@ export function ChatComposer({
     .filter((s) => s !== undefined);
   // 목록에서 빠진 칩의 예고는 저절로 무효가 된다 — 상태를 따로 정리하지 않는다
   const armedId = armed && skills.includes(armed) ? armed : null;
-  const connected = CONNECTOR_LIB.filter((c) => c.connected);
+  const connected = CONNECTOR_LIB.filter((c) => connectedApps.includes(c.slug));
   const shown = connected.slice(0, STACK_MAX);
   const rest = connected.length - shown.length;
   const canSend = value.trim().length > 0 && !thinking;
@@ -267,7 +272,7 @@ export function ChatComposer({
       {menu && (
         // 메뉴 방향은 입력바 자리를 따라간다 — 첫 화면은 아래로, 대화 중은 위로
         <div
-          role="menu"
+          role={menu === "plus" ? "menu" : undefined}
           className={`thin-scroll absolute left-0 z-30 max-h-[min(22rem,50vh)] w-[300px] overflow-y-auto rounded-xl border border-slate-200 bg-white py-1.5 shadow-lg ${
             menuBelow ? "top-full mt-2" : "bottom-full mb-2"
           }`}
@@ -308,27 +313,18 @@ export function ChatComposer({
               <p className="px-3 py-1.5 text-[13px] font-semibold text-slate-400">
                 연결된 앱
               </p>
-              {CONNECTOR_LIB.slice(0, 6).map((c) => (
-                <button
-                  key={c.slug}
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    setMenu(null);
-                    onOpenConnectors();
-                  }}
-                  className={MENU_ITEM}
-                >
+              {/* 잘라내면 연결된 앱이 목록 밖으로 밀려 끌 수 없다 — 전부 두고 스크롤에 맡긴다 */}
+              {CONNECTOR_LIB.map((c) => (
+                <div key={c.slug} className={`${MENU_ITEM} cursor-default`}>
                   <BrandIcon slug={c.slug} size={18} />
                   <span className="flex-1 truncate">{c.name}</span>
-                  {c.connected ? (
-                    <IconCheck size={14} className="shrink-0 text-slate-400" />
-                  ) : (
-                    <span className="shrink-0 text-[13px] font-semibold text-slate-500">
-                      연결하기
-                    </span>
-                  )}
-                </button>
+                  <Toggle
+                    size="sm"
+                    checked={connectedApps.includes(c.slug)}
+                    onChange={() => onToggleApp(c.slug)}
+                    label={`${c.name} 연결`}
+                  />
+                </div>
               ))}
               <div className="my-1.5 h-px bg-slate-100" />
               <button
