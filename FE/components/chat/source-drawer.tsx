@@ -109,7 +109,7 @@ export function SourceDrawer({
                 {trace.map((t, i) => (
                   <li key={`${i}-${t.text}`} className="flex gap-2.5">
                     <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center">
-                      <TraceIcon icon={t.icon} />
+                      <TraceIcon step={t} />
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="text-slate-700">{t.text}</p>
