@@ -1,0 +1,39 @@
+# Jenkins(CI) 실행용. 서버에서 사람이 한 번 띄우고 두는 것이라 Jenkinsfile 이 건드리지 않는다.
+#
+#   docker compose -f docker-compose.jenkins.yml up -d --build
+#   docker compose -f docker-compose.jenkins.yml logs -f jenkins     # 초기 관리자 비밀번호가 여기 찍힌다
+#
+# 사전 작업 (docs/infra/ci-cd.md 「서버 준비」):
+#   sudo mkdir -p /var/jenkins_home && sudo chown 1000:1000 /var/jenkins_home
+#   stat -c %g /var/run/docker.sock        # → INFRA/.env 의 DOCKER_GID
+#
+# jenkins_home 을 호스트의 같은 경로(/var/jenkins_home)에 바인드하는 이유:
+# 파이프라인이 `docker run -v "$WORKSPACE/FE:/app" ...` 처럼 워크스페이스를 다른 컨테이너에
+# 마운트하는데, 그 -v 의 경로는 호스트 기준으로 풀린다. 컨테이너 안 경로와 호스트 경로가
+# 같아야 그 마운트가 맞는 곳을 가리킨다. 경로를 바꾸면 CI 검사 단계가 깨진다.
+#
+# 보안: docker.sock 을 가진 컨테이너는 사실상 호스트 root 다. Jenkins 포트는 방화벽에서
+# 필요한 IP 에만 열고, 관리자 계정 외 가입을 막아 둔다.
+
+name: axcore-ci
+
+services:
+  jenkins:
+    build:
+      context: ./jenkins
+      dockerfile: Dockerfile
+    image: axcore/jenkins:local
+    container_name: axcore-jenkins
+    ports:
+      - "${JENKINS_PORT}:8080"
+    environment:
+      TZ: Asia/Seoul
+      # 8GB 서버에서 앱·빌드와 함께 살아야 하므로 힙을 고정한다.
+      JAVA_OPTS: -Xmx${JENKINS_HEAP} -Djava.awt.headless=true -Duser.timezone=Asia/Seoul
+    volumes:
+      - /var/jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+    # 호스트 docker 그룹 GID. 값이 다르면 "permission denied while trying to connect to the Docker daemon".
+    group_add:
+      - "${DOCKER_GID}"
+    restart: unless-stopped
