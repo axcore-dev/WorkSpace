@@ -124,13 +124,13 @@ body {
 
 /* AI 첫 화면 앰비언트 배경의 중앙 블룸 — 정적이다. 중심 높이(--bloom-y)만 입력창을 따라간다
    (빈 상태에서만 렌더. 점 격자는 캔버스로 그린다 — components/chat/ai-backdrop.tsx) */
+/* 기본값은 var() 폴백으로 둔다 — 여기서 --bloom-x를 선언하면 부모(배경 레이어)가 넘겨 주는
+   상속값을 자기 선언이 덮어써서 입력창 추적이 죽는다 */
 .ai-bloom {
-  --bloom-x: 50%;
-  --bloom-y: 58%;
   background: radial-gradient(
-    ellipse 42% 34% at var(--bloom-x) var(--bloom-y),
-    color-mix(in srgb, var(--color-primary-600) 7%, transparent) 0%,
-    color-mix(in srgb, var(--color-primary-600) 3%, transparent) 42%,
+    ellipse 46% 37% at var(--bloom-x, 50%) var(--bloom-y, 58%),
+    color-mix(in srgb, var(--color-primary-600) 12%, transparent) 0%,
+    color-mix(in srgb, var(--color-primary-600) 5%, transparent) 42%,
     transparent 72%
   );
 }
