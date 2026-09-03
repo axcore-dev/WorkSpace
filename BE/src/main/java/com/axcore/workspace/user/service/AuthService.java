@@ -74,10 +74,15 @@ public class AuthService {
      * 두 벌 만들게 된다. 대신 확인되지 않은 계정은 회사에 들어가지 못한다.
      * ({@link SessionIssuer#nextStep})
      *
-     * <p>이미 그 주소로 계정이 있으면 <b>확인 여부로 갈린다.</b> 확인된 계정이면 중복이고,
-     * 확인되지 않은 계정이면 그 주소를 점유하지 않으므로 밀어내고 새로 만든다. 남의 주소로
-     * 가입해 두는 것만으로 진짜 주인이 가입하지 못하게 되는 것을 막는 장치다.
-     * ({@link UnverifiedAccountReclaimer})
+     * <p>이미 그 주소로 계정이 있으면 <b>확인 여부로 갈린다.</b> 확인되지 않은 계정이면 그
+     * 주소를 점유하지 않으므로 밀어내고 새로 만든다. 남의 주소로 가입해 두는 것만으로 진짜
+     * 주인이 가입하지 못하게 되는 것을 막는 장치다. ({@link UnverifiedAccountReclaimer})
+     *
+     * <p>확인된 계정은 <b>비밀번호가 있는가로 다시 갈린다.</b> 비밀번호가 있으면 중복(409)이다.
+     * 비밀번호가 없으면 소셜로만 가입한 계정이라, 막지 않고 그 계정에 비밀번호를 붙여 가입을
+     * 이어 간다 — 소셜로 먼저 들어온 사람이 나중에 이메일로도 가입하려는 흐름이다. 계정을 하나로
+     * 유지하고, 확인 메일을 다시 받게 해서 주소만 아는 사람이 남의 소셜 계정에 비밀번호를 붙여
+     * 들어오는 것을 막는다. ({@link User#completeEmailSignUp})
      *
      * <p>중복을 그대로 알려 주므로 "이 주소가 가입돼 있는가" 는 지금도 알아낼 수 있다. 가입
      * 화면에서 흔히 받아들이는 교환이지만 이 클래스가 정한 것은 아니다 — 응답을 흐리게 바꾸려면
@@ -86,19 +91,24 @@ public class AuthService {
     @Transactional
     public UserResponse signUp(SignUpRequest request) {
         String email = User.normalizeEmail(request.email());
-        userRepository
-                .findByEmail(email)
-                .ifPresent(
-                        existing -> {
-                            if (!reclaimer.reclaimIfUnverified(existing)) {
-                                throw new DuplicateEmailException();
-                            }
-                        });
-        User user =
-                userRepository.save(
-                        User.create(email, passwordEncoder.encode(request.password()), request.name()));
-
+        String passwordHash = passwordEncoder.encode(request.password());
         Instant now = Instant.now();
+
+        User user = null;
+        User existing = userRepository.findByEmail(email).orElse(null);
+        if (existing != null && !reclaimer.reclaimIfUnverified(existing)) {
+            if (existing.hasPassword()) {
+                throw new DuplicateEmailException();
+            }
+            // 확인된 계정인데 비밀번호가 없다 — 소셜로만 가입한 계정이다. 중복으로 막지 않고
+            // 그 계정에 비밀번호를 붙여 가입을 이어 간다. 자세한 이유는 completeEmailSignUp 참고.
+            existing.completeEmailSignUp(passwordHash, request.name());
+            user = existing;
+        }
+        if (user == null) {
+            user = userRepository.save(User.create(email, passwordHash, request.name()));
+        }
+
         String token = verificationTokenService.issue(user, TokenPurpose.EMAIL_VERIFICATION, now);
         mailer.sendEmailVerification(user, token, TokenPurpose.EMAIL_VERIFICATION.ttl());
         return UserResponse.from(user);

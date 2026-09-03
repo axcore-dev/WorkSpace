@@ -2,9 +2,15 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { AuthPrimaryButton, AuthSplit } from "@/components/auth-shell";
+import { AuthPrimaryButton, AuthSplit, SocialAuthButtons } from "@/components/auth-shell";
 import { FIELD_LG } from "@/components/ui";
 import { ApiRequestError, apiGet, apiPost, apiPostAuthed } from "@/lib/api";
+import {
+  PROVIDER_LABELS,
+  SocialLoginNotConfiguredError,
+  SocialProvider,
+  startSocialLogin,
+} from "@/lib/auth";
 import { clearSession, setAccessToken } from "@/lib/session";
 import { forgetInvite, rememberInvite } from "@/lib/pending-invite";
 
@@ -22,12 +28,22 @@ import { forgetInvite, rememberInvite } from "@/lib/pending-invite";
  * 소멸). 화면은 그 결과만 받는다.
  */
 
+/** BE `InvitationPreviewResponse.AccountState` 와 같은 값이어야 한다 */
+type AccountState = "NONE" | "PASSWORD" | "SOCIAL_ONLY";
+
 type Preview = {
   workspaceId: number;
   workspaceName: string;
   email: string;
   expiresAt: string;
+  /** 초대 주소의 계정이 어떻게 로그인하는가. 화면이 비밀번호 칸을 보여 줄지 정한다 */
+  account: AccountState;
+  /** 연결된 소셜 제공자(`google`·`naver`). 계정이 없으면 빈 목록 */
+  providers: string[];
 };
+
+const isSocialProvider = (value: string): value is SocialProvider =>
+  value === "google" || value === "naver";
 
 type Me = { email: string; emailVerified: boolean };
 
@@ -76,6 +92,28 @@ function InviteAccept() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [socialError, setSocialError] = useState<string | null>(null);
+
+  /**
+   * 소셜로 로그인(또는 가입)하고 돌아온다.
+   *
+   * 제공자 화면으로 나갔다가 `/oauth/callback/<provider>` 로 돌아오는데, 그 화면이 진행 중
+   * 초대(`rememberInvite`)를 보고 여기로 다시 보낸다. 돌아오면 `/me` 가 살아 있어서 바로
+   * `ready` 단계가 된다.
+   */
+  function loginWith(provider: SocialProvider) {
+    setSocialError(null);
+    try {
+      startSocialLogin(provider);
+    } catch (e: unknown) {
+      const label = PROVIDER_LABELS[provider];
+      setSocialError(
+        e instanceof SocialLoginNotConfiguredError
+          ? `${label} 로그인이 아직 설정되지 않았습니다`
+          : `${label} 로그인을 시작할 수 없습니다`,
+      );
+    }
+  }
 
   /* ── 링크 확인 + 지금 누구인지 ── */
   useEffect(() => {
@@ -94,6 +132,8 @@ function InviteAccept() {
         preview = p;
         // 가입 → 메일 확인 사이에 탭이 바뀌어도 돌아올 수 있게 남겨 둔다.
         rememberInvite(token, p.workspaceName, p.email);
+        // 계정이 없는 사람에게 "이미 계정이 있어요" 탭을 먼저 보여 줄 이유가 없다.
+        setMode(p.account === "NONE" ? "signup" : "signin");
       } catch (e: unknown) {
         if (!alive) return;
         // 못 쓰는 링크를 계속 들고 있을 이유가 없다.
@@ -312,35 +352,72 @@ function InviteAccept() {
         </div>
       )}
 
-      {/* ── 로그인 전 ── */}
-      {stage.kind === "anonymous" && (
+      {/* ── 로그인 전 · 소셜로만 가입한 계정 ── */}
+      {stage.kind === "anonymous" && preview.account === "SOCIAL_ONLY" && (
         <>
-          <div className="mt-7 flex gap-1 border-b border-slate-200" role="tablist">
-            {(
-              [
-                ["signin", "이미 계정이 있어요"],
-                ["signup", "계정 만들기"],
-              ] as const
-            ).map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                role="tab"
-                aria-selected={mode === key}
-                onClick={() => {
-                  setMode(key);
-                  setError(null);
-                }}
-                className={`-mb-px cursor-pointer border-b-2 px-3.5 py-2.5 text-sm transition-colors ${
-                  mode === key
-                    ? "border-slate-800 font-semibold text-slate-900"
-                    : "border-transparent font-medium text-slate-500 hover:text-slate-800"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
+          {/* 비밀번호 칸을 주지 않는다. 이 계정은 비밀번호가 없어서 어떤 값을 넣어도 401 이고,
+              그 401 은 로그인 화면과 같은 이유로 "없는 계정"과 구분되지 않는 문구다. */}
+          <div className="mt-7 rounded-xl border border-slate-200 bg-white px-4 py-4">
+            <p className="text-sm leading-[1.7] text-slate-700">
+              이 주소는{" "}
+              <span className="font-semibold text-slate-900">
+                {preview.providers
+                  .filter(isSocialProvider)
+                  .map((p) => PROVIDER_LABELS[p])
+                  .join("·") || "소셜"}
+              </span>{" "}
+              계정으로 가입돼 있어요. 아래 버튼으로 로그인하면 이 초대를 바로 수락할 수 있어요.
+            </p>
+            <p className="mt-2 text-[12.5px] leading-[1.6] text-slate-400">
+              비밀번호로도 로그인하고 싶다면 로그인 화면의 「비밀번호 찾기」에서 만들 수 있어요.
+            </p>
           </div>
+          <SocialAuthButtons action="로그인" onSelect={loginWith} />
+          {socialError && (
+            <p className="mt-3 text-sm text-red-600" role="alert">
+              {socialError}
+            </p>
+          )}
+        </>
+      )}
+
+      {/* ── 로그인 전 · 비밀번호 계정 또는 계정 없음 ── */}
+      {stage.kind === "anonymous" && preview.account !== "SOCIAL_ONLY" && (
+        <>
+          {/* 비밀번호 계정은 로그인 폼 하나만 보여 준다. 이미 이 주소로 가입돼 있어서 「계정
+              만들기」는 어차피 409 이고, 소셜 버튼은 그 사람이 쓰지 않는 경로라 선택지만 늘린다. */}
+          {preview.account === "PASSWORD" ? (
+            <p className="mt-7 text-sm font-semibold text-slate-900">
+              이 주소로 가입된 계정이 있어요. 비밀번호로 로그인하면 초대를 수락할 수 있어요.
+            </p>
+          ) : (
+            <div className="mt-7 flex gap-1 border-b border-slate-200" role="tablist">
+              {(
+                [
+                  ["signin", "이미 계정이 있어요"],
+                  ["signup", "계정 만들기"],
+                ] as const
+              ).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  role="tab"
+                  aria-selected={mode === key}
+                  onClick={() => {
+                    setMode(key);
+                    setError(null);
+                  }}
+                  className={`-mb-px cursor-pointer border-b-2 px-3.5 py-2.5 text-sm transition-colors ${
+                    mode === key
+                      ? "border-slate-800 font-semibold text-slate-900"
+                      : "border-transparent font-medium text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
 
           <form
             className="mt-6 space-y-5"
@@ -391,6 +468,22 @@ function InviteAccept() {
                   : "가입하고 계속하기"}
             </AuthPrimaryButton>
           </form>
+
+          {/* 계정이 없는 사람은 소셜로도 만들 수 있다. 서버가 계정을 만들어 주고, 초대 주소와
+              같은 이메일의 소셜 계정이어야 수락된다 — 그건 돌아와서 /me 로 본다. */}
+          {preview.account === "NONE" && (
+            <>
+              <SocialAuthButtons
+                action={mode === "signin" ? "로그인" : "회원가입"}
+                onSelect={loginWith}
+              />
+              {socialError && (
+                <p className="mt-3 text-sm text-red-600" role="alert">
+                  {socialError}
+                </p>
+              )}
+            </>
+          )}
         </>
       )}
     </AuthSplit>
