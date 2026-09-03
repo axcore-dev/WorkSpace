@@ -11,7 +11,8 @@ import {
   SocialProvider,
   startSocialLogin,
 } from "@/lib/auth";
-import { clearSession, setAccessToken } from "@/lib/session";
+import { setAccessToken } from "@/lib/session";
+import { endSession } from "@/components/use-logout";
 import { forgetInvite, rememberInvite } from "@/lib/pending-invite";
 
 /**
@@ -249,11 +250,9 @@ function InviteAccept() {
   }
 
   function switchAccount() {
-    clearSession();
-    localStorage.removeItem("axpoint-user");
     setStage({ kind: "loading" });
-    // 로그아웃은 쿠키까지 지워야 한다. 안 지우면 /api/auth/me 가 다시 살아난다.
-    void apiPost("/api/auth/logout").finally(() => window.location.reload());
+    // 로그인 화면으로 보내지 않고 이 초대 화면을 다시 그린다 — 계정만 바꿔 같은 초대를 잇는다.
+    void endSession().finally(() => window.location.reload());
   }
 
   /* ────────────────────────── 렌더 ────────────────────────── */

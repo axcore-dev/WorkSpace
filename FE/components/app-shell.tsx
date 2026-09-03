@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   ICON_MAP,
   IconActivity,
@@ -21,6 +21,7 @@ import {
 import { Logo } from "@/components/logo";
 import { useModules } from "@/components/module-provider";
 import { SettingsModal, type SettingsTab } from "@/components/settings/settings-modal";
+import { useLogout } from "@/components/use-logout";
 import { useSidebarCollapsed } from "@/components/use-sidebar-collapsed";
 import { MODULES } from "@/data/modules";
 import { DEFAULT_WORKSPACE_ID, DEMO_USER, EXTERNAL_SYSTEMS, WORKSPACES } from "@/data/org";
@@ -60,7 +61,6 @@ function NavLink({
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter();
   const { state } = useModules();
 
   const [orgOpen, setOrgOpen] = useState(false);
@@ -89,10 +89,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener("mousedown", onClick);
   }, []);
 
-  function logout() {
-    localStorage.removeItem("axpoint-user");
-    router.push("/login");
-  }
+  const logout = useLogout();
 
   function openSettings(tab: SettingsTab) {
     setSettingsTab(tab);
@@ -331,7 +328,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <button
                   type="button"
                   role="menuitem"
-                  onClick={logout}
+                  onClick={() => void logout()}
                   className="flex w-full cursor-pointer items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
                 >
                   <IconLogOut size={16} />
