@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Cell, StatData, TableData, Tone } from "@/data/types";
-import { IconArrowDownRight, IconArrowUpRight, IconCheck } from "@/components/icons";
+import { IconAlertCircle, IconArrowDownRight, IconArrowUpRight, IconCheck } from "@/components/icons";
 
 /**
  * 색상 정책 (사용자 지침):
@@ -381,6 +381,38 @@ export function EmptyState({
       <p className="text-sm font-semibold text-slate-700">{title}</p>
       {desc && <p className="mt-1 max-w-sm text-sm text-slate-500">{desc}</p>}
       {action && <div className="mt-4">{action}</div>}
+    </div>
+  );
+}
+
+/**
+ * 저장 피드백 토스트.
+ *
+ * 상태는 `components/use-toast.ts`의 `useToast()`가 쥔다 — 이 파일에는 `"use client"`가
+ * 없어서 훅을 여기 두면 `Card`·`Button`을 import하는 서버 컴포넌트가 전부 클라이언트
+ * 경계로 끌려간다.
+ *
+ * `aria-live` 영역은 메시지가 없을 때도 DOM에 남긴다 — 영역째 나타나면 스크린리더가 읽지
+ * 않는다. 빈 영역이 클릭을 막지 않게 `pointer-events-none`을 준다.
+ */
+export function Toast({ toast }: { toast: { message: string; tone?: "ink" | "error" } | null }) {
+  const error = toast?.tone === "error";
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="pointer-events-none fixed bottom-7 left-1/2 z-50 -translate-x-1/2"
+    >
+      {toast && (
+        <div
+          className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium shadow-lg ${
+            error ? "border border-red-200 bg-white text-red-700" : "bg-slate-900 text-white"
+          }`}
+        >
+          {error ? <IconAlertCircle size={16} /> : <IconCheck size={16} />}
+          {toast.message}
+        </div>
+      )}
     </div>
   );
 }

@@ -307,6 +307,12 @@ export const IconDatabase = (p: IconProps) =>
     <path d="M3 12a9 3 0 0 0 18 0" />
   </>);
 
+export const IconArrowLeft = (p: IconProps) =>
+  base(p, <>
+    <path d="M19 12H5" />
+    <path d="m12 19-7-7 7-7" />
+  </>);
+
 export const IconArrowRight = (p: IconProps) =>
   base(p, <>
     <path d="M5 12h14" />
