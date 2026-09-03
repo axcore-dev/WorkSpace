@@ -30,7 +30,7 @@ import type {
  * ⚠️ AI-MOCK — BE 연동 시 삭제 대상 ⚠️
  *
  * BE에 `/api/ai/*`가 아직 없어서 같은 오리진의 FE 목업 라우트(`app/api/ai/`)를 부른다.
- * BE가 준비되면 이 상수를 지우고 아래 두 fetch를 `${API_BASE}`로 되돌린 뒤
+ * BE가 준비되면 이 상수를 지우고 아래 두 fetch를 `lib/api.ts`의 `API_BASE`(그때 export한다)로 되돌린 뒤
  * `app/api/ai/` 폴더를 삭제한다 (`grep -r "AI-MOCK" FE/`로 남은 자리 확인).
  * 그 전에 실제 BE로 붙여 보려면 `NEXT_PUBLIC_AI_API_BASE=http://localhost:8080`만 주면 된다.
  */
