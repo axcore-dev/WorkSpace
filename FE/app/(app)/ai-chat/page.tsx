@@ -421,7 +421,9 @@ export default function AiChatPage() {
       : null;
 
   return (
-    <div className="relative flex h-screen gap-3 bg-slate-50 p-3">
+    // 화면에 꽉 차는 앱 셸이라 문서가 스크롤될 일이 없다 — `h-dvh`로 모바일 브라우저 UI를 반영하고
+    // `overflow-hidden`으로 어떤 이유로든(스크롤바 등장 등) 문서가 밀려 아래에 여백이 생기는 걸 막는다
+    <div className="relative flex h-dvh overflow-hidden gap-3 bg-slate-50 p-3">
       {/* 첫 화면 배경 — 페이지 전체가 캔버스다. 레일·패널·대화가 그 위에 얹힌다.
           첫 메시지에 아래로 80px 미끄러지며 400ms에 빠지고, 새 대화로 돌아오면 아래에서 다시 올라온다 */}
       {restored && !backdropGone && (
