@@ -5,6 +5,8 @@ import com.axcore.workspace.workspace.admin.entity.AdminAuditAction;
 import com.axcore.workspace.workspace.admin.service.AdminAuditRecorder;
 import com.axcore.workspace.security.SecureTokens;
 import com.axcore.workspace.user.entity.User;
+import com.axcore.workspace.user.entity.UserIdentity;
+import com.axcore.workspace.user.repository.UserIdentityRepository;
 import com.axcore.workspace.user.repository.UserRepository;
 import com.axcore.workspace.workspace.admin.dto.InvitationIssuedResponse;
 import com.axcore.workspace.workspace.admin.dto.InvitationResponse;
@@ -54,6 +56,7 @@ public class WorkspaceInvitationService {
     private final WorkspaceRepository workspaceRepository;
     private final UserWorkspaceMembershipRepository membershipRepository;
     private final UserRepository userRepository;
+    private final UserIdentityRepository identityRepository;
     private final MailProperties mailProperties;
     private final TenantMemberWriter tenantMembers;
     private final AdminAuditRecorder audit;
@@ -63,6 +66,7 @@ public class WorkspaceInvitationService {
             WorkspaceRepository workspaceRepository,
             UserWorkspaceMembershipRepository membershipRepository,
             UserRepository userRepository,
+            UserIdentityRepository identityRepository,
             MailProperties mailProperties,
             TenantMemberWriter tenantMembers,
             AdminAuditRecorder audit) {
@@ -70,6 +74,7 @@ public class WorkspaceInvitationService {
         this.workspaceRepository = workspaceRepository;
         this.membershipRepository = membershipRepository;
         this.userRepository = userRepository;
+        this.identityRepository = identityRepository;
         this.mailProperties = mailProperties;
         this.tenantMembers = tenantMembers;
         this.audit = audit;
@@ -161,7 +166,15 @@ public class WorkspaceInvitationService {
         // 운영자 목록의 "링크 열람" 열이 이 값을 본다. 회사 단위로는 최초 1회만 기록된다.
         invitation.getWorkspace().markLinkOpened(now);
 
-        return InvitationPreviewResponse.from(invitation);
+        // 그 주소의 계정이 어떻게 로그인하는지 화면에 알려 준다. 없으면 가입 탭, 비밀번호가 있으면
+        // 비밀번호 칸, 소셜만 있으면 그 제공자 버튼 — 이걸 모르면 소셜 계정 사용자가 비밀번호
+        // 칸 앞에서 막힌다.
+        User account =
+                userRepository.findByEmail(User.normalizeEmail(invitation.getEmail())).orElse(null);
+        List<UserIdentity> identities =
+                account == null ? List.of() : identityRepository.findByUserId(account.getId());
+
+        return InvitationPreviewResponse.from(invitation, account, identities);
     }
 
     /**

@@ -173,6 +173,32 @@ public class User {
         this.passwordChangedAt = Instant.now();
     }
 
+    /**
+     * 소셜로만 가입된 계정(비밀번호 없음)에 이메일 가입이 들어왔다. 계정을 새로 만들지 않고
+     * 이 계정에 비밀번호와 이름을 붙인다.
+     *
+     * <p><b>이메일 확인을 다시 받는다.</b> 이 요청은 주소를 아는 사람이면 누구나 보낼 수 있고,
+     * 비밀번호를 붙이는 순간 그 사람이 비밀번호 로그인으로 이 계정에 들어올 수 있게 된다.
+     * 확인 시각을 비워 두면 {@code SessionIssuer#nextStep} 이 회사 선택 앞에서 막고, 확인 메일은
+     * 언제나 주소의 진짜 주인에게만 간다. 주인이 그 메일을 열기 전에는 붙인 비밀번호로 회사
+     * 데이터에 닿지 못한다. ({@link #verifyEmail} 이 최초 시각을 유지하는 것과 다른 경로다.)
+     *
+     * <p>비밀번호가 있는 계정에는 부르지 않는다. 그 계정은 중복 가입이고, 비밀번호를 덮어쓰면
+     * 주소만 아는 사람이 남의 비밀번호를 바꿀 수 있게 된다. 호출하는 쪽이
+     * {@link #hasPassword()} 로 먼저 거른다.
+     *
+     * @param passwordHash 반드시 인코딩된 해시. 평문을 넘기지 않는다.
+     */
+    public void completeEmailSignUp(String passwordHash, String name) {
+        if (this.passwordHash != null) {
+            throw new IllegalStateException("비밀번호가 있는 계정에는 이메일 가입을 덧붙일 수 없다");
+        }
+        this.passwordHash = passwordHash;
+        this.passwordChangedAt = Instant.now();
+        this.name = name;
+        this.emailVerifiedAt = null;
+    }
+
     public void recordLogin(Instant at) {
         this.lastLoginAt = at;
     }
@@ -221,7 +247,8 @@ public class User {
      * 비밀번호 자격증명을 가진 계정인가.
      *
      * <p>false 면 비밀번호 로그인이 불가능하고, 현재 비밀번호를 요구하는 조작(비밀번호 변경,
-     * 2단계 끄기)도 할 수 없다. 비밀번호 재설정 링크로 처음 설정하는 것이 유일한 통로다.
+     * 2단계 끄기)도 할 수 없다. 처음 설정하는 통로는 둘이다 — 비밀번호 재설정 링크, 또는 같은
+     * 주소로 이메일 가입({@link #completeEmailSignUp}).
      */
     public boolean hasPassword() {
         return passwordHash != null;
