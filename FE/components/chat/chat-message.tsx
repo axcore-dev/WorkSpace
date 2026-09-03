@@ -157,6 +157,7 @@ export function AiMessage({
   onStreamDone,
   onRetry,
   onRate,
+  sourcesOpen,
   onOpenSources,
   children,
 }: {
@@ -169,6 +170,8 @@ export function AiMessage({
   onStreamDone: () => void;
   onRetry: () => void;
   onRate: (r: "up" | "down") => void;
+  /** 이 답변의 출처 패널이 열려 있는지 — 버튼이 눌린 상태로 보이고 다시 누르면 닫힌다 */
+  sourcesOpen: boolean;
   onOpenSources: () => void;
   /** 본문 뒤에 붙는 카드(발주서 제안 등) */
   children?: React.ReactNode;
@@ -235,7 +238,10 @@ export function AiMessage({
             <button
               type="button"
               onClick={onOpenSources}
-              className="ml-1 flex h-7 cursor-pointer items-center gap-1 rounded-lg px-2 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400"
+              aria-expanded={sourcesOpen}
+              className={`ml-1 flex h-7 cursor-pointer items-center gap-1 rounded-lg px-2 text-xs font-medium transition-colors hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400 ${
+                sourcesOpen ? "bg-slate-100 text-slate-900" : "text-slate-500"
+              }`}
             >
               <IconFile size={13} />
               출처 {srcN}

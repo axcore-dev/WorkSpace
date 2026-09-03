@@ -8,7 +8,7 @@
  * 베이스 URL을 환경변수로 빼는 이유: 배포하면 BE가 같은 오리진 뒤에 붙을 수도, 별도 도메인일
  * 수도 있다. 코드에 localhost를 박아 두면 그때 전부 고쳐야 한다.
  */
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
+export const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 
 /** BE의 오류 응답 형태 — `code`는 분기용, `message`는 화면에 그대로 띄울 수 있는 문구다. */
 export type ApiError = {

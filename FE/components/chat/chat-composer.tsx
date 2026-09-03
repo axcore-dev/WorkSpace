@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { IconArrowRight, IconCheck, IconPlus, IconScanText, IconSparkles } from "@/components/icons";
+import { IconArrowRight, IconCheck, IconPlus, IconSparkles } from "@/components/icons";
 import { BrandIcon } from "@/components/brand-icons";
 import { CONNECTOR_LIB, SKILL_LIB } from "@/data/chat";
 
@@ -34,7 +34,6 @@ export function ChatComposer({
   onSend,
   thinking,
   onAddSource,
-  onOcrDemo,
   onOpenConnectors,
   onOpenSkills,
 }: {
@@ -43,7 +42,6 @@ export function ChatComposer({
   onSend: () => void;
   thinking: boolean;
   onAddSource: () => void;
-  onOcrDemo: () => void;
   onOpenConnectors: () => void;
   onOpenSkills: () => void;
 }) {
@@ -222,19 +220,6 @@ export function ChatComposer({
               <IconPlus size={14} />
             </span>
             스킬 더 보기
-          </button>
-
-          <div className="my-1.5 h-px bg-slate-100" />
-          <button
-            type="button"
-            onClick={() => {
-              setMenu(false);
-              onOcrDemo();
-            }}
-            className="flex w-full cursor-pointer items-center gap-2.5 px-3 py-2 text-left text-[13px] text-slate-700 transition-colors hover:bg-slate-50"
-          >
-            <IconScanText size={18} className="shrink-0 text-slate-400" />
-            발주서 OCR 데모
           </button>
         </div>
       )}
