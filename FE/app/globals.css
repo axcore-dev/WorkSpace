@@ -2,7 +2,8 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
+  --font-sans:
+    "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
     "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
 
   /* Brand — AXCORE Electric Blue (#0A50FF) */
@@ -121,20 +122,17 @@ body {
   }
 }
 
-/* AI 첫 화면 앰비언트 배경 — primary 그라데이션 덩어리가 20s 주기로 천천히 흐른다 (빈 상태에서만 렌더) */
-.ai-aurora {
-  animation: ai-aurora 20s ease-in-out infinite alternate;
-}
-@keyframes ai-aurora {
-  0% {
-    transform: translate(0, 0) scale(1);
-  }
-  50% {
-    transform: translate(6%, -8%) scale(1.12);
-  }
-  100% {
-    transform: translate(-5%, 6%) scale(0.94);
-  }
+/* AI 첫 화면 앰비언트 배경의 중앙 블룸 — 정적이다. 중심 높이(--bloom-y)만 입력창을 따라간다
+   (빈 상태에서만 렌더. 점 격자는 캔버스로 그린다 — components/chat/ai-backdrop.tsx) */
+.ai-bloom {
+  --bloom-x: 50%;
+  --bloom-y: 58%;
+  background: radial-gradient(
+    ellipse 42% 34% at var(--bloom-x) var(--bloom-y),
+    color-mix(in srgb, var(--color-primary-600) 7%, transparent) 0%,
+    color-mix(in srgb, var(--color-primary-600) 3%, transparent) 42%,
+    transparent 72%
+  );
 }
 
 @media (prefers-reduced-motion: reduce) {

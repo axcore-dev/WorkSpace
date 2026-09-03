@@ -62,6 +62,8 @@ export default function AiChatPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  /** 배경 중앙 블룸이 중심을 맞추는 기준 — 입력창은 첫 화면↔대화 전환에 세로로 미끄러진다 */
+  const composerRef = useRef<HTMLDivElement>(null);
   const noteSeq = useRef(1);
   /** 진행 중인 스트림 — 페이지를 떠나면 끊는다. 답변이 붙지 않은 사용자 메시지는 복귀 시 '다시 시도'로 이어진다 */
   const abortRef = useRef<AbortController | null>(null);
@@ -420,9 +422,14 @@ export default function AiChatPage() {
 
   return (
     <div className="relative flex h-screen gap-3 bg-slate-50 p-3">
-      {/* 첫 화면 배경 — 페이지 전체가 캔버스다. 레일·패널·대화가 그 위에 얹힌다. 첫 메시지에 500ms로 옅어진 뒤 내려간다 */}
+      {/* 첫 화면 배경 — 페이지 전체가 캔버스다. 레일·패널·대화가 그 위에 얹힌다.
+          첫 메시지에 아래로 80px 미끄러지며 400ms에 빠지고, 새 대화로 돌아오면 아래에서 다시 올라온다 */}
       {restored && !backdropGone && (
-        <AiBackdrop visible={empty} onHidden={() => setBackdropGone(true)} />
+        <AiBackdrop
+          visible={empty}
+          onHidden={() => setBackdropGone(true)}
+          anchorRef={composerRef}
+        />
       )}
       <input
         ref={fileRef}
@@ -603,7 +610,7 @@ export default function AiChatPage() {
             </div>
 
             <div className="px-5 pb-4 pt-1">
-              <div className="mx-auto max-w-3xl">
+              <div ref={composerRef} className="mx-auto max-w-3xl">
                 {composer}
                 {disclaimer}
               </div>
