@@ -52,7 +52,7 @@ echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
 값은 리포에 넣지 않는다. 서버에서 파일을 만들고, 같은 내용을 Jenkins 크리덴셜(Secret file)로도 등록한다.
 파이프라인은 크리덴셜 쪽을 매번 `INFRA/.env` 로 복사해 쓰고 끝나면 지운다.
 
-**compose 파일에는 기본값이 없다.** 아래 24개 키가 전부 `.env` 에 있어야 한다. 빠진 키는 빈 값으로
+**compose 파일에는 기본값이 없다.** 아래 28개 키가 전부 `.env` 에 있어야 한다. 빠진 키는 빈 값으로
 들어가고(`POSTGRES_PASSWORD` · `JWT_SECRET` 만 compose 가 막는다), 포트 키가 비면 `up` 자체가 실패한다.
 compose 가 읽는 키와 `.env` 의 키는 1:1 이다 — `.env` 에 다른 키를 두지 않는다.
 
@@ -68,8 +68,26 @@ compose 가 읽는 키와 `.env` 의 키는 1:1 이다 — `.env` 에 다른 키
 | `GOOGLE_CLIENT_ID` `GOOGLE_CLIENT_SECRET` | 소셜 로그인 | 비우면 그 제공자만 비활성. FE 번들에도 같은 client-id 가 들어간다 |
 | `NAVER_CLIENT_ID` `NAVER_CLIENT_SECRET` | 소셜 로그인 | 위와 같다 |
 | `NEXT_PUBLIC_API_BASE_URL` | FE → API 주소 | nginx 뒤라 **비운다**(빈 문자열). 그러면 같은 오리진 `/api/...` 를 부른다 |
-| `MAIL_MODE` `MAIL_FROM` `LOG_REQUESTS` `LOG_APP_LEVEL` | BE 운영 옵션 | `log` / `no-reply@axcore.ai.kr` / `false` / `INFO` |
+| `MAIL_MODE` `MAIL_FROM` | 메일 발송 방식 · 보내는 주소 | `smtp` / 발송 계정 주소. `log` 면 보내지 않고 BE 로그에 찍는다(확인 링크가 로그에 남는다, 개발 전용) |
+| `MAIL_HOST` `MAIL_PORT` `MAIL_USERNAME` `MAIL_PASSWORD` | SMTP 접속 (mode=smtp 일 때만 쓰임) | Google Workspace: `smtp.gmail.com` / `587` / 발송 계정 / **앱 비밀번호 16자**. 아래 「Google Workspace SMTP」 참고. log 모드에서는 비워 둔다 |
+| `LOG_REQUESTS` `LOG_APP_LEVEL` | BE 로그 | `false` / `INFO` |
 | `JENKINS_PORT` `JENKINS_HEAP` `DOCKER_GID` | Jenkins compose | `8081` / `1g` / `stat -c %g /var/run/docker.sock` 결과 |
+
+### Google Workspace SMTP
+`MAIL_MODE=smtp` 로 바꾸면 BE 의 `SmtpMailSender` 가 `spring.mail.*` 로 실제 발송한다. 호스트·계정·비밀번호가
+비어 있으면 **BE 가 부팅에서 막힌다**(설정 실수를 조용히 넘기지 않기 위해). 접속 시험은 부팅 때 한 번 하고
+실패해도 ERROR 로그만 남긴다 — 메일 서버 장애가 API 를 내리면 안 된다. Actuator 의 메일 헬스 지표는 꺼 두었다.
+
+1. 발송용 계정(예: `no-reply@axcore.ai.kr`)에 **2단계 인증**을 켠다. 앱 비밀번호는 2단계 인증이 켜진 계정에서만 만들 수 있다.
+2. Google 계정 → 보안 → 2단계 인증 → **앱 비밀번호** → 이름 아무거나 → 16자 값을 `MAIL_PASSWORD` 에 넣는다(공백 제거).
+   Workspace 관리자가 「보안 수준이 낮은 앱」이 아니라 앱 비밀번호를 허용해 두어야 한다(기본 허용).
+3. `MAIL_USERNAME` 은 그 계정 주소. `MAIL_FROM` 은 **같은 주소**로 둔다. Gmail 은 인증 계정(또는 Gmail 설정의
+   「다른 주소에서 메일 보내기」에 등록된 별칭)이 아닌 From 을 인증 계정 주소로 바꿔 버린다.
+4. 서버 아웃바운드 587 이 열려 있어야 한다(Naver Cloud ACG 아웃바운드 규칙). 25 번은 쓰지 않는다.
+5. 크리덴셜 `infra-env-file` 을 갱신하고 `TARGET=BE` 로 배포. 부팅 로그에 `SMTP 접속 확인: smtp.gmail.com:587`
+   이 찍히면 된다. `http://<PUBLIC_URL>/signup` 에서 가입해 확인 메일이 오는지 본다.
+
+Workspace 발송 한도는 계정당 하루 2,000통이다. 가입·비밀번호 재설정 메일 수준에서는 충분하다.
 
 OAuth 콜백 URI 는 `${PUBLIC_URL}/oauth/callback/google` · `/naver` 로 조립된다. Google Cloud
 콘솔과 네이버 개발자센터에 등록한 주소가 이와 문자 단위로 같아야 한다.
@@ -163,7 +181,7 @@ docker compose -f docker-compose.yml up -d --build          # BE + FE + nginx �
 docker compose -f docker-compose.yml up -d --build app      # BE 만 (FE 는 next dev 로)
 ```
 
-로컬 `INFRA/.env` 도 2절의 24개 키를 전부 가진다(compose 에 기본값이 없다). 로컬 값은 `PUBLIC_URL=http://localhost:8000`
+로컬 `INFRA/.env` 도 2절의 28개 키를 전부 가진다(compose 에 기본값이 없다). 로컬 값은 `PUBLIC_URL=http://localhost:8000`
 (`next dev` 기준), `SPRING_PROFILES_ACTIVE=local`, `AUTH_COOKIE_SECURE=false`, `DOCKER_GID` 는 아무 값이면 된다.
 nginx 까지 compose 로 띄워 `http://localhost` 로 볼 때는 `PUBLIC_URL=http://localhost` 로 바꾼다.
 
@@ -189,6 +207,6 @@ nginx 까지 compose 로 띄워 `http://localhost` 로 볼 때는 `PUBLIC_URL=ht
   Testcontainers 로 PostgreSQL 을 띄우거나, 테스트 프로필에서 DB 자동설정을 빼는 쪽으로 정리한 뒤
   `compileJava compileTestJava` 를 `test` 로 바꾼다.
 - **FE lint 기존 오류 2건** 정리 후 `FE_LINT_STRICT` 기본값을 true 로.
-- **메일 실제 발송** — `MAIL_MODE=log` 는 확인 링크가 컨테이너 로그에 남는다. `MailSender` 구현이 붙으면
-  `.env` 의 `MAIL_MODE` 를 바꾼다.
+- **메일 실제 발송 — 코드는 붙었다.** `SmtpMailSender`(`MAIL_MODE=smtp`). 남은 것은 발송 계정에 앱 비밀번호를 만들어
+  크리덴셜 `.env` 에 `MAIL_HOST/PORT/USERNAME/PASSWORD` 를 채우고 `MAIL_MODE` 를 `smtp` 로 바꾸는 운영 작업이다 (2절 「Google Workspace SMTP」).
 - **Jenkins 접근 제한** — 8081 을 ACG 에서 사무실 IP 로 좁히거나 nginx 뒤 서브도메인으로 옮긴다.

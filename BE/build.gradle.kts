@@ -34,6 +34,9 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-security")
 	// JWT 발급·검증. 직접 파싱하지 않고 Nimbus + 리소스 서버 필터를 쓴다.
 	implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
+	// 메일 실발송(SMTP). JavaMailSender 자동설정이 spring.mail.* 를 읽는다.
+	// app.mail.mode=smtp 일 때만 SmtpMailSender 가 이걸 쓴다. log 모드에서는 놀고 있는 빈이다.
+	implementation("org.springframework.boot:spring-boot-starter-mail")
 	runtimeOnly("org.postgresql:postgresql")
 	annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
 	testImplementation("org.springframework.boot:spring-boot-starter-actuator-test")
