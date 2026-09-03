@@ -61,8 +61,12 @@ export default function AiChatPage() {
   const [skillOpen, setSkillOpen] = useState(false);
   /** 이 턴에 물린 스킬 id — 전송하면 비운다 */
   const [skills, setSkills] = useState<string[]>([]);
-  /** 연결된 앱 slug — 지금은 화면 안에만 있다. BE가 생기면 커넥터 API로 옮긴다 */
-  const [connectedApps, setConnectedApps] = useState<string[]>(() =>
+  /**
+   * 켜 둔 앱 slug — 연결된 앱 중 이 대화에서 쓸 것들. 처음엔 연결된 앱 전부가 켜져 있다.
+   * '연결됨'(계정 연동)은 `CONNECTOR_LIB.connected`가 갖는 별개의 사실이고, 끄는 것과 연결을 끊는 것은 다르다.
+   * 지금은 화면 안에만 있다 — BE가 생기면 커넥터 API로 옮긴다.
+   */
+  const [enabledApps, setEnabledApps] = useState<string[]>(() =>
     CONNECTOR_LIB.filter((c) => c.connected).map((c) => c.slug),
   );
   /** 첫 대화 생성 전(시작 화면)의 소스 — 첫 대화가 이 상태를 승계한다 */
@@ -421,9 +425,9 @@ export default function AiChatPage() {
       menuBelow={empty}
       skills={skills}
       onRemoveSkill={(id) => setSkills((prev) => prev.filter((x) => x !== id))}
-      connectedApps={connectedApps}
+      enabledApps={enabledApps}
       onToggleApp={(slug) =>
-        setConnectedApps((prev) =>
+        setEnabledApps((prev) =>
           prev.includes(slug)
             ? prev.filter((x) => x !== slug)
             : [...prev, slug],
