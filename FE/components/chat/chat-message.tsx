@@ -107,7 +107,7 @@ export function UserMessage({
   }
 
   return (
-    <div className="group flex items-end justify-end gap-1">
+    <div className="agent-fade group flex items-end justify-end gap-1">
       <div
         role="group"
         aria-label="메시지 동작"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   IconCheck,
   IconFile,
@@ -15,12 +15,16 @@ import type { Note, SourceState } from "@/data/chat";
 
 type Panel = "notes" | "sources";
 
+/** 두 패널 공통 껍데기 — lg 이상 docked, 그 아래 overlay */
+const PANEL =
+  "flex h-full w-72 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white max-lg:absolute max-lg:left-[68px] max-lg:top-0 max-lg:z-20 max-lg:shadow-lg";
+
 /**
- * 대화 좌측 아이콘 레일 + 패널 둘.
+ * 대화 좌측 아이콘 레일 + 패널 둘(대화 기록·소스). 한 번에 하나만 열린다 — 다른 아이콘을 누르면 갈아탄다.
  *
- * 소스 패널은 기본으로 열려 레일 옆에 고정(docked)된다 — 답변 근거가 되는 문서를 늘 보이게.
- * 대화 기록은 필요할 때만 대화 위로 떠서(overlay) 폭을 밀지 않는다. 닫히는 길은 셋이다 —
- * 같은 아이콘 재클릭·바깥 클릭·ESC. 패널 안 클릭은 닫지 않는다.
+ * 두 패널은 같은 자리에 같은 방식으로 뜬다: lg 이상에서는 레일 옆에 고정(docked)돼 대화 폭을 밀고,
+ * 그 아래에서는 대화 위로 떠서(overlay) 폭을 밀지 않는다. 소스가 기본으로 열려 있다 —
+ * 답변 근거가 되는 문서를 늘 보이게. 닫히는 길은 같은 아이콘 재클릭·×·ESC.
  */
 export function ChatRail({
   notes,
@@ -49,25 +53,17 @@ export function ChatRail({
   onInheritSources: () => void;
   canInherit: boolean;
 }) {
-  const [notesOpen, setNotesOpen] = useState(false);
-  const [sourcesOpen, setSourcesOpen] = useState(true);
-  const wrapRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState<Panel | null>("sources");
+  const toggle = (id: Panel) => setOpen((v) => (v === id ? null : id));
 
   useEffect(() => {
-    if (!notesOpen) return;
-    function onDown(e: MouseEvent) {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setNotesOpen(false);
-    }
+    if (!open) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setNotesOpen(false);
+      if (e.key === "Escape") setOpen(null);
     }
-    document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [notesOpen]);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
 
   const { sources, selected } = src;
   const allSelected = sources.length > 0 && selected.length === sources.length;
@@ -92,32 +88,28 @@ export function ChatRail({
   }
 
   return (
-    <div ref={wrapRef} className="relative flex shrink-0 gap-3">
+    <div className="relative flex shrink-0 gap-3">
       <div className="flex h-full w-14 flex-col gap-1.5 rounded-2xl border border-slate-200 bg-white p-1.5">
-        {railButton("notes", notesOpen, () => setNotesOpen((v) => !v), IconHistory, "대화 기록", String(notes.length))}
+        {railButton("notes", open === "notes", () => toggle("notes"), IconHistory, "대화 기록", String(notes.length))}
         {railButton(
           "sources",
-          sourcesOpen,
-          () => setSourcesOpen((v) => !v),
+          open === "sources",
+          () => toggle("sources"),
           IconFolder,
           "소스",
           sources.length ? `${selected.length}/${sources.length}` : "0",
         )}
       </div>
 
-      {notesOpen && (
-        <section
-          id="chat-rail-notes"
-          aria-label="대화 기록"
-          className="absolute left-[68px] top-0 z-20 flex h-full w-72 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg"
-        >
+      {open === "notes" && (
+        <section id="chat-rail-notes" aria-label="대화 기록" className={PANEL}>
           <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
             <h2 className="text-sm font-bold text-slate-900">
               대화 <span className="ml-1 font-normal text-slate-400">{notes.length}</span>
             </h2>
             <button
               type="button"
-              onClick={() => setNotesOpen(false)}
+              onClick={() => setOpen(null)}
               aria-label="대화 기록 닫기"
               className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
             >
@@ -170,12 +162,8 @@ export function ChatRail({
         </section>
       )}
 
-      {sourcesOpen && (
-        <section
-          id="chat-rail-sources"
-          aria-label="소스"
-          className="flex h-full w-72 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white max-lg:absolute max-lg:left-[68px] max-lg:top-0 max-lg:z-20 max-lg:shadow-lg"
-        >
+      {open === "sources" && (
+        <section id="chat-rail-sources" aria-label="소스" className={PANEL}>
           <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
             <h2 className="text-sm font-bold text-slate-900">
               소스{" "}
@@ -185,7 +173,7 @@ export function ChatRail({
             </h2>
             <button
               type="button"
-              onClick={() => setSourcesOpen(false)}
+              onClick={() => setOpen(null)}
               aria-label="소스 닫기"
               className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
             >

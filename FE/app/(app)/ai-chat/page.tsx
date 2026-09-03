@@ -113,6 +113,8 @@ export default function AiChatPage() {
   });
   /** localStorage 복원이 끝나기 전에는 저장하지 않는다 — 빈 상태로 덮어쓰는 걸 막는다 */
   const [restored, setRestored] = useState(false);
+  /** 첫 화면 배경이 페이드아웃을 끝내고 내려갔는지. 빈 상태로 돌아오면 렌더 중에 되돌린다 */
+  const [backdropGone, setBackdropGone] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -174,6 +176,7 @@ export default function AiChatPage() {
   }, [notes, activeId, restored]);
 
   const empty = !active || active.messages.length === 0;
+  if (empty && backdropGone) setBackdropGone(false);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -189,7 +192,7 @@ export default function AiChatPage() {
     });
     ro.observe(inner);
     return () => ro.disconnect();
-  }, [empty, restored]);
+  }, [restored]);
 
   // Google OAuth 콜백 복귀 안내 — /api/google/callback이 ?google_connected=1|google_error=... 로 리다이렉트한다
   useEffect(() => {
@@ -491,6 +494,8 @@ export default function AiChatPage() {
 
   return (
     <div className="relative flex h-screen gap-3 bg-slate-50 p-3">
+      {/* 첫 화면 배경 — 페이지 전체가 캔버스다. 레일·패널·대화가 그 위에 얹힌다. 첫 메시지에 500ms로 옅어진 뒤 내려간다 */}
+      {restored && !backdropGone && <AiBackdrop visible={empty} onHidden={() => setBackdropGone(true)} />}
       <input
         ref={fileRef}
         type="file"
@@ -532,8 +537,6 @@ export default function AiChatPage() {
 
       {/* ── 대화 — 카드 없이 배경을 그대로 캔버스로 쓴다 ── */}
       <section className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
-        {/* 첫 화면 배경 — 헤더까지 포함한 대화 영역 전체를 캔버스로 쓴다. 첫 메시지를 보내면 사라진다 */}
-        {restored && empty && <AiBackdrop />}
         <header className="relative flex items-center justify-between px-6 py-3.5">
           <h1 className="min-w-0 truncate text-sm font-bold text-slate-900">{active ? active.title : "AI대화"}</h1>
           <Button variant="secondary" size="sm" onClick={startNewNote}>
@@ -550,19 +553,13 @@ export default function AiChatPage() {
               <div className="ml-auto h-10 w-1/3 animate-pulse rounded-2xl bg-slate-200/70" />
             </div>
           </div>
-        ) : empty ? (
-          // 첫 화면 — 오로라·커서 글로우 위에 입력바가 수직 중앙에 선다. 첫 메시지를 보내면 아래 분기로 넘어간다
-          <div className="relative flex flex-1 items-center justify-center px-5 pb-10">
-            <div className="w-full max-w-3xl">
-              {composer}
-              {disclaimer}
-            </div>
-          </div>
         ) : (
+          // 첫 화면과 대화가 같은 DOM이다 — 빈 상태면 아래 스페이서가 입력바를 세로 중앙에 세우고,
+          // 첫 메시지에 300ms로 접혀 입력바가 바닥으로 미끄러진다
           <>
             <div ref={scrollRef} className="thin-scroll flex-1 overflow-y-auto px-5 py-5">
               <div ref={innerRef} className="mx-auto max-w-3xl space-y-5">
-                {active.messages.map((msg, i) =>
+                {active?.messages.map((msg, i) =>
                   msg.role === "user" ? (
                     <UserMessage
                       key={i}
@@ -597,7 +594,7 @@ export default function AiChatPage() {
                 )}
 
                 {/* 답변 생성 중 — 트레이스가 살아 움직인다 */}
-                {pending?.noteId === active.id && (
+                {active && pending?.noteId === active.id && (
                   <div className="min-w-0 max-w-[85%]">
                     <AgentTrace
                       working
@@ -608,7 +605,7 @@ export default function AiChatPage() {
                 )}
 
                 {/* 답변 중 새로고침·이탈로 끊긴 자리 — 마지막이 사용자 메시지면 다시 보낼 수 있게 */}
-                {!pending && last?.role === "user" && (
+                {active && !pending && last?.role === "user" && (
                   <p className="flex items-center gap-2 text-[13px] text-slate-500">
                     답변을 받지 못했어요.
                     <button
@@ -629,6 +626,11 @@ export default function AiChatPage() {
                 {disclaimer}
               </div>
             </div>
+            <div
+              aria-hidden
+              className="transition-[flex] duration-300 ease-out"
+              style={{ flex: empty ? "1 1 5rem" : "0 1 0px" }}
+            />
           </>
         )}
       </section>
