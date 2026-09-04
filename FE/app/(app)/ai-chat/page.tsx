@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useChat } from "@ai-sdk/react";
 import { IconPlus } from "@/components/icons";
 import { ConnectorModal, SkillModal } from "@/components/connector-modal";
 import { Button } from "@/components/ui";
@@ -12,14 +13,21 @@ import { ChatRail } from "@/components/chat/chat-rail";
 import { OcrProposalCard } from "@/components/chat/ocr-proposal-card";
 import { SourceDrawer } from "@/components/chat/source-drawer";
 import { ApiRequestError } from "@/lib/api";
-import { streamChat, uploadSources, type ChatRequest } from "@/lib/chat-api";
+import { uploadSources } from "@/lib/ai/sources";
+import { createChatTransport, type TurnContext } from "@/lib/ai/transport";
+import { toChatMessage, type AxpUIMessage } from "@/lib/ai/ui-messages";
 import { loadChat, saveChat } from "@/lib/chat-storage";
 import { CONNECTOR_LIB } from "@/data/chat";
 import type { ChatMessage, Note, SourceState, TraceStep } from "@/data/chat";
 
 const EMPTY_SRC: SourceState = { sources: [], selected: [] };
 
-/** 답변 생성 중 상태 — 한 번에 한 대화만. SSE로 문구·도구 행·본문 조각이 흘러들고 message로 굳는다 */
+/**
+ * 답변 생성 중 상태 — 한 번에 한 대화만.
+ *
+ * 예전에는 직접 만든 SSE 파서가 여기에 값을 쌓았다. 지금은 `useChat` 이 파트를 들고 있고 이
+ * 모양은 화면이 쓰던 그대로 파생해서 만든다 — 스트리밍 상태의 진실이 두 벌이 되지 않게.
+ */
 interface Pending {
   noteId: number;
   rows: TraceStep[];
@@ -29,11 +37,13 @@ interface Pending {
   draft: string;
 }
 
+const FIRST_LABEL = "질문의 의도를 파악하고 있어요";
+
 /**
  * 한 턴의 내용 — 질문 또는 제안 승인. 다시 시도는 같은 턴을 그대로 다시 보낸다.
  * 소스·스킬까지 턴에 담는 이유: 전송 직후 스킬 칩을 비우므로, 담아 두지 않으면 재시도가 스킬 없이 나간다.
  */
-type Turn = Pick<ChatRequest, "message" | "sources" | "skills" | "action">;
+type Turn = { message: string } & Omit<TurnContext, "conversationId">;
 
 /** 실패 한 건 — 대화 영역에 문구와 다시 시도로 뜬다. 턴 실패는 그 대화에서만, 업로드 실패는 어디서나 보인다 */
 type Failure = { text: string } & (
@@ -51,7 +61,6 @@ export default function AiChatPage() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [activeId, setActiveId] = useState<number | null>(null);
   const [input, setInput] = useState("");
-  const [pending, setPending] = useState<Pending | null>(null);
   const [error, setError] = useState<Failure | null>(null);
   /** 타자 효과를 재생할 대화 id — 답변이 delta 없이 한 번에 도착했을 때만 */
   const [streaming, setStreaming] = useState<number | null>(null);
@@ -99,9 +108,92 @@ export default function AiChatPage() {
   /** 배경 중앙 블룸이 중심을 맞추는 기준 — 입력창은 첫 화면↔대화 전환에 세로로 미끄러진다 */
   const composerRef = useRef<HTMLDivElement>(null);
   const noteSeq = useRef(1);
-  /** 진행 중인 스트림 — 페이지를 떠나면 끊는다. 답변이 붙지 않은 사용자 메시지는 복귀 시 '다시 시도'로 이어진다 */
-  const abortRef = useRef<AbortController | null>(null);
-  useEffect(() => () => abortRef.current?.abort(), []);
+  /**
+   * 지금 보내고 있는 턴. 스트림이 끝났을 때 어느 대화에 답변을 붙일지 알아야 해서 들고 있다.
+   * ref 인 이유: 값이 바뀌었다고 다시 그릴 것이 없고, transport 가 매 요청 시점에 읽어야 한다.
+   */
+  const turnRef = useRef<{ nid: number; turn: Turn; after?: () => void } | null>(
+    null,
+  );
+  /**
+   * 진행 중인 답변이 붙을 대화 id.
+   *
+   * `turnRef` 와 같은 값이지만 이쪽은 state 다 — 렌더가 이 값을 보고 작업 중 표시를 그리는데,
+   * ref 는 바뀌어도 다시 그리지 않는다. ref 는 렌더 밖(전송 시점·스트림 종료)에서만 읽는다.
+   */
+  const [pendingNoteId, setPendingNoteId] = useState<number | null>(null);
+  /**
+   * 전송 계층은 마운트 때 한 번만 만든다. 매 렌더 새로 만들면 `useChat` 이 전송 도중에 이걸
+   * 교체해 스트림이 끊긴다. 턴마다 달라지는 값은 `sendMessage` 의 `body` 로 넘긴다.
+   */
+  const [transport] = useState(createChatTransport);
+
+  /**
+   * 스트리밍 엔진. 대화 저장본은 여전히 `notes`(localStorage)가 갖고, 여기는 **진행 중인 턴
+   * 하나만** 들고 있다. 답변이 끝나면 `notes` 로 옮기고 다음 턴 시작에 비운다.
+   *
+   * 이렇게 나눈 이유: 편집·다시 시도·평가·삭제가 전부 `notes` 를 대상으로 이미 동작하고 있고,
+   * 대화 소유권까지 `useChat` 으로 옮기면 그 기능들을 전부 다시 짜야 한다. BE 가 대화를
+   * 가져가는 시점에 `notes` 와 `lib/chat-storage.ts` 가 함께 사라진다.
+   */
+  const chat = useChat<AxpUIMessage>({
+    transport,
+    onFinish: ({ message, isAbort, isError }) => {
+      const t = turnRef.current;
+      if (!t || isAbort || isError) return;
+      appendMessage(t.nid, toChatMessage(message));
+      // 본문이 조각으로 흘러왔으므로 타자 효과를 다시 틀지 않는다
+      setStreaming(null);
+      setJustArrived(t.nid);
+      // 접히는 전환(300ms)이 끝나면 신호를 내린다 — 대화를 다시 열 때 또 접히지 않게
+      setTimeout(() => setJustArrived((n) => (n === t.nid ? null : n)), 400);
+      t.after?.();
+      clearTurn();
+    },
+    onError: (e) => {
+      const t = turnRef.current;
+      if (!t) return;
+      setError({
+        kind: "turn",
+        noteId: t.nid,
+        turn: t.turn,
+        after: t.after,
+        text: e instanceof ApiRequestError ? e.message : "답변을 받지 못했어요",
+      });
+      clearTurn();
+    },
+  });
+
+  function clearTurn() {
+    turnRef.current = null;
+    setPendingNoteId(null);
+  }
+
+  const busy = chat.status === "submitted" || chat.status === "streaming";
+
+  /**
+   * 진행 중인 턴을 화면이 쓰던 모양으로 접는다.
+   *
+   * `useChat` 의 파트가 유일한 출처다 — 예전처럼 별도 state 에 또 쌓으면 두 벌이 어긋난다.
+   */
+  const live = busy ? chat.messages.findLast((m) => m.role === "assistant") : undefined;
+  const liveMsg = live ? toChatMessage(live) : null;
+  const pending: Pending | null =
+    busy && pendingNoteId !== null
+      ? {
+          noteId: pendingNoteId,
+          rows: liveMsg?.process?.trace ?? [],
+          label: liveMsg?.reasoning?.at(-1) ?? FIRST_LABEL,
+          draft: liveMsg?.text ?? "",
+        }
+      : null;
+
+  // 페이지를 떠나면 스트림을 끊는다. 답변이 붙지 않은 사용자 메시지는 복귀 시 '다시 시도'로 이어진다
+  const stopRef = useRef(chat.stop);
+  useEffect(() => {
+    stopRef.current = chat.stop;
+  }, [chat.stop]);
+  useEffect(() => () => void stopRef.current(), []);
 
   const active = notes.find((n) => n.id === activeId) ?? null;
 
@@ -242,62 +334,27 @@ export default function AiChatPage() {
   }
 
   /**
-   * 한 턴을 BE에 보내고 스트림을 끝까지 받는다 — 전송·편집·다시 시도·제안 승인이 모두 여기로 모인다.
-   * 흘러드는 문구·도구 행·본문 조각은 pending에 쌓이고, 최종 답변이 오면 메시지로 굳는다. 성공 여부를 돌려준다.
+   * 한 턴을 보낸다 — 전송·편집·다시 시도·제안 승인이 모두 여기로 모인다.
+   *
+   * 결과는 `useChat` 의 `onFinish`/`onError` 로 돌아온다. 예전처럼 Promise 로 기다리지 않는
+   * 이유: 스트림을 읽는 주체가 훅이라, 여기서 또 기다리면 진행 상태가 두 군데 생긴다.
+   *
+   * **직전 턴을 비우고 시작한다.** transport 가 마지막 메시지 하나만 보내므로 훅에 히스토리를
+   * 쌓아 둘 이유가 없고, 쌓아 두면 대화를 옮겨 다닐 때 남의 대화 메시지가 섞인다.
    */
-  async function respond(
-    nid: number,
-    turn: Turn,
-    after?: () => void,
-  ): Promise<boolean> {
-    const ac = new AbortController();
-    abortRef.current = ac;
-    let streamed = false;
+  function respond(nid: number, turn: Turn, after?: () => void) {
     setError(null);
-    setPending({
-      noteId: nid,
-      rows: [],
-      label: "질문의 의도를 파악하고 있어요",
-      draft: "",
-    });
-    const patch = (f: (p: Pending) => Pending) =>
-      setPending((p) => (p?.noteId === nid ? f(p) : p));
-    try {
-      const msg = await streamChat(
-        { conversationId: nid, ...turn },
-        {
-          onLabel: (label) => patch((p) => ({ ...p, label })),
-          onTrace: (row) => patch((p) => ({ ...p, rows: [...p.rows, row] })),
-          onDelta: (text) => {
-            streamed = true;
-            patch((p) => ({ ...p, draft: p.draft + text }));
-          },
-        },
-        ac.signal,
-      );
-      appendMessage(nid, msg);
-      // 본문이 이미 조각으로 흘러왔으면 타자 효과를 다시 틀지 않는다
-      setStreaming(streamed ? null : nid);
-      setJustArrived(nid);
-      // 접히는 전환(300ms)이 끝나면 신호를 내린다 — 대화를 다시 열 때 또 접히지 않게
-      setTimeout(() => setJustArrived((n) => (n === nid ? null : n)), 400);
-      setPending(null);
-      after?.();
-      return true;
-    } catch (e) {
-      if (ac.signal.aborted) return false;
-      setPending(null);
-      setError({
-        kind: "turn",
-        noteId: nid,
-        turn,
-        after,
-        text: e instanceof ApiRequestError ? e.message : "답변을 받지 못했어요",
-      });
-      return false;
-    } finally {
-      if (abortRef.current === ac) abortRef.current = null;
-    }
+    chat.clearError();
+    chat.setMessages([]);
+    turnRef.current = { nid, turn, after };
+    setPendingNoteId(nid);
+    const body: TurnContext = {
+      conversationId: nid,
+      sources: turn.sources,
+      skills: turn.skills,
+      action: turn.action,
+    };
+    void chat.sendMessage({ text: turn.message }, { body });
   }
 
   function send() {
