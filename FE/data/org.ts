@@ -178,10 +178,12 @@ export const PENDING_INVITES: {
   email: string;
   dept: string;
   role: string;
+  /** 초대 메일 발송일 · 유효기간 — 표의 열이라 절대 날짜다. "3일 전"은 정렬도 비교도 안 된다 */
   sentAt: string;
+  expiresAt: string;
 }[] = [
-  { id: "i1", name: "문가영", email: "gymoon@democompany.co.kr", dept: "해외영업팀", role: "일반 사용자", sentAt: "3일 전 보냄" },
-  { id: "i2", name: "한지우", email: "jwhan@democompany.co.kr", dept: "품질관리팀", role: "품질 관리자", sentAt: "방금 보냄" },
+  { id: "i1", name: "문가영", email: "gymoon@democompany.co.kr", dept: "해외영업팀", role: "일반 사용자", sentAt: "2026-09-01", expiresAt: "2026-09-08" },
+  { id: "i2", name: "한지우", email: "jwhan@democompany.co.kr", dept: "품질관리팀", role: "품질 관리자", sentAt: "2026-09-04", expiresAt: "2026-09-11" },
 ];
 
 /** 관리 › 초대 관리 › 초대 링크 — 받은 사람 누구나 쓸 수 있어 역할·부서를 미리 박아둔다 */
@@ -192,23 +194,15 @@ export const INVITE_LINKS: {
   dept: string;
   used: number;
   limit: number;
-  expiresIn: string;
+  /** 링크 만료일시 — 표의 열이라 시각까지 적는다. 만료가 하루 안에 갈리는 링크가 있다 */
+  expiresAt: string;
   active: boolean;
 }[] = [
-  { id: "l1", url: "https://axcore.it.kr/invite/aB3xK9mQ", role: "일반 사용자", dept: "생산본부", used: 3, limit: 10, expiresIn: "5일 뒤 만료", active: true },
-  { id: "l2", url: "https://axcore.it.kr/invite/7Zp2Rt", role: "품질 관리자", dept: "품질관리팀", used: 1, limit: 1, expiresIn: "다 썼어요", active: false },
+  { id: "l1", url: "https://axcore.it.kr/invite/aB3xK9mQ", role: "일반 사용자", dept: "생산본부", used: 3, limit: 10, expiresAt: "2026-09-09 18:00", active: true },
+  { id: "l2", url: "https://axcore.it.kr/invite/7Zp2Rt", role: "품질 관리자", dept: "품질관리팀", used: 1, limit: 1, expiresAt: "2026-09-02 09:00", active: false },
 ];
 
-/**
- * 관리 › 초대 관리 › 초대 정책.
- *
- * `ui.tsx`의 `isPersonalEmail` 유틸이 이미 있다 — 그 유틸이 기다리던 설정이다.
- */
-export const INVITE_POLICY = {
-  workEmailOnly: true,
-  allowedDomains: ["democompany.co.kr", "axcore.it.kr"],
-};
-
+/** 부서 — 프로필·초대·권한 관리가 같이 본다 */
 export const DEPARTMENTS = [
   "제조혁신팀",
   "생산본부",

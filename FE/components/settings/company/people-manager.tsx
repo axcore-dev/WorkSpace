@@ -3,22 +3,23 @@
 import { useState } from "react";
 import { InviteModal } from "@/components/settings/invite-modal";
 import { InviteLinks } from "@/components/settings/company/invite-links";
-import { InvitePolicy } from "@/components/settings/company/invite-policy";
 import { MemberTable } from "@/components/settings/company/member-table";
 import { PendingInvites } from "@/components/settings/company/pending-invites";
-import { IconLink, IconMail, IconShield, IconUsers } from "@/components/icons";
+import { IconLink, IconMail, IconUsers } from "@/components/icons";
 import { Toast } from "@/components/ui";
 import { useToast } from "@/components/use-toast";
 import { INVITE_LINKS, PENDING_INVITES, USERS_ROLES } from "@/data/org";
 
-type TabId = "members" | "pending" | "links" | "policy";
+type TabId = "members" | "pending" | "links";
 
 /**
- * 관리 › 초대 관리 — 인라인 탭 4개.
+ * 회사 › 초대 관리 — 인라인 탭 3개.
  *
- * 구성원·초대 중·초대 링크·초대 정책을 네 라우트로 쪼개지 않는다. 넷 다 "누가 있고 누가
- * 들어오는 중인가"라서 오가며 보고, 라우트로 나누면 왕복마다 화면이 갈린다
+ * 구성원·초대 중·초대 링크를 세 라우트로 쪼개지 않는다. 셋 다 "누가 있고 누가 들어오는
+ * 중인가"라서 오가며 보고, 라우트로 나누면 왕복마다 화면이 갈린다
  * (DESIGN.md 「페이지 안 탭」).
+ *
+ * 초대 정책 탭은 뺐다 (수정요청 v12).
  *
  * 탭은 `ui.tsx`에 넣지 않았다 — 쓰는 곳이 이 화면뿐이다. 두 번째 화면이 필요해지면 그때 뽑는다.
  *
@@ -31,16 +32,15 @@ export function PeopleManager() {
   const [toast, showToast] = useToast();
   const [inviteOpen, setInviteOpen] = useState(false);
 
-  const TABS: { id: TabId; label: string; icon: typeof IconUsers; count?: number }[] = [
+  const TABS: { id: TabId; label: string; icon: typeof IconUsers; count: number }[] = [
     { id: "members", label: "구성원", icon: IconUsers, count: USERS_ROLES.length },
     { id: "pending", label: "초대 중인 구성원", icon: IconMail, count: PENDING_INVITES.length },
     { id: "links", label: "초대 링크", icon: IconLink, count: INVITE_LINKS.length },
-    // 정책은 개수가 의미 없어 생략한다 (DESIGN.md 「페이지 안 탭」)
-    { id: "policy", label: "초대 정책", icon: IconShield },
   ];
 
   return (
     <>
+      {/* 탭 3개는 넓은 본문에서 가로로 다 들어간다 — 그래도 좁은 화면을 위해 스크롤은 남긴다 */}
       <div
         role="tablist"
         aria-label="초대 관리"
@@ -65,9 +65,7 @@ export function PeopleManager() {
             >
               <t.icon size={15} className={on ? "text-slate-600" : "text-slate-400"} />
               {t.label}
-              {t.count !== undefined && (
-                <span className="font-normal text-slate-400">({t.count})</span>
-              )}
+              <span className="font-normal text-slate-400">({t.count})</span>
             </button>
           );
         })}
@@ -83,7 +81,6 @@ export function PeopleManager() {
           <PendingInvites onSaved={showToast} onInvite={() => setInviteOpen(true)} />
         )}
         {tab === "links" && <InviteLinks onSaved={showToast} />}
-        {tab === "policy" && <InvitePolicy onSaved={showToast} />}
       </div>
 
       <InviteModal open={inviteOpen} onClose={() => setInviteOpen(false)} />

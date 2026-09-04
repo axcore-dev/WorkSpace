@@ -1,10 +1,11 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { IconArrowLeft, IconLogOut } from "@/components/icons";
 import { SettingsNav } from "@/components/settings/settings-nav";
 import { useLogout } from "@/components/use-logout";
 import { DEFAULT_WORKSPACE_ID, DEMO_USER, WORKSPACES } from "@/data/org";
+import { activeSettings } from "@/data/settings-nav";
 
 /**
  * 설정 전용 전체화면 셸 — 앱 사이드바를 설정 내비로 갈아끼운다.
@@ -19,7 +20,10 @@ import { DEFAULT_WORKSPACE_ID, DEMO_USER, WORKSPACES } from "@/data/org";
  */
 export function SettingsShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const logout = useLogout();
+
+  const wide = activeSettings(pathname)?.leaf?.wide ?? false;
 
   // **BE 연동 seam**: `GET /api/auth/workspaces`가 이미 있다. 세션의 현재 워크스페이스로
   // 바꾸면 된다 — 지금은 더미 기본값을 읽는다.
@@ -94,7 +98,9 @@ export function SettingsShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <main className="min-w-0 flex-1 bg-white">
-        <div className="mx-auto max-w-3xl px-6 py-7 lg:px-8">{children}</div>
+        {/* 폭은 라우트가 정한다 (`data/settings-nav.ts`의 `wide`) — 표가 있는 화면은
+            꽉 채우고 나머지는 좁게 둔다 */}
+        <div className={`px-6 py-7 lg:px-8 ${wide ? "" : "mx-auto max-w-3xl"}`}>{children}</div>
       </main>
 
       {/* lg 미만 — 사이드바 하단이 숨으므로 워크스페이스·로그아웃을 본문 아래에 둔다 */}

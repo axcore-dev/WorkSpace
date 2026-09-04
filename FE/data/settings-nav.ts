@@ -8,11 +8,22 @@
  * 구조는 2단계까지다 (DESIGN.md 「사이드바」 절). 하위가 하나뿐인 항목은 그룹을 만들지
  * 않고 `kind: "leaf"`로 둔다 — 없는 내용을 만들어 깊이를 맞추지 않는다.
  *
- * `초대 관리`는 한 페이지 안에서 인라인 탭 4개(구성원·초대 중·초대 링크·초대 정책)로
+ * `초대 관리`는 한 페이지 안에서 인라인 탭 3개(구성원·초대 중·초대 링크)로
  * 갈린다 — 라우트로 쪼개지 않는다 (DESIGN.md 「페이지 안 탭」).
  */
 
-export type SettingsLeaf = { href: string; label: string };
+export type SettingsLeaf = {
+  href: string;
+  label: string;
+  /**
+   * 본문 폭 제한(`max-w-3xl`)을 풀고 화면을 꽉 채운다.
+   *
+   * 기본이 좁은 이유: 설정은 대부분 「이름 — 값 — 버튼」 한 줄이라 넓히면 이름과 버튼이
+   * 화면 양 끝으로 벌어져 눈이 가로로 멀리 이동한다. 열이 여럿인 표는 반대다 — 좁으면
+   * 가로 스크롤이 생긴다. 그래서 페이지별로 고른다.
+   */
+  wide?: boolean;
+};
 
 export type SettingsSection =
   | { kind: "group"; label: string; href: string; children: SettingsLeaf[] }
@@ -25,8 +36,8 @@ export const SETTINGS_NAV: SettingsSection[] = [
     label: "회사",
     href: "/settings/company",
     children: [
-      { href: "/settings/company/invites", label: "초대 관리" },
-      { href: "/settings/company/roles", label: "권한 관리" },
+      { href: "/settings/company/invites", label: "초대 관리", wide: true },
+      { href: "/settings/company/roles", label: "권한 관리", wide: true },
     ],
   },
   {
