@@ -18,8 +18,10 @@ import type { AxpUIMessage } from "./ui-messages";
 /** 비어 있으면 같은 오리진(Next Route Handler). BE 로 넘길 때만 값이 생긴다 */
 const AI_BASE = process.env.NEXT_PUBLIC_AI_API_BASE ?? "";
 
-export const CHAT_ENDPOINT = `${AI_BASE}/ai/chat`;
-export const SOURCES_ENDPOINT = `${AI_BASE}/ai/sources`;
+const AI_PREFIX = AI_BASE ? `${AI_BASE}/api/ai` : "/ai";
+
+export const CHAT_ENDPOINT = `${AI_PREFIX}/chat`;
+export const SOURCES_ENDPOINT = `${AI_PREFIX}/sources`;
 
 /**
  * 한 턴에 함께 보내는 화면 상태.
