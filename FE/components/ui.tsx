@@ -337,6 +337,58 @@ export function Toggle({
   );
 }
 
+/**
+ * 3지 선택 — 라디오 대신 쓰는 분절 컨트롤 (없음/읽기/쓰기, 전체/부서/본인).
+ *
+ * 선택된 칸은 활성 내비 항목과 같은 시각 언어(`bg-white` + `ring-slate-200` + 굵게)를 쓴다.
+ * **블루를 쓰지 않는다** — 선택 상태는 액션이 아니다 (DESIGN.md 「원칙」).
+ *
+ * `label`은 접근성 이름이다. 시각적으로는 왼쪽 행 이름이 그 역할을 하므로 화면에 쓰지 않는다.
+ */
+export function Segmented<T extends string>({
+  options,
+  value,
+  onChange,
+  label,
+  disabled = false,
+}: {
+  options: { value: T; label: string }[];
+  value: T;
+  onChange: (v: T) => void;
+  label: string;
+  disabled?: boolean;
+}) {
+  return (
+    <span
+      role="group"
+      aria-label={label}
+      className={`inline-flex shrink-0 gap-0.5 rounded-lg bg-slate-100 p-0.5 ${
+        disabled ? "opacity-40" : ""
+      }`}
+    >
+      {options.map((o) => {
+        const on = o.value === value;
+        return (
+          <button
+            key={o.value}
+            type="button"
+            aria-pressed={on}
+            disabled={disabled}
+            onClick={() => onChange(o.value)}
+            className={`cursor-pointer whitespace-nowrap rounded-md px-2.5 py-1 text-xs transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400 disabled:cursor-not-allowed ${
+              on
+                ? "bg-white font-semibold text-slate-900 ring-1 ring-slate-200"
+                : "font-medium text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </span>
+  );
+}
+
 export function ProgressBar({
   value,
   tone = "slate",

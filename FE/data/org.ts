@@ -1,5 +1,6 @@
 import type { ICON_MAP } from "@/components/icons";
 import type { SocialProvider } from "@/lib/auth";
+import type { DataScope, ModulePerm, RoleDef } from "./roles";
 import type { Tone } from "./types";
 
 /** 조직/워크스페이스·설정 관련 더미 데이터 */
@@ -71,6 +72,143 @@ export const USERS_ROLES: {
  * `invite-modal.tsx`가 다른 목록(`경영지원본부`·`영업본부`·`고객지원팀`)을 하드코딩하고
  * 있는데, 그 정리는 역할 단일 소스(`ROLES`)를 만드는 작업과 같은 묶음이다.
  */
+/** 권한 선택 목록 — `Segmented`에 그대로 넘긴다 */
+export const MODULE_PERMS: { value: ModulePerm; label: string }[] = [
+  { value: "none", label: "없음" },
+  { value: "read", label: "읽기" },
+  { value: "write", label: "쓰기" },
+];
+
+export const DATA_SCOPES: { value: DataScope; label: string }[] = [
+  { value: "all", label: "전체" },
+  { value: "dept", label: "부서" },
+  { value: "own", label: "본인" },
+];
+
+/**
+ * 역할 정의 — 단일 소스.
+ *
+ * `name`은 `USERS_ROLES[].role`에 실제로 쓰인 값과 같아야 한다 — `roleMemberCount`가
+ * 이름으로 맞추므로 어긋나면 구성원 수가 전부 0이 된다. `data/roles.test.ts`가 이걸 검증한다.
+ *
+ * 모듈 슬러그는 `data/modules.ts`의 `MODULES[].slug` 8개다:
+ * management · design · production · equipment · quality · inventory · sales · support
+ *
+ * **이 값은 보안 경계가 아니다** — 실제 차단은 BE 세션의 역할 검사에서 한다.
+ */
+export const ROLES: RoleDef[] = [
+  {
+    id: "admin",
+    name: "관리자",
+    system: true,
+    perms: {
+      management: "write", design: "write", production: "write", equipment: "write",
+      quality: "write", inventory: "write", sales: "write", support: "write",
+    },
+    scope: "all",
+    showAmounts: true,
+    canDelegateInvite: true,
+  },
+  {
+    id: "plant-head",
+    name: "공장장",
+    system: false,
+    perms: {
+      management: "read", design: "read", production: "write", equipment: "write",
+      quality: "write", inventory: "read", sales: "none", support: "none",
+    },
+    scope: "all",
+    showAmounts: true,
+    canDelegateInvite: false,
+  },
+  {
+    id: "quality-mgr",
+    name: "품질 관리자",
+    system: false,
+    perms: {
+      management: "none", design: "read", production: "read", equipment: "read",
+      quality: "write", inventory: "none", sales: "none", support: "read",
+    },
+    scope: "dept",
+    showAmounts: false,
+    canDelegateInvite: false,
+  },
+  {
+    id: "equipment-mgr",
+    name: "설비 관리자",
+    system: false,
+    perms: {
+      management: "none", design: "none", production: "read", equipment: "write",
+      quality: "read", inventory: "read", sales: "none", support: "none",
+    },
+    scope: "dept",
+    showAmounts: false,
+    canDelegateInvite: false,
+  },
+  {
+    id: "buyer",
+    name: "구매 담당",
+    system: false,
+    perms: {
+      management: "write", design: "read", production: "read", equipment: "none",
+      quality: "none", inventory: "write", sales: "read", support: "none",
+    },
+    scope: "dept",
+    showAmounts: true,
+    canDelegateInvite: false,
+  },
+  {
+    id: "member",
+    name: "일반 사용자",
+    system: false,
+    perms: {
+      management: "read", design: "read", production: "read", equipment: "read",
+      quality: "read", inventory: "read", sales: "read", support: "read",
+    },
+    scope: "own",
+    showAmounts: false,
+    canDelegateInvite: false,
+  },
+];
+
+/** 관리 › 초대 관리 › 초대 중인 구성원 — 보냈지만 아직 안 받은 것 */
+export const PENDING_INVITES: {
+  id: string;
+  name: string;
+  email: string;
+  dept: string;
+  role: string;
+  sentAt: string;
+}[] = [
+  { id: "i1", name: "문가영", email: "gymoon@democompany.co.kr", dept: "해외영업팀", role: "일반 사용자", sentAt: "3일 전 보냄" },
+  { id: "i2", name: "한지우", email: "jwhan@democompany.co.kr", dept: "품질관리팀", role: "품질 관리자", sentAt: "방금 보냄" },
+];
+
+/** 관리 › 초대 관리 › 초대 링크 — 받은 사람 누구나 쓸 수 있어 역할·부서를 미리 박아둔다 */
+export const INVITE_LINKS: {
+  id: string;
+  url: string;
+  role: string;
+  dept: string;
+  used: number;
+  limit: number;
+  expiresIn: string;
+  active: boolean;
+}[] = [
+  { id: "l1", url: "https://axcore.it.kr/invite/aB3xK9mQ", role: "일반 사용자", dept: "생산본부", used: 3, limit: 10, expiresIn: "5일 뒤 만료", active: true },
+  { id: "l2", url: "https://axcore.it.kr/invite/7Zp2Rt", role: "품질 관리자", dept: "품질관리팀", used: 1, limit: 1, expiresIn: "다 썼어요", active: false },
+];
+
+/**
+ * 관리 › 초대 관리 › 초대 정책.
+ *
+ * `ui.tsx`의 `isPersonalEmail` 유틸이 이미 있다 — 그 유틸이 기다리던 설정이다.
+ */
+export const INVITE_POLICY = {
+  workEmailOnly: true,
+  allowedDomains: ["democompany.co.kr", "axcore.it.kr"],
+};
+
 export const DEPARTMENTS = [
   "제조혁신팀",
   "생산본부",
