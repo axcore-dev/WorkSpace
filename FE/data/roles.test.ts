@@ -103,9 +103,17 @@ test("ROLES의 이름이 USERS_ROLES에 실제로 쓰인 값과 이어진다", a
   // org.ts는 `@/` 별칭을 쓰는 타입 import가 있어 여기서 직접 못 읽는다 —
   // 대신 파일을 텍스트로 읽어 이름 목록을 비교한다.
   const fs = await import("node:fs");
-  const src = fs.readFileSync("data/org.ts", "utf8");
+  // 줄끝을 먼저 맞춘다. core.autocrlf=true면 체크아웃이 CRLF로 떨어지는데 아래 정규식은 \n을
+  // 본다 — 안 맞추면 내 작업 트리에서만 통과하고 새로 clone한 곳과 CI에서는 0개가 잡힌다.
+  const src = fs.readFileSync("data/org.ts", "utf8").replace(/\r\n/g, "\n");
 
-  const roleNames = [...src.matchAll(/^\s{4}name: "([^"]+)",\n\s{4}system:/gm)].map((m) => m[1]);
+  // ROLES 블록만 잘라서 본다. 파일 전체에 걸면 EXTERNAL_SYSTEMS의 name도 같이 잡혀
+  // (본사 ERP·1공장 MES 등) 대조가 헐거워진다.
+  const start = src.indexOf("export const ROLES");
+  assert.ok(start >= 0, "org.ts에서 ROLES 선언을 못 찾았다");
+  const block = src.slice(start, src.indexOf("\n];", start));
+
+  const roleNames = [...block.matchAll(/^ {4}name: "([^"]+)",$/gm)].map((m) => m[1]);
   const usedNames = new Set([...src.matchAll(/role: "([^"]+)", dept:/g)].map((m) => m[1]));
 
   assert.ok(roleNames.length > 0, "ROLES에서 이름을 못 찾았다 — 정규식이 형식과 어긋난다");
