@@ -5,6 +5,7 @@
  * 대체했다. 남은 것이 이 함수 하나뿐이라 여기로 합쳤다.
  */
 import { ApiRequestError, type ApiError } from "@/lib/api";
+import { ensureAccessToken } from "@/lib/session";
 import type { SourceDoc } from "@/data/chat";
 import { SOURCES_ENDPOINT } from "./transport";
 
@@ -14,9 +15,11 @@ const UNKNOWN: ApiError = { code: "UNKNOWN", message: "문서를 등록하지 �
 export async function uploadSources(files: File[]): Promise<SourceDoc[]> {
   const form = new FormData();
   files.forEach((f) => form.append("files", f));
+  const token = await ensureAccessToken();
   const res = await fetch(SOURCES_ENDPOINT, {
     method: "POST",
     credentials: "include",
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     body: form,
   });
   const parsed = (await res.json().catch(() => null)) as unknown;
