@@ -5,9 +5,15 @@ import { Modal } from "@/components/modal";
 import { Button, FIELD, Toggle } from "@/components/ui";
 import { IconCheckCircle, IconShield } from "@/components/icons";
 import { MODULES } from "@/data/modules";
+import { DEPARTMENTS, ROLES } from "@/data/org";
 
-const ROLES = ["일반 사용자", "생산 관리자", "품질 관리자", "설비 관리자", "구매 담당", "공장장"];
-const DEPTS = ["생산본부", "품질관리팀", "설비보전팀", "경영지원본부", "구매자재팀", "영업본부", "고객지원팀"];
+/**
+ * 역할·부서는 data/org.ts가 단일 소스다.
+ *
+ * 예전에는 이 파일이 자기 목록을 갖고 있었는데 USERS_ROLES에 실제로 쓰인 값과 달랐다 —
+ * 여기엔 '생산 관리자'·'경영지원본부'가 있고 저기엔 '공장장'·'제조혁신팀'이 있었다.
+ * 초대할 때 고른 역할이 구성원 목록에 없는 역할이 되는 상태였다.
+ */
 
 /**
  * 구성원 초대 팝업 (RBAC).
@@ -17,8 +23,9 @@ const DEPTS = ["생산본부", "품질관리팀", "설비보전팀", "경영지�
 export function InviteModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [asTeamLead, setAsTeamLead] = useState(false);
   const [email, setEmail] = useState("");
-  const [dept, setDept] = useState(DEPTS[0]);
-  const [role, setRole] = useState(ROLES[0]);
+  const [dept, setDept] = useState<string>(DEPARTMENTS[0]);
+  // 기본은 가장 낮은 권한이다. 초대 폼의 기본값이 최고 권한이면 실수로 관리자를 만든다.
+  const [role, setRole] = useState<string>(ROLES[ROLES.length - 1].name);
   const [granted, setGranted] = useState<string[]>(["management", "inventory", "sales"]);
   const [sent, setSent] = useState(false);
 
@@ -96,7 +103,7 @@ export function InviteModal({ open, onClose }: { open: boolean; onClose: () => v
                 부서
               </label>
               <select id="inv-dept" value={dept} onChange={(e) => setDept(e.target.value)} className={`${FIELD} cursor-pointer`}>
-                {DEPTS.map((d) => (
+                {DEPARTMENTS.map((d) => (
                   <option key={d}>{d}</option>
                 ))}
               </select>
@@ -107,7 +114,7 @@ export function InviteModal({ open, onClose }: { open: boolean; onClose: () => v
               </label>
               <select id="inv-role" value={role} onChange={(e) => setRole(e.target.value)} className={`${FIELD} cursor-pointer`}>
                 {ROLES.map((r) => (
-                  <option key={r}>{r}</option>
+                  <option key={r.id}>{r.name}</option>
                 ))}
               </select>
             </div>

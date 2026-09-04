@@ -119,19 +119,15 @@ test("설정 밖 경로는 null이다", () => {
 
 /* ───────────── 이 단계(A)의 모양 ───────────── */
 
-test("A 단계에서는 잎이 4개다", () => {
-  // 계정 · 관리 · 워크스페이스>기능 · 워크스페이스>연동.
-  // 계획 B에서 관리가 그룹이 되어 5개로 늘어나면 이 수를 5로 고친다.
-  assert.equal(settingsLeafHrefs().length, 4, settingsLeafHrefs().join(" "));
+test("잎이 5개다", () => {
+  // 계정 · 관리>초대 관리 · 관리>역할·권한 · 워크스페이스>기능 · 워크스페이스>연동
+  assert.equal(settingsLeafHrefs().length, 5, settingsLeafHrefs().join(" "));
 });
 
-test("알림과 역할·권한은 아직 내비에 없다", () => {
+test("알림은 아직 내비에 없다", () => {
   // 워크스페이스 알림은 임시 비활성화 상태라 뺐다 (spec 참조).
-  // 역할·권한·초대 관리는 계획 B에서 들어온다.
-  const hrefs = settingsLeafHrefs().join(" ");
-  assert.ok(!hrefs.includes("notification"), hrefs);
-  assert.ok(!hrefs.includes("role"), hrefs);
-  assert.ok(!hrefs.includes("invite"), hrefs);
+  // 개인 알림 수신 설정은 계정 페이지 안 섹션이라 내비 항목이 아니다.
+  assert.ok(!settingsLeafHrefs().join(" ").includes("notification"));
 });
 
 /* ───────────── 내비 ↔ 파일시스템 ───────────── */

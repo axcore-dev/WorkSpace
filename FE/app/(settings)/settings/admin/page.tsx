@@ -1,12 +1,6 @@
-import { AdminSettings } from "@/components/settings/admin-settings";
+import { redirect } from "next/navigation";
+import { SETTINGS_HOME, settingsRedirect } from "@/data/settings-nav";
 
-export default function Page() {
-  return (
-    <>
-      <h1 className="text-xl font-bold tracking-tight text-slate-900">관리</h1>
-      <div className="mt-6">
-        <AdminSettings />
-      </div>
-    </>
-  );
+export default function AdminIndex() {
+  redirect(settingsRedirect("/settings/admin") ?? SETTINGS_HOME);
 }

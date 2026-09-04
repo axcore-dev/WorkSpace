@@ -8,8 +8,8 @@
  * 구조는 2단계까지다 (DESIGN.md 「사이드바」 절). 하위가 하나뿐인 항목은 그룹을 만들지
  * 않고 `kind: "leaf"`로 둔다 — 없는 내용을 만들어 깊이를 맞추지 않는다.
  *
- * `관리`는 지금 단일 잎이다. 계획 B에서 초대 관리·역할·권한 두 하위를 가진 그룹으로
- * 승격한다 — 그때 `data/settings-nav.test.ts`의 "A 단계에서는 잎이 4개다"를 5개로 고친다.
+ * `초대 관리`는 한 페이지 안에서 인라인 탭 4개(구성원·초대 중·초대 링크·초대 정책)로
+ * 갈린다 — 라우트로 쪼개지 않는다 (DESIGN.md 「페이지 안 탭」).
  */
 
 export type SettingsLeaf = { href: string; label: string };
@@ -20,7 +20,15 @@ export type SettingsSection =
 
 export const SETTINGS_NAV: SettingsSection[] = [
   { kind: "leaf", label: "계정", href: "/settings/account" },
-  { kind: "leaf", label: "관리", href: "/settings/admin" },
+  {
+    kind: "group",
+    label: "관리",
+    href: "/settings/admin",
+    children: [
+      { href: "/settings/admin/invites", label: "초대 관리" },
+      { href: "/settings/admin/roles", label: "역할·권한" },
+    ],
+  },
   {
     kind: "group",
     label: "워크스페이스",
