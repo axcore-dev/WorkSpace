@@ -1,8 +1,8 @@
 /**
  * ⚠️ AI-MOCK — BE 연동 시 삭제 대상 ⚠️
  *
- * `POST /api/ai/sources` 업로드 목업. 파일을 저장하지 않고 메타만 돌려준다.
- * 계약은 `FE/lib/chat-api.ts` 주석 참고 — 필드명 `files`(multipart), 응답 `SourceDoc[]`.
+ * `POST /ai/sources` 업로드 목업. 파일을 저장하지 않고 메타만 돌려준다.
+ * 계약은 `FE/lib/ai/sources.ts` 참고 — 필드명 `files`(multipart), 응답 `SourceDoc[]`.
  */
 import type { SourceDoc } from "@/data/chat";
 

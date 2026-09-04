@@ -6,9 +6,10 @@
  * 걷어낸 데모 응답을 서버 쪽으로 옮겨 놓은 것이다 — 화면 코드에는 더미가 없다.
  *
  * ── BE가 준비되면 ──────────────────────────────────────────────
- * 1. `FE/app/api/ai/` 폴더를 통째로 지운다 (이 파일 + chat/sources 라우트)
- * 2. `FE/lib/chat-api.ts`의 `AI_BASE`를 지우고 `API_BASE`로 되돌린다
- * 그러면 FE에서 목업 흔적이 완전히 사라진다. `grep -r "AI-MOCK" FE/`로 확인.
+ * 1. `FE/app/ai/` 폴더를 통째로 지운다 (이 파일 + chat/sources 라우트)
+ * 2. `FE/lib/ai/transport.ts`의 `NEXT_PUBLIC_AI_API_BASE`에 BE 주소를 넣는다
+ * 와이어 포맷이 같으므로 화면과 `lib/ai/ui-messages.ts`는 그대로 둔다.
+ * `grep -r "AI-MOCK" FE/`로 남은 자리를 확인한다.
  */
 import type { ChatMessage } from "@/data/chat";
 
