@@ -9,7 +9,14 @@
  * 기본 목록에서 빠지고 `status=terminated` 로만 조회된다.
  */
 import { apiDelete, apiGet, apiPostAuthed, apiPut } from "./api";
-import type { AdminWorkspace, AuditEntry, Contacts, Plan, WsStatus } from "@/data/admin";
+import type {
+  AdminWorkspace,
+  AuditEntry,
+  ContactStatus,
+  Contacts,
+  Plan,
+  WsStatus,
+} from "@/data/admin";
 
 /* ────────────────────────── BE 응답 형태 ────────────────────────── */
 
@@ -89,6 +96,33 @@ export type WorkspaceDto = {
   linkOpenedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  /** 상세 조회에서만 채워진다. 상태 변경 응답에서는 null — 화면은 기존 값을 유지한다 */
+  contactStatus: ContactStatusDto | null;
+};
+
+export type ContactStatusDto = {
+  email: string | null;
+  state: "EMPTY" | "MEMBER" | "INVITED" | "NONE";
+  owner: boolean;
+  invitedAt: string | null;
+  expiresAt: string | null;
+};
+
+/**
+ * 상세 수정(PUT) 응답. 담당자 이메일이 바뀌었으면 서버가 그 자리에서 한 일을 알려 준다.
+ * `inviteLink` 는 이 응답에만 실린다 — 토큰은 해시로만 저장돼 다시 조회할 수 없다.
+ */
+export type ContactChangeDto = {
+  type: "NONE" | "PROMOTED" | "INVITED" | "DEFERRED";
+  email: string | null;
+  inviteLink: string | null;
+  invitation: InvitationDto | null;
+  demotedOwners: number;
+};
+
+export type WorkspaceUpdateResponseDto = {
+  workspace: WorkspaceDto;
+  contactChange: ContactChangeDto;
 };
 
 export type InvitationDto = {
@@ -264,6 +298,7 @@ export function toAdminWorkspace(dto: WorkspaceDto): AdminWorkspace {
     taxEmail: dto.taxEmail ?? "",
     memo: dto.memo ?? "",
     contacts: toContacts(dto.contacts),
+    contactStatus: dto.contactStatus ? toContactStatus(dto.contactStatus) : undefined,
     // 연동·매핑·청구는 아직 만드는 곳이 없다. BE 도 빈 배열을 준다 — 화면은 「미연결」과
     // 「아직 청구 내역이 없어요」로 정상 동작한다.
     systems: [],
@@ -329,10 +364,34 @@ export async function listWorkspaces(params: ListParams = {}) {
   };
 }
 
+function toContactStatus(dto: ContactStatusDto): ContactStatus {
+  const state =
+    dto.state === "MEMBER"
+      ? "member"
+      : dto.state === "INVITED"
+        ? "invited"
+        : dto.state === "EMPTY"
+          ? "empty"
+          : "none";
+  return {
+    email: dto.email,
+    state,
+    owner: dto.owner,
+    invitedAt: dto.invitedAt,
+    expiresAt: dto.expiresAt,
+  };
+}
+
 export async function getWorkspace(id: number) {
   const dto = await apiGet<WorkspaceDto>(`${BASE}/${id}`);
   return dto ? toAdminWorkspace(dto) : null;
 }
+
+/**
+ * 상세 DTO 원본. 상세 화면이 수정 요청(전체 교체)을 만들 때 화면 타입에 없는 필드
+ * (`ceoName`, `sites`, `linkName`…)를 그대로 되돌려 보내야 해서 원본을 같이 들고 있는다.
+ */
+export const getWorkspaceDto = (id: number) => apiGet<WorkspaceDto>(`${BASE}/${id}`);
 
 /** 개설 폼이 보내는 값. BE 는 사업자번호를 하이픈 없이 받는다 */
 export type CreateWorkspaceInput = {
@@ -366,13 +425,88 @@ export async function createWorkspace(input: CreateWorkspaceInput) {
   return dto ? toAdminWorkspace(dto) : null;
 }
 
-/** 수정은 전체 교체다. 화면이 상세 폼 전체를 들고 저장을 누르므로 PUT 이다 */
-export async function updateWorkspace(id: number, input: Omit<CreateWorkspaceInput, "bizNumber">) {
-  const dto = await apiPut<WorkspaceDto>(`${BASE}/${id}`, {
-    ...input,
-    corpNumber: digitsOnly(input.corpNumber),
-  });
-  return dto ? toAdminWorkspace(dto) : null;
+/**
+ * 수정 요청(전체 교체). BE `WorkspaceUpdateRequest` 와 같은 모양이다.
+ *
+ * 화면 타입(`AdminWorkspace`)에 없는 `ceoName`·`sites`·`linkName/linkEmail` 도 담는다 — 전체 교체라
+ * 빠뜨리면 서버가 그 값을 비운다.
+ */
+export type WorkspaceUpdateInput = {
+  name: string;
+  corpNumber?: string;
+  ceoName?: string;
+  bizType?: string;
+  bizItem?: string;
+  address?: string;
+  website?: string;
+  taxEmail?: string;
+  plan?: string;
+  operatorName?: string;
+  memo?: string;
+  contacts?: {
+    linkName?: string;
+    linkEmail?: string;
+    contactName?: string;
+    contactEmail?: string;
+    contactPhone?: string;
+    ccEmails?: string[];
+  };
+  sites?: unknown[];
+};
+
+const orUndef = (v: string | null | undefined) => (v && v.trim() ? v.trim() : undefined);
+
+/**
+ * 상세 DTO 원본에 화면 패치를 얹어 전체 교체 요청을 만든다.
+ *
+ * 화면이 고치는 필드만 패치에서 받고(회사명·법인번호·업태·업종·주소·웹사이트·메모·요금제·세금계산서
+ * 메일·담당자), 나머지는 원본을 되돌려 보낸다. 담당자는 한 사람으로 합쳐져 있으므로 접속 링크
+ * 담당(`linkName/linkEmail`)과 연락 담당에 같은 값을 넣는다 — BE 가 초대 주소를 `linkEmail` 부터
+ * 찾기 때문에 둘이 어긋나면 옛 담당자에게 링크가 간다.
+ */
+export function toUpdateInput(dto: WorkspaceDto, patch: Partial<AdminWorkspace>): WorkspaceUpdateInput {
+  const contact = patch.contacts?.contact;
+  const cc = patch.contacts?.cc;
+  const contactName = contact ? orUndef(contact.name) : orUndef(dto.contacts.contactName ?? dto.contacts.linkName);
+  const contactEmail = contact ? orUndef(contact.email) : orUndef(dto.contacts.contactEmail ?? dto.contacts.linkEmail);
+  const contactPhone = contact ? orUndef(contact.phone) : orUndef(dto.contacts.contactPhone);
+  const ccEmails = (cc ?? dto.contacts.ccEmails ?? []).map((e) => e.trim()).filter(Boolean);
+
+  return {
+    name: patch.company ?? dto.name,
+    corpNumber: digitsOnly(patch.corpNumber ?? dto.corpNumber ?? undefined),
+    ceoName: orUndef(dto.ceoName),
+    bizType: orUndef(patch.bizType ?? dto.bizType),
+    bizItem: orUndef(patch.bizItem ?? dto.bizItem),
+    address: orUndef(patch.address ?? dto.address),
+    website: orUndef(patch.website ?? dto.website),
+    taxEmail: orUndef(patch.taxEmail ?? dto.taxEmail),
+    plan: patch.plan ?? dto.plan,
+    operatorName: orUndef(dto.operatorName),
+    memo: orUndef(patch.memo ?? dto.memo),
+    contacts: {
+      linkName: contactName,
+      linkEmail: contactEmail,
+      contactName,
+      contactEmail,
+      contactPhone,
+      ccEmails,
+    },
+    sites: dto.sites,
+  };
+}
+
+/**
+ * 수정은 전체 교체다. 화면이 상세 폼 전체를 들고 저장을 누르므로 PUT 이다.
+ *
+ * 응답에 담당자 변경 결과(`contactChange`)가 같이 온다. 담당자 이메일이 바뀌었으면 서버가 소유자
+ * 권한을 넘겼거나(PROMOTED) 초대 링크를 발급했다(INVITED). 그 링크는 이 응답에만 있다.
+ */
+export async function updateWorkspace(id: number, input: WorkspaceUpdateInput) {
+  const res = await apiPut<WorkspaceUpdateResponseDto>(`${BASE}/${id}`, input);
+  return res
+    ? { dto: res.workspace, workspace: toAdminWorkspace(res.workspace), contactChange: res.contactChange }
+    : null;
 }
 
 export const deactivateWorkspace = (id: number) =>

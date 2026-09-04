@@ -293,6 +293,33 @@ public class Workspace {
         }
     }
 
+    /**
+     * 담당자 이메일(소문자·공백 제거). 없으면 null.
+     *
+     * <p>운영 콘솔은 「접속 링크 받는 사람」과 「연락 담당」을 한 사람으로 합쳤지만 컬럼은 둘이
+     * 남아 있다. 채워진 쪽을 담당자로 본다 — {@code WorkspaceInvitationService#resolveEmail} 과
+     * 같은 우선순위(접속 링크 담당 → 연락 담당)다. 이 사람이 테넌트의 소유자(owner)가 된다.
+     */
+    public String contactEmailNormalized() {
+        String raw = firstFilled(linkContactEmail, contactEmail);
+        return raw == null ? null : WorkspaceInvitation.normalizeEmail(raw);
+    }
+
+    /** 이 주소가 지금 담당자인가. 초대 수락 시 소유자 역할을 줄지 정하는 기준이다. */
+    public boolean isContactEmail(String email) {
+        String contact = contactEmailNormalized();
+        return contact != null && email != null && contact.equals(WorkspaceInvitation.normalizeEmail(email));
+    }
+
+    private static String firstFilled(String... candidates) {
+        for (String candidate : candidates) {
+            if (candidate != null && !candidate.isBlank()) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
     public void rename(String name) {
         this.name = name;
     }

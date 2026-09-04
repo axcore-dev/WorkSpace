@@ -11,6 +11,7 @@ import com.axcore.workspace.workspace.admin.dto.WorkspaceCreateRequest;
 import com.axcore.workspace.workspace.admin.dto.WorkspaceResponse;
 import com.axcore.workspace.workspace.admin.dto.WorkspaceSummaryResponse;
 import com.axcore.workspace.workspace.admin.dto.WorkspaceUpdateRequest;
+import com.axcore.workspace.workspace.admin.dto.WorkspaceUpdateResponse;
 import com.axcore.workspace.workspace.entity.WorkspaceStatus;
 import com.axcore.workspace.workspace.provisioning.TenantProvisioner;
 import com.axcore.workspace.workspace.provisioning.TenantProvisioningException;
@@ -21,6 +22,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -57,6 +59,7 @@ public class AdminWorkspaceService {
     private final UserRepository userRepository;
     private final UserWorkspaceMembershipRepository membershipRepository;
     private final WorkspaceMemberReader memberReader;
+    private final WorkspaceContactService contacts;
     private final AdminAuditRecorder audit;
 
     public AdminWorkspaceService(
@@ -65,12 +68,14 @@ public class AdminWorkspaceService {
             UserRepository userRepository,
             UserWorkspaceMembershipRepository membershipRepository,
             WorkspaceMemberReader memberReader,
+            WorkspaceContactService contacts,
             AdminAuditRecorder audit) {
         this.registrar = registrar;
         this.provisioner = provisioner;
         this.userRepository = userRepository;
         this.membershipRepository = membershipRepository;
         this.memberReader = memberReader;
+        this.contacts = contacts;
         this.audit = audit;
     }
 
@@ -131,8 +136,10 @@ public class AdminWorkspaceService {
     @Transactional(readOnly = true)
     public WorkspaceResponse get(Long id) {
         String schemaName = registrar.schemaNameOf(id);
-        return registrar.detail(
-                id, memberReader.membersOf(schemaName), memberReader.lastActiveAt(schemaName));
+        return registrar
+                .detail(id, memberReader.membersOf(schemaName), memberReader.lastActiveAt(schemaName))
+                // 담당자가 구성원인지 · 초대 대기인지. 상세 화면의 「접속 링크」 버튼이 이걸 보고 동작을 정한다.
+                .withContactStatus(contacts.statusOf(id, Instant.now()));
     }
 
     // ── 개설 ───────────────────────────────────────────────────────────────
@@ -195,14 +202,12 @@ public class AdminWorkspaceService {
     /**
      * 정보 수정.
      *
-     * <p>무엇이 바뀌었는지까지는 남기지 않는다. 전체 교체 방식이라 바뀐 필드를 알려면 이전 값을
-     * 통째로 떠 두고 비교해야 하는데, 그 비교를 여기서 하기 시작하면 필드가 늘 때마다 같이
-     * 늘어난다. 변경 내역이 필요해지면 그때 별도 구조로 다룬다.
+     * <p>어떤 필드가 바뀌었는지는 남기지 않는다(전체 교체 방식). 단 하나 <b>담당자 이메일</b>만
+     * 예외다 — 담당자 = 테넌트 소유자라는 규칙이 있어서, 바뀌면 소유자 이전이나 초대 발급이 뒤따라야
+     * 한다. 그 비교와 후속 처리는 {@link WorkspaceContactService} 가 저장과 한 트랜잭션으로 한다.
      */
-    public WorkspaceResponse update(UUID actor, Long id, WorkspaceUpdateRequest request) {
-        WorkspaceResponse updated = registrar.update(id, request);
-        audit.record(actor, AdminAuditAction.UPDATE, id, "회사 정보 수정");
-        return updated;
+    public WorkspaceUpdateResponse update(UUID actor, Long id, WorkspaceUpdateRequest request) {
+        return contacts.update(actor, id, request, Instant.now());
     }
 
     public WorkspaceResponse suspend(UUID actor, Long id) {

@@ -40,7 +40,21 @@ public record WorkspaceResponse(
         Instant linkSentAt,
         Instant linkOpenedAt,
         Instant createdAt,
-        Instant updatedAt) {
+        Instant updatedAt,
+        /**
+         * 담당자가 회사에 어디까지 들어와 있는가(구성원 / 초대 대기 / 없음). 상세 조회에서만 채운다 —
+         * 상태 변경 응답처럼 다시 계산할 이유가 없는 자리에서는 null 이고, 화면은 기존 값을 유지한다.
+         */
+        ContactStatusResponse contactStatus) {
+
+    /** 상세 조회가 담당자 상태를 따로 계산해 붙일 때 쓴다. 나머지 필드는 그대로다. */
+    public WorkspaceResponse withContactStatus(ContactStatusResponse contact) {
+        return new WorkspaceResponse(
+                id, name, bizNumber, corpNumber, ceoName, bizType, bizItem, address, website,
+                taxEmail, plan, status, schemaName, schemaVersion, operatorName, memo, contacts,
+                sites, members, usage, invoices, systems, lastActiveAt, linkSentAt, linkOpenedAt,
+                createdAt, updatedAt, contact);
+    }
 
     public record Contacts(
             String linkName,
@@ -115,6 +129,9 @@ public record WorkspaceResponse(
                 w.getLinkSentAt(),
                 w.getLinkOpenedAt(),
                 w.getCreatedAt(),
-                w.getUpdatedAt());
+                w.getUpdatedAt(),
+                // 담당자 상태는 초대·구성원 테이블을 따로 봐야 해서 여기서 계산하지 않는다.
+                // 상세 조회(AdminWorkspaceService#get)가 withContactStatus 로 붙인다.
+                null);
     }
 }

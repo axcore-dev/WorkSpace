@@ -9,6 +9,7 @@ import com.axcore.workspace.workspace.admin.dto.WorkspaceCreateRequest;
 import com.axcore.workspace.workspace.admin.dto.WorkspaceResponse;
 import com.axcore.workspace.workspace.admin.dto.WorkspaceSummaryResponse;
 import com.axcore.workspace.workspace.admin.dto.WorkspaceUpdateRequest;
+import com.axcore.workspace.workspace.admin.dto.WorkspaceUpdateResponse;
 import com.axcore.workspace.workspace.admin.service.AdminWorkspaceService;
 import com.axcore.workspace.workspace.entity.WorkspaceStatus;
 import com.axcore.workspace.workspace.provisioning.TenantMigrationRunner;
@@ -121,7 +122,7 @@ public class AdminWorkspaceController {
      * "바꾸지 않음" 으로 읽어야 하고, 그러면 값을 비우는 조작을 표현할 수 없다.
      */
     @PutMapping("/{id}")
-    public WorkspaceResponse update(
+    public WorkspaceUpdateResponse update(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable Long id,
             @Valid @RequestBody WorkspaceUpdateRequest request) {
