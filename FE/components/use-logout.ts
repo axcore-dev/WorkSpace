@@ -36,6 +36,6 @@ export function useLogout(): () => Promise<void> {
 
   return async function logout() {
     await endSession();
-    router.push("/login");
+    router.replace("/login");
   };
 }
