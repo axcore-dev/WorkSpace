@@ -35,7 +35,9 @@ export function BizInfoCard({ ws, onSave }: { ws: AdminWorkspace; onSave: Save }
             ws.website ? (
               <a
                 key="w"
-                href={ws.website}
+                // 스킴 없이 저장된 값("hanbit-steel.co.kr")을 그대로 href 에 넣으면 상대 경로로 해석돼
+                // 새 탭이 /admin/workspaces/hanbit-steel.co.kr 로 열린다. 스킴이 없으면 https 를 붙인다.
+                href={/^https?:\/\//i.test(ws.website) ? ws.website : `https://${ws.website}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-primary-700 underline decoration-slate-300 underline-offset-2 transition-colors hover:text-primary-800"
