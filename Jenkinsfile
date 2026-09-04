@@ -3,8 +3,23 @@
 // 설치·크리덴셜·서버 준비는 docs/infra/ci-cd.md 에 있다. 이 파일은 Jenkins 컨테이너
 // (INFRA/docker-compose.jenkins.yml) 안에서 돌고, 호스트의 Docker 데몬에 compose 를 시킨다.
 //
-// 파라미터로 무엇을 할지 고른다. 기본값(APP_ONLY · ALL)은 "dev 를 받아 BE·FE 를 다시 빌드해
-// 올린다" 이고, DB 는 건드리지 않는다.
+// 파라미터로 무엇을 할지 고른다. 기본값(APP_ONLY · AUTO)은 "dev 를 받아, 마지막 배포 이후 바뀐 쪽
+// (BE/FE)만 다시 빌드해 올린다" 이고, DB 는 건드리지 않는다.
+//
+// TARGET=AUTO 의 판정 기준은 브랜치 이름이 아니라 **바뀐 파일 경로**다. squash 머지·직접 push 에서는
+// 브랜치 이름이 남지 않고, BE 브랜치가 FE 파일을 고치는 일도 있기 때문이다. 기준점은 마지막으로
+// 배포에 성공한 커밋(LAST_DEPLOY_FILE)이고, 그 기록이 없으면 ALL 로 떨어진다.
+
+// TARGET(AUTO 판정 포함)에서 compose 서비스 목록을 만든다. 파라미터 검증과 AUTO 판정 두 곳에서 쓴다.
+def applyTarget(boolean be, boolean fe, boolean nginx) {
+  env.BUILD_BE = be.toString()
+  env.BUILD_FE = fe.toString()
+  def services = []
+  if (be)    services << 'app'
+  if (fe)    services << 'frontend'
+  if (nginx) services << 'nginx'
+  env.APP_SERVICES = services.join(' ')
+}
 
 pipeline {
   agent any
@@ -30,8 +45,11 @@ pipeline {
     )
     choice(
       name: 'TARGET',
-      choices: ['ALL', 'BE', 'FE'],
-      description: '어느 앱을 빌드·재시작할지. FE 만 고쳤으면 FE 를 고르면 BE 컨테이너는 그대로 둔다'
+      choices: ['AUTO', 'ALL', 'BE', 'FE'],
+      description: '''어느 앱을 빌드·재시작할지.
+      AUTO : 마지막 배포 커밋 이후 바뀐 경로로 판정 (기본). BE/ 만 → BE, FE/ 만 → FE, 둘 다·INFRA/·Jenkinsfile → ALL,
+             INFRA/nginx/ 포함 → nginx 재빌드, 코드 변경 없음 → 배포 생략. 기록이 없으면 ALL
+      ALL / BE / FE : 판정 없이 강제. .env 만 바꿨을 때(코드 diff 에 안 나온다)는 ALL 을 고른다'''
     )
     string(
       name: 'BRANCH',
@@ -80,6 +98,11 @@ pipeline {
     COMPOSE_DB      = 'docker compose -f docker-compose.db.yml'
     NETWORK_NAME    = 'axcore-net'
 
+    // 마지막으로 배포에 성공한 커밋 SHA. TARGET=AUTO 가 이 커밋과 HEAD 의 diff 로 대상을 정한다.
+    // jenkins_home 은 호스트 바인드라 컨테이너를 다시 만들어도 남는다. 워크스페이스에 두면
+    // FULL_REBUILD 의 deleteDir 에 같이 지워진다.
+    LAST_DEPLOY_FILE = '/var/jenkins_home/axcore-last-deploy'
+
     // CI 검사에 쓰는 이미지. BE Dockerfile(temurin 25) · FE Dockerfile(node 24) 과 맞춘다.
     CI_JDK_IMAGE    = 'eclipse-temurin:25-jdk'
     CI_NODE_IMAGE   = 'node:24-alpine'
@@ -98,15 +121,19 @@ pipeline {
           // 뒤 스테이지들이 공유하는 파생값. sh 블록에서는 환경변수로 읽는다.
           env.DEPLOY_APP   = (params.BUILD_MODE in ['APP_ONLY', 'APP_WITH_DB', 'FULL_REBUILD']).toString()
           env.DEPLOY_DB    = (params.BUILD_MODE in ['APP_WITH_DB', 'DB_ONLY', 'FULL_REBUILD']).toString()
-          env.BUILD_BE     = (params.TARGET in ['ALL', 'BE']).toString()
-          env.BUILD_FE     = (params.TARGET in ['ALL', 'FE']).toString()
           env.QUIET_FLAG   = params.VERBOSE_LOG ? '' : '--quiet'
 
-          def services = []
-          if (env.BUILD_BE == 'true') services << 'app'
-          if (env.BUILD_FE == 'true') services << 'frontend'
-          if (params.REBUILD_NGINX)   services << 'nginx'
-          env.APP_SERVICES = services.join(' ')
+          // AUTO 는 체크아웃 뒤 「배포 대상 판정」에서 확정된다. 여기서는 일단 ALL 로 두고,
+          // FULL_REBUILD 는 판정 없이 전부 다시 만든다.
+          env.AUTO_TARGET = (params.TARGET == 'AUTO' && params.BUILD_MODE != 'FULL_REBUILD').toString()
+          applyTarget(
+            params.TARGET in ['AUTO', 'ALL', 'BE'],
+            params.TARGET in ['AUTO', 'ALL', 'FE'],
+            params.REBUILD_NGINX
+          )
+          // 배포 성공 시 LAST_DEPLOY_FILE 을 갱신할지. BE/FE 만 골라 부분 배포한 경우는 갱신하지 않는다 —
+          // 그 커밋을 "다 배포됐다" 고 기록하면 나머지 쪽 변경이 다음 AUTO 판정에서 빠진다.
+          env.RECORD_DEPLOY = (params.TARGET in ['AUTO', 'ALL']).toString()
 
           echo "[INFO] BUILD_MODE=${params.BUILD_MODE} TARGET=${params.TARGET} BRANCH=${params.BRANCH} services=[${env.APP_SERVICES}]"
         }
@@ -150,10 +177,75 @@ pipeline {
           $class: 'GitSCM',
           branches: [[name: "*/${params.BRANCH}"]],
           userRemoteConfigs: [[url: env.REPO_URL, credentialsId: env.GIT_CRED_ID]],
-          // 최신 1개 커밋만, 태그 없이 얕게 받는다.
-          extensions: [[$class: 'CloneOption', depth: 1, noTags: true, shallow: true]]
+          // 태그 없이 얕게 받되, TARGET=AUTO 가 마지막 배포 커밋과 diff 를 뜰 수 있게 50개는 남긴다.
+          // 그 사이 커밋이 50개를 넘으면 기준 커밋이 이력에 없어 ALL 로 떨어진다(안전한 쪽).
+          extensions: [[$class: 'CloneOption', depth: 50, noTags: true, shallow: true]]
         ])
         sh 'git log --oneline -1'
+      }
+    }
+
+    // 3-1. 배포 대상 판정 (TARGET=AUTO) ---------------------------------------
+    // 마지막 배포 커밋(LAST_DEPLOY_FILE)과 HEAD 사이에 바뀐 경로로 BE/FE/nginx 를 정한다.
+    //   BE/ 만 → BE, FE/ 만 → FE, 둘 다 → ALL
+    //   INFRA/ · Jenkinsfile 이 끼면 → ALL (compose·Dockerfile·nginx 는 앱 둘 다에 영향), INFRA/nginx/ → nginx 도 재빌드
+    //   관련 경로가 하나도 없으면(docs 만 등) → 배포 생략, 커밋만 기록
+    //   기준 커밋이 없거나 이력에 없으면 → ALL
+    stage('배포 대상 판정') {
+      when {
+        allOf {
+          expression { env.DEPLOY_APP == 'true' }
+          expression { env.AUTO_TARGET == 'true' }
+        }
+      }
+      steps {
+        script {
+          def out = sh(returnStdout: true, script: '''
+            set -e
+            if [ ! -f "${LAST_DEPLOY_FILE}" ]; then echo "__NO_BASE__"; exit 0; fi
+            base=$(cat "${LAST_DEPLOY_FILE}")
+            if ! git cat-file -e "${base}^{commit}" 2>/dev/null; then echo "__BASE_MISSING__ ${base}"; exit 0; fi
+            if [ "${base}" = "$(git rev-parse HEAD)" ]; then echo "__SAME__"; exit 0; fi
+            echo "__BASE__ ${base}"
+            git diff --name-only "${base}" HEAD
+          ''').trim()
+
+          def lines = out ? out.split('\n').collect { it.trim() }.findAll { it } : []
+          def head  = lines ? lines[0] : ''
+
+          if (head == '__NO_BASE__') {
+            echo '[INFO] AUTO: 배포 기록이 없다 (첫 실행). ALL 로 진행한다'
+            applyTarget(true, true, params.REBUILD_NGINX)
+          } else if (head.startsWith('__BASE_MISSING__')) {
+            echo "[INFO] AUTO: 기준 커밋 ${head.split(' ')[1]} 이 얕은 이력에 없다 (50개 초과). ALL 로 진행한다"
+            applyTarget(true, true, params.REBUILD_NGINX)
+          } else if (head == '__SAME__') {
+            echo '[INFO] AUTO: 마지막 배포 커밋과 HEAD 가 같다. 배포할 것이 없다. 강제하려면 TARGET=ALL/BE/FE'
+            env.DEPLOY_APP = 'false'
+            applyTarget(false, false, false)
+          } else {
+            def paths = lines.drop(1)
+            def be    = paths.any { it.startsWith('BE/') }
+            def fe    = paths.any { it.startsWith('FE/') }
+            def infra = paths.any { it.startsWith('INFRA/') || it == 'Jenkinsfile' }
+            def nginx = paths.any { it.startsWith('INFRA/nginx/') }
+            if (infra) { be = true; fe = true }
+
+            echo "[INFO] AUTO: 기준 ${head.split(' ')[1].take(7)}..HEAD 변경 ${paths.size()}개 → BE=${be} FE=${fe} INFRA=${infra} nginx=${nginx}"
+            paths.take(30).each { echo "       ${it}" }
+            if (paths.size() > 30) echo "       ... 외 ${paths.size() - 30}개"
+
+            if (!be && !fe && !nginx) {
+              echo '[INFO] AUTO: BE/FE/INFRA 변경이 없다 (문서 등). 배포를 생략하고 이 커밋을 배포 완료로 기록한다'
+              env.DEPLOY_APP = 'false'
+              applyTarget(false, false, false)
+              sh 'git rev-parse HEAD > "${LAST_DEPLOY_FILE}"'
+            } else {
+              applyTarget(be, fe, params.REBUILD_NGINX || nginx)
+            }
+          }
+          echo "[INFO] 확정: DEPLOY_APP=${env.DEPLOY_APP} services=[${env.APP_SERVICES}]"
+        }
       }
     }
 
@@ -345,6 +437,15 @@ pipeline {
 
             echo "[INFO] 배포 완료"
             ${COMPOSE_APP} ps
+
+            # 다음 AUTO 판정의 기준점. 헬스체크까지 통과한 뒤에만 기록한다 — 실패한 배포를 기준으로 삼으면
+            # 그 변경이 다음 판정에서 빠진다. 부분 배포(TARGET=BE/FE)는 기록하지 않는다(RECORD_DEPLOY).
+            if [ "${RECORD_DEPLOY}" = "true" ]; then
+              git -C .. rev-parse HEAD > "${LAST_DEPLOY_FILE}"
+              echo "[INFO] 배포 커밋 기록: $(cat "${LAST_DEPLOY_FILE}")"
+            else
+              echo "[INFO] TARGET=${TARGET} 부분 배포라 배포 커밋을 기록하지 않는다. 다음 AUTO 는 이전 기준으로 판정한다"
+            fi
           '''
         }
       }
