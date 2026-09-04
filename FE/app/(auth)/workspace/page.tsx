@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AuthSplit } from "@/components/auth-shell";
+import { useLogout } from "@/components/use-logout";
 import { SUPPORT_EMAIL } from "@/data/org";
 import { ApiRequestError, apiGet, apiPostAuthed } from "@/lib/api";
-import { clearSession, setAccessToken } from "@/lib/session";
+import { setAccessToken } from "@/lib/session";
 import { readInvite, type PendingInvite } from "@/lib/pending-invite";
 
 /**
@@ -101,11 +102,7 @@ export default function WorkspaceSelectPage() {
     }
   }
 
-  function logout() {
-    clearSession();
-    localStorage.removeItem("axpoint-user");
-    router.push("/login");
-  }
+  const logout = useLogout();
 
   /* ── 불러오는 중 ── */
   if (list === null) {
@@ -166,7 +163,7 @@ export default function WorkspaceSelectPage() {
           </a>
           <button
             type="button"
-            onClick={logout}
+            onClick={() => void logout()}
             className="w-full cursor-pointer py-1 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800"
           >
             다른 계정으로 로그인
@@ -241,7 +238,7 @@ export default function WorkspaceSelectPage() {
 
       <button
         type="button"
-        onClick={logout}
+        onClick={() => void logout()}
         className="mt-7 w-full cursor-pointer py-1 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800"
       >
         다른 계정으로 로그인
