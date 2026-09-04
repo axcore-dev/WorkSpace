@@ -9,21 +9,21 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { canDeleteRole, roleMemberCount, summarizeRole } from "./roles.ts";
+import {
+  canDeleteRole,
+  groupRolesByDept,
+  roleMemberCount,
+  summarizeRole,
+} from "./roles.ts";
 import type { RoleDef } from "./roles.ts";
-
-const NAMES: Record<string, string> = {
-  management: "경영지원",
-  production: "생산관리",
-  quality: "품질검사",
-};
 
 function role(over: Partial<RoleDef> = {}): RoleDef {
   return {
     id: "r1",
     name: "공장장",
     system: false,
-    perms: { management: "read", production: "write", quality: "write" },
+    dept: "생산본부",
+    perms: ["monitoring", "workorders", "defects"],
     scope: "all",
     showAmounts: true,
     canDelegateInvite: false,
@@ -31,55 +31,42 @@ function role(over: Partial<RoleDef> = {}): RoleDef {
   };
 }
 
-/* ───────────── 권한 요약 ───────────── */
+/* ───────────── 요약 ───────────── */
 
-test("쓰기 권한 모듈을 먼저 적고 데이터 범위를 붙인다", () => {
-  const s = summarizeRole(role(), NAMES);
-  assert.ok(s.includes("생산관리"), s);
-  assert.ok(s.includes("품질검사"), s);
-  assert.ok(s.includes("전체"), s);
+test("설명이 있으면 그걸 쓴다", () => {
+  assert.equal(summarizeRole(role({ desc: "모든 권한을 가진 최고 관리자" }), 31), "모든 권한을 가진 최고 관리자");
 });
 
-test("쓰기가 없으면 읽기만이라고 적는다", () => {
-  const s = summarizeRole(
-    role({ perms: { management: "read", production: "read", quality: "none" } }),
-    NAMES,
+test("권한 수와 데이터 범위를 적는다", () => {
+  assert.equal(summarizeRole(role(), 31), "권한 3/31 · 전체 데이터");
+});
+
+test("권한이 없으면 그렇게 적는다", () => {
+  assert.equal(summarizeRole(role({ perms: [] }), 31), "권한 없음 · 전체 데이터");
+});
+
+test("전부 켜져 있으면 「모든 권한」이다", () => {
+  const all = role({ perms: Array.from({ length: 31 }, (_, i) => `p${i}`), scope: "dept" });
+  assert.equal(summarizeRole(all, 31), "모든 권한 · 부서 데이터");
+});
+
+test("데이터 범위 문구가 셋 다 다르다", () => {
+  const labels = (["all", "dept", "own"] as const).map((scope) =>
+    summarizeRole(role({ scope, perms: [] }), 31),
   );
-  assert.ok(s.includes("읽기만"), s);
-});
-
-test("권한이 하나도 없으면 그렇게 적는다", () => {
-  const s = summarizeRole(
-    role({ perms: { management: "none", production: "none", quality: "none" } }),
-    NAMES,
-  );
-  assert.ok(s.includes("권한 없음"), s);
-});
-
-test("요약에 모듈 슬러그가 새어 나오지 않는다", () => {
-  const s = summarizeRole(role(), NAMES);
-  for (const slug of Object.keys(NAMES)) {
-    assert.ok(!s.includes(slug), `${slug}가 요약에 그대로 들어갔다: ${s}`);
-  }
-});
-
-test("이름을 모르는 모듈은 요약에서 건너뛴다", () => {
-  // 모듈이 지워졌는데 권한 맵에 slug가 남아 있어도 undefined가 문자열에 끼면 안 된다
-  const s = summarizeRole(role({ perms: { ...role().perms, ghost: "write" } }), NAMES);
-  assert.ok(!s.includes("undefined"), s);
+  assert.equal(new Set(labels).size, 3);
 });
 
 /* ───────────── 삭제 가능 판정 ───────────── */
 
 test("시스템 역할은 지울 수 없다", () => {
-  const sys = role({ id: "admin", name: "관리자", system: true });
-  assert.equal(canDeleteRole(sys, [sys, role()]), false);
+  const sys = role({ system: true });
+  assert.equal(canDeleteRole(sys, [sys, role({ id: "r2" })]), false);
 });
 
 test("일반 역할은 지울 수 있다", () => {
-  const sys = role({ id: "admin", name: "관리자", system: true });
-  const plain = role();
-  assert.equal(canDeleteRole(plain, [sys, plain]), true);
+  const r = role();
+  assert.equal(canDeleteRole(r, [r, role({ id: "r2" })]), true);
 });
 
 test("마지막 남은 역할은 지울 수 없다", () => {
@@ -94,6 +81,48 @@ test("역할 이름으로 구성원 수를 센다", () => {
   assert.equal(roleMemberCount("공장장", users), 2);
   assert.equal(roleMemberCount("관리자", users), 1);
   assert.equal(roleMemberCount("없는역할", users), 0);
+});
+
+/* ───────────── 부서별 묶기 ───────────── */
+
+test("부서 없는 역할이 맨 위에 온다", () => {
+  const owner = role({ id: "owner", name: "소유자", dept: null });
+  const g = groupRolesByDept([role(), owner], ["생산본부"]);
+  assert.equal(g[0].dept, null);
+  assert.deepEqual(g[0].roles.map((r) => r.id), ["owner"]);
+});
+
+test("부서가 없으면 그 묶음 자체를 만들지 않는다", () => {
+  const g = groupRolesByDept([role()], ["생산본부"]);
+  assert.equal(g.length, 1);
+  assert.equal(g[0].dept, "생산본부");
+});
+
+test("역할이 없는 부서도 남는다", () => {
+  // 부서를 만들고 역할을 아직 안 만든 상태가 보여야 어디에 「권한 만들기」를 누르는지 안다
+  const g = groupRolesByDept([role()], ["생산본부", "품질관리팀"]);
+  assert.equal(g.length, 2);
+  assert.deepEqual(g[1], { dept: "품질관리팀", roles: [] });
+});
+
+test("목록에 없는 부서의 역할도 버리지 않는다", () => {
+  // 버리면 화면에서 사라져 지울 수도 고칠 수도 없는 역할이 된다
+  const ghost = role({ id: "ghost", dept: "없어진팀" });
+  const g = groupRolesByDept([ghost], ["생산본부"]);
+  const found = g.find((x) => x.dept === "없어진팀");
+  assert.ok(found, "없어진 부서 묶음이 있어야 한다");
+  assert.deepEqual(found.roles.map((r) => r.id), ["ghost"]);
+});
+
+test("모든 역할이 정확히 한 번씩 나온다", () => {
+  const rs = [
+    role({ id: "a", dept: null }),
+    role({ id: "b", dept: "생산본부" }),
+    role({ id: "c", dept: "품질관리팀" }),
+    role({ id: "d", dept: "없어진팀" }),
+  ];
+  const flat = groupRolesByDept(rs, ["생산본부", "품질관리팀"]).flatMap((g) => g.roles);
+  assert.deepEqual(flat.map((r) => r.id).sort(), ["a", "b", "c", "d"]);
 });
 
 /* ───────────── 데이터 정합성 ───────────── */
@@ -119,5 +148,25 @@ test("ROLES의 이름이 USERS_ROLES에 실제로 쓰인 값과 이어진다", a
   assert.ok(roleNames.length > 0, "ROLES에서 이름을 못 찾았다 — 정규식이 형식과 어긋난다");
   for (const used of usedNames) {
     assert.ok(roleNames.includes(used), `USERS_ROLES의 "${used}"가 ROLES에 없다`);
+  }
+});
+
+test("ROLES의 부서가 DEPARTMENTS에 있는 값이다", async () => {
+  // 어긋나면 그 역할이 「없어진팀」 묶음으로 목록 끝에 떨어진다 — 동작은 하지만 실수다.
+  const fs = await import("node:fs");
+  const src = fs.readFileSync("data/org.ts", "utf8").replace(/\r\n/g, "\n");
+
+  const start = src.indexOf("export const ROLES");
+  const block = src.slice(start, src.indexOf("\n];", start));
+  const depts = [...block.matchAll(/^ {4}dept: "([^"]+)",$/gm)].map((m) => m[1]);
+
+  const dStart = src.indexOf("export const DEPARTMENTS");
+  const known = [
+    ...src.slice(dStart, src.indexOf("] as const", dStart)).matchAll(/"([^"]+)"/g),
+  ].map((m) => m[1]);
+
+  assert.ok(depts.length > 0, "ROLES에서 부서를 못 찾았다 — 정규식이 형식과 어긋난다");
+  for (const d of depts) {
+    assert.ok(known.includes(d), `ROLES의 부서 "${d}"가 DEPARTMENTS에 없다`);
   }
 });

@@ -1,7 +1,17 @@
 import type { ICON_MAP } from "@/components/icons";
 import type { SocialProvider } from "@/lib/auth";
-import type { DataScope, ModulePerm, RoleDef } from "./roles";
+import { MODULES } from "./modules";
+import { WORKSPACE_PERMS } from "./roles";
+import type { DataScope, RoleDef } from "./roles";
 import type { Tone } from "./types";
+
+/**
+ * 기능 권한 id 전체 — 서브기능 27개.
+ *
+ * 목록을 손으로 적지 않는다. `data/modules.ts`에 서브기능이 하나 늘면 여기 자동으로 따라오고,
+ * 안 그러면 「모든 권한」이라는 역할이 새 기능만 빠진 채로 남는다.
+ */
+const ALL_FEATURE_PERMS = MODULES.flatMap((m) => m.subfunctions.map((s) => s.id));
 
 /** 조직/워크스페이스·설정 관련 더미 데이터 */
 
@@ -65,13 +75,6 @@ export const USERS_ROLES: {
   { name: "문가영", email: "gymoon@democompany.co.kr", role: "일반 사용자", dept: "해외영업팀", lastActive: "5일 전", status: { badge: "초대 대기", tone: "amber" } },
 ];
 
-/** 권한 선택 목록 — `Segmented`에 그대로 넘긴다 */
-export const MODULE_PERMS: { value: ModulePerm; label: string }[] = [
-  { value: "none", label: "없음" },
-  { value: "read", label: "읽기" },
-  { value: "write", label: "쓰기" },
-];
-
 export const DATA_SCOPES: { value: DataScope; label: string }[] = [
   { value: "all", label: "전체" },
   { value: "dept", label: "부서" },
@@ -84,20 +87,37 @@ export const DATA_SCOPES: { value: DataScope; label: string }[] = [
  * `name`은 `USERS_ROLES[].role`에 실제로 쓰인 값과 같아야 한다 — `roleMemberCount`가
  * 이름으로 맞추므로 어긋나면 구성원 수가 전부 0이 된다. `data/roles.test.ts`가 이걸 검증한다.
  *
- * 모듈 슬러그는 `data/modules.ts`의 `MODULES[].slug` 8개다:
- * management · design · production · equipment · quality · inventory · sales · support
+ * **부서 → 역할 → 권한 3단이다** (수정요청 v12). 역할은 부서에 속하고, 권한은 켜진 것의
+ * 목록이다. 예전에는 역할이 평면이었고 권한이 모듈 8개 × 없음/읽기/쓰기 격자였는데,
+ * "생산관리 전부 or 전무"라 실무에서 못 쓴다. 이제 서브기능 27개 + 워크스페이스 권한 4개를
+ * 개별로 켠다.
+ *
+ * `dept: null`은 부서에 속하지 않는다는 뜻이다 — 소유자 하나뿐이다.
  *
  * **이 값은 보안 경계가 아니다** — 실제 차단은 BE 세션의 역할 검사에서 한다.
  */
 export const ROLES: RoleDef[] = [
   {
+    id: "owner",
+    name: "소유자",
+    system: true,
+    dept: null,
+    desc: "모든 권한을 가진 최고 관리자",
+    perms: [...WORKSPACE_PERMS.map((p) => p.id), ...ALL_FEATURE_PERMS],
+    scope: "all",
+    showAmounts: true,
+    canDelegateInvite: true,
+  },
+  {
     id: "admin",
     name: "관리자",
     system: true,
-    perms: {
-      management: "write", design: "write", production: "write", equipment: "write",
-      quality: "write", inventory: "write", sales: "write", support: "write",
-    },
+    dept: "제조혁신팀",
+    desc: "회사 삭제를 뺀 모든 권한",
+    perms: [
+      "ws:info", "ws:members", "ws:integrations",
+      ...ALL_FEATURE_PERMS,
+    ],
     scope: "all",
     showAmounts: true,
     canDelegateInvite: true,
@@ -106,10 +126,15 @@ export const ROLES: RoleDef[] = [
     id: "plant-head",
     name: "공장장",
     system: false,
-    perms: {
-      management: "read", design: "read", production: "write", equipment: "write",
-      quality: "write", inventory: "read", sales: "none", support: "none",
-    },
+    dept: "생산본부",
+    perms: [
+      "ws:members",
+      "monitoring", "workorders", "bottleneck", "reporting",
+      "predict", "maintenance",
+      "defects", "control",
+      "items", "stock", "safety",
+      "drawings", "bom",
+    ],
     scope: "all",
     showAmounts: true,
     canDelegateInvite: false,
@@ -118,10 +143,8 @@ export const ROLES: RoleDef[] = [
     id: "quality-mgr",
     name: "품질 관리자",
     system: false,
-    perms: {
-      management: "none", design: "read", production: "read", equipment: "read",
-      quality: "write", inventory: "none", sales: "none", support: "read",
-    },
+    dept: "품질관리팀",
+    perms: ["defects", "control", "receiving", "specs", "tickets", "voc"],
     scope: "dept",
     showAmounts: false,
     canDelegateInvite: false,
@@ -130,10 +153,8 @@ export const ROLES: RoleDef[] = [
     id: "equipment-mgr",
     name: "설비 관리자",
     system: false,
-    perms: {
-      management: "none", design: "none", production: "read", equipment: "write",
-      quality: "read", inventory: "read", sales: "none", support: "none",
-    },
+    dept: "설비보전팀",
+    perms: ["predict", "maintenance", "monitoring", "defects"],
     scope: "dept",
     showAmounts: false,
     canDelegateInvite: false,
@@ -142,10 +163,8 @@ export const ROLES: RoleDef[] = [
     id: "buyer",
     name: "구매 담당",
     system: false,
-    perms: {
-      management: "write", design: "read", production: "read", equipment: "none",
-      quality: "none", inventory: "write", sales: "read", support: "none",
-    },
+    dept: "구매자재팀",
+    perms: ["purchasing", "items", "stock", "safety", "movements", "materials", "accounting"],
     scope: "dept",
     showAmounts: true,
     canDelegateInvite: false,
@@ -154,10 +173,8 @@ export const ROLES: RoleDef[] = [
     id: "member",
     name: "일반 사용자",
     system: false,
-    perms: {
-      management: "read", design: "read", production: "read", equipment: "read",
-      quality: "read", inventory: "read", sales: "read", support: "read",
-    },
+    dept: "해외영업팀",
+    perms: ["orders", "quotes", "forecast", "tickets", "tracking"],
     scope: "own",
     showAmounts: false,
     canDelegateInvite: false,
