@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { Modal } from "@/components/modal";
+import { ProfilePhoto } from "@/components/settings/account/profile-photo";
 import {
-  FieldRow,
-  SectionActions,
+  ActionRow,
   SettingsRow,
   SettingsRows,
   SettingsSection,
@@ -11,131 +12,135 @@ import {
 import { Button, FIELD } from "@/components/ui";
 import { DEMO_USER, DEPARTMENTS, SITES } from "@/data/org";
 
-/** select도 `FIELD`와 같은 모양을 쓴다 — ui.tsx에 select 변형이 따로 없다 */
-const SELECT = FIELD;
+/**
+ * 고칠 수 있는 프로필 항목.
+ *
+ * 목록을 데이터로 두는 이유: 행 5개와 수정 팝업이 같은 정의를 봐야 한다. 나눠 놓으면
+ * 항목을 하나 더할 때 두 곳을 고쳐야 하고, 한쪽만 고치면 팝업이 안 열리는 행이 생긴다.
+ */
+const FIELDS = [
+  { key: "name", label: "이름" },
+  { key: "empNo", label: "사번" },
+  { key: "dept", label: "부서", options: DEPARTMENTS },
+  { key: "title", label: "직책" },
+  { key: "site", label: "기본 사업장", options: SITES },
+] as const;
+
+type FieldKey = (typeof FIELDS)[number]["key"];
 
 /**
  * 계정 › 프로필.
  *
- * **BE 연동 seam**: 프로필 PATCH API가 아직 없다 (`docs/be/account-api-postman-test.md`에
- * 계정 API 15개가 있지만 프로필 수정은 그중에 없다). 생기면 `onSubmit`에서 부르고,
- * 실패할 때 `onSaved` 대신 에러 토스트를 띄우도록 콜백을 하나 더 받는다.
+ * **행마다 수정 버튼 + 팝업이다** (수정요청 v12). 전에는 5칸이 다 열린 입력이고 섹션 하단에
+ * 저장 버튼 하나였는데, 계정 페이지의 다른 섹션(계정 보안·기기)은 전부 「값을 읽고, 고칠 건
+ * 버튼을 눌러 팝업에서」라 프로필만 폼이었다.
  *
- * 설명 문구를 두지 않는다 — 계정 페이지 전체 규칙이다.
+ * 팝업은 **하나만 만들고 어느 항목이냐를 state로 받는다.** 5개를 만들면 같은 코드가 5벌 된다.
+ *
+ * **BE 연동 seam**: 프로필 PATCH API가 아직 없다. 생기면 `save`에서 부르고, 실패할 때
+ * `onSaved` 대신 에러 톤으로 알린다 (`onSaved`가 tone을 받는다).
  */
-export function ProfileSection({ onSaved }: { onSaved: (message: string) => void }) {
-  const [form, setForm] = useState({
+export function ProfileSection({
+  onSaved,
+}: {
+  onSaved: (message: string, tone?: "ink" | "error") => void;
+}) {
+  const [form, setForm] = useState<Record<FieldKey, string>>({
     name: DEMO_USER.name,
     empNo: DEMO_USER.empNo,
     dept: DEMO_USER.dept,
     title: DEMO_USER.title,
     site: DEMO_USER.site,
   });
+  /** 지금 고치고 있는 항목. `null`이면 팝업이 닫혀 있다 */
+  const [editing, setEditing] = useState<FieldKey | null>(null);
+  /** 팝업 안 입력값 — 저장 전에는 `form`에 쓰지 않는다. 취소하면 버려야 한다 */
+  const [draft, setDraft] = useState("");
 
-  function set<K extends keyof typeof form>(key: K, value: string) {
-    setForm((f) => ({ ...f, [key]: value }));
+  const field = FIELDS.find((f) => f.key === editing) ?? null;
+
+  function open(key: FieldKey) {
+    setDraft(form[key]);
+    setEditing(key);
+  }
+
+  function save() {
+    if (!field) return;
+    const next = draft.trim();
+    if (!next) {
+      onSaved(`${field.label}을 비워 둘 수 없어요`, "error");
+      return;
+    }
+    setForm((f) => ({ ...f, [field.key]: next }));
+    setEditing(null);
+    onSaved(`${field.label}을 바꿨어요`);
   }
 
   return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        onSaved("프로필을 저장했어요");
-      }}
-    >
-      <SettingsSection title="프로필">
-        <SettingsRows>
-          <SettingsRow>
-            <div className="flex items-center gap-3.5">
-              <span
-                aria-hidden
-                className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-slate-800 text-xl font-bold text-white"
-              >
-                {DEMO_USER.initials}
-              </span>
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" variant="secondary" size="sm">
-                  사진 변경
-                </Button>
-                <Button type="button" variant="ghost" size="sm">
-                  기본 이미지로
-                </Button>
-              </div>
-            </div>
-          </SettingsRow>
+    <SettingsSection title="프로필">
+      <SettingsRows>
+        <SettingsRow>
+          <ProfilePhoto onSaved={onSaved} />
+        </SettingsRow>
 
-          <SettingsRow>
-            <FieldRow label="이름" htmlFor="pf-name">
-              <input
-                id="pf-name"
-                className={FIELD}
-                value={form.name}
-                onChange={(e) => set("name", e.target.value)}
-              />
-            </FieldRow>
+        {FIELDS.map((f) => (
+          <SettingsRow key={f.key}>
+            <ActionRow name={f.label} value={form[f.key]}>
+              <Button variant="secondary" size="sm" onClick={() => open(f.key)}>
+                수정
+              </Button>
+            </ActionRow>
           </SettingsRow>
+        ))}
+      </SettingsRows>
 
-          <SettingsRow>
-            <FieldRow label="사번" htmlFor="pf-empno">
-              <input
-                id="pf-empno"
-                className={FIELD}
-                value={form.empNo}
-                onChange={(e) => set("empNo", e.target.value)}
-              />
-            </FieldRow>
-          </SettingsRow>
-
-          <SettingsRow>
-            <FieldRow label="부서" htmlFor="pf-dept">
+      <Modal
+        open={field !== null}
+        onClose={() => setEditing(null)}
+        size="sm"
+        title={field ? `${field.label} 수정` : ""}
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setEditing(null)}>
+              취소
+            </Button>
+            <Button onClick={save}>저장하기</Button>
+          </div>
+        }
+      >
+        {field && (
+          <div className="p-5">
+            <label htmlFor="pf-edit" className="sr-only">
+              {field.label}
+            </label>
+            {"options" in field ? (
               <select
-                id="pf-dept"
-                className={SELECT}
-                value={form.dept}
-                onChange={(e) => set("dept", e.target.value)}
+                id="pf-edit"
+                className={FIELD}
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
               >
-                {DEPARTMENTS.map((d) => (
-                  <option key={d} value={d}>
-                    {d}
+                {field.options.map((o) => (
+                  <option key={o} value={o}>
+                    {o}
                   </option>
                 ))}
               </select>
-            </FieldRow>
-          </SettingsRow>
-
-          <SettingsRow>
-            <FieldRow label="직책" htmlFor="pf-title">
+            ) : (
               <input
-                id="pf-title"
+                id="pf-edit"
+                autoFocus
                 className={FIELD}
-                value={form.title}
-                onChange={(e) => set("title", e.target.value)}
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") save();
+                }}
               />
-            </FieldRow>
-          </SettingsRow>
-
-          <SettingsRow>
-            <FieldRow label="기본 사업장" htmlFor="pf-site">
-              <select
-                id="pf-site"
-                className={SELECT}
-                value={form.site}
-                onChange={(e) => set("site", e.target.value)}
-              >
-                {SITES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </FieldRow>
-          </SettingsRow>
-        </SettingsRows>
-
-        <SectionActions>
-          <Button type="submit">저장하기</Button>
-        </SectionActions>
-      </SettingsSection>
-    </form>
+            )}
+          </div>
+        )}
+      </Modal>
+    </SettingsSection>
   );
 }

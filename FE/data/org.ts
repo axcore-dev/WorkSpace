@@ -366,18 +366,6 @@ export const EXTERNAL_SERVICES: {
   { id: "notion", name: "Notion", icon: "notion", desc: "이슈·조치 내역 기록", connected: false },
 ];
 
-/** 설정 > 알림 설정 */
-export const NOTIFICATION_PREFS: {
-  event: string;
-  channels: { inapp: boolean; email: boolean; slack: boolean };
-}[] = [
-  { event: "공정 이상 징후 (긴급)", channels: { inapp: true, email: true, slack: true } },
-  { event: "설비 예지보전 경고", channels: { inapp: true, email: true, slack: true } },
-  { event: "안전 재고 미달", channels: { inapp: true, email: false, slack: true } },
-  { event: "스케줄링 최적화 제안", channels: { inapp: true, email: false, slack: false } },
-  { event: "AS 티켓 접수", channels: { inapp: true, email: true, slack: false } },
-];
-
 /** 법인(신용)정보 수집·이용 동의 전문 (요약 더미) */
 export const CONSENT_TEXT = {
   title: "법인(신용)정보 수집·이용 동의",

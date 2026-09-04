@@ -21,6 +21,13 @@ import { Badge, Button, FIELD, FIELD_ERROR, Toggle } from "@/components/ui";
 import { PROVIDER_LABELS } from "@/lib/auth";
 import { ACCOUNT_EMAILS, DEMO_USER, SOCIAL_LOGINS } from "@/data/org";
 
+/**
+ * 비밀번호 입력 세 칸이 테두리 하나를 나눠 쓰므로 칸에는 테두리를 주지 않는다.
+ * `FIELD`를 쓰면 상자가 세 개 겹친다.
+ */
+const PW_CELL =
+  "block w-full bg-transparent px-3.5 py-3 text-sm text-slate-900 outline-none placeholder:font-medium placeholder:text-slate-500";
+
 export type TfaId = "email" | "sms" | "totp";
 
 /** `sentTo` — 발송 대상 뒤에 붙는 조사. 이메일 주소·번호에 조사를 직접 붙이면 어긋난다 */
@@ -49,10 +56,15 @@ export function applyTfa(tfa: TfaState, id: TfaId, on: boolean): TfaState {
  * 비밀번호 변경 팝업 — Assisted Password Confirmation:
  * 규칙 충족 여부와 확인 입력 일치를 실시간으로 보여준다.
  *
- * **두 흐름이다.** 기본은 현재 비밀번호를 묻는다(`POST /api/auth/password`). 잊은 사람만
- * 대표 이메일로 코드를 받는 쪽으로 넘어간다(`password/reset-request` + `/reset`).
- * 로그인된 상태에서 현재 비밀번호 확인을 빼면 세션이나 메일이 탈취됐을 때 그대로 계정을
- * 잃는다 — 잊은 사람에게만 단계가 늘어나는 편이 맞다.
+ * **현재 비밀번호를 묻는다** (`POST /api/auth/password`). 로그인된 상태에서 이 확인을 빼면
+ * 세션이나 메일이 탈취됐을 때 그대로 계정을 잃는다.
+ *
+ * 예전에는 「비밀번호를 잊었어요」로 메일 코드를 받는 두 번째 흐름이 있었는데 뺐다
+ * (수정요청 v12). 잊은 사람은 로그아웃 뒤 로그인 화면의 재설정으로 간다 — 같은 BE
+ * 엔드포인트(`password/reset-request` + `/reset`)를 그쪽이 이미 쓴다.
+ *
+ * 입력 세 칸은 테두리를 공유한다. 칸마다 상자를 그리면 "신원 확인"과 "새 비밀번호"가
+ * 같은 무게로 보여서, 세 칸이 한 덩어리라는 게 안 읽힌다.
  *
  * **검증은 전부 BE 소관이다.** 여기서는 입력 형식만 본다 — 자체 해시·검증 로직을 만들지
  * 않는다 (루트 CLAUDE.md AI 보안 지침).
@@ -66,11 +78,7 @@ export function PasswordModal({
   onClose: () => void;
   onDone: (message: string) => void;
 }) {
-  /** `current` = 현재 비밀번호로 바꾼다 · `email` = 잊어서 메일로 인증한다 */
-  const [mode, setMode] = useState<"current" | "email">("current");
   const [cur, setCur] = useState("");
-  const [code, setCode] = useState("");
-  const [codeSent, setCodeSent] = useState(false);
   const [pw, setPw] = useState("");
   const [pw2, setPw2] = useState("");
   const [show, setShow] = useState(false);
@@ -84,15 +92,10 @@ export function PasswordModal({
   ];
   const valid = rules.every((r) => r.ok);
   const match = pw2.length > 0 && pw === pw2;
-  /** 신원 확인이 끝났는가 — 현재 비밀번호를 넣었거나, 메일 코드 6자리를 넣었거나 */
-  const identified = mode === "current" ? !!cur : code.length === 6;
-  const canSubmit = identified && valid && match;
+  const canSubmit = !!cur && valid && match;
 
   function close() {
-    setMode("current");
     setCur("");
-    setCode("");
-    setCodeSent(false);
     setPw("");
     setPw2("");
     setShow(false);
@@ -143,77 +146,37 @@ export function PasswordModal({
           </Button>
         </div>
       ) : (
-        <div className="space-y-4 p-5">
-          {mode === "current" ? (
+        <div className="p-5">
+          {/* 세 칸이 테두리 하나를 나눠 쓴다 — 사이는 옅은 실선만 (수정요청 v12).
+              라벨은 placeholder로 대신하고 스크린리더용 label을 따로 둔다. */}
+          <div className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-300 focus-within:border-slate-400">
             <div>
-              <label htmlFor="pwm-cur" className="mb-1.5 block text-sm font-medium text-slate-700">
+              <label htmlFor="pwm-cur" className="sr-only">
                 현재 비밀번호
               </label>
               <input
                 id="pwm-cur"
                 type="password"
                 autoComplete="current-password"
+                placeholder="현재 비밀번호"
                 value={cur}
                 onChange={(e) => setCur(e.target.value)}
-                className={FIELD}
+                className={PW_CELL}
               />
-              <button
-                type="button"
-                onClick={() => setMode("email")}
-                className="mt-1.5 cursor-pointer text-xs text-primary-600 underline underline-offset-2"
-              >
-                비밀번호를 잊었어요
-              </button>
             </div>
-          ) : (
-            <div>
-              <label htmlFor="pwm-code" className="mb-1.5 block text-sm font-medium text-slate-700">
-                이메일 인증 코드
-              </label>
-              <div className="flex gap-2">
-                <input
-                  id="pwm-code"
-                  inputMode="numeric"
-                  maxLength={6}
-                  autoComplete="one-time-code"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-                  className={`${FIELD} font-mono tracking-[0.3em]`}
-                />
-                <Button
-                  variant="secondary"
-                  onClick={() => setCodeSent(true)}
-                  className="shrink-0"
-                >
-                  {codeSent ? "다시 받기" : "코드 받기"}
-                </Button>
-              </div>
-              <p className="mt-1.5 text-xs text-slate-400">
-                {codeSent
-                  ? `${DEMO_USER.email}로 6자리 코드를 보냈어요.`
-                  : `${DEMO_USER.email}로 6자리 코드를 보내요.`}
-              </p>
-              <button
-                type="button"
-                onClick={() => setMode("current")}
-                className="mt-1.5 cursor-pointer text-xs text-slate-500 underline underline-offset-2"
-              >
-                현재 비밀번호로 바꿀게요
-              </button>
-            </div>
-          )}
-          <div>
-            <label htmlFor="pwm-new" className="mb-1.5 block text-sm font-medium text-slate-700">
-              새 비밀번호
-            </label>
+
             <div className="relative">
+              <label htmlFor="pwm-new" className="sr-only">
+                새 비밀번호
+              </label>
               <input
                 id="pwm-new"
                 type={show ? "text" : "password"}
                 autoComplete="new-password"
+                placeholder="새 비밀번호"
                 value={pw}
                 onChange={(e) => setPw(e.target.value)}
-                className={`${FIELD} pr-11`}
+                className={`${PW_CELL} pr-11`}
               />
               <button
                 type="button"
@@ -224,46 +187,51 @@ export function PasswordModal({
                 {show ? <IconEyeOff size={16} /> : <IconEye size={16} />}
               </button>
             </div>
-            <p className="mt-1.5 text-xs text-slate-400">
-              영문, 숫자, 특수문자를 포함하여 8~16자리 입력해 주세요.
+
+            <div>
+              <label htmlFor="pwm-new2" className="sr-only">
+                새 비밀번호 확인
+              </label>
+              <input
+                id="pwm-new2"
+                type={show ? "text" : "password"}
+                autoComplete="new-password"
+                placeholder="새 비밀번호 확인"
+                value={pw2}
+                onChange={(e) => setPw2(e.target.value)}
+                aria-describedby="pwm-match"
+                className={PW_CELL}
+              />
+            </div>
+          </div>
+
+          <p className="mt-2 text-xs text-slate-400">
+            영문, 숫자, 특수문자를 포함하여 8~16자리 입력해 주세요.
+          </p>
+
+          {pw.length > 0 && (
+            <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+              {rules.map((r) => (
+                <li
+                  key={r.label}
+                  className={`inline-flex items-center gap-1 text-xs ${r.ok ? "text-emerald-600" : "text-slate-400"}`}
+                >
+                  {r.ok ? <IconCheck size={12} /> : <IconX size={12} />}
+                  {r.label}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {pw2.length > 0 && (
+            <p
+              id="pwm-match"
+              className={`mt-2 inline-flex items-center gap-1 text-xs ${match ? "text-emerald-600" : "text-red-600"}`}
+            >
+              {match ? <IconCheck size={12} /> : <IconX size={12} />}
+              {match ? "새 비밀번호와 일치해요" : "새 비밀번호와 일치하지 않아요"}
             </p>
-            {pw.length > 0 && (
-              <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
-                {rules.map((r) => (
-                  <li
-                    key={r.label}
-                    className={`inline-flex items-center gap-1 text-xs ${r.ok ? "text-emerald-600" : "text-slate-400"}`}
-                  >
-                    {r.ok ? <IconCheck size={12} /> : <IconX size={12} />}
-                    {r.label}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-          <div>
-            <label htmlFor="pwm-new2" className="mb-1.5 block text-sm font-medium text-slate-700">
-              새 비밀번호 확인
-            </label>
-            <input
-              id="pwm-new2"
-              type={show ? "text" : "password"}
-              autoComplete="new-password"
-              value={pw2}
-              onChange={(e) => setPw2(e.target.value)}
-              aria-describedby="pwm-match"
-              className={FIELD}
-            />
-            {pw2.length > 0 && (
-              <p
-                id="pwm-match"
-                className={`mt-1.5 inline-flex items-center gap-1 text-xs ${match ? "text-emerald-600" : "text-red-600"}`}
-              >
-                {match ? <IconCheck size={12} /> : <IconX size={12} />}
-                {match ? "새 비밀번호와 일치해요" : "새 비밀번호와 일치하지 않아요"}
-              </p>
-            )}
-          </div>
+          )}
         </div>
       )}
     </Modal>
@@ -447,11 +415,9 @@ export function OtpEnrollModal({
 export function EmailModal({
   open,
   onClose,
-  onDone,
 }: {
   open: boolean;
   onClose: () => void;
-  onDone: (message: string) => void;
 }) {
   return (
     <Modal
@@ -472,22 +438,16 @@ export function EmailModal({
             <div className="min-w-0 flex-1">
               <p className="flex items-center gap-2 font-mono text-[13px] text-slate-900">
                 {e.address}
-                {e.primary && <Badge tone="slate">대표</Badge>}
+                {e.primary && <Badge tone="slate">Primary</Badge>}
               </p>
-              {!e.verified && e.sentAt && (
-                <p className="mt-0.5 text-xs text-slate-400">{e.sentAt}에 인증 메일을 보냈어요</p>
-              )}
             </div>
-            <Badge tone={e.verified ? "green" : "amber"}>
-              {e.verified ? "인증됨" : "인증 대기"}
-            </Badge>
+            {/* Primary는 고치고, 추가한 주소는 지운다 (수정요청 v12).
+                인증 상태 배지와 「인증 메일 보내기」는 뺐다 — 인증은 주소를 바꿀 때
+                딸려 오는 절차라 목록에 늘 띄워 둘 상태가 아니다. */}
             {e.primary ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onDone("인증 메일을 다시 보냈어요")}
-              >
-                인증 메일 보내기
+              /* 대표 주소 변경 API가 없다 — `POST /api/auth/email/verify-request`는 재인증만 한다 */
+              <Button variant="ghost" size="sm" disabled>
+                수정
               </Button>
             ) : (
               /* 추가 이메일 삭제 API가 없다 */

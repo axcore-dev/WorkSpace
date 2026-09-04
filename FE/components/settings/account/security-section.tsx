@@ -88,7 +88,7 @@ export function SecuritySection({ onSaved }: { onSaved: (message: string) => voi
         </SettingsRow>
       </SettingsRows>
 
-      <EmailModal open={open === "email"} onClose={() => setOpen(null)} onDone={onSaved} />
+      <EmailModal open={open === "email"} onClose={() => setOpen(null)} />
       <PasswordModal open={open === "password"} onClose={() => setOpen(null)} onDone={onSaved} />
       <TfaModal open={open === "tfa"} onClose={() => setOpen(null)} onDone={onSaved} />
       <SocialModal open={open === "social"} onClose={() => setOpen(null)} />

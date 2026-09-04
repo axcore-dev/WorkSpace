@@ -313,6 +313,13 @@ export const IconArrowLeft = (p: IconProps) =>
     <path d="m12 19-7-7 7-7" />
   </>);
 
+/** 노트북 — 계정 › 기기 표의 행 머리 */
+export const IconLaptop = (p: IconProps) =>
+  base(p, <>
+    <rect width="18" height="12" x="3" y="4" rx="2" />
+    <path d="M2 20h20" />
+  </>);
+
 export const IconArrowRight = (p: IconProps) =>
   base(p, <>
     <path d="M5 12h14" />
