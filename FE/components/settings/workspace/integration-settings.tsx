@@ -10,11 +10,12 @@ import {
 } from "@/components/settings/settings-section";
 import { BrandIcon } from "@/components/brand-icons";
 import { ConnectorModal } from "@/components/connector-modal";
+import { useConnectors } from "@/components/connector-provider";
 import { IconLock, IconPlus } from "@/components/icons";
-import { Badge, Button, Toast } from "@/components/ui";
+import { Badge, Button, Toast, Toggle } from "@/components/ui";
 import { useToast } from "@/components/use-toast";
 import { CONNECTOR_LIB } from "@/data/chat";
-import { CONNECTORS, EXTERNAL_SERVICES, SYNC_RULES } from "@/data/org";
+import { CONNECTORS } from "@/data/org";
 
 /**
  * 워크스페이스 › 연동.
@@ -23,36 +24,34 @@ import { CONNECTORS, EXTERNAL_SERVICES, SYNC_RULES } from "@/data/org";
  * 이름·시스템·상태만 보인다. 버튼 없는 목록은 고장으로 읽히므로 안내 한 줄은 남긴다
  * (계정 페이지의 문구 제거 규칙은 계정에만 적용한다).
  *
- * **BE 연동 seam**: `disconnectService`가 연결 해제 API를 부르고, 실패하면 상태를 되돌리고
- * `showToast(문구, "error")`로 알린다.
+ * **외부 서비스는 `/ai-chat`과 같은 상태를 본다** (수정요청 v12). 예전에는 이 화면이
+ * `EXTERNAL_SERVICES`(워크스페이스 알림·리포트 연동)를 그리는데 아래 `커넥터 연결` 버튼은
+ * `CONNECTOR_LIB`(AI 대화가 부를 수 있는 외부 앱)를 열어서, 한 화면에 다른 사실 둘이
+ * 있었다. 이제 둘 다 커넥터를 가리키고 상태는 `useConnectors()` 하나에서 나온다 —
+ * 여기서 끄면 AI 대화 입력창의 칩도 사라진다.
+ *
+ * `모듈 간 데이터 연동` 섹션은 뺐다 (수정요청 v12).
+ *
+ * **BE 연동 seam**: 커넥터 연결·해제 API가 생기면 `lib/connector-state.ts`가 그걸 부르고,
+ * 실패하면 상태를 되돌리고 `showToast(문구, "error")`로 알린다.
  */
 export function IntegrationSettings() {
   const [toast, showToast] = useToast();
-  const [services, setServices] = useState(EXTERNAL_SERVICES);
   const [libOpen, setLibOpen] = useState(false);
+  const { connected, connect, disconnect } = useConnectors();
 
-  /**
-   * 커넥터 라이브러리의 연결 상태 — 옛 `workspace-settings.tsx`에서 그대로 옮겼다.
-   *
-   * `CONNECTOR_LIB`(`data/chat.ts`)는 **AI 대화가 부를 수 있는 외부 앱** 목록이고, 위
-   * `EXTERNAL_SERVICES`(`data/org.ts`)는 **워크스페이스 알림·리포트 연동**이다. 이름이
-   * 겹치지만(Slack·Gmail) 서로 다른 사실이라 상태도 따로 간다 — 여기서 커넥터를 연결해도
-   * 위 목록은 바뀌지 않는다.
-   *
-   * ponytail: 두 목록을 한 화면에서 다루는 게 맞는지는 별개 판단이다. 이번 전환에서는
-   * 원본 동작을 그대로 옮기기만 했다.
-   */
-  const [connectedApps, setConnectedApps] = useState<string[]>(() =>
-    CONNECTOR_LIB.filter((c) => c.connected).map((c) => c.slug),
-  );
+  /** 연결된 것만 목록에 보인다 — 라이브러리 전체는 `커넥터 연결` 팝업이 보여준다 */
+  const linked = CONNECTOR_LIB.filter((c) => connected.includes(c.slug));
 
-  const connected = services.filter((s) => s.connected);
-  const active = SYNC_RULES.filter((r) => r.status.tone !== "slate").length;
-
-  function disconnect(id: string) {
-    const name = services.find((s) => s.id === id)?.name ?? "서비스";
-    setServices((prev) => prev.map((s) => (s.id === id ? { ...s, connected: false } : s)));
-    showToast(`${name} 연결을 해제했어요`);
+  function toggle(slug: string, on: boolean) {
+    const name = CONNECTOR_LIB.find((c) => c.slug === slug)?.name ?? "서비스";
+    if (on) {
+      connect(slug);
+      showToast(`${name}을 연결했어요`);
+    } else {
+      disconnect(slug);
+      showToast(`${name} 연결을 해제했어요`);
+    }
   }
 
   return (
@@ -85,58 +84,33 @@ export function IntegrationSettings() {
       </SettingsSection>
 
       <SettingsSection
-        title="모듈 간 데이터 연동"
-        aside={
-          <span className="text-xs text-slate-400">
-            동작 {active} · 비활성 {SYNC_RULES.length - active}
-          </span>
-        }
-      >
-        <SettingsRows tight>
-          {SYNC_RULES.map((r, i) => (
-            <SettingsRow key={i}>
-              <ActionRow
-                name={
-                  <>
-                    {r.from}
-                    <span className="mx-1.5 font-normal text-slate-300">→</span>
-                    {r.to}
-                  </>
-                }
-                value={r.rule}
-              >
-                <Badge tone={r.status.tone}>{r.status.badge}</Badge>
-              </ActionRow>
-            </SettingsRow>
-          ))}
-        </SettingsRows>
-      </SettingsSection>
-
-      <SettingsSection
         title="외부 서비스"
-        aside={<span className="text-xs text-slate-400">연결 {connected.length}개</span>}
+        aside={<span className="text-xs text-slate-400">연결 {linked.length}개</span>}
       >
-        {connected.length === 0 ? (
+        {linked.length === 0 ? (
           <p className="py-6 text-center text-[13.5px] text-slate-400">
             연결된 서비스가 없어요. 아래 &lsquo;커넥터 연결&rsquo;에서 추가해 주세요.
           </p>
         ) : (
           <SettingsRows tight>
-            {connected.map((svc) => (
-              <SettingsRow key={svc.id}>
+            {linked.map((svc) => (
+              <SettingsRow key={svc.slug}>
                 <ActionRow
                   name={
                     <span className="flex items-center gap-2">
-                      <BrandIcon slug={svc.icon} size={16} />
+                      <BrandIcon slug={svc.slug} size={16} />
                       {svc.name}
                     </span>
                   }
-                  value={`${svc.desc}${svc.account ? ` · ${svc.account}` : ""}`}
+                  value={svc.desc}
                 >
-                  <Badge tone="green">연결됨</Badge>
-                  <Button variant="ghost" size="sm" onClick={() => disconnect(svc.id)}>
-                    연결 해제
-                  </Button>
+                  {/* 배지가 아니라 토글이다 — 끄면 그 자리에서 연결이 끊긴다.
+                      AI 대화 입력창의 칩("이번 대화에서 쓸까")과는 다른 사실이다. */}
+                  <Toggle
+                    checked
+                    onChange={(v) => toggle(svc.slug, v)}
+                    label={`${svc.name} 연결`}
+                  />
                 </ActionRow>
               </SettingsRow>
             ))}
@@ -153,9 +127,9 @@ export function IntegrationSettings() {
       <ConnectorModal
         open={libOpen}
         onClose={() => setLibOpen(false)}
-        connected={connectedApps}
-        onConnect={(slug) => setConnectedApps((prev) => [...prev, slug])}
-        onDisconnect={(slug) => setConnectedApps((prev) => prev.filter((x) => x !== slug))}
+        connected={connected}
+        onConnect={connect}
+        onDisconnect={disconnect}
       />
       <Toast toast={toast} />
     </>

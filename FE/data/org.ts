@@ -65,13 +65,6 @@ export const USERS_ROLES: {
   { name: "문가영", email: "gymoon@democompany.co.kr", role: "일반 사용자", dept: "해외영업팀", lastActive: "5일 전", status: { badge: "초대 대기", tone: "amber" } },
 ];
 
-/**
- * 부서 목록 — 단일 소스.
- *
- * `USERS_ROLES[].dept`에 실제로 쓰인 값을 기준으로 했다.
- * `invite-modal.tsx`가 다른 목록(`경영지원본부`·`영업본부`·`고객지원팀`)을 하드코딩하고
- * 있는데, 그 정리는 역할 단일 소스(`ROLES`)를 만드는 작업과 같은 묶음이다.
- */
 /** 권한 선택 목록 — `Segmented`에 그대로 넘긴다 */
 export const MODULE_PERMS: { value: ModulePerm; label: string }[] = [
   { value: "none", label: "없음" },
@@ -330,35 +323,6 @@ export const EXTERNAL_SYSTEMS: {
   },
 ];
 
-/** 설정 > 모듈 간 데이터 연동 규칙 */
-export const SYNC_RULES: {
-  from: string;
-  to: string;
-  rule: string;
-  status: { badge: string; tone: Tone };
-}[] = [
-  { from: "제품설계 (BOM)", to: "경영지원 (자재)", rule: "BOM 변경 시 자재 소요량 재계산", status: { badge: "동작중", tone: "green" } },
-  { from: "영업관리 (수주)", to: "생산관리 (계획)", rule: "수주 확정 시 생산 계획 자동 제안", status: { badge: "동작중", tone: "green" } },
-  { from: "품질검사 (불량)", to: "장비관리 (정비)", rule: "설비 기인 불량 발생 시 정비 점검 연계", status: { badge: "동작중", tone: "green" } },
-  { from: "재고·물류 (안전재고)", to: "경영지원 (구매)", rule: "기준 미달 시 발주 권고 생성", status: { badge: "동작중", tone: "green" } },
-  { from: "경영지원 (인사)", to: "생산관리 (작업배분)", rule: "교대 조 편성 정보 동기화", status: { badge: "비활성 (서브기능 OFF)", tone: "slate" } },
-];
-
-/** 설정 > 외부 서비스 연동 — icon은 브랜드 로고 슬러그(brand-icons.tsx) */
-export const EXTERNAL_SERVICES: {
-  id: string;
-  name: string;
-  icon: string;
-  desc: string;
-  connected: boolean;
-  account?: string;
-}[] = [
-  { id: "slack", name: "Slack", icon: "slack", desc: "이상 감지·작업 지시 알림 전송", connected: true, account: "democompany-precision.slack.com" },
-  { id: "gmail", name: "Gmail", icon: "gmail", desc: "분석 결과 리포트 공유", connected: true, account: "demo@democompany.co.kr" },
-  { id: "drive", name: "Google Drive", icon: "googledrive", desc: "문서 백업·가져오기", connected: false },
-  { id: "calendar", name: "Google Calendar", icon: "googlecalendar", desc: "정비 일정 자동 등록", connected: true, account: "demo@democompany.co.kr" },
-  { id: "notion", name: "Notion", icon: "notion", desc: "이슈·조치 내역 기록", connected: false },
-];
 
 /** 법인(신용)정보 수집·이용 동의 전문 (요약 더미) */
 export const CONSENT_TEXT = {

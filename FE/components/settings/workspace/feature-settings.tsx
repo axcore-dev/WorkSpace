@@ -12,7 +12,10 @@ import { useToast } from "@/components/use-toast";
 import { MODULES } from "@/data/modules";
 
 /**
- * 워크스페이스 › 기능 — 모듈·서브기능 ON/OFF.
+ * 워크스페이스 › 기능 관리 — 기능과 그 하위 항목 ON/OFF.
+ *
+ * 화면 문구에서 「모듈」이라는 말을 쓰지 않는다 (수정요청 v12). 코드 이름
+ * (`MODULES`·`slug`·`data/modules.ts`)은 그대로 둔다 — 화면에 안 나온다.
  *
  * 토글은 즉시 저장한다(`useModules`가 localStorage에 바로 쓴다) — 폼이 아니라 스위치라
  * 저장 버튼을 두지 않는다. 대신 무엇이 바뀌었는지 토스트로 알린다.
@@ -20,9 +23,7 @@ import { MODULES } from "@/data/modules";
  * 알림 안내가 여기 있는 이유: 워크스페이스 알림 설정은 임시 비활성화 상태라 내비 항목을
  * 만들지 않았다 — 눌러서 도착한 페이지에 안내문만 있으면 막힌 길이 된다. 기능을 켜고 끄는
  * 화면이 그 안내의 자리다. 다시 켜면 이 섹션을 `/settings/workspace/notifications` 잎으로
- * 승격한다.
- *
- * (개인이 어떤 알림을 어디로 받을지는 별개다 — 계정 › 알림에 있다.)
+ * 승격한다. (개인 알림 설정은 계정 페이지에 있었는데 v12에서 함께 빠졌다.)
  */
 export function FeatureSettings() {
   const { state, setModule, setSub } = useModules();
@@ -30,10 +31,10 @@ export function FeatureSettings() {
 
   return (
     <>
-      <SettingsSection
-        title="기능 활성화"
-        aside={<span className="text-xs text-slate-400">모듈 {MODULES.length}개</span>}
-      >
+      {/* 개수 보조 문구를 두지 않는다 (수정요청 v12). 화면에서 「모듈」이라는 말을 쓰지
+          않기로 했는데, 세는 단위가 곧 모듈이라 「기능 8개」로 바꾸면 아래 목록의
+          「기능」(서브기능 포함)과 같은 말이 두 뜻이 된다. */}
+      <SettingsSection title="기능 활성화">
         <SettingsRows>
           {MODULES.map((mod) => {
             const Icon = ICON_MAP[mod.icon];

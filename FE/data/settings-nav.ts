@@ -45,7 +45,7 @@ export const SETTINGS_NAV: SettingsSection[] = [
     label: "워크스페이스",
     href: "/settings/workspace",
     children: [
-      { href: "/settings/workspace/features", label: "기능" },
+      { href: "/settings/workspace/features", label: "기능 관리" },
       { href: "/settings/workspace/integrations", label: "연동" },
     ],
   },
