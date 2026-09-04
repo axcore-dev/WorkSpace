@@ -9,7 +9,7 @@ import {
   SettingsSection,
 } from "@/components/settings/settings-section";
 import { Button, FIELD } from "@/components/ui";
-import { DEMO_USER, DEPARTMENTS, SITES, TIMEZONES } from "@/data/org";
+import { DEMO_USER, DEPARTMENTS, SITES } from "@/data/org";
 
 /** select도 `FIELD`와 같은 모양을 쓴다 — ui.tsx에 select 변형이 따로 없다 */
 const SELECT = FIELD;
@@ -30,7 +30,6 @@ export function ProfileSection({ onSaved }: { onSaved: (message: string) => void
     dept: DEMO_USER.dept,
     title: DEMO_USER.title,
     site: DEMO_USER.site,
-    timezone: DEMO_USER.timezone,
   });
 
   function set<K extends keyof typeof form>(key: K, value: string) {
@@ -126,23 +125,6 @@ export function ProfileSection({ onSaved }: { onSaved: (message: string) => void
                 {SITES.map((s) => (
                   <option key={s} value={s}>
                     {s}
-                  </option>
-                ))}
-              </select>
-            </FieldRow>
-          </SettingsRow>
-
-          <SettingsRow>
-            <FieldRow label="시간대" htmlFor="pf-tz">
-              <select
-                id="pf-tz"
-                className={SELECT}
-                value={form.timezone}
-                onChange={(e) => set("timezone", e.target.value)}
-              >
-                {TIMEZONES.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
                   </option>
                 ))}
               </select>

@@ -16,7 +16,6 @@ export const DEMO_USER = {
   /** 지금까지 account-settings.tsx가 SMS 2FA 대상으로 하드코딩하던 값 */
   phone: "010-1234-5678",
   site: "본사",
-  timezone: "Asia/Seoul",
   company: "(주)데모컴퍼니",
   initials: "박",
   /** 문의·감사 로그 조회용 식별자 */
@@ -83,13 +82,6 @@ export const DEPARTMENTS = [
 
 /** 사업장 — `EXTERNAL_SYSTEMS`에 "1공장 MES"가 있는 전제 */
 export const SITES = ["본사", "1공장", "2공장"] as const;
-
-/** 시간대 — 해외영업팀과 해외 사업장이 있어 절대 시각 기준이 필요하다 */
-export const TIMEZONES: { value: string; label: string }[] = [
-  { value: "Asia/Seoul", label: "(GMT+09:00) 서울" },
-  { value: "Asia/Ho_Chi_Minh", label: "(GMT+07:00) 하노이" },
-  { value: "America/Mexico_City", label: "(GMT-06:00) 멕시코시티" },
-];
 
 /**
  * 계정 › 이메일.
