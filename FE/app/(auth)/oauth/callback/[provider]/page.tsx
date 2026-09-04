@@ -4,7 +4,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { AuthSplit } from "@/components/auth-shell";
-import { ApiRequestError, apiPost } from "@/lib/api";
+import { ApiRequestError, apiGet, apiPost } from "@/lib/api";
 import { PROVIDER_LABELS, SocialProvider, consumeState } from "@/lib/auth";
 import { readInvite } from "@/lib/pending-invite";
 import { DEMO_USER } from "@/data/org";
@@ -122,8 +122,18 @@ function OAuthCallbackContent() {
           return;
         }
 
-        // SELECT_WORKSPACE · READY — 회사 선택 화면으로 넘긴다.
-        router.replace("/workspace");
+        // 운영자는 운영자 콘솔로. 이메일 로그인(login/page.tsx)과 같은 판정이다 — 소셜 로그인만
+        // 이 확인이 빠져 있어서 운영자가 Google 로 들어오면 회사 선택 화면에 떨어졌다.
+        // 여기 결과는 어느 화면으로 보낼지만 정한다. 실제 인가는 서버가 요청마다 DB 로 본다.
+        // /me 가 실패해도 로그인은 이미 됐으니 일반 경로로 보낸다.
+        return apiGet<{ internalAdmin: boolean }>("/api/auth/me")
+          .then((me) => {
+            router.replace(me?.internalAdmin ? "/admin" : "/workspace");
+          })
+          .catch(() => {
+            // SELECT_WORKSPACE · READY — 회사 선택 화면으로 넘긴다.
+            router.replace("/workspace");
+          });
       })
       .catch((e: unknown) => {
         setState({
