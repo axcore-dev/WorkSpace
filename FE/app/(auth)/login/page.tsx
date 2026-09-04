@@ -32,8 +32,8 @@ export default function LoginPage() {
   const [loginError, setLoginError] = useState<string | null>(null);
   /** BE 가 없을 때만 켜진다. 데모로 넘어갔다는 사실을 숨기지 않는다 */
   const [offline, setOffline] = useState(false);
-  const [email, setEmail] = useState(DEMO_USER.email);
-  const [password, setPassword] = useState("demo1234!");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [left, setLeft] = useState(LINK_TTL_SEC);
   const [resent, setResent] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
@@ -181,7 +181,6 @@ export default function LoginPage() {
                 id="email"
                 type="email"
                 autoComplete="email"
-                placeholder="name@company.co.kr"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className={FIELD_LG}
