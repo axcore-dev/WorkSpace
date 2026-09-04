@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { InviteModal } from "@/components/settings/invite-modal";
-import { InviteLinks } from "@/components/settings/admin/invite-links";
-import { InvitePolicy } from "@/components/settings/admin/invite-policy";
-import { MemberTable } from "@/components/settings/admin/member-table";
-import { PendingInvites } from "@/components/settings/admin/pending-invites";
+import { InviteLinks } from "@/components/settings/company/invite-links";
+import { InvitePolicy } from "@/components/settings/company/invite-policy";
+import { MemberTable } from "@/components/settings/company/member-table";
+import { PendingInvites } from "@/components/settings/company/pending-invites";
 import { IconLink, IconMail, IconShield, IconUsers } from "@/components/icons";
 import { Toast } from "@/components/ui";
 import { useToast } from "@/components/use-toast";

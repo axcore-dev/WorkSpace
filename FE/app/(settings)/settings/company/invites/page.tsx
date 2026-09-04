@@ -1,4 +1,4 @@
-import { PeopleManager } from "@/components/settings/admin/people-manager";
+import { PeopleManager } from "@/components/settings/company/people-manager";
 
 export default function Page() {
   return (

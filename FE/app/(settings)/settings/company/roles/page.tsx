@@ -1,4 +1,4 @@
-import { RoleEditor } from "@/components/settings/admin/role-editor";
+import { RoleEditor } from "@/components/settings/company/role-editor";
 
 export default function Page() {
   return (

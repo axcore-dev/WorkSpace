@@ -8,7 +8,7 @@ import { SETTINGS_NAV, activeSettings } from "@/data/settings-nav";
 /** 단일 항목에만 아이콘을 준다 — 그룹 라벨과 구분되게 한다 */
 const LEAF_ICON: Record<string, typeof IconUser> = {
   "/settings/account": IconUser,
-  "/settings/admin": IconShield,
+  "/settings/company": IconShield,
 };
 
 const ITEM =

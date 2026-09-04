@@ -120,7 +120,7 @@ test("설정 밖 경로는 null이다", () => {
 /* ───────────── 이 단계(A)의 모양 ───────────── */
 
 test("잎이 5개다", () => {
-  // 계정 · 관리>초대 관리 · 관리>역할·권한 · 워크스페이스>기능 · 워크스페이스>연동
+  // 계정 · 회사>초대 관리 · 회사>권한 관리 · 워크스페이스>기능 · 워크스페이스>연동
   assert.equal(settingsLeafHrefs().length, 5, settingsLeafHrefs().join(" "));
 });
 
@@ -159,4 +159,15 @@ test("옛 (app) 그룹의 설정 라우트가 남아 있지 않다", () => {
     !fs.existsSync(path.join("app", "(app)", "settings")),
     "app/(app)/settings 를 지워야 한다",
   );
+});
+
+test("옛 admin 경로가 남아 있지 않다", () => {
+  // `관리`(/settings/admin) → `회사`(/settings/company)로 옮겼다 (수정요청 v12).
+  // 폴더가 남으면 내비에 없는 페이지가 URL로는 열려서 옛 화면이 살아 있는 것처럼 보인다.
+  for (const stale of [
+    path.join("app", "(settings)", "settings", "admin"),
+    path.join("components", "settings", "admin"),
+  ]) {
+    assert.ok(!fs.existsSync(stale), `${stale} 를 지워야 한다`);
+  }
 });

@@ -22,11 +22,11 @@ export const SETTINGS_NAV: SettingsSection[] = [
   { kind: "leaf", label: "계정", href: "/settings/account" },
   {
     kind: "group",
-    label: "관리",
-    href: "/settings/admin",
+    label: "회사",
+    href: "/settings/company",
     children: [
-      { href: "/settings/admin/invites", label: "초대 관리" },
-      { href: "/settings/admin/roles", label: "역할·권한" },
+      { href: "/settings/company/invites", label: "초대 관리" },
+      { href: "/settings/company/roles", label: "권한 관리" },
     ],
   },
   {
