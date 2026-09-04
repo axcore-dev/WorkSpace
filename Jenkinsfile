@@ -17,7 +17,8 @@ def applyTarget(boolean be, boolean fe, boolean nginx) {
   def services = []
   if (be)    services << 'app'
   if (fe)    services << 'frontend'
-  if (nginx) services << 'nginx'
+  // nginx 와 certbot 은 TLS 볼륨을 공유하는 한 묶음이라 같이 다시 만든다.
+  if (nginx) services << 'nginx' << 'certbot'
   env.APP_SERVICES = services.join(' ')
 }
 
@@ -48,7 +49,7 @@ pipeline {
       choices: ['AUTO', 'ALL', 'BE', 'FE'],
       description: '''어느 앱을 빌드·재시작할지.
       AUTO : 마지막 배포 커밋 이후 바뀐 경로로 판정 (기본). BE/ 만 → BE, FE/ 만 → FE, 둘 다·INFRA/·Jenkinsfile → ALL,
-             INFRA/nginx/ 포함 → nginx 재빌드, 코드 변경 없음 → 배포 생략. 기록이 없으면 ALL
+             INFRA/nginx/·INFRA/certbot/ 포함 → nginx·certbot 재빌드, 코드 변경 없음 → 배포 생략. 기록이 없으면 ALL
       ALL / BE / FE : 판정 없이 강제. .env 만 바꿨을 때(코드 diff 에 안 나온다)는 ALL 을 고른다'''
     )
     string(
@@ -69,7 +70,7 @@ pipeline {
     booleanParam(
       name: 'REBUILD_NGINX',
       defaultValue: false,
-      description: 'nginx 이미지를 다시 빌드해 재시작한다 (INFRA/nginx/default.conf 를 바꿨을 때)'
+      description: 'nginx·certbot 이미지를 다시 빌드해 재시작한다 (INFRA/nginx/ 또는 INFRA/certbot/ 을 바꿨을 때). AUTO 는 경로 변경으로 자동 감지한다'
     )
     booleanParam(
       name: 'PRUNE_IMAGES',
@@ -149,7 +150,7 @@ pipeline {
             set -e
             if [ ! -f docker-compose.yml ]; then
               echo "[INFO] 체크아웃된 INFRA 가 없다. 컨테이너 이름으로 직접 중지한다."
-              docker stop axcore-nginx axcore-fe axcore-be axcore-postgres 2>/dev/null || true
+              docker stop axcore-nginx axcore-certbot axcore-fe axcore-be axcore-postgres 2>/dev/null || true
               exit 0
             fi
             ${COMPOSE_APP} down --remove-orphans || true
@@ -228,7 +229,7 @@ pipeline {
             def be    = paths.any { it.startsWith('BE/') }
             def fe    = paths.any { it.startsWith('FE/') }
             def infra = paths.any { it.startsWith('INFRA/') || it == 'Jenkinsfile' }
-            def nginx = paths.any { it.startsWith('INFRA/nginx/') }
+            def nginx = paths.any { it.startsWith('INFRA/nginx/') || it.startsWith('INFRA/certbot/') }
             if (infra) { be = true; fe = true }
 
             echo "[INFO] AUTO: 기준 ${head.split(' ')[1].take(7)}..HEAD 변경 ${paths.size()}개 → BE=${be} FE=${fe} INFRA=${infra} nginx=${nginx}"
@@ -412,8 +413,8 @@ pipeline {
             echo "[INFO] 컨테이너 교체: ${APP_SERVICES}"
             ${COMPOSE_APP} up -d --no-deps ${APP_SERVICES}
 
-            # nginx 는 항상 떠 있어야 한다. 이미 떠 있고 이미지가 같으면 compose 가 아무것도 안 한다.
-            ${COMPOSE_APP} up -d --no-deps nginx
+            # nginx·certbot 은 항상 떠 있어야 한다. 이미 떠 있고 이미지가 같으면 compose 가 아무것도 안 한다.
+            ${COMPOSE_APP} up -d --no-deps nginx certbot
 
             echo "[INFO] 헬스체크 대기 (컨테이너당 최대 120s)"
             wait_healthy() {
