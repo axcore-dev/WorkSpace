@@ -114,8 +114,10 @@ export function PasswordModal({
       footer={
         !done && (
           <div className="flex justify-end gap-2">
+            {/* 헤더 (x)가 이미 닫기다. 여기 남기는 건 「취소」 — 쓰다 만 입력을 버린다는 뜻이라
+                단순히 닫는 것과 다르다 */}
             <Button variant="secondary" onClick={close}>
-              닫기
+              취소
             </Button>
             <Button
               disabled={!canSubmit}
@@ -458,15 +460,10 @@ export function EmailModal({
       size="md"
       title="이메일 관리"
       footer={
-        <div className="flex items-center justify-between gap-2">
-          <Button variant="secondary" size="sm" disabled>
-            <IconMail size={14} />
-            이메일 추가
-          </Button>
-          <Button variant="secondary" onClick={onClose}>
-            닫기
-          </Button>
-        </div>
+        <Button variant="secondary" size="sm" disabled>
+          <IconMail size={14} />
+          이메일 추가
+        </Button>
       }
     >
       <ul className="divide-y divide-slate-100 p-5">
@@ -556,13 +553,6 @@ export function TfaModal({
         onClose={onClose}
         size="md"
         title="2단계 인증"
-        footer={
-          <div className="flex justify-end">
-            <Button variant="secondary" onClick={onClose}>
-              닫기
-            </Button>
-          </div>
-        }
       >
         <ul className="divide-y divide-slate-100 p-5">
           {TFA_METHODS.map((m) => {
@@ -622,13 +612,6 @@ export function SocialModal({ open, onClose }: { open: boolean; onClose: () => v
       onClose={onClose}
       size="md"
       title="로그인 방법 관리"
-      footer={
-        <div className="flex justify-end">
-          <Button variant="secondary" onClick={onClose}>
-            닫기
-          </Button>
-        </div>
-      }
     >
       <ul className="divide-y divide-slate-100 p-5">
         {SOCIAL_LOGINS.map((s) => (

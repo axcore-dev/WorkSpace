@@ -25,12 +25,18 @@ export function SettingsShell({ children }: { children: React.ReactNode }) {
   // 바꾸면 된다 — 지금은 더미 기본값을 읽는다.
   const workspace = WORKSPACES.find((w) => w.id === DEFAULT_WORKSPACE_ID) ?? WORKSPACES[0];
 
-  /** 직전 화면으로. 직전이 없으면(URL 직접 진입·새 탭) 주요 정보로 보낸다 */
-  function goBack() {
-    if (window.history.length > 1) {
-      router.back();
-      return;
-    }
+  /**
+   * 워크스페이스로 나간다.
+   *
+   * 예전에는 `window.history.length > 1`이면 `router.back()`이었는데 버그였다 —
+   * `history.length`는 **탭의 전체 방문 수**라서, 설정 안에서 계정 → 회사 → 권한으로
+   * 옮겨 다니기만 해도 3이 된다. 그러면 「돌아가기」가 설정 밖으로 못 나가고 설정 안
+   * 이전 페이지로 간다.
+   *
+   * 설정은 들렀다 나가는 곳이라 나가는 곳이 늘 같은 게 낫다. 뒤로가기는 브라우저 버튼이
+   * 이미 한다.
+   */
+  function leaveSettings() {
     router.push("/dashboard");
   }
 
@@ -41,7 +47,7 @@ export function SettingsShell({ children }: { children: React.ReactNode }) {
         <div className="px-5 py-4 lg:pb-0">
           <button
             type="button"
-            onClick={goBack}
+            onClick={leaveSettings}
             className="-ml-2 flex min-h-8 cursor-pointer items-center gap-2 rounded-lg px-2 text-[13px] font-medium text-slate-600 transition-colors duration-150 hover:bg-slate-200/60 hover:text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400"
           >
             <IconArrowLeft size={15} className="shrink-0" />
@@ -64,10 +70,7 @@ export function SettingsShell({ children }: { children: React.ReactNode }) {
 
         {/* 하단 — 워크스페이스 이름 + 프로필 + 로그아웃 */}
         <div className="hidden border-t border-slate-200 p-4 lg:block">
-          <p className="px-1 pb-2 text-[11px] text-slate-400">
-            편집 중인 워크스페이스
-            <span className="block text-xs font-semibold text-slate-600">{workspace.name}</span>
-          </p>
+          <p className="px-1 pb-2 text-xs font-semibold text-slate-600">{workspace.name}</p>
           <div className="flex items-center gap-2.5 p-1">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-800 text-sm font-bold text-white">
               {DEMO_USER.initials}
@@ -96,10 +99,7 @@ export function SettingsShell({ children }: { children: React.ReactNode }) {
 
       {/* lg 미만 — 사이드바 하단이 숨으므로 워크스페이스·로그아웃을 본문 아래에 둔다 */}
       <div className="border-t border-slate-200 px-6 py-5 lg:hidden">
-        <p className="text-[11px] text-slate-400">
-          편집 중인 워크스페이스
-          <span className="block text-xs font-semibold text-slate-600">{workspace.name}</span>
-        </p>
+        <p className="text-xs font-semibold text-slate-600">{workspace.name}</p>
         <button
           type="button"
           onClick={() => void logout()}
