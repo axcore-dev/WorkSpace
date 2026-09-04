@@ -12,11 +12,17 @@ import { IconAlertTriangle } from "@/components/icons";
 import { Modal } from "@/components/modal";
 import { Badge, Button } from "@/components/ui";
 import { WS_STATUS_LABEL, type AdminWorkspace, type WsStatus } from "@/data/admin";
+import { ApiRequestError } from "@/lib/api";
 import {
   activateWorkspace,
   deactivateWorkspace,
-  getWorkspace,
+  getWorkspaceDto,
+  toAdminWorkspace,
+  toUpdateInput,
+  updateWorkspace,
   workspaceIdFromSchema,
+  type ContactChangeDto,
+  type WorkspaceDto,
 } from "@/lib/admin-api";
 
 /**
@@ -33,23 +39,29 @@ const READONLY_FROM = 2;
 export default function AdminWorkspaceDetailPage() {
   const schema = useParams().schema as string;
   /**
-   * 수정 결과는 이 화면 안에서만 유지된다 — 저장할 BE가 없다.
-   * 새로고침하면 `data/admin.ts`의 원래 값으로 돌아간다.
-   */
-  /**
    * 주소의 스키마 이름에서 id 를 되찾아 부른다. 목록을 거치지 않고 이 주소로 바로 들어와도
    * 동작해야 해서, 목록에서 넘겨받는 대신 여기서 다시 계산한다.
    */
   const id = workspaceIdFromSchema(schema);
+  /**
+   * 화면용(`ws`)과 원본 DTO(`dto`)를 같이 든다. 수정은 전체 교체(PUT)라 화면 타입에 없는 필드
+   * (`ceoName`·`sites`·접속 링크 담당)까지 되돌려 보내야 하고, 그 값은 원본에만 있다.
+   */
   const [ws, setWs] = useState<AdminWorkspace | undefined>(undefined);
+  const [dto, setDto] = useState<WorkspaceDto | null>(null);
   const [loading, setLoading] = useState(id !== null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  /** 마지막 저장에서 담당자가 바뀌어 서버가 한 일(소유자 이전 / 초대 발급). 담당자 카드가 보여 준다 */
+  const [contactChange, setContactChange] = useState<ContactChangeDto | null>(null);
 
   useEffect(() => {
     let alive = true;
     if (id === null) return;
-    getWorkspace(id)
-      .then((w) => {
-        if (alive) setWs(w ?? undefined);
+    getWorkspaceDto(id)
+      .then((d) => {
+        if (!alive) return;
+        setDto(d);
+        setWs(d ? toAdminWorkspace(d) : undefined);
       })
       .catch(() => {
         if (alive) setWs(undefined);
@@ -62,8 +74,46 @@ export default function AdminWorkspaceDetailPage() {
     };
   }, [id]);
 
-  function save(patch: Partial<AdminWorkspace>) {
-    setWs((prev) => (prev ? { ...prev, ...patch } : prev));
+  /**
+   * 저장. 화면은 먼저 바꾸고(낙관적), 서버가 거절하면 되돌린다.
+   *
+   * 담당자 이메일이 바뀐 저장은 서버가 후속 처리(소유자 이전·초대 발급)를 같은 트랜잭션으로 하고
+   * 결과를 `contactChange` 로 준다. 그 뒤 구성원 역할·담당자 상태가 달라졌으므로 상세를 다시 읽는다.
+   */
+  async function save(patch: Partial<AdminWorkspace>) {
+    if (id === null || !dto || !ws) return;
+    const before = ws;
+    setSaveError(null);
+    setWs({ ...ws, ...patch });
+    try {
+      const res = await updateWorkspace(id, toUpdateInput(dto, patch));
+      if (!res) return;
+      setContactChange(res.contactChange.type === "NONE" ? null : res.contactChange);
+      if (res.contactChange.type !== "NONE") {
+        // 소유자 이전·초대 발급 뒤의 구성원 목록과 담당자 상태는 다시 읽어야 안다.
+        const fresh = await getWorkspaceDto(id);
+        if (fresh) {
+          setDto(fresh);
+          setWs(toAdminWorkspace(fresh));
+        }
+        return;
+      }
+      // 수정 응답은 구성원·담당자 상태를 싣지 않는다. 그 둘은 이전 값을 유지한다.
+      const merged: WorkspaceDto = {
+        ...res.dto,
+        members: dto.members,
+        contactStatus: dto.contactStatus,
+      };
+      setDto(merged);
+      setWs(toAdminWorkspace(merged));
+    } catch (e: unknown) {
+      setWs(before);
+      setSaveError(
+        e instanceof ApiRequestError
+          ? e.message
+          : "저장하지 못했어요. 서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요",
+      );
+    }
   }
 
   const [tab, setTab] = useState<Tab>("개요");
@@ -145,8 +195,17 @@ export default function AdminWorkspaceDetailPage() {
         ))}
       </div>
 
+      {saveError && (
+        <p
+          className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-700"
+          role="alert"
+        >
+          {saveError}
+        </p>
+      )}
+
       <div className="mt-5">
-        {tab === "개요" && <OverviewTab ws={ws} onSave={save} />}
+        {tab === "개요" && <OverviewTab ws={ws} onSave={save} contactChange={contactChange} />}
         {tab === "멤버" && <MembersTab ws={ws} />}
         {tab === "온톨로지" && <IntegrationsTab />}
         {tab === "사용량 · 요금" && <UsageTab ws={ws} onSave={save} />}

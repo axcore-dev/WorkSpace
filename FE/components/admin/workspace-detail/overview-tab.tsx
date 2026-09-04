@@ -2,17 +2,27 @@
 
 import { Card, SectionHeader } from "@/components/ui";
 import type { AdminWorkspace } from "@/data/admin";
+import type { ContactChangeDto } from "@/lib/admin-api";
 import { BizInfoCard } from "./biz-info-card";
 import { ContactsCard } from "./contacts-card";
 import { MemoCard } from "./memo-card";
 import type { Save } from "./shared";
 
-export function OverviewTab({ ws, onSave }: { ws: AdminWorkspace; onSave: Save }) {
+export function OverviewTab({
+  ws,
+  onSave,
+  contactChange,
+}: {
+  ws: AdminWorkspace;
+  onSave: Save;
+  /** 마지막 저장에서 담당자가 바뀌어 서버가 한 일. 담당자 카드가 결과(발급 링크 등)를 보여 준다 */
+  contactChange?: ContactChangeDto | null;
+}) {
   return (
     <div className="grid items-start gap-4 lg:grid-cols-2">
       <div className="space-y-4">
         <BizInfoCard ws={ws} onSave={onSave} />
-        <ContactsCard ws={ws} onSave={onSave} />
+        <ContactsCard ws={ws} onSave={onSave} contactChange={contactChange} />
       </div>
 
       <div className="space-y-4">

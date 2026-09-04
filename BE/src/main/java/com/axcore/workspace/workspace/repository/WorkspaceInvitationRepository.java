@@ -34,6 +34,27 @@ public interface WorkspaceInvitationRepository extends JpaRepository<WorkspaceIn
     Optional<WorkspaceInvitation> findByIdAndWorkspaceId(UUID id, Long workspaceId);
 
     /**
+     * 같은 회사·같은 주소로 아직 살아 있는(수락·회수되지 않고 만료 전인) 초대.
+     *
+     * <p>부분 유니크 인덱스({@code ux_wi_pending})가 수락·회수 전 초대를 주소당 하나로 묶어 두므로
+     * 결과는 최대 한 건이다. 운영자 콘솔이 "이미 초대돼 있음" 을 보여 줄 때 쓴다 — 링크 원문은
+     * 저장하지 않으므로 이 조회로 링크를 다시 꺼낼 수는 없다.
+     */
+    @Query(
+            """
+            select i from WorkspaceInvitation i
+             where i.workspace.id = :workspaceId
+               and i.email = :email
+               and i.acceptedAt is null
+               and i.revokedAt is null
+               and i.expiresAt > :now
+            """)
+    Optional<WorkspaceInvitation> findOutstanding(
+            @Param("workspaceId") Long workspaceId,
+            @Param("email") String email,
+            @Param("now") Instant now);
+
+    /**
      * 같은 회사·같은 주소로 살아 있는 초대를 회수한다.
      *
      * <p>재발송 직전에 부른다. 부분 유니크 인덱스({@code ux_wi_pending})가 중복을 막고 있어서,

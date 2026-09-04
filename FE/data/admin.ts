@@ -95,6 +95,24 @@ export type Contacts = {
   cc: string[];
 };
 
+/**
+ * 담당자가 회사에 어디까지 들어와 있는가. BE 가 상세 조회에서 계산해 준다.
+ * 상세 화면의 「접속 링크」 버튼이 이걸 보고 발급할지, "이미 초대됨" 을 보여 줄지 정한다.
+ *
+ * - empty: 담당자 이메일이 없다
+ * - member: 이미 구성원. `owner` 가 true 면 소유자(담당자 권한)까지 끝난 상태
+ * - invited: 살아 있는 초대 링크가 있다(만료 전). 원문은 다시 볼 수 없다
+ * - none: 계정도 초대도 없다 — 링크를 발급해 보낸다
+ */
+export type ContactStatus = {
+  email: string | null;
+  state: "empty" | "member" | "invited" | "none";
+  owner: boolean;
+  /** invited 일 때 발급·만료 시각(ISO). 그 외 null */
+  invitedAt: string | null;
+  expiresAt: string | null;
+};
+
 export type Usage = {
   storageGb: number;
   storageLimitGb: number;
@@ -132,6 +150,8 @@ export type AdminWorkspace = {
   members: Member[];
   usage: Usage;
   invoices: Invoice[];
+  /** 상세 조회에서만 채워진다. 목록·더미 데이터에는 없다 */
+  contactStatus?: ContactStatus;
 };
 
 export const ADMIN_WORKSPACES: AdminWorkspace[] = [

@@ -7,7 +7,12 @@ import { EditHeader, EditModal, type Save } from "./shared";
 import { IconAlertCircle, IconCheck, IconLink, IconPlus, IconX } from "@/components/icons";
 import { Button, Card, FIELD, FIELD_ERROR } from "@/components/ui";
 import { ApiRequestError } from "@/lib/api";
-import { issueInviteLink, workspaceIdFromSchema } from "@/lib/admin-api";
+import {
+  issueInviteLink,
+  toDateText,
+  workspaceIdFromSchema,
+  type ContactChangeDto,
+} from "@/lib/admin-api";
 import type { AdminWorkspace } from "@/data/admin";
 
 /* ── 담당자 ── */
@@ -21,12 +26,29 @@ type LinkState =
   | { kind: "issued"; link: string }
   | { kind: "fail"; message: string };
 
-export function ContactsCard({ ws, onSave }: { ws: AdminWorkspace; onSave: Save }) {
+/**
+ * 담당자 카드.
+ *
+ * 담당자 = 테넌트 소유자다. 「수정 → 저장」으로 담당자 이메일이 바뀌면 서버가 그 자리에서
+ * (1) 이미 구성원이면 소유자 권한을 넘기고, (2) 아니면 초대 링크를 발급한다(수락 시 소유자). 그 결과가
+ * `contactChange` 로 내려오고 이 카드가 보여 준다. 「접속 링크」 버튼은 `ws.contactStatus` 를 보고
+ * 발급할지, "이미 초대됨/이미 구성원" 을 알릴지 정한다.
+ */
+export function ContactsCard({
+  ws,
+  onSave,
+  contactChange,
+}: {
+  ws: AdminWorkspace;
+  onSave: Save;
+  contactChange?: ContactChangeDto | null;
+}) {
   const [open, setOpen] = useState(false);
   const [d, setD] = useState(ws.contacts);
   const [link, setLink] = useState<LinkState>({ kind: "idle" });
 
   const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.contact.email.trim());
+  const status = ws.contactStatus;
 
   /**
    * 접속 링크 발급 + 복사.
@@ -93,48 +115,137 @@ export function ContactsCard({ ws, onSave }: { ws: AdminWorkspace; onSave: Save 
         발급된 링크는 이 자리에 남겨 둔다 — 클립보드가 막힌 환경에서도 손으로 복사할 수 있어야 한다.
       */}
       <div className="mt-4 border-t border-slate-100 pt-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={link.kind === "issuing"}
-            onClick={() => void issueAndCopy()}
+        {/* 마지막 저장에서 담당자가 바뀌어 서버가 한 일. 링크는 이 응답에만 있어 여기서 바로 복사하게 한다. */}
+        {contactChange && contactChange.type !== "NONE" && (
+          <div
+            className={`mb-3 rounded-lg border px-3.5 py-3 text-sm ${
+              contactChange.type === "DEFERRED"
+                ? "border-amber-200 bg-amber-50 text-amber-900"
+                : "border-emerald-200 bg-emerald-50 text-emerald-900"
+            }`}
+            role="status"
           >
-            {link.kind === "copied" ? (
-              <IconCheck size={14} />
-            ) : link.kind === "fail" ? (
-              <IconAlertCircle size={14} />
-            ) : (
-              <IconLink size={14} />
+            {contactChange.type === "PROMOTED" && (
+              <p>
+                <span className="font-semibold">{contactChange.email}</span> 은 이미 구성원이라 담당자(소유자)
+                권한을 바로 넘겼어요.
+                {contactChange.demotedOwners > 0 &&
+                  ` 이전 소유자 ${contactChange.demotedOwners}명은 관리자로 바뀌었어요.`}
+              </p>
             )}
-            {link.kind === "issuing"
-              ? "발급 중…"
-              : link.kind === "copied"
-                ? "새 링크를 복사했어요"
-                : link.kind === "issued"
-                  ? "발급됐어요 — 아래에서 복사"
-                  : link.kind === "fail"
-                    ? "발급하지 못했어요"
-                    : "새 접속 링크 발급·복사"}
-          </Button>
-          <p className="text-xs text-slate-400">
-            누를 때마다 새 링크가 나가고, 담당자에게 먼저 보낸 링크는 무효가 돼요.
-          </p>
-        </div>
-
-        {(link.kind === "copied" || link.kind === "issued") && (
-          <input
-            readOnly
-            value={link.link}
-            aria-label="접속 링크"
-            onFocus={(e) => e.currentTarget.select()}
-            className={`${FIELD} mt-3 w-full font-mono text-xs`}
-          />
+            {contactChange.type === "INVITED" && (
+              <>
+                <p>
+                  <span className="font-semibold">{contactChange.email}</span> 은 아직 구성원이 아니라 초대
+                  링크를 발급했어요. 복사해서 보내 주세요. 링크를 열고 수락하면 담당자(소유자)로 들어와요.
+                  {contactChange.invitation?.expiresAt &&
+                    ` ${toDateText(contactChange.invitation.expiresAt)} 까지 유효해요.`}
+                </p>
+                {contactChange.inviteLink && (
+                  <div className="mt-2 flex gap-2">
+                    <input
+                      readOnly
+                      value={contactChange.inviteLink}
+                      aria-label="새 담당자 접속 링크"
+                      onFocus={(e) => e.currentTarget.select()}
+                      className={`${FIELD} flex-1 font-mono text-xs`}
+                    />
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => void navigator.clipboard.writeText(contactChange.inviteLink ?? "")}
+                    >
+                      복사
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
+            {contactChange.type === "DEFERRED" && (
+              <p>
+                담당자는 저장했지만 회사가 운영 중이 아니라 초대 링크는 발급하지 않았어요. 활성화한 뒤
+                아래 버튼으로 발급하세요.
+              </p>
+            )}
+          </div>
         )}
-        {link.kind === "fail" && (
-          <p className="mt-2 text-xs text-red-600" role="alert">
-            {link.message}
+
+        {/*
+          접속 링크는 운영팀이 복사해서 직접 보낸다 — 시스템이 메일을 쏘지 않는다.
+          담당자 상태에 따라: 이메일 없음 → 발급 불가 / 이미 구성원 → 발급 안 함 / 초대 대기 → "이미 초대됨" 과
+          명시적 재발급 / 없음 → 발급·복사. 링크 원문은 저장하지 않아 "이미 초대됨" 이어도 다시 보여 줄 수 없다.
+        */}
+        {status?.state === "empty" && (
+          <p className="text-xs text-slate-400">담당자 이메일이 없어 접속 링크를 발급할 수 없어요.</p>
+        )}
+        {status?.state === "member" && (
+          <p className="text-sm text-slate-600">
+            <IconCheck size={14} className="mr-1 inline-block text-emerald-600" />
+            <span className="font-medium">{status.email}</span> 은 이미 구성원이에요
+            {status.owner ? " (소유자)." : " — 담당자 권한은 저장할 때 넘어가요."} 새 링크는 필요 없어요.
           </p>
+        )}
+        {status?.state === "invited" && (
+          <p className="mb-2 text-sm text-slate-600">
+            <IconLink size={14} className="mr-1 inline-block text-slate-400" />
+            <span className="font-medium">{status.email}</span> 앞으로 이미 초대 링크가 발급돼 있어요
+            {status.invitedAt && ` (${toDateText(status.invitedAt)} 발급`}
+            {status.expiresAt && `, ${toDateText(status.expiresAt)} 만료`}
+            {status.invitedAt && ")"}. 아직 수락하지 않았어요. 링크를 잃었으면 아래에서 다시 발급하세요 —
+            이전 링크는 무효가 돼요.
+          </p>
+        )}
+
+        {status?.state !== "empty" && status?.state !== "member" && (
+          <>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={link.kind === "issuing"}
+                onClick={() => void issueAndCopy()}
+              >
+                {link.kind === "copied" ? (
+                  <IconCheck size={14} />
+                ) : link.kind === "fail" ? (
+                  <IconAlertCircle size={14} />
+                ) : (
+                  <IconLink size={14} />
+                )}
+                {link.kind === "issuing"
+                  ? "발급 중…"
+                  : link.kind === "copied"
+                    ? "새 링크를 복사했어요"
+                    : link.kind === "issued"
+                      ? "발급됐어요 — 아래에서 복사"
+                      : link.kind === "fail"
+                        ? "발급하지 못했어요"
+                        : status?.state === "invited"
+                          ? "새 링크로 다시 발급·복사"
+                          : "접속 링크 발급·복사"}
+              </Button>
+              {status?.state !== "invited" && (
+                <p className="text-xs text-slate-400">
+                  누를 때마다 새 링크가 나가고, 담당자에게 먼저 보낸 링크는 무효가 돼요.
+                </p>
+              )}
+            </div>
+
+            {(link.kind === "copied" || link.kind === "issued") && (
+              <input
+                readOnly
+                value={link.link}
+                aria-label="접속 링크"
+                onFocus={(e) => e.currentTarget.select()}
+                className={`${FIELD} mt-3 w-full font-mono text-xs`}
+              />
+            )}
+            {link.kind === "fail" && (
+              <p className="mt-2 text-xs text-red-600" role="alert">
+                {link.message}
+              </p>
+            )}
+          </>
         )}
       </div>
 

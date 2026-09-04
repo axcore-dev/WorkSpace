@@ -214,7 +214,22 @@ public class WorkspaceInvitationService {
         // 받는 것보다, 같은 결과로 끝나는 편이 낫다.
         // 회사 안에서의 신분은 테넌트 스키마에 있다. 라우팅 인덱스만 만들면 로그인은
         // 되는데 회사 안에서는 아무것도 아닌 사람이 된다.
-        tenantMembers.join(workspace.getSchemaName(), user.getId());
+        //
+        // 담당자 이메일로 들어온 사람이 소유자다. 운영자가 담당자를 바꾼 뒤 그 사람이 수락하는
+        // 경로가 여기라, 이 시점에 소유자를 옮긴다 — 이전 담당자는 관리자로 내려간다.
+        boolean contact = workspace.isContactEmail(invitation.getEmail());
+        tenantMembers.join(workspace.getSchemaName(), user.getId(), contact);
+        if (contact) {
+            int demoted = tenantMembers.transferOwner(workspace.getSchemaName(), user.getId());
+            // 행위자는 초대를 발급한 운영자다. 수락자는 운영자가 아니라 감사 로그의 주체가 될 수 없다.
+            UUID issuer = invitation.getInvitedBy() == null ? null : invitation.getInvitedBy().getId();
+            audit.record(
+                    issuer,
+                    AdminAuditAction.TRANSFER_OWNER,
+                    workspace.getId(),
+                    "담당자 %s 초대 수락 → 소유자 부여 (이전 소유자 %d명 관리자로)"
+                            .formatted(invitation.getEmail(), demoted));
+        }
 
         return membershipRepository
                 .findByUserIdAndWorkspaceIdWithWorkspace(user.getId(), workspace.getId())
