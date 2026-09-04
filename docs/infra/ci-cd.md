@@ -122,7 +122,7 @@ Credentials Binding)은 모두 그 안에 있다. 이후:
    실패한다. 정상이다. 두 번째부터 `APP_WITH_DB` 로 돌린다.
 
 GitHub 푸시로 자동 실행하려면 저장소 Webhook 에 `http://<서버IP>:8081/github-webhook/` 를 등록하고
-Job 의 Build Triggers 에서 "GitHub hook trigger" 를 켠다. 이 경우 기본 파라미터(APP_ONLY · ALL · dev)로 돈다.
+Job 의 Build Triggers 에서 "GitHub hook trigger" 를 켠다. 이 경우 기본 파라미터(APP_ONLY · AUTO · dev)로 돈다 — 바뀐 쪽만 배포된다.
 
 ## 4. 파라미터
 
@@ -133,7 +133,8 @@ Job 의 Build Triggers 에서 "GitHub hook trigger" 를 켠다. 이 경우 기�
 | | `DB_ONLY` | DB 만. 데이터 보존 |
 | | `FULL_REBUILD` | **DB 볼륨 삭제** + 캐시 없이 전부 재빌드. `CONFIRM_DESTROY=DELETE` 를 같이 넣어야 돈다 |
 | | `STOP_ALL` | 앱·nginx·DB 중지. Jenkins 는 그대로 |
-| `TARGET` | `ALL` / `BE` / `FE` | 빌드·교체할 앱. FE 만 고르면 BE 컨테이너는 건드리지 않는다 |
+| `TARGET` | `AUTO` (기본) | 마지막 배포 커밋 이후 **바뀐 경로**로 BE/FE 를 정한다. 아래 「AUTO 판정」 |
+| | `ALL` / `BE` / `FE` | 판정 없이 강제. `.env` 만 바꿨을 때는 코드 diff 에 안 나오므로 `ALL` 을 고른다 |
 | `BRANCH` | 기본 `dev` | 다른 브랜치를 올려 볼 때 |
 | `RUN_CI` | 기본 true | BE 컴파일, FE 타입체크·테스트·lint. 실패하면 배포하지 않는다 |
 | `FE_LINT_STRICT` | 기본 false | eslint 오류를 실패로 본다. 기존 오류(`verify-email/page.tsx` set-state-in-effect 2건)가 정리되면 true |
@@ -141,12 +142,37 @@ Job 의 Build Triggers 에서 "GitHub hook trigger" 를 켠다. 이 경우 기�
 | `PRUNE_IMAGES` | 기본 true | dangling 이미지 삭제 + 빌드 캐시 4GB 초과분 삭제 |
 | `VERBOSE_LOG` | 기본 true | 끄면 `docker compose build --quiet` |
 
+### AUTO 판정 (TARGET=AUTO)
+
+브랜치 이름(`FE/...`, `BE/...`)이 아니라 **바뀐 파일 경로**로 정한다. squash 머지·직접 push 에서는 브랜치 이름이
+커밋에 남지 않고, BE 브랜치가 FE 파일을 고치는 일도 있어서다. 기준점은 마지막으로 배포에 성공한 커밋이고
+`/var/jenkins_home/axcore-last-deploy` 에 SHA 로 남는다.
+
+| 기준 커밋 이후 바뀐 경로 | 결과 |
+| --- | --- |
+| `BE/` 만 | BE 만 CI 검사·빌드·교체 |
+| `FE/` 만 | FE 만 |
+| `BE/` 와 `FE/` | ALL |
+| `INFRA/` 또는 `Jenkinsfile` 포함 | ALL (compose·Dockerfile 이 두 앱에 걸친다). `INFRA/nginx/` 가 끼면 nginx 도 재빌드 |
+| 위 경로가 하나도 없음 (`docs/` 등) | 배포 생략, 커밋만 기록 |
+| 기준 커밋과 HEAD 가 같음 | 배포 생략 (강제하려면 `ALL`/`BE`/`FE`) |
+| 기록이 없음 · 기준 커밋이 얕은 이력(50개)에 없음 | ALL |
+
+- 기록은 **헬스체크까지 통과한 뒤**에만 갱신한다. 실패한 배포를 기준으로 삼으면 그 변경이 다음 판정에서 빠진다.
+- `TARGET=BE`/`FE` 로 부분 배포한 경우는 기록을 갱신하지 않는다. 그 커밋을 "다 배포됐다" 고 적으면 반대쪽 변경이
+  빠지기 때문이다. 다음 AUTO 실행이 이전 기준으로 판정해 나머지를 덮는다(중복 빌드가 한 번 생길 수 있다).
+- **`.env` 만 바꿨을 때**(소셜 client-id, `MAIL_*` 등)는 코드 diff 에 나오지 않는다. 크리덴셜을 교체한 뒤
+  `TARGET=ALL`(또는 영향받는 쪽)을 직접 고른다. `NEXT_PUBLIC_*` 는 FE 번들에 굽히므로 FE 도 다시 빌드해야 한다.
+- 기준을 초기화하려면 서버에서 `rm /var/jenkins_home/axcore-last-deploy`. 다음 실행이 ALL 로 돈다.
+
 ### 스테이지 순서
 
-파라미터 검증 → (STOP_ALL: 중지) → (FULL_REBUILD: 워크스페이스 비움) → 체크아웃 → `.env` 복사 →
-네트워크 → CI 검사 BE → CI 검사 FE → DB 기동 → 앱 빌드(서비스별 순차) → 앱 배포 + 헬스체크 → 이미지 정리
+파라미터 검증 → (STOP_ALL: 중지) → (FULL_REBUILD: 워크스페이스 비움) → 체크아웃 → **배포 대상 판정(AUTO)** →
+`.env` 복사 → 네트워크 → CI 검사 BE → CI 검사 FE → DB 기동 → 앱 빌드(서비스별 순차) → 앱 배포 + 헬스체크 →
+배포 커밋 기록 → 이미지 정리
 
 BE 와 FE 는 **순차로** 빌드한다. Gradle 과 `next build` 를 동시에 돌리면 8GB 를 넘는다.
+CI 검사도 판정을 따른다 — FE 만 바뀌면 BE 컴파일을 건너뛴다.
 
 ## 5. 동작 원리에서 헷갈리기 쉬운 것
 
