@@ -20,6 +20,10 @@ import java.util.List;
  *                          와일드카드 Origin 을 쓸 수 없다. 정확한 출처만 나열한다.
  *                          기본값 포트는 8000 이다 — FE 가 {@code next dev -p 8000} 으로 돈다.
  *                          Next.js 기본값 3000 을 적어 두면 FE 를 붙이는 순간 전부 CORS 에서 막힌다.
+ * @param internalToken     서비스 간 호출 비밀. FE 안의 AI 서버가 {@code POST /api/auth/introspect}
+ *                          를 부를 때 {@code X-Internal-Token} 으로 보낸다. 비어 있으면 그 엔드포인트가
+ *                          전부 거부된다 — 기본값으로 열어 두면 설정을 잊은 채 배포된다.
+ *                          이 값은 JWT 시크릿과 달라야 한다. 같으면 AI 서버가 토큰을 위조할 수 있다.
  */
 @ConfigurationProperties(prefix = "app.auth")
 public record AuthProperties(
@@ -27,5 +31,6 @@ public record AuthProperties(
         @DefaultValue("/api/auth") String refreshCookiePath,
         @DefaultValue("true") boolean refreshCookieSecure,
         @DefaultValue("Lax") String refreshCookieSameSite,
-        @DefaultValue("http://localhost:8000") List<String> allowedOrigins) {
+        @DefaultValue("http://localhost:8000") List<String> allowedOrigins,
+        @DefaultValue("") String internalToken) {
 }
