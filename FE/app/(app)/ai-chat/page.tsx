@@ -31,6 +31,7 @@ import {
 } from "@/lib/ai/sources";
 import { createChatTransport, type TurnContext } from "@/lib/ai/transport";
 import { toChatMessage, turnOf, type AxpUIMessage } from "@/lib/ai/ui-messages";
+import { useConnectors } from "@/components/connector-provider";
 import { CONNECTOR_LIB } from "@/data/chat";
 import type {
   ChatMessage,
@@ -134,12 +135,10 @@ export default function AiChatPage() {
     CONNECTOR_LIB.filter((c) => c.connected).map((c) => c.slug),
   );
   /**
-   * 연결된 앱 slug — 커넥터 팝업과 입력창이 같은 값을 봐야 해서 여기서 갖는다.
-   * 팝업이 따로 들고 있으면 거기서 연결한 앱이 입력창에 나타나지 않는다.
+   * 연결된 앱 slug — 커넥터 팝업·입력창, 그리고 **설정 › 워크스페이스 › 연동**이 같은 값을
+   * 본다. 화면 state로 두면 설정에서 끊은 앱이 여기 그대로 남는다 (수정요청 v12).
    */
-  const [linkedApps, setLinkedApps] = useState<string[]>(() =>
-    CONNECTOR_LIB.filter((c) => c.connected).map((c) => c.slug),
-  );
+  const { connected: linkedApps, connect, disconnect } = useConnectors();
   /** 첫 대화 생성 전(시작 화면)의 소스 — 첫 대화가 이 상태를 승계한다 */
   const [draftSrc, setDraftSrc] = useState<SourceState>(EMPTY_SRC);
   /** 서버에서 대화 목록·문서 목록을 받아왔는지. 그 전에는 스켈레톤을 그린다 */
@@ -915,12 +914,12 @@ export default function AiChatPage() {
         onClose={() => setConnectorOpen(false)}
         connected={linkedApps}
         onConnect={(slug) => {
-          setLinkedApps((prev) => [...prev, slug]);
+          connect(slug);
           // 새로 연결한 앱은 켜진 상태로 시작한다
           setEnabledApps((prev) => [...prev, slug]);
         }}
         onDisconnect={(slug) => {
-          setLinkedApps((prev) => prev.filter((x) => x !== slug));
+          disconnect(slug);
           setEnabledApps((prev) => prev.filter((x) => x !== slug));
         }}
       />

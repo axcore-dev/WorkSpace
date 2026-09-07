@@ -307,6 +307,34 @@ export const IconDatabase = (p: IconProps) =>
     <path d="M3 12a9 3 0 0 0 18 0" />
   </>);
 
+export const IconArrowLeft = (p: IconProps) =>
+  base(p, <>
+    <path d="M19 12H5" />
+    <path d="m12 19-7-7 7-7" />
+  </>);
+
+/** 노트북 — 계정 › 기기 표의 행 머리 */
+export const IconLaptop = (p: IconProps) =>
+  base(p, <>
+    <rect width="18" height="12" x="3" y="4" rx="2" />
+    <path d="M2 20h20" />
+  </>);
+
+/** 휴지통 — 부서·직급 지우기 */
+export const IconTrash = (p: IconProps) =>
+  base(p, <>
+    <path d="M3 6h18" />
+    <path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2" />
+    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+  </>);
+
+/** 휴대전화 — 2단계 인증의 문자 수단 */
+export const IconSmartphone = (p: IconProps) =>
+  base(p, <>
+    <rect width="14" height="20" x="5" y="2" rx="2" />
+    <path d="M12 18h.01" />
+  </>);
+
 export const IconArrowRight = (p: IconProps) =>
   base(p, <>
     <path d="M5 12h14" />

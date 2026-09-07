@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Cell, StatData, TableData, Tone } from "@/data/types";
-import { IconArrowDownRight, IconArrowUpRight, IconCheck } from "@/components/icons";
+import { IconAlertCircle, IconArrowDownRight, IconArrowUpRight, IconCheck } from "@/components/icons";
 
 /**
  * 색상 정책 (사용자 지침):
@@ -27,6 +27,21 @@ export const FIELD_LG_ERROR = `${FIELD_SHAPE} ${FIELD_LINE_ERROR} px-4 py-3 text
  * `FIELD`에 `w-auto`를 덧붙이는 것으로는 안 된다 (클래스 문자열 순서가 CSS 우선순위를 정하지 않는다).
  */
 export const FIELD_INLINE = `${FIELD_FORM} ${FIELD_LINE} px-3.5 py-2.5 text-sm`;
+/**
+ * 작은 변형 — 표 위 필터 줄이나 표 셀처럼 `Button size="sm"`과 높이를 맞춰야 할 때.
+ *
+ * **높이를 `h-8`로 못 박는다.** 패딩으로 맞추면 글자 크기가 다른 요소끼리 1~2px씩 어긋나고,
+ * `FIELD`에 `py-1.5`를 덧붙이는 식으로는 애초에 안 맞는다 — 클래스 문자열 순서가 CSS
+ * 우선순위를 정하지 않아 원래 `py-2.5`가 이긴다.
+ */
+export const FIELD_SM = `${FIELD_BASE} h-8 px-3 text-[13px]`;
+/**
+ * `FIELD_SM`의 폭 자동 변형 — 필터 드롭다운처럼 한 줄에 여러 개 놓을 때.
+ *
+ * 오른쪽 패딩을 줄인다(`pr-2`). `select`의 화살표는 패딩 상자 안에 그려져서, 좌우를 같이
+ * 주면 화살표가 글자에서 멀찍이 떨어져 보인다.
+ */
+export const FIELD_SM_INLINE = `${FIELD_FORM} ${FIELD_LINE} h-8 w-auto pl-3 pr-2 text-[13px]`;
 
 /** 업무용 메일 지향 — 대표적인 개인 메일 도메인이면 true (로그인·회원가입·초대에서 안내용) */
 const PERSONAL_EMAIL_DOMAINS = [
@@ -337,6 +352,58 @@ export function Toggle({
   );
 }
 
+/**
+ * 3지 선택 — 라디오 대신 쓰는 분절 컨트롤 (없음/읽기/쓰기, 전체/부서/본인).
+ *
+ * 선택된 칸은 활성 내비 항목과 같은 시각 언어(`bg-white` + `ring-slate-200` + 굵게)를 쓴다.
+ * **블루를 쓰지 않는다** — 선택 상태는 액션이 아니다 (DESIGN.md 「원칙」).
+ *
+ * `label`은 접근성 이름이다. 시각적으로는 왼쪽 행 이름이 그 역할을 하므로 화면에 쓰지 않는다.
+ */
+export function Segmented<T extends string>({
+  options,
+  value,
+  onChange,
+  label,
+  disabled = false,
+}: {
+  options: { value: T; label: string }[];
+  value: T;
+  onChange: (v: T) => void;
+  label: string;
+  disabled?: boolean;
+}) {
+  return (
+    <span
+      role="group"
+      aria-label={label}
+      className={`inline-flex shrink-0 gap-0.5 rounded-lg bg-slate-100 p-0.5 ${
+        disabled ? "opacity-40" : ""
+      }`}
+    >
+      {options.map((o) => {
+        const on = o.value === value;
+        return (
+          <button
+            key={o.value}
+            type="button"
+            aria-pressed={on}
+            disabled={disabled}
+            onClick={() => onChange(o.value)}
+            className={`cursor-pointer whitespace-nowrap rounded-md px-2.5 py-1 text-xs transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400 disabled:cursor-not-allowed ${
+              on
+                ? "bg-white font-semibold text-slate-900 ring-1 ring-slate-200"
+                : "font-medium text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </span>
+  );
+}
+
 export function ProgressBar({
   value,
   tone = "slate",
@@ -381,6 +448,48 @@ export function EmptyState({
       <p className="text-sm font-semibold text-slate-700">{title}</p>
       {desc && <p className="mt-1 max-w-sm text-sm text-slate-500">{desc}</p>}
       {action && <div className="mt-4">{action}</div>}
+    </div>
+  );
+}
+
+/**
+ * 저장 피드백 토스트.
+ *
+ * 상태는 `components/use-toast.ts`의 `useToast()`가 쥔다 — 이 파일에는 `"use client"`가
+ * 없어서 훅을 여기 두면 `Card`·`Button`을 import하는 서버 컴포넌트가 전부 클라이언트
+ * 경계로 끌려간다.
+ *
+ * `aria-live` 영역은 메시지가 없을 때도 DOM에 남긴다 — 영역째 나타나면 스크린리더가 읽지
+ * 않는다. 빈 영역이 클릭을 막지 않게 `pointer-events-none`을 준다.
+ *
+ * **들어오고 나가는 전환을 재생한다.** 시간이 다 되면 `visible`만 꺼지고 문구는 남아 있어서
+ * (`useToast`) 사라지는 동안에도 그릴 것이 있다. 옅어지면서 살짝 내려간다 — 아래에서
+ * 올라와 아래로 빠지는 방향이 나타난 자리와 맞는다.
+ */
+export function Toast({
+  toast,
+}: {
+  toast: { message: string; tone?: "ink" | "error"; visible?: boolean } | null;
+}) {
+  const error = toast?.tone === "error";
+  // `visible`을 안 주는 호출부가 있어도 보이던 대로 둔다
+  const on = toast ? toast.visible !== false : false;
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="pointer-events-none fixed bottom-7 left-1/2 z-50 -translate-x-1/2"
+    >
+      {toast && (
+        <div
+          className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium shadow-lg transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none ${
+            on ? "translate-y-0 opacity-100" : "translate-y-1.5 opacity-0"
+          } ${error ? "border border-red-200 bg-white text-red-700" : "bg-slate-900 text-white"}`}
+        >
+          {error ? <IconAlertCircle size={16} /> : <IconCheck size={16} />}
+          {toast.message}
+        </div>
+      )}
     </div>
   );
 }

@@ -15,12 +15,9 @@ import {
   IconDashboard,
   IconLogOut,
   IconSettings,
-  IconShield,
-  IconUser,
 } from "@/components/icons";
 import { Logo } from "@/components/logo";
 import { useModules } from "@/components/module-provider";
-import { SettingsModal, type SettingsTab } from "@/components/settings/settings-modal";
 import { useLogout } from "@/components/use-logout";
 import { useSidebarCollapsed } from "@/components/use-sidebar-collapsed";
 import { MODULES } from "@/data/modules";
@@ -66,8 +63,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [orgOpen, setOrgOpen] = useState(false);
   const [orgId, setOrgId] = useState(DEFAULT_WORKSPACE_ID);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<SettingsTab>("account");
   const [collapsed, toggleCollapsed] = useSidebarCollapsed("axpoint-app-nav-collapsed");
 
   const orgRef = useRef<HTMLDivElement>(null);
@@ -91,19 +86,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const logout = useLogout();
 
-  function openSettings(tab: SettingsTab) {
-    setSettingsTab(tab);
-    setSettingsOpen(true);
-    setProfileOpen(false);
-  }
-
   const currentOrg = WORKSPACES.find((w) => w.id === orgId) ?? WORKSPACES[0];
-
-  const profileMenu: { label: string; tab: SettingsTab; icon: typeof IconUser }[] = [
-    { label: "계정", tab: "account", icon: IconUser },
-    { label: "관리", tab: "admin", icon: IconShield },
-    { label: "설정", tab: "workspace", icon: IconSettings },
-  ];
 
   return (
     <div className="flex min-h-screen">
@@ -313,18 +296,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <p className="truncate text-xs text-slate-500">{DEMO_USER.email}</p>
               </div>
               <div className="p-1.5">
-                {profileMenu.map((item) => (
-                  <button
-                    key={item.tab}
-                    type="button"
-                    role="menuitem"
-                    onClick={() => openSettings(item.tab)}
-                    className="flex w-full cursor-pointer items-center gap-2.5 rounded-md px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-100"
-                  >
-                    <item.icon size={16} className="text-slate-400" />
-                    {item.label}
-                  </button>
-                ))}
+                <Link
+                  href="/settings"
+                  role="menuitem"
+                  onClick={() => setProfileOpen(false)}
+                  className="flex w-full cursor-pointer items-center gap-2.5 rounded-md px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-100"
+                >
+                  <IconSettings size={16} className="text-slate-400" />
+                  설정
+                </Link>
                 <button
                   type="button"
                   role="menuitem"
@@ -348,7 +328,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               collapsed ? "justify-center" : ""
             }`}
           >
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-800 text-sm font-bold text-white">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-800 text-sm font-bold leading-none text-white">
               {DEMO_USER.initials}
             </span>
             {!collapsed && (
@@ -368,13 +348,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <main className={`min-w-0 flex-1 transition-[padding] duration-300 ${collapsed ? "pl-20" : "pl-60"}`}>
         {children}
       </main>
-
-      <SettingsModal
-        open={settingsOpen}
-        tab={settingsTab}
-        onTab={setSettingsTab}
-        onClose={() => setSettingsOpen(false)}
-      />
     </div>
   );
 }

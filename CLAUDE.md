@@ -72,7 +72,7 @@ Claude Code가 이 저장소에서 작업할 때 반드시 지켜야 하는 규�
 ## 입력 검증 및 인젝션 방지
 - 사용자 입력이 SQL, 쉘 명령, HTML(XSS), 파일 경로 등에 들어가는 경우 파라미터 바인딩/이스케이프/화이트리스트 검증을 적용한다. 문자열 조합으로 쿼리나 명령을 만들지 않는다.
 - 외부 입력을 받는 지점에서는 스키마 검증을 거친다.
-  - **FE**: API 라우트(`FE/app/api/**`)에서 zod 등으로 검증한다.
+  - **FE**: 라우트 핸들러(`route.ts`)에서 zod 등으로 검증한다. **`FE/app/api/`가 아니다** — nginx가 `/api/*`를 전부 Spring으로 보내서 그 아래 두면 FE 핸들러에 요청이 닿지 않는다. 지금 있는 곳은 `FE/app/ai/**`다.
   - **BE**: DTO에 `jakarta.validation` 애너테이션을 붙이고 컨트롤러에서 `@Valid`로 받는다 (`spring-boot-starter-validation` 이미 포함).
 - 파일 업로드/다운로드 기능은 경로 조작(path traversal), 확장자 위조를 검증한다.
 
