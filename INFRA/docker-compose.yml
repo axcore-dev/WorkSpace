@@ -63,6 +63,9 @@ services:
       # 부팅 뒤 기존 회사 스키마에 테넌트 마이그레이션(V3~)을 자동 적용한다. 서버가 한 대라 켜 둔다.
       # 인스턴스를 늘리면 false 로 바꾸고 배포 파이프라인에서 POST /api/admin/workspaces/migrate 를 한 번 부른다.
       TENANT_MIGRATE_ON_BOOT: ${TENANT_MIGRATE_ON_BOOT:-true}
+      # AI 서버 전용 DB 역할(axcore_ai)의 비밀번호. BE 가 부팅 때 설정하고 frontend 가 같은 값으로 접속한다.
+      # 16자 이상. 슈퍼유저(POSTGRES_PASSWORD)와 달라야 한다 — AI 서버는 ai_* 테이블만 만진다.
+      AI_DB_PASSWORD: ${AI_DB_PASSWORD:?INFRA/.env 에 AI_DB_PASSWORD 를 설정하세요}
 
       # --- 소셜 로그인 (비어 있으면 그 제공자만 비활성) ---
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
@@ -116,8 +119,9 @@ services:
       PGHOST: postgres
       PGPORT: "5432"
       PGDATABASE: ${POSTGRES_DB}
-      PGUSER: ${POSTGRES_USER}
-      PGPASSWORD: ${POSTGRES_PASSWORD}
+      # 슈퍼유저가 아니라 ai_* 테이블만 허용된 역할(shared V16 · tenant V6)로 붙는다. 비밀번호는 BE 가 부팅 때 맞춘다.
+      PGUSER: ${AI_DB_USER:-axcore_ai}
+      PGPASSWORD: ${AI_DB_PASSWORD:?INFRA/.env 에 AI_DB_PASSWORD 를 설정하세요}
       # 네이버 클라우드 Object Storage (S3 호환). 버킷은 비공개여야 한다 — 접근은 presigned URL 로만.
       NCP_OBJECT_STORAGE_ENDPOINT: ${NCP_OBJECT_STORAGE_ENDPOINT:-https://kr.object.ncloudstorage.com}
       NCP_OBJECT_STORAGE_REGION: ${NCP_OBJECT_STORAGE_REGION:-kr-standard}
@@ -126,7 +130,8 @@ services:
       NCP_SECRET_KEY: ${NCP_SECRET_KEY}
       # 모델. 대화는 AI_CHAT_PROVIDER(openai | anthropic) 쪽 키를 쓰고, 그 키가 비면 대본 응답.
       # 임베딩은 항상 OpenAI 라 OPENAI_API_KEY 가 비면 임베딩 없이 전문 검색만 된다.
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      # 비어 있어도 된다(OpenAI 만 쓰는 구성). 기본값을 두어 compose 의 "variable is not set" 경고를 없앤다.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       AI_CHAT_PROVIDER: ${AI_CHAT_PROVIDER:-openai}
       AI_CHAT_MODEL: ${AI_CHAT_MODEL:-gpt-5.6-luna}
