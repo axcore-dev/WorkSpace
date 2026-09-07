@@ -7,10 +7,16 @@
 
 /** 소스 문서 한 건 — 대화(노트북)마다 따로 들고 있다 */
 export interface SourceDoc {
+  /** 서버가 발급한 문서 id. 열기·삭제 요청에 쓴다. 서버를 거치지 않은 옛 저장본에는 없다 */
+  id?: string;
   name: string;
   type: string;
   scope: "개인" | "팀" | "전사";
   updated: string;
+  /** 색인 상태. indexing 동안은 검색에 잡히지 않고, failed 면 다시 올려야 한다 */
+  status?: "indexing" | "ready" | "failed";
+  /** 업무 분야(핵심 기능 slug, `MODULES`). 색인 때 모델이 분류한다. 없으면 분야 제한 없음 */
+  module?: string;
 }
 
 /** 대화별 소스 상태 — 새 대화는 빈 노트북으로 시작한다 */
@@ -19,12 +25,30 @@ export interface SourceState {
   selected: string[];
 }
 
-/** 대화(노트북) 한 건. localStorage에 이 모양 그대로 저장된다 (`lib/chat-storage.ts`) */
+/**
+ * 대화(노트북) 한 건. 서버(테넌트 스키마 `ai_conversations`)가 원본이고 화면은 불러와서 든다.
+ * `messages` 는 대화를 열 때 받아오므로 목록만 있는 상태에서는 비어 있고 `loaded` 가 false 다.
+ */
 export interface Note {
-  id: number;
+  /** 서버가 발급한 대화 id(uuid) */
+  id: string;
   title: string;
   messages: ChatMessage[];
   src: SourceState;
+  /** 메시지를 서버에서 받아왔는지. 목록만 있는 상태와 "정말 빈 대화" 를 구분한다 */
+  loaded: boolean;
+}
+
+/** 도구 실행 승인 요청 — 되돌리기 어려운 도구는 모델이 제안만 하고 사용자가 여기서 결정한다 */
+export interface ToolApproval {
+  approvalId: string;
+  toolName: string;
+  /** 사람이 읽는 도구 이름 */
+  label: string;
+  /** 모델이 채운 입력. 카드에 그대로 보여 준다 */
+  input: unknown;
+  /** 승인·거절이 끝났는지. 끝난 카드는 버튼 대신 결과를 보여 준다 */
+  decision?: "approved" | "denied";
 }
 
 export interface ChatSource {
@@ -82,6 +106,10 @@ export interface ChatMessage {
   rating?: "up" | "down";
   /** AI 활동(추론) 시간 — 출처 드로어 상단 "{n}s" */
   durationMs?: number;
+  /** 서버 메시지 순번. 편집·다시 시도·평가가 이 값으로 서버 행을 가리킨다. 아직 저장 전이면 없다 */
+  seq?: number;
+  /** 이 답변에서 모델이 요청한 도구 승인들 */
+  approvals?: ToolApproval[];
 }
 
 /**

@@ -27,6 +27,7 @@ import type {
   ChatProcess,
   ChatSource,
   OcrProposal,
+  ToolApproval,
   TraceStep,
 } from "@/data/chat";
 
@@ -64,6 +65,13 @@ export type AxpDataParts = {
   label: { text: string };
   trace: TraceStep;
   answer: AnswerMeta;
+  /**
+   * 이 턴이 저장된 자리. 서버가 사용자 메시지를 저장한 직후 한 번 보낸다.
+   * 화면은 `userSeq` 를 방금 보낸 사용자 메시지에, `assistantSeq` 를 곧 붙을 답변에 매긴다.
+   */
+  turn: { conversationId: string; userSeq: number; assistantSeq: number; title: string };
+  /** 도구 실행 승인 요청. 카드로 그려지고, 사용자의 결정은 다음 턴의 `action` 으로 돌아온다 */
+  approval: ToolApproval;
 };
 
 export type AxpUIMessage = UIMessage<AxpMetadata, AxpDataParts>;
@@ -103,7 +111,9 @@ export function toChatMessage(m: AxpUIMessage): ChatMessage {
   let text = "";
   const reasoning: string[] = [];
   const trace: TraceStep[] = [];
+  const approvals: ToolApproval[] = [];
   let answer: AnswerMeta = {};
+  let seq: number | undefined;
 
   for (const part of m.parts) {
     if (part.type === "text") {
@@ -114,6 +124,10 @@ export function toChatMessage(m: AxpUIMessage): ChatMessage {
       trace.push(part.data);
     } else if (part.type === "data-answer") {
       answer = part.data;
+    } else if (part.type === "data-turn") {
+      seq = part.data.assistantSeq;
+    } else if (part.type === "data-approval") {
+      approvals.push(part.data);
     } else if (isToolUIPart(part)) {
       trace.push(
         traceFromToolPart(
@@ -152,5 +166,15 @@ export function toChatMessage(m: AxpUIMessage): ChatMessage {
     cta: answer.cta,
     reasoning: reasoning.length ? reasoning : undefined,
     durationMs: m.metadata?.durationMs,
+    seq,
+    approvals: approvals.length ? approvals : undefined,
   };
+}
+
+/** `data-turn` 파트만 뽑는다 — 화면이 방금 보낸 사용자 메시지에 순번을 매기고 새 대화 id 를 알 때 쓴다 */
+export function turnOf(m: AxpUIMessage): AxpDataParts["turn"] | undefined {
+  for (const part of m.parts) {
+    if (part.type === "data-turn") return part.data;
+  }
+  return undefined;
 }

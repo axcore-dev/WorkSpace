@@ -1,15 +1,17 @@
 /**
- * ⚠️ AI-MOCK — BE 연동 시 삭제 대상 ⚠️
+ * `POST /ai/chat` — AI 대화 스트림. **FE 안의 AI 서버다.**
  *
- * `POST /ai/chat` 대본 스트림. BE(Spring)에 같은 계약의 엔드포인트가 생기면 이 폴더째 지운다
- * (지우는 순서는 `../_mock/scenarios.ts` 헤더 참고).
+ * 모델 호출·검색(RAG)·스트리밍·대화 저장을 이 Next Route Handler 가 맡는다. BE(Spring)는 인증 판정
+ * (`POST /api/auth/introspect`)과 업무 데이터의 원장으로 남는다. 왜 이렇게 나눴는지는
+ * docs/ai/ai-server.md 참고.
  *
- * **여기에 프롬프트도 tool 정의도 두지 않는다.** 모델 호출은 BE 가 한다. 이 라우트가 하는 일은
- * 대본(`_mock/scenarios.ts`)을 AI SDK 의 UI Message Stream 프로토콜로 인코딩하는 것뿐이고,
- * 그래서 BE 는 이 파일을 와이어 포맷의 참고 구현으로 쓸 수 있다.
+ * ── 순서 ────────────────────────────────────────────────────────────────────
+ * 1. `authenticate` — 모든 요청이 BE 판정을 거친다. 실패하면 스트림을 열지 않고 JSON 오류로 답한다.
+ * 2. 본문 검증(zod). `conversationId` 는 화면이 `POST /ai/conversations` 로 먼저 만든 값이고, 본인 것이어야 한다.
+ * 3. 대화 모델 키가 있으면 실제 모델(`chat-llm`, 프로바이더는 `models.ts`), 없으면 대본(`chat-mock`).
+ *    `action: tool-approval` 은 승인 턴(`runApprovalTurn`)으로 간다.
  *
- * ── BE 가 맞춰야 할 것 ──────────────────────────────────────────────────────
- * 응답 헤더 (`createUIMessageStreamResponse` 가 붙여 준다):
+ * ── 응답 헤더 (`createUIMessageStreamResponse` 가 붙여 준다) ──────────────────
  *   Content-Type: text/event-stream / Cache-Control: no-cache / Connection: keep-alive
  *   x-vercel-ai-ui-message-stream: v1   ← 없으면 useChat 이 스트림으로 안 본다
  *   X-Accel-Buffering: no               ← nginx. 다만 프록시 설정에도 넣어 뒀다(단일 실패점 회피)
@@ -17,39 +19,38 @@
  * 본문은 `event:` 없이 `data: {json}\n\n` 한 줄씩이고 `data: [DONE]\n\n` 으로 끝난다.
  * 파트 종류는 `@/lib/ai/ui-messages` 를 그대로 따른다.
  */
-import { createUIMessageStream, createUIMessageStreamResponse } from "ai";
 import { z } from "zod";
-import { SKILL_LIB, type ChatMessage, type TraceStep } from "@/data/chat";
-import type { AnswerMeta, AxpUIMessage } from "@/lib/ai/ui-messages";
-import {
-  REPLY_ROUTES,
-  SCRIPTED_CALENDAR_REPLY,
-  SCRIPTED_REPLIES,
-} from "../_mock/scenarios";
-
-/** 추론 문구 사이 간격 — 너무 빠르면 문구가 읽히지 않는다 */
-const LABEL_MS = 550;
-/** 도구 행이 하나씩 드러나는 간격 */
-const TRACE_MS = 450;
-/** 본문 조각 — 2글자씩 흘린다 (화면의 타자 효과와 같은 속도) */
-const DELTA_CHARS = 2;
-const DELTA_MS = 18;
+import { authenticate } from "@/lib/ai/server/auth";
+import { runApprovalTurn, streamAnswer, type Turn } from "@/lib/ai/server/chat-llm";
+import { streamScripted } from "@/lib/ai/server/chat-mock";
+import { findConversation } from "@/lib/ai/server/conversations";
+import { withTenant } from "@/lib/ai/server/db";
+import { handle, HttpError } from "@/lib/ai/server/http";
+import { hasChatModel } from "@/lib/ai/server/models";
 
 /**
  * 요청 본문 검증 — 외부 입력이라 통과시키기 전에 형태를 확인한다.
  *
  * 화면이 보내는 파트 전부를 검증하지 않는다. 이 라우트가 실제로 읽는 것은 텍스트 파트뿐이고,
- * 나머지는 `passthrough` 로 흘려보낸다 — 안 읽는 값을 검증해 봐야 계약만 굳는다.
+ * 나머지는 흘려보낸다 — 안 읽는 값을 검증해 봐야 계약만 굳는다.
  */
 const bodySchema = z.object({
-  conversationId: z.number().finite(),
-  sources: z.array(z.string()).max(50).default([]),
-  skills: z.array(z.string()).max(20).default([]),
-  action: z.object({ type: z.literal("approve-proposal") }).optional(),
+  conversationId: z.string().uuid(),
+  sources: z.array(z.string().max(200)).max(50).default([]),
+  skills: z.array(z.string().max(50)).max(20).default([]),
+  replaceFromSeq: z.number().int().positive().optional(),
+  action: z
+    .discriminatedUnion("type", [
+      z.object({ type: z.literal("approve-proposal") }),
+      z.object({
+        type: z.literal("tool-approval"),
+        approvalId: z.string().uuid(),
+        approved: z.boolean(),
+      }),
+    ])
+    .optional(),
   message: z.object({
-    parts: z.array(
-      z.looseObject({ type: z.string(), text: z.string().optional() }),
-    ),
+    parts: z.array(z.looseObject({ type: z.string(), text: z.string().optional() })),
   }),
 });
 
@@ -63,99 +64,47 @@ function userText(parts: { type: string; text?: string }[]): string {
     .join("");
 }
 
-/** 질문 키워드로 대본을 고른다 — 실제 BE는 여기서 LLM을 부른다 */
-function pickReply(q: string, approving: boolean): ChatMessage {
-  if (approving) return SCRIPTED_REPLIES[2];
-  if (/캘린더|일정|스케줄/.test(q)) return SCRIPTED_CALENDAR_REPLY;
-  if (/발주서|OCR|주문서/i.test(q)) return SCRIPTED_REPLIES[1];
-  const hit = REPLY_ROUTES.find((r) => r.pattern.test(q));
-  return SCRIPTED_REPLIES[hit?.index ?? 0];
-}
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
 export async function POST(req: Request) {
-  const parsed = bodySchema.safeParse(await req.json().catch(() => null));
-  if (!parsed.success) {
-    return Response.json(
-      { code: "VALIDATION_FAILED", message: "요청 형태가 올바르지 않아요" },
-      { status: 400 },
+  return handle(async () => {
+    const principal = await authenticate(req);
+
+    const parsed = bodySchema.safeParse(await req.json().catch(() => null));
+    if (!parsed.success) {
+      throw new HttpError(400, "VALIDATION_FAILED", "요청 형태가 올바르지 않아요");
+    }
+    const body = parsed.data;
+    const question = userText(body.message.parts).trim();
+    if (question.length > MAX_MESSAGE) {
+      throw new HttpError(400, "VALIDATION_FAILED", "질문이 너무 길어요");
+    }
+    if (!question && !body.action) {
+      throw new HttpError(400, "VALIDATION_FAILED", "질문이 비어 있어요");
+    }
+
+    // 대화는 본인 것이어야 한다. 남의 대화 id 를 넣어도 여기서 404 로 끝난다
+    const conv = await withTenant(principal.schemaName, (db) =>
+      findConversation(db, principal.userId, body.conversationId),
     );
-  }
-  const body = parsed.data;
-  const question = userText(body.message.parts);
-  if (question.length > MAX_MESSAGE) {
-    return Response.json(
-      { code: "VALIDATION_FAILED", message: "질문이 너무 길어요" },
-      { status: 400 },
-    );
-  }
+    if (!conv) throw new HttpError(404, "NOT_FOUND", "대화를 찾을 수 없어요");
 
-  const reply = pickReply(question, body.action?.type === "approve-proposal");
-  const startedAt = Date.now();
+    const turn: Turn = {
+      question,
+      sources: body.sources,
+      skills: body.skills,
+      replaceFromSeq: body.replaceFromSeq,
+      action: body.action,
+    };
 
-  // 스킬이 물려 있으면 도구 행 맨 앞에 한 줄 끼운다 — 요청이 서버까지 닿았는지 눈으로 확인된다
-  const skillNames = body.skills
-    .map((id) => SKILL_LIB.find((s) => s.id === id)?.name)
-    .filter((n) => n !== undefined);
-  const rows: TraceStep[] = [
-    ...(skillNames.length
-      ? [{ icon: "model" as const, text: `스킬 적용 — ${skillNames.join(", ")}` }]
-      : []),
-    ...(reply.process?.trace ?? []),
-  ];
-
-  const stream = createUIMessageStream<AxpUIMessage>({
-    // 기본값은 오류 문구를 감춘다. 대본 라우트라 감출 내부 정보가 없고, 화면이 그대로 띄운다.
-    onError: () => "답변을 받지 못했어요",
-    async execute({ writer }) {
-      const textId = "t0";
-      writer.write({ type: "start" });
-      writer.write({ type: "start-step" });
-
-      for (const text of reply.reasoning ?? []) {
-        if (req.signal.aborted) return;
-        writer.write({ type: "data-label", data: { text } });
-        await sleep(LABEL_MS);
-      }
-      for (const row of rows) {
-        if (req.signal.aborted) return;
-        writer.write({ type: "data-trace", data: row });
-        await sleep(TRACE_MS);
-      }
-
-      writer.write({ type: "text-start", id: textId });
-      for (let i = 0; i < reply.text.length; i += DELTA_CHARS) {
-        if (req.signal.aborted) return;
-        writer.write({
-          type: "text-delta",
-          id: textId,
-          delta: reply.text.slice(i, i + DELTA_CHARS),
-        });
-        await sleep(DELTA_MS);
-      }
-      writer.write({ type: "text-end", id: textId });
-
-      // 본문 외 나머지. 답이 굳은 뒤에 한 번만 보낸다.
-      // trace 는 여기 넣지 않는다 — 방금 흘린 data-trace 와 두 벌이 되고, 어긋나면 화면이 흔들린다.
-      const answer: AnswerMeta = {
-        sources: reply.sources,
-        consulted: reply.process?.sources,
-        tools: reply.process?.tools,
-        summary: reply.process?.summary,
-        ocrProposal: reply.ocrProposal,
-        cta: reply.cta,
-        attachment: reply.attachment,
-      };
-      writer.write({ type: "data-answer", data: answer });
-
-      writer.write({ type: "finish-step" });
-      writer.write({
-        type: "finish",
-        messageMetadata: { durationMs: Date.now() - startedAt },
-      });
-    },
+    // 대화 모델 키가 없으면 대본. 저장은 하지 않는다 — 대본은 화면 확인용이다
+    if (!hasChatModel()) {
+      return streamScripted(
+        { question, sources: turn.sources, skills: turn.skills, approving: body.action?.type === "approve-proposal" },
+        req.signal,
+      );
+    }
+    if (body.action?.type === "tool-approval") {
+      return runApprovalTurn(principal, conv, body.action, req.signal);
+    }
+    return streamAnswer(principal, conv, turn, req.signal);
   });
-
-  return createUIMessageStreamResponse({ stream });
 }

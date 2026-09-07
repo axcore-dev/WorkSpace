@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AgentTrace, StreamingText } from "@/components/chat/agent-trace";
+import { Markdown } from "@/components/chat/markdown";
 import {
   IconArrowRight,
   IconCheck,
@@ -216,11 +217,12 @@ export function AiMessage({
           collapseOnMount={justArrived}
         />
       )}
-      <div className="whitespace-pre-line text-base leading-relaxed text-slate-700">
+      {/* 본문은 마크다운이다 — 줄바꿈·목록·표는 렌더러가 처리하므로 whitespace-pre-line 을 두지 않는다 */}
+      <div className="text-base leading-relaxed text-slate-700">
         {streaming ? (
           <StreamingText text={msg.text} onDone={onStreamDone} />
         ) : (
-          msg.text
+          <Markdown text={msg.text} />
         )}
         {!streaming && children}
       </div>

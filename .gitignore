@@ -47,6 +47,7 @@ docs/*
 !docs/commit/
 !docs/db/
 !docs/infra/
+!docs/ai/
 
 
 # claude code local settings

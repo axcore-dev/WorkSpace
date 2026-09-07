@@ -88,10 +88,9 @@ server {
 
     # BE. 끝의 슬래시 없이 변수로 넘기면 원래 URI 가 그대로 전달된다.
     #
-    # BE 가 나중에 AI 스트리밍(/api/ai/chat)을 가져가면 아래 /ai/ 블록과 같은 두 줄
-    # (proxy_buffering off, proxy_read_timeout)을 여기에도 넣어야 한다. 그리고 Spring 쪽에
-    # spring.mvc.async.request-timeout 을 이 값과 짝으로 맞춰야 한다 — 그게 없으면 톰캣
-    # 기본값(30s)에서 스트림이 먼저 끊긴다.
+    # AI 스트리밍은 BE 로 오지 않는다 — AI 서버는 FE 안(/ai/)에 두기로 결정됐다(docs/ai/ai-server.md).
+    # BE 는 AI 서버의 토큰 판정(POST /api/auth/introspect)만 받는데, 그 호출은 compose 내부 네트워크로
+    # 직접 오므로 nginx 를 거치지 않는다.
     location /api/ {
         set $backend http://app:8080;
         proxy_pass $backend;
@@ -119,6 +118,9 @@ server {
         proxy_pass $ai;
         proxy_buffering     off;
         proxy_read_timeout  300s;
+        # 소스 업로드(POST /ai/sources)는 한 요청에 파일 10개 × 20MB 까지다. server 블록의 20m 은
+        # 파일 하나 기준이라 여기서만 올린다. 개별 크기·개수 제한은 AI 서버가 다시 검사한다.
+        client_max_body_size 210m;
     }
 
     # FE. Upgrade 헤더는 지금은 쓰지 않지만 실시간 기능이 붙을 때 필요하다.

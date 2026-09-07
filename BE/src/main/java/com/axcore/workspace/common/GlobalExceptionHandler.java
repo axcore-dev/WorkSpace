@@ -9,6 +9,7 @@ import com.axcore.workspace.user.service.EmailAlreadyVerifiedException;
 import com.axcore.workspace.user.service.MfaStateException;
 import com.axcore.workspace.user.service.PasswordNotSetException;
 import com.axcore.workspace.user.service.SamePasswordException;
+import com.axcore.workspace.user.introspection.IntrospectionRejectedException;
 import com.axcore.workspace.user.service.SessionNotFoundException;
 import com.axcore.workspace.workspace.admin.exception.DuplicateBizNumberException;
 import com.axcore.workspace.workspace.admin.exception.InternalAdminRequiredException;
@@ -147,6 +148,19 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleWorkspaceAccess(WorkspaceAccessDeniedException e) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(ErrorResponse.of("WORKSPACE_ACCESS_DENIED", e.getMessage()));
+    }
+
+    /**
+     * AI 서버의 토큰 판정({@code POST /api/auth/introspect})이 내리지 못한 경우. 예외가 상태와 코드를
+     * 함께 들고 있어 그대로 옮긴다 — 503 설정 누락 · 403 서비스 비밀 불일치 · 409 회사 미선택/미준비.
+     */
+    @ExceptionHandler(IntrospectionRejectedException.class)
+    public ResponseEntity<ErrorResponse> handleIntrospectionRejected(
+            IntrospectionRejectedException e) {
+        if (e.status().is5xxServerError()) {
+            log.error("introspect 비활성: {}", e.getMessage());
+        }
+        return ResponseEntity.status(e.status()).body(ErrorResponse.of(e.code(), e.getMessage()));
     }
 
     /**

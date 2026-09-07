@@ -1,0 +1,14 @@
+-- pgvector 확장. AI 대화의 소스 문서 임베딩(테넌트 V3 `ai_source_chunks.embedding`)이 쓴다.
+--
+-- **여기에는 데이터가 없다.** 확장은 데이터베이스 단위 기능이라 설치 위치가 shared 마이그레이션일
+-- 뿐이고, 문서·조각·임베딩은 전부 회사별 테넌트 스키마(db/migration/tenant/V3)에만 들어간다.
+-- 테넌트 마이그레이션에 넣으면 회사마다 같은 확장을 다시 만들려 하고, `IF NOT EXISTS` 로 넘어가더라도
+-- 확장이 어느 스키마에 있는지가 첫 회사에 따라 달라진다.
+--
+-- **public 에 둔다.** 테넌트 search_path 는 의도적으로 public 을 빼고 있어(TenantSearchPath), 쓰는
+-- 쪽은 `public.vector` · `OPERATOR(public.<=>)` 처럼 스키마를 붙여 부른다. AI 서버(FE/lib/ai/server)
+-- 의 쿼리가 그렇게 되어 있다.
+--
+-- DB 이미지가 pgvector 를 포함해야 한다 — INFRA/docker-compose.db.yml 의 `pgvector/pgvector:pg18`.
+-- 이미지가 맞지 않으면 여기서 부팅이 막히는데, 그게 맞다. 조용히 넘어가면 나중에 첫 업로드에서 터진다.
+CREATE EXTENSION IF NOT EXISTS vector SCHEMA public;

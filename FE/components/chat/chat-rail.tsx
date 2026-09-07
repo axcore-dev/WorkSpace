@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import {
   IconCheck,
+  IconExternalLink,
   IconFile,
   IconFolder,
   IconHistory,
@@ -12,8 +13,12 @@ import {
 } from "@/components/icons";
 import { Button } from "@/components/ui";
 import type { Note, SourceState } from "@/data/chat";
+import { MODULES } from "@/data/modules";
 
 type Panel = "notes" | "sources";
+
+/** 소스 행에 붙는 업무 분야 이름 — 색인이 분류한 slug 를 사람 이름으로 */
+const MODULE_NAME: Record<string, string> = Object.fromEntries(MODULES.map((m) => [m.slug, m.name]));
 
 /** 체크박스 한 칸 — 전체 선택과 개별 소스가 같은 모양을 쓴다 */
 const CHECKBOX =
@@ -42,17 +47,20 @@ export function ChatRail({
   onToggleAll,
   onAddSource,
   onRemoveSource,
+  onOpenSource,
 }: {
   notes: Note[];
-  activeId: number | null;
+  activeId: string | null;
   src: SourceState;
-  onSelectNote: (id: number) => void;
+  onSelectNote: (id: string) => void;
   onNewNote: () => void;
-  onDeleteNote: (id: number) => void;
+  onDeleteNote: (id: string) => void;
   onToggleSource: (name: string) => void;
   onToggleAll: () => void;
   onAddSource: () => void;
   onRemoveSource: (name: string) => void;
+  /** 서버에 올라간 문서를 새 탭에서 연다. id 가 없는 옛 저장본에는 버튼이 나오지 않는다 */
+  onOpenSource?: (name: string) => void;
 }) {
   // 어느 패널인지와 열렸는지를 나눠 든다 — 닫히는 전환 동안 마지막 패널을 계속 그리기 위해
   const [panel, setPanel] = useState<Panel>("sources");
@@ -302,9 +310,29 @@ export function ChatRail({
                         </span>
                         <span className="mt-0.5 block text-[13px] text-slate-400">
                           {doc.type} · {doc.scope} · {doc.updated}
+                          {doc.module && MODULE_NAME[doc.module] && (
+                            <span className="ml-1 text-slate-500">· {MODULE_NAME[doc.module]}</span>
+                          )}
+                          {doc.status === "indexing" && (
+                            <span className="ml-1 text-amber-500">· 색인 중</span>
+                          )}
+                          {doc.status === "failed" && (
+                            <span className="ml-1 text-rose-500">· 읽기 실패</span>
+                          )}
                         </span>
                       </span>
                     </button>
+                    {doc.id && onOpenSource && (
+                      <button
+                        type="button"
+                        onClick={() => onOpenSource(doc.name)}
+                        aria-label={`${doc.name} 열기`}
+                        title="새 탭에서 열기"
+                        className="absolute right-8 top-1/2 flex h-6 w-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-slate-400 opacity-0 transition-[opacity,color,background-color] hover:bg-slate-200/70 hover:text-slate-600 focus-visible:opacity-100 group-hover:opacity-100"
+                      >
+                        <IconExternalLink size={13} />
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => onRemoveSource(doc.name)}

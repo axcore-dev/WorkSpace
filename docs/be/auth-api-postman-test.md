@@ -411,6 +411,53 @@ DELETE FROM shared.users WHERE email LIKE 'pm-%@axcore.ai.kr';
 
 ---
 
+## 7-1. `POST /api/auth/introspect` — AI 서버 전용 토큰 판정
+
+브라우저가 부르는 경로가 **아니다.** FE 안의 AI 서버(Next Route Handler, `FE/lib/ai/server/auth.ts`)가
+사용자의 access 토큰을 그대로 넘겨 "누가 어느 회사 스키마에서 일하는가"를 묻는 곳이다.
+대상 코드: `BE/src/main/java/com/axcore/workspace/user/introspection/`.
+
+일반 API 와 다르게 **요청 시점 DB 를 본다.** 세션이 폐기됐는지(`user_sessions`), 그 회사에 지금도
+소속인지(`user_workspace_memberships`)까지 확인한다. 회사 기밀 문서가 담긴 스키마를 여는 판정이라
+서명만으로 통과시키면 안 된다.
+
+```
+POST {{baseUrl}}/api/auth/introspect
+Authorization: Bearer {{accessToken}}
+X-Internal-Token: <INFRA/.env 의 AUTH_INTERNAL_TOKEN>
+(본문 없음)
+```
+
+200 응답:
+
+```json
+{
+  "userId": "0f0d8f2e-…",
+  "sessionId": "5b1c…",
+  "email": "user@example.com",
+  "name": "홍길동",
+  "workspaceId": 1,
+  "workspaceName": "예시 제조",
+  "schemaName": "ax_00001",
+  "tokenExpiresAt": "2026-09-07T10:15:00Z"
+}
+```
+
+| 상태 | code | 언제 |
+|---|---|---|
+| 401 | `UNAUTHORIZED` | access 토큰 없음·만료·위조, 또는 세션이 폐기됨 |
+| 403 | `FORBIDDEN` | `X-Internal-Token` 이 없거나 다름 |
+| 403 | `WORKSPACE_ACCESS_DENIED` | 소속이 없거나 회수됨, 회사가 정지됨 |
+| 409 | `WORKSPACE_REQUIRED` | 토큰에 `wsid` 가 없음 — 회사를 아직 고르지 않았다 |
+| 409 | `WORKSPACE_NOT_READY` | 회사 스키마가 아직 프로비저닝되지 않음 |
+| 503 | `INTROSPECTION_DISABLED` | 서버의 `AUTH_INTERNAL_TOKEN` 이 비어 있음. 열어 두는 기본값이 없다 |
+
+Postman 으로 볼 때는 `X-Internal-Token` 을 `.env` 값과 같게 넣으면 200 이 나오고, 한 글자만 바꾸면
+403 `FORBIDDEN` 이다. 서비스 비밀은 상수 시간 비교(`MessageDigest.isEqual`)라 앞부분만 맞아도 응답
+시간이 달라지지 않는다.
+
+---
+
 ## 8. 이어지는 문서
 
 이 문서가 다루는 것은 로그인 세션을 만들고 없애는 5개 경로까지다. 아래는
