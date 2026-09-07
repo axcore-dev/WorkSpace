@@ -11,7 +11,11 @@ import assert from "node:assert/strict";
 
 import {
   canDeleteRole,
+  deptDeletable,
   groupRolesByDept,
+  moveRanks,
+  rankDeletable,
+  renameDept,
   roleMemberCount,
   summarizeRole,
 } from "./roles.ts";
@@ -72,6 +76,62 @@ test("일반 역할은 지울 수 있다", () => {
 test("마지막 남은 역할은 지울 수 없다", () => {
   const only = role();
   assert.equal(canDeleteRole(only, [only]), false);
+});
+
+test("못 지우는 이유를 돌려준다", () => {
+  // 화면이 버튼만 흐리게 두면 왜 안 되는지 알 수 없다
+  const sys = role({ system: true });
+  assert.match(rankDeletable(sys, [sys, role({ id: "r2" })]).why, /시스템/);
+  const only = role();
+  assert.match(rankDeletable(only, [only]).why, /마지막/);
+  assert.equal(rankDeletable(role(), [role(), role({ id: "r2" })]).why, "");
+});
+
+/* ───────────── 부서 삭제 ───────────── */
+
+test("직급이 없는 부서는 지울 수 있다", () => {
+  const d = deptDeletable("설비보전팀", [role({ dept: "생산본부" })]);
+  assert.equal(d.ok, true);
+  assert.equal(d.ranks, 0);
+});
+
+test("직급이 남은 부서는 못 지운다", () => {
+  // 부서만 지우고 직급을 떠돌게 두면 어느 부서에도 없는 직급이 생긴다
+  const d = deptDeletable("생산본부", [
+    role({ dept: "생산본부" }),
+    role({ id: "r2", dept: "생산본부" }),
+  ]);
+  assert.equal(d.ok, false);
+  assert.equal(d.ranks, 2);
+  assert.match(d.why, /2개/);
+});
+
+test("부서 없는 직급(소유자)은 부서 수에 안 센다", () => {
+  const d = deptDeletable("생산본부", [role({ id: "owner", dept: null })]);
+  assert.equal(d.ok, true);
+});
+
+/* ───────────── 부서 이름 바꾸기 · 옮기기 ───────────── */
+
+test("부서 이름을 바꾸면 그 부서 직급이 따라온다", () => {
+  // 따라오게 하지 않으면 직급이 없어진 이름을 가리켜 같은 사고가 난다
+  const next = renameDept(
+    [role({ dept: "생산본부" }), role({ id: "r2", dept: "품질관리팀" })],
+    "생산본부",
+    "생산1본부",
+  );
+  assert.equal(next[0].dept, "생산1본부");
+  assert.equal(next[1].dept, "품질관리팀");
+});
+
+test("부서 없는 직급은 이름 바꾸기에 안 걸린다", () => {
+  const [owner] = renameDept([role({ id: "owner", dept: null })], "생산본부", "생산1본부");
+  assert.equal(owner.dept, null);
+});
+
+test("직급을 다른 부서로 옮긴다", () => {
+  const next = moveRanks([role({ dept: "생산본부" })], "생산본부", "제조혁신팀");
+  assert.equal(next[0].dept, "제조혁신팀");
 });
 
 /* ───────────── 구성원 수 ───────────── */

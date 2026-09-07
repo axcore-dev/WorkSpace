@@ -5,6 +5,7 @@ import { DataTable } from "@/components/settings/company/data-table";
 import { IconPlus, IconSearch } from "@/components/icons";
 // `FIELD`는 `w-full`이라 필터 셋을 한 줄에 못 놓는다 — `FIELD_INLINE`이 그 용도다
 import { Button, FIELD, FIELD_INLINE } from "@/components/ui";
+import { josa } from "@/data/ko";
 import { DEPARTMENTS, ROLES, USERS_ROLES } from "@/data/org";
 
 /**
@@ -45,7 +46,7 @@ export function MemberTable({
   function changeRole(email: string, next: string) {
     const name = users.find((u) => u.email === email)?.name ?? "구성원";
     setUsers((prev) => prev.map((u) => (u.email === email ? { ...u, role: next } : u)));
-    onSaved(`${name}의 직급을 ${next}로 바꿨어요`);
+    onSaved(`${name}의 직급을 ${next}${josa(next, "로/으로")} 바꿨어요`);
   }
 
   const shown = useMemo(() => {

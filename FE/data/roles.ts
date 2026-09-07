@@ -69,9 +69,61 @@ export function summarizeRole(role: RoleDef, total: number): string {
 
 /** 시스템 직급과 마지막 남은 직급은 지울 수 없다 */
 export function canDeleteRole(role: RoleDef, all: RoleDef[]): boolean {
-  if (role.system) return false;
-  if (all.length <= 1) return false;
-  return true;
+  return rankDeletable(role, all).ok;
+}
+
+/**
+ * 직급을 지울 수 있는가 — 왜 못 지우는지까지 돌려준다.
+ *
+ * 화면이 버튼만 흐리게 두면 왜 안 되는지 알 수 없다. 이유를 같이 보여줘야
+ * 다음에 뭘 해야 하는지가 정해진다.
+ */
+export function rankDeletable(
+  role: RoleDef,
+  all: RoleDef[],
+): { ok: boolean; why: string } {
+  if (role.system) return { ok: false, why: "시스템 직급이라 지울 수 없어요" };
+  if (all.length <= 1) return { ok: false, why: "마지막 남은 직급이라 지울 수 없어요" };
+  return { ok: true, why: "" };
+}
+
+/**
+ * 부서를 지울 수 있는가.
+ *
+ * **직급이 남아 있으면 못 지운다.** 부서만 지우고 직급을 떠돌게 두면 어느 부서에도 없는
+ * 직급이 생기고, 화면에서는 목록 끝 「없어진 부서」 묶음으로만 보인다
+ * (`groupRolesByDept`가 그걸 잡아 주긴 하지만, 그건 사고를 막는 안전망이지 정상 상태가 아니다).
+ *
+ * 직급을 다른 부서로 옮기거나 먼저 지우게 한다.
+ */
+export function deptDeletable(
+  dept: string,
+  roles: RoleDef[],
+): { ok: boolean; why: string; ranks: number } {
+  const ranks = roles.filter((r) => r.dept === dept).length;
+  if (ranks > 0) {
+    return { ok: false, why: `직급 ${ranks}개가 남아 있어요`, ranks };
+  }
+  return { ok: true, why: "", ranks: 0 };
+}
+
+/**
+ * 부서 이름을 바꾼다 — 그 부서를 쓰던 직급이 함께 따라온다.
+ *
+ * 이름 바꾸기는 지우기보다 안전하다. 다만 **따라오게 하지 않으면** 직급이 없어진 이름을
+ * 가리켜 같은 사고가 난다.
+ */
+export function renameDept(roles: RoleDef[], from: string, to: string): RoleDef[] {
+  return roles.map((r) => (r.dept === from ? { ...r, dept: to } : r));
+}
+
+/**
+ * 직급을 다른 부서로 옮긴다.
+ *
+ * 부서를 지우기 전에 쓴다 — 「이 부서 직급들을 저 부서로」.
+ */
+export function moveRanks(roles: RoleDef[], from: string, to: string): RoleDef[] {
+  return renameDept(roles, from, to);
 }
 
 /** 직급 이름으로 구성원 수를 센다 — `USERS_ROLES[].role`이 문자열이라 이름으로 맞춘다 */
