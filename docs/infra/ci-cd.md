@@ -285,3 +285,10 @@ nginx 까지 compose 로 띄워 `http://localhost` 로 볼 때는 `PUBLIC_URL=ht
 - **메일 실제 발송 — 코드는 붙었다.** `SmtpMailSender`(`MAIL_MODE=smtp`). 남은 것은 발송 계정에 앱 비밀번호를 만들어
   크리덴셜 `.env` 에 `MAIL_HOST/PORT/USERNAME/PASSWORD` 를 채우고 `MAIL_MODE` 를 `smtp` 로 바꾸는 운영 작업이다 (2절 「Google Workspace SMTP」).
 - **Jenkins 접근 제한** — 8081 을 ACG 에서 사무실 IP 로 좁히거나 nginx 뒤 서브도메인으로 옮긴다.
+
+
+## DB 이미지가 바뀌는 PR 의 첫 배포
+
+`INFRA/docker-compose.db.yml` 의 이미지가 바뀐 PR(예: pgvector 도입)을 머지한 뒤 첫 배포는 **`BUILD_MODE=APP_WITH_DB`** 로 돌린다.
+기본 `APP_ONLY` 는 DB compose 를 건드리지 않아 옛 이미지 위에서 새 마이그레이션이 실패하고 BE 가 재시작을 반복한다
+(2026-09-07 PR #36 배포에서 `extension "vector" is not available` 로 실제 발생). `APP_WITH_DB` 는 볼륨을 유지한 채 컨테이너만 새 이미지로 만든다.

