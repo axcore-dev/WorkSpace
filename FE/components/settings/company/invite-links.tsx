@@ -29,8 +29,15 @@ export function InviteLinks({
     setLinks((prev) => [
       {
         id: `link-${Date.now()}`,
-        // 데모용 난수. BE가 붙으면 서버가 준 URL을 그대로 쓴다
-        url: `https://axcore.it.kr/invite/${Math.random().toString(36).slice(2, 10)}`,
+        /**
+         * **`Math.random()`을 쓰지 않는다.** 초대 링크의 마지막 조각은 그것만 알면 회사에
+         * 들어올 수 있는 값이다. `Math.random()`은 암호학적으로 안전하지 않고 8자리 base36은
+         * 짧아서, 이 코드가 그대로 서버로 옮겨가면 링크를 받지 않은 사람도 맞힐 수 있다.
+         *
+         * 데모 값이라도 안전한 쪽으로 둔다 — 이런 줄은 복사돼서 살아남는다.
+         * **실제 토큰은 서버가 만들어야 한다.**
+         */
+        url: `https://axcore.it.kr/invite/${crypto.randomUUID().replace(/-/g, "").slice(0, 22)}`,
         used: 0,
         active: true,
         ...next,

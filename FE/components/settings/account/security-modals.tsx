@@ -426,19 +426,21 @@ export function OtpEnrollModal({
 /**
  * 계정 › 이메일 관리.
  *
- * **주소를 칩으로 쌓는다** — 초대 팝업과 같은 모양이다. 등록된 주소가 한 상자에 모여 있고
- * 빼는 건 칩의 ✕, 더하는 건 그 옆 입력이다. 행 + 「삭제」 버튼으로 두면 주소 하나에 한 줄씩
- * 쓰는데, 대부분 두세 개뿐이라 목록이라기엔 과하다.
+ * **목록 + 행별 동작이다.** 초대 팝업의 칩과 다른 모양인 이유: 초대는 주소를 **여러 개 모아
+ * 한 번에 보내는** 일이라 칩이 맞고, 여기는 주소마다 상태(Primary·확인 대기)와 할 수 있는
+ * 일(Primary로 올리기·지우기)이 달라서 한 줄씩 필요하다.
  *
- * **Primary는 ✕가 없다.** 로그인과 복구 메일이 가는 주소라 지울 수 없다 —
- * 바꾸려면 다른 주소를 Primary로 올리고 나서 지운다.
+ * **Primary는 지울 수 없다.** 로그인과 복구 메일이 가는 주소다. 바꾸려면 다른 주소를
+ * Primary로 올리고 나서 지운다 — 그래서 두 동작이 한 줄에 같이 있다.
  *
- * 회사 메일이 아닌 주소를 막지 않는다. 개인 주소를 보조로 등록하는 건 정상이다 —
- * 초대와 달리 여기는 자기 계정이다.
+ * **확인하지 않은 주소는 Primary로 못 올린다.** 복구 메일이 닿지 않는 주소가 되기 때문이다.
  *
- * **BE 연동 seam**: 추가·삭제·Primary 변경 API가 아직 없다 (`docs/be/account-api-postman-test.md`
- * 에는 대표 이메일 재인증 `POST /api/auth/email/verify-request`만 있다). 지금은 화면
- * state라 새로고침하면 돌아간다. API가 생기면 `add`·`remove`·`makePrimary`에서 부른다.
+ * 회사 메일이 아닌 주소를 막지 않는다. 초대와 달리 여기는 자기 계정이라 개인 주소를
+ * 보조로 등록하는 게 정상이다.
+ *
+ * **BE 연동 seam**: 추가·삭제·Primary 변경 API가 아직 없다
+ * (`docs/be/account-api-postman-test.md`에는 대표 이메일 재인증
+ * `POST /api/auth/email/verify-request`만 있다). 지금은 화면 state라 새로고침하면 돌아간다.
  */
 export function EmailModal({
   open,
@@ -450,12 +452,12 @@ export function EmailModal({
   onDone: (message: string, tone?: "ink" | "error") => void;
 }) {
   const [list, setList] = useState(ACCOUNT_EMAILS);
+  const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState("");
 
   function add() {
     const v = draft.trim().toLowerCase();
-    if (!v) return;
     if (!isEmailShape(v)) {
       setError("주소 형식이 아니에요");
       return;
@@ -467,6 +469,7 @@ export function EmailModal({
     setList((prev) => [...prev, { address: v, primary: false, verified: false }]);
     setDraft("");
     setError("");
+    setAdding(false);
     onDone(`${v}로 확인 메일을 보냈어요`);
   }
 
@@ -480,98 +483,102 @@ export function EmailModal({
     onDone(`${address}를 Primary로 바꿨어요`);
   }
 
-  const extra = list.filter((e) => !e.primary);
+  function close() {
+    setAdding(false);
+    setDraft("");
+    setError("");
+    onClose();
+  }
 
   return (
-    <Modal open={open} onClose={onClose} size="md" title="이메일 관리">
-      <div className="p-5">
-        <label htmlFor="em-input" className="mb-1.5 block text-sm font-medium text-slate-700">
-          등록된 이메일
-        </label>
-        {/* 칩 상자 — 어디를 눌러도 입력으로 들어간다 */}
-        <div
-          className="flex min-h-[42px] flex-wrap items-center gap-1.5 rounded-lg border border-slate-300 p-1.5 focus-within:border-slate-400"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) document.getElementById("em-input")?.focus();
-          }}
-        >
-          {list.map((e) => (
-            <span
-              key={e.address}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 py-1 pl-2.5 pr-1.5 font-mono text-[12px] text-slate-700"
-            >
-              {e.address}
-              {e.primary ? (
-                /* 로그인·복구 메일이 가는 주소라 지울 수 없다 */
-                <span className="font-sans text-[10.5px] font-semibold text-slate-400">
-                  Primary
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  aria-label={`${e.address} 지우기`}
-                  onClick={() => remove(e.address)}
-                  className="-mr-0.5 flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-slate-400"
-                >
-                  <IconX size={13} />
-                </button>
-              )}
-            </span>
-          ))}
-          <input
-            id="em-input"
-            value={draft}
-            onChange={(e) => {
-              setDraft(e.target.value);
-              setError("");
-            }}
-            onBlur={add}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === ",") {
-                e.preventDefault();
-                add();
-              }
-            }}
-            placeholder="주소를 적고 Enter"
-            className="min-w-[150px] flex-1 bg-transparent px-1.5 py-1 text-[13px] text-slate-900 outline-none"
-          />
-        </div>
-        {error ? (
-          <p className="mt-1.5 text-xs text-red-600">{error}</p>
-        ) : (
-          <p className="mt-1.5 text-xs text-slate-400">
-            더한 주소로 확인 메일이 가요. 회사 메일이 아니어도 괜찮아요.
-          </p>
-        )}
+    <Modal
+      open={open}
+      onClose={close}
+      size="md"
+      title="이메일 관리"
+      footer={
+        !adding && (
+          <Button variant="secondary" size="sm" onClick={() => setAdding(true)}>
+            <IconMail size={14} />
+            이메일 추가
+          </Button>
+        )
+      }
+    >
+      <ul className="divide-y divide-slate-100 p-5">
+        {list.map((e) => (
+          <li key={e.address} className="flex items-center gap-3 py-3 first:pt-0">
+            <div className="min-w-0 flex-1">
+              <p className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[13px] text-slate-900">
+                {e.address}
+                {e.primary && <Badge tone="slate">Primary</Badge>}
+                {!e.verified && <Badge tone="amber">확인 대기</Badge>}
+              </p>
+            </div>
 
-        {/* Primary 바꾸기 — 칩만으로는 「어느 걸 Primary로」를 표현할 수 없다 */}
-        {extra.length > 0 && (
-          <div className="mt-4 border-t border-slate-100 pt-3">
-            <p className="text-xs font-semibold text-slate-600">Primary로 쓸 주소</p>
-            <ul className="mt-1.5 space-y-1">
-              {extra.map((e) => (
-                <li key={e.address} className="flex items-center justify-between gap-3">
-                  <span className="min-w-0 truncate font-mono text-[12.5px] text-slate-500">
-                    {e.address}
-                    {!e.verified && (
-                      <span className="ml-2 font-sans text-[11px] text-amber-700">확인 대기</span>
-                    )}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    // 확인하지 않은 주소를 Primary로 두면 복구 메일이 닿지 않는다
-                    disabled={!e.verified}
-                    onClick={() => makePrimary(e.address)}
-                  >
-                    Primary로
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          </div>
+            {/* Primary는 지울 수 없다 — 다른 주소를 올리고 나서 지운다 */}
+            {e.primary ? (
+              <span className="shrink-0 text-xs text-slate-400">로그인에 쓰는 주소</span>
+            ) : (
+              <span className="flex shrink-0 items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  // 확인하지 않은 주소를 Primary로 두면 복구 메일이 닿지 않는다
+                  disabled={!e.verified}
+                  title={e.verified ? undefined : "확인이 끝나면 올릴 수 있어요"}
+                  onClick={() => makePrimary(e.address)}
+                >
+                  Primary로
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => remove(e.address)}>
+                  삭제
+                </Button>
+              </span>
+            )}
+          </li>
+        ))}
+
+        {/* 추가는 목록의 마지막 줄로 열린다 — 팝업 안에 팝업을 띄우지 않는다 */}
+        {adding && (
+          <li className="py-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                autoFocus
+                className={`${error ? FIELD_ERROR : FIELD} min-w-[200px] flex-1 py-1.5 text-[13px]`}
+                value={draft}
+                placeholder="name@democompany.co.kr"
+                aria-label="더할 이메일"
+                aria-invalid={!!error}
+                onChange={(ev) => {
+                  setDraft(ev.target.value);
+                  setError("");
+                }}
+                onKeyDown={(ev) => {
+                  if (ev.key === "Enter") {
+                    ev.preventDefault();
+                    add();
+                  }
+                  if (ev.key === "Escape") {
+                    ev.preventDefault();
+                    setAdding(false);
+                    setError("");
+                  }
+                }}
+              />
+              <Button variant="secondary" size="sm" disabled={!draft.trim()} onClick={add}>
+                더하기
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setAdding(false)}>
+                취소
+              </Button>
+            </div>
+            <p className={`mt-1.5 text-xs ${error ? "text-red-600" : "text-slate-400"}`}>
+              {error || "더한 주소로 확인 메일이 가요. 회사 메일이 아니어도 괜찮아요."}
+            </p>
+          </li>
         )}
-      </div>
+      </ul>
     </Modal>
   );
 }
