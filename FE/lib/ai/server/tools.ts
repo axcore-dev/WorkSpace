@@ -243,20 +243,18 @@ export async function decideApproval(
   | { kind: "executed"; toolName: string; label: string; input: unknown; output: unknown }
   | { kind: "failed"; toolName: string; label: string; input: unknown; error: string }
 > {
+  // 결정을 한 문장으로 "선점" 한다. SELECT 뒤 UPDATE 로 나누면 같은 승인으로 요청이 동시에 두 개 들어올 때
+  // 둘 다 proposed 를 보고 둘 다 실행한다. UPDATE 의 WHERE 에 status = 'proposed' 를 두면 먼저 잠근 쪽만
+  // 행을 돌려받고 나머지는 0행 → not_found 다. 승인 한 번에 실행도 한 번이어야 승인 게이트가 의미가 있다.
   const row = await withTenant(ctx.principal.schemaName, async (db) => {
     const { rows } = await db.query<AuditRow>(
-      `SELECT approval_id, conversation_id, user_id, tool_name, input, status
-         FROM ai_tool_audit
-        WHERE approval_id = $1 AND user_id = $2 AND conversation_id = $3 AND status = 'proposed'`,
-      [approvalId, ctx.principal.userId, ctx.conversationId],
+      `UPDATE ai_tool_audit
+          SET status = $4, decided_at = now()
+        WHERE approval_id = $1 AND user_id = $2 AND conversation_id = $3 AND status = 'proposed'
+        RETURNING approval_id, conversation_id, user_id, tool_name, input, status`,
+      [approvalId, ctx.principal.userId, ctx.conversationId, approved ? "approved" : "denied"],
     );
-    const r = rows[0];
-    if (!r) return null;
-    await db.query(`UPDATE ai_tool_audit SET status = $2, decided_at = now() WHERE approval_id = $1`, [
-      approvalId,
-      approved ? "approved" : "denied",
-    ]);
-    return r;
+    return rows[0] ?? null;
   });
   if (!row) return { kind: "not_found" };
   const spec = registry.get(row.tool_name);
