@@ -19,7 +19,11 @@ services:
   postgres:
     # 스키마 초안이 `unique nulls not distinct` 를 쓰므로 15 이상이 필요하다.
     # (docs/db/schema-draft-v1.md)
-    image: postgres:18-alpine
+    #
+    # pgvector 가 든 공식 이미지다(postgres:18 기반). AI 대화의 소스 문서 임베딩(테넌트 V3)이
+    # `vector` 타입을 쓰고, shared V15 가 부팅 때 `CREATE EXTENSION vector` 를 돈다 — 확장이 없는
+    # 이미지면 거기서 BE 부팅이 막힌다. 데이터 디렉터리 형식은 postgres:18 과 같아 볼륨은 그대로 쓴다.
+    image: pgvector/pgvector:pg18
     container_name: axcore-postgres
     environment:
       POSTGRES_DB: ${POSTGRES_DB}

@@ -57,6 +57,9 @@ services:
       AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE}
       # nginx 가 넘기는 X-Forwarded-* 를 읽게 한다 (server.forward-headers-strategy).
       SERVER_FORWARD_HEADERS_STRATEGY: framework
+      # FE 안의 AI 서버가 토큰 판정(POST /api/auth/introspect)을 요청할 때 내는 서비스 간 비밀.
+      # frontend 와 같은 값이어야 하고 JWT_SECRET 과는 달라야 한다. 비어 있으면 introspect 가 닫힌다.
+      AUTH_INTERNAL_TOKEN: ${AUTH_INTERNAL_TOKEN:?INFRA/.env 에 AUTH_INTERNAL_TOKEN 을 설정하세요}
 
       # --- 소셜 로그인 (비어 있으면 그 제공자만 비활성) ---
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
@@ -101,6 +104,30 @@ services:
       - "127.0.0.1:${FE_PORT}:8000"
     environment:
       TZ: Asia/Seoul
+
+      # --- AI 서버 (FE 안의 Next Route Handler, /ai/*) — 전부 서버 전용 값이다 ---
+      # 토큰 판정을 물을 BE. 같은 compose 안이라 서비스명으로 부른다.
+      AI_BE_BASE_URL: http://app:8080
+      AUTH_INTERNAL_TOKEN: ${AUTH_INTERNAL_TOKEN:?INFRA/.env 에 AUTH_INTERNAL_TOKEN 을 설정하세요}
+      # 테넌트 스키마의 AI 테이블(ai_source_docs · ai_source_chunks)을 직접 읽고 쓴다. pg 표준 변수.
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGDATABASE: ${POSTGRES_DB}
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      # 네이버 클라우드 Object Storage (S3 호환). 버킷은 비공개여야 한다 — 접근은 presigned URL 로만.
+      NCP_OBJECT_STORAGE_ENDPOINT: ${NCP_OBJECT_STORAGE_ENDPOINT:-https://kr.object.ncloudstorage.com}
+      NCP_OBJECT_STORAGE_REGION: ${NCP_OBJECT_STORAGE_REGION:-kr-standard}
+      NCP_OBJECT_STORAGE_BUCKET: ${NCP_OBJECT_STORAGE_BUCKET}
+      NCP_ACCESS_KEY: ${NCP_ACCESS_KEY}
+      NCP_SECRET_KEY: ${NCP_SECRET_KEY}
+      # 모델. 대화는 AI_CHAT_PROVIDER(openai | anthropic) 쪽 키를 쓰고, 그 키가 비면 대본 응답.
+      # 임베딩은 항상 OpenAI 라 OPENAI_API_KEY 가 비면 임베딩 없이 전문 검색만 된다.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      AI_CHAT_PROVIDER: ${AI_CHAT_PROVIDER:-openai}
+      AI_CHAT_MODEL: ${AI_CHAT_MODEL:-gpt-5.6-luna}
+      AI_EMBEDDING_MODEL: ${AI_EMBEDDING_MODEL:-text-embedding-3-small}
     healthcheck:
       # node:alpine 에는 curl 이 없고 busybox wget 은 있다. localhost 는 ::1 로 먼저 풀리는데
       # Next 는 0.0.0.0(IPv4)에만 붙어 있어 127.0.0.1 로 적는다.
