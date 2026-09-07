@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import { DataTable } from "@/components/settings/company/data-table";
 import { IconPlus, IconSearch } from "@/components/icons";
-import { Button, FIELD } from "@/components/ui";
+// `FIELD`는 `w-full`이라 필터 셋을 한 줄에 못 놓는다 — `FIELD_INLINE`이 그 용도다
+import { Button, FIELD, FIELD_INLINE } from "@/components/ui";
 import { DEPARTMENTS, ROLES, USERS_ROLES } from "@/data/org";
 
 /**
@@ -79,7 +80,7 @@ export function MemberTable({
         </span>
 
         <select
-          className={`${FIELD} w-auto py-1.5 text-[13px]`}
+          className={`${FIELD_INLINE} py-1.5 text-[13px]`}
           value={dept}
           aria-label="부서로 거르기"
           onChange={(e) => setDept(e.target.value)}
@@ -93,7 +94,7 @@ export function MemberTable({
         </select>
 
         <select
-          className={`${FIELD} w-auto py-1.5 text-[13px]`}
+          className={`${FIELD_INLINE} py-1.5 text-[13px]`}
           value={role}
           aria-label="직급으로 거르기"
           onChange={(e) => setRole(e.target.value)}

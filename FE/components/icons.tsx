@@ -320,6 +320,14 @@ export const IconLaptop = (p: IconProps) =>
     <path d="M2 20h20" />
   </>);
 
+/** 휴지통 — 부서·직급 지우기 */
+export const IconTrash = (p: IconProps) =>
+  base(p, <>
+    <path d="M3 6h18" />
+    <path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2" />
+    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+  </>);
+
 /** 휴대전화 — 2단계 인증의 문자 수단 */
 export const IconSmartphone = (p: IconProps) =>
   base(p, <>

@@ -223,6 +223,16 @@ export const INVITE_LINKS: {
   { id: "l2", url: "https://axcore.it.kr/invite/7Zp2Rt", role: "품질 관리자", dept: "품질관리팀", used: 1, limit: 1, expiresAt: "2026-09-02 09:00", active: false },
 ];
 
+/**
+ * 회사 메일 도메인.
+ *
+ * 초대할 때 사외 주소를 **막지는 않는다** — 협력사·감사인을 부를 일이 실제로 있다.
+ * 표시만 하고 보낸다 (`data/invite.ts`).
+ *
+ * **BE 연동 seam**: 워크스페이스 설정에서 오는 값이다. 지금은 데모 고정.
+ */
+export const WORK_DOMAINS = ["democompany.co.kr", "axcore.it.kr"] as const;
+
 /** 부서 — 프로필·초대·권한 관리가 같이 본다 */
 export const DEPARTMENTS = [
   "제조혁신팀",
