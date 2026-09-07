@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { DataTable } from "@/components/settings/company/data-table";
+import { LinkCreateModal, type NewLink } from "@/components/settings/company/link-create-modal";
 import { IconPlus } from "@/components/icons";
 import { Button } from "@/components/ui";
 import { INVITE_LINKS } from "@/data/org";
@@ -12,8 +13,9 @@ import { INVITE_LINKS } from "@/data/org";
  * 열은 **링크 만료일시 · 링크 · 권한** (수정요청 v12). 사용 횟수·부서·활성 배지를 뺐다 —
  * 만료일시가 이미 "쓸 수 있나"를 말한다.
  *
- * **BE 연동 seam**: `deleteLink`가 링크 회수 API를 부른다.
- * `링크 만들기`는 직급·부서·횟수·만료일을 정하는 모달이 필요하다 — 다음 작업이다.
+ * **BE 연동 seam**: `deleteLink`가 링크 회수 API를, `create`가 발급 API를 부른다.
+ * 지금은 URL을 화면에서 만든다 — 실제 토큰은 **서버가 만들어야 한다.** 추측할 수 있는
+ * 토큰이면 링크를 받지 않은 사람도 들어온다.
  */
 export function InviteLinks({
   onSaved,
@@ -21,6 +23,23 @@ export function InviteLinks({
   onSaved: (message: string, tone?: "ink" | "error") => void;
 }) {
   const [links, setLinks] = useState(INVITE_LINKS);
+  const [creating, setCreating] = useState(false);
+
+  function create(next: NewLink) {
+    setLinks((prev) => [
+      {
+        id: `link-${Date.now()}`,
+        // 데모용 난수. BE가 붙으면 서버가 준 URL을 그대로 쓴다
+        url: `https://axcore.it.kr/invite/${Math.random().toString(36).slice(2, 10)}`,
+        used: 0,
+        active: true,
+        ...next,
+      },
+      ...prev,
+    ]);
+    setCreating(false);
+    onSaved(`${next.dept} ${next.role} 링크를 만들었어요 · ${next.limit}명까지`);
+  }
 
   function deleteLink(id: string) {
     setLinks((prev) => prev.filter((l) => l.id !== id));
@@ -39,7 +58,7 @@ export function InviteLinks({
   return (
     <>
       <div className="flex items-center justify-end pt-4">
-        <Button variant="secondary" size="sm">
+        <Button variant="secondary" size="sm" onClick={() => setCreating(true)}>
           <IconPlus size={14} />
           링크 만들기
         </Button>
@@ -83,6 +102,11 @@ export function InviteLinks({
           },
         ]}
       />
+
+      {/* 열 때만 마운트한다 — 닫으면 고르던 값이 사라진다 */}
+      {creating && (
+        <LinkCreateModal onClose={() => setCreating(false)} onCreate={create} />
+      )}
     </>
   );
 }

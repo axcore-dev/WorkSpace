@@ -1,6 +1,7 @@
 import type { ICON_MAP } from "@/components/icons";
 import type { SocialProvider } from "@/lib/auth";
 import { MODULES } from "./modules";
+import { canChooseDept } from "./grants";
 import { WORKSPACE_PERMS } from "./roles";
 import type { DataScope, RoleDef } from "./roles";
 import type { Tone } from "./types";
@@ -113,15 +114,7 @@ export const ROLES: RoleDef[] = [
     system: true,
     dept: null,
     desc: "회사를 대표하는 자리",
-    /**
-     * **`ws:delete`(회사 삭제)는 꺼 둔다.** 소유자는 잠긴 직급이라 여기서 켜져 있으면
-     * 아무도 끌 수 없는 삭제 권한이 되고, 실수 한 번이 되돌릴 수 없는 결과가 된다.
-     * 회사를 지우는 건 계약 해지라 운영팀을 거친다.
-     */
-    perms: [
-      ...WORKSPACE_PERMS.filter((p) => p.id !== "ws:delete").map((p) => p.id),
-      ...ALL_FEATURE_PERMS,
-    ],
+    perms: [...WORKSPACE_PERMS.map((p) => p.id), ...ALL_FEATURE_PERMS],
     scope: "all",
     showAmounts: true,
     canDelegateInvite: true,
@@ -131,11 +124,8 @@ export const ROLES: RoleDef[] = [
     name: "관리자",
     system: false,
     dept: "제조혁신팀",
-    desc: "회사 삭제를 뺀 모든 권한",
-    perms: [
-      "ws:info", "ws:members", "ws:integrations",
-      ...ALL_FEATURE_PERMS,
-    ],
+    desc: "모든 기능 탭과 구성원·연동 관리",
+    perms: [...WORKSPACE_PERMS.map((p) => p.id), ...ALL_FEATURE_PERMS],
     scope: "all",
     showAmounts: true,
     canDelegateInvite: true,
@@ -213,6 +203,16 @@ export const ROLES: RoleDef[] = [
  */
 export function currentRole(): RoleDef | null {
   return ROLES.find((r) => r.name === DEMO_USER.role) ?? null;
+}
+
+/**
+ * 초대·링크 화면에서 고를 수 있는 부서.
+ *
+ * `data/grants.ts`의 `invitableDepts`를 부르는 얇은 껍데기다 — 부르는 쪽이 `DEPARTMENTS`를
+ * 매번 같이 넘기지 않게 한다.
+ */
+export function invitableDeptsOf(me: RoleDef | null, all: readonly string[]): string[] {
+  return canChooseDept(me) ? [...all] : me?.dept ? [me.dept] : [];
 }
 
 /** 관리 › 초대 관리 › 초대 중인 구성원 — 보냈지만 아직 안 받은 것 */

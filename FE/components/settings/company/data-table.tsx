@@ -23,6 +23,14 @@ export function DataTable<T>({
     cell: (row: T) => React.ReactNode;
     /** 오른쪽으로 붙인다 — 동작 열 */
     right?: boolean;
+    /**
+     * 열 너비를 못 박는다 (`180px`·`22%` 등).
+     *
+     * **셀 안에서 편집이 열리는 표에는 반드시 준다.** 값(글자)이 드롭다운으로 바뀌면 폭이
+     * 달라져서 브라우저가 열 너비를 다시 계산하고, 그 순간 다른 열까지 밀린다 —
+     * 누른 버튼이 옆으로 도망간다.
+     */
+    width?: string;
   }[];
   rows: T[];
   rowKey: (row: T) => string;
@@ -33,15 +41,23 @@ export function DataTable<T>({
     return <p className="py-12 text-center text-[13.5px] text-slate-400">{empty}</p>;
   }
 
+  // 너비를 정한 열이 있으면 `table-fixed`로 고정한다 — 안 그러면 브라우저가 내용에 맞춰
+  // 다시 계산해서 못 박은 값이 무시된다
+  const fixed = columns.some((c) => c.width);
+
   return (
     <div className="thin-scroll relative mt-1 overflow-x-auto">
-      <table className="w-full text-left text-sm" style={{ minWidth }}>
+      <table
+        className={`w-full text-left text-sm ${fixed ? "table-fixed" : ""}`}
+        style={{ minWidth }}
+      >
         <thead>
           <tr className="border-b border-slate-200 text-xs font-medium text-slate-400">
             {columns.map((c, i) => (
               <th
                 key={i}
                 scope="col"
+                style={c.width ? { width: c.width } : undefined}
                 className={`py-2.5 ${i === 0 ? "pr-3" : "px-3"} ${
                   c.right ? "text-right" : ""
                 } ${i === columns.length - 1 ? "pl-3 pr-0" : ""}`}

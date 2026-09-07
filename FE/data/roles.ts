@@ -16,12 +16,19 @@ export type DataScope = "all" | "dept" | "own";
  *
  * 기능 권한은 `data/modules.ts`의 서브기능 27개에서 나온다. 둘을 합쳐 한 목록으로 보인다.
  * id에 `ws:` 접두어를 붙여 서브기능 id와 섞이지 않게 한다.
+ *
+ * **`ws:info`(회사 정보 관리)와 `ws:delete`(회사 삭제)를 뺐다.** 회사 정보와 삭제는
+ * 운영팀이 다루는 일이라 고객 화면에 그 화면이 없다. 켜고 끌 수 있는데 열리는 곳이 없으면
+ * 「권한을 줬는데 왜 아무것도 안 되지?」가 된다 — 실체 없는 스위치를 두지 않는다.
+ * 고객 쪽에 그 화면이 생기는 날 다시 넣는다.
+ *
+ * 여기 남는 둘은 각자 열리는 곳이 있다:
+ * - `ws:members` → 회사 › 초대 관리
+ * - `ws:integrations` → 워크스페이스 › 연동
  */
 export const WORKSPACE_PERMS: { id: string; name: string }[] = [
-  { id: "ws:info", name: "회사 정보 관리" },
   { id: "ws:members", name: "구성원 정보 관리" },
   { id: "ws:integrations", name: "데이터 연동" },
-  { id: "ws:delete", name: "회사 삭제" },
 ];
 
 export type RoleDef = {

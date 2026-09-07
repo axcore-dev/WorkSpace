@@ -161,13 +161,25 @@ export function MemberTable({
         // 거른 결과가 빈 것과 애초에 아무도 없는 것은 다음에 할 일이 다르다
         empty={filtered ? "찾는 구성원이 없어요" : "데이터가 없습니다"}
         columns={[
-          { label: "이름", cell: (u) => <span className="font-medium text-slate-900">{u.name}</span> },
+          // 열 너비를 못 박는다 — 셀이 값에서 드롭다운으로 바뀔 때 열이 다시 계산되면
+          // 누른 「수정」 버튼이 옆으로 밀린다
+          {
+            label: "이름",
+            width: "14%",
+            cell: (u) => <span className="font-medium text-slate-900">{u.name}</span>,
+          },
           {
             label: "이메일",
-            cell: (u) => <span className="font-mono text-[12.5px] text-slate-500">{u.email}</span>,
+            width: "30%",
+            cell: (u) => (
+              <span className="block truncate font-mono text-[12.5px] text-slate-500">
+                {u.email}
+              </span>
+            ),
           },
           {
             label: "부서",
+            width: "20%",
             cell: (u) =>
               editing === u.email ? (
                 <select
@@ -188,6 +200,7 @@ export function MemberTable({
           },
           {
             label: "직급",
+            width: "22%",
             cell: (u) => {
               if (editing !== u.email) return <span className="text-slate-600">{u.role}</span>;
               const list = ranksOf(draft.dept);
@@ -216,6 +229,7 @@ export function MemberTable({
           {
             label: "",
             right: true,
+            width: "132px",
             cell: (u) =>
               editing === u.email ? (
                 <span className="inline-flex gap-1.5">
