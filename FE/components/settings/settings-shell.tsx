@@ -23,7 +23,9 @@ export function SettingsShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const logout = useLogout();
 
-  const wide = activeSettings(pathname)?.leaf?.wide ?? false;
+  const leaf = activeSettings(pathname)?.leaf;
+  const wide = leaf?.wide ?? false;
+  const fill = leaf?.fill ?? false;
 
   // **BE 연동 seam**: `GET /api/auth/workspaces`가 이미 있다. 세션의 현재 워크스페이스로
   // 바꾸면 된다 — 지금은 더미 기본값을 읽는다.
@@ -97,10 +99,18 @@ export function SettingsShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <main className="min-w-0 flex-1 bg-white">
-        {/* 폭은 라우트가 정한다 (`data/settings-nav.ts`의 `wide`) — 표가 있는 화면은
-            꽉 채우고 나머지는 좁게 둔다 */}
-        <div className={`px-6 py-7 lg:px-8 ${wide ? "" : "mx-auto max-w-3xl"}`}>{children}</div>
+      {/* 폭과 높이는 라우트가 정한다 (`data/settings-nav.ts`의 `wide`·`fill`).
+          `fill`이면 본문이 화면 높이를 꽉 채우고 **스스로 스크롤한다** — 문서가 스크롤하지
+          않으므로 자식이 `flex-1 min-h-0`으로 남은 높이를 가져갈 수 있다.
+          (`min-h-0`이 없으면 flex 아이템의 최소 높이가 내용 높이라 넘쳐도 안 줄어든다.) */}
+      <main className={`min-w-0 flex-1 bg-white ${fill ? "lg:h-screen lg:overflow-hidden" : ""}`}>
+        <div
+          className={`px-6 py-7 lg:px-8 ${wide ? "" : "mx-auto max-w-3xl"} ${
+            fill ? "flex h-full min-h-0 flex-col" : ""
+          }`}
+        >
+          {children}
+        </div>
       </main>
 
       {/* lg 미만 — 사이드바 하단이 숨으므로 워크스페이스·로그아웃을 본문 아래에 둔다 */}

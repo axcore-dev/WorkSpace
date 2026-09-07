@@ -215,9 +215,11 @@ export function RoleEditor() {
 
           좁은 화면에서는 세 열이 위아래로 쌓인다. 순서가 그대로라 부서 → 직급 → 권한을
           아래로 훑으면 된다. */}
-      <div className="mt-5 grid lg:grid-cols-[252px_252px_minmax(0,1fr)]">
+      {/* `lg:min-h-0`이 있어야 열이 남은 높이 안에서 줄어든다 — 없으면 flex 아이템의 최소
+          높이가 내용 높이라 목록이 길어질 때 화면 밖으로 밀린다 */}
+      <div className="mt-5 grid lg:min-h-0 lg:flex-1 lg:grid-cols-[252px_252px_minmax(0,1fr)]">
         {/* ── 1. 부서 ── */}
-        <div className="min-w-0 border-b border-slate-100 pb-5 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-5">
+        <div className="thin-scroll min-w-0 border-b border-slate-100 pb-5 lg:flex lg:min-h-0 lg:flex-col lg:overflow-y-auto lg:border-b-0 lg:border-r lg:pb-4 lg:pr-5">
           <ColHead title="부서" aside={`${depts.length}개`} />
           <ul className="mb-1.5 border-b border-slate-100 pb-1.5">
             <Row
@@ -245,7 +247,7 @@ export function RoleEditor() {
         </div>
 
         {/* ── 2. 직급 ── */}
-        <div className="mt-5 min-w-0 border-b border-slate-100 pb-5 lg:mt-0 lg:border-b-0 lg:border-r lg:px-5 lg:pb-0">
+        <div className="thin-scroll mt-5 min-w-0 border-b border-slate-100 pb-5 lg:mt-0 lg:flex lg:min-h-0 lg:flex-col lg:overflow-y-auto lg:border-b-0 lg:border-r lg:px-5 lg:pb-4">
           <ColHead
             title="직급"
             aside={selDept === NONE ? "부서 없음" : `${rankList.length}개`}
@@ -284,7 +286,7 @@ export function RoleEditor() {
         </div>
 
         {/* ── 3. 권한 ── */}
-        <div className="mt-5 min-w-0 lg:mt-0 lg:pl-5">
+        <div className="mt-5 flex min-w-0 flex-col lg:mt-0 lg:min-h-0 lg:pl-5">
           <ColHead title="권한 선택" aside={role ? `탭 ${onTabs}/${totalTabs}` : ""} />
 
           {!role ? (
@@ -295,7 +297,7 @@ export function RoleEditor() {
             </p>
           ) : (
             <>
-              <div className="min-w-0">
+              <div className="flex min-w-0 flex-1 flex-col lg:min-h-0">
                 <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 pt-1">
                   <h3 className="text-[15px] font-bold text-slate-900">{role.name}</h3>
                   {role.system && <Badge tone="slate">시스템 직급</Badge>}
@@ -312,7 +314,9 @@ export function RoleEditor() {
                   </p>
                 )}
 
-                <div className="thin-scroll mt-1 max-h-[440px] overflow-y-auto pr-1">
+                {/* 높이를 고정하지 않는다 — 남은 공간을 다 쓰고, 넘치면 이 안에서만 스크롤한다.
+                    아래 저장 버튼이 늘 화면에 남는 게 이 구조의 목적이다 */}
+                <div className="thin-scroll mt-1 min-h-0 flex-1 overflow-y-auto pr-1">
                   {/* 회사 단위 권한 — 탭이 아니라 회사 자체를 다루는 것들이라 따로 둔다 */}
                   <p className="pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
                     회사

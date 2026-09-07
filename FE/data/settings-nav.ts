@@ -23,6 +23,17 @@ export type SettingsLeaf = {
    * 가로 스크롤이 생긴다. 그래서 페이지별로 고른다.
    */
   wide?: boolean;
+  /**
+   * 화면 높이를 꽉 채운다. 문서가 아니라 **작업대**인 화면에 준다.
+   *
+   * 기본은 내용 높이다 — 대부분의 설정 화면은 위에서 아래로 읽는 문서라 남는 공간이
+   * 있어도 된다. 여러 칸을 오가며 고르는 화면(권한 관리의 부서 → 직급 → 권한)은 다르다.
+   * 내용 높이로 두면 열 사이 구분선이 중간에 끊기고, 목록을 고를 때마다 화면이 늘었다
+   * 줄었다 한다.
+   *
+   * 켜면 본문이 스스로 스크롤한다 — 문서 스크롤이 아니라서 내비가 늘 제자리에 있다.
+   */
+  fill?: boolean;
 };
 
 export type SettingsSection =
@@ -37,7 +48,7 @@ export const SETTINGS_NAV: SettingsSection[] = [
     href: "/settings/company",
     children: [
       { href: "/settings/company/invites", label: "초대 관리", wide: true },
-      { href: "/settings/company/roles", label: "권한 관리", wide: true },
+      { href: "/settings/company/roles", label: "권한 관리", wide: true, fill: true },
     ],
   },
   {

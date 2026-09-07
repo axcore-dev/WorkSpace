@@ -237,16 +237,19 @@ export function InviteModal({ open, onClose }: { open: boolean; onClose: () => v
                   if (e.target === e.currentTarget) document.getElementById("inv-email")?.focus();
                 }}
               >
+                {/* 칩은 **테두리 하나로 통일한다.** 점선이나 배경 채움으로 가르면 목록이
+                    얼룩덜룩해지고, 「보낼 수 없음」이 「고장」처럼 읽힌다. 판정은 테두리와
+                    글자의 옅은 색으로만 구분한다 (DESIGN.md 상태 정책). */}
                 {chips.map(({ email, v }) => (
                   <span
                     key={email}
                     title={v.why || undefined}
-                    className={`inline-flex items-center gap-1 rounded-md py-1 pl-2 pr-1 font-mono text-[11.5px] ${
+                    className={`inline-flex items-center gap-1.5 rounded-lg border py-1 pl-2.5 pr-1.5 font-mono text-[12px] ${
                       v.kind === "ok"
-                        ? "bg-slate-100 text-slate-600"
+                        ? "border-slate-200 text-slate-700"
                         : v.kind === "bad"
-                          ? "border border-dashed border-red-300 text-red-600"
-                          : "border border-dashed border-amber-300 text-amber-700"
+                          ? "border-red-200 text-red-600"
+                          : "border-amber-200 text-amber-700"
                     }`}
                   >
                     {email}
@@ -254,9 +257,9 @@ export function InviteModal({ open, onClose }: { open: boolean; onClose: () => v
                       type="button"
                       aria-label={`${email} 빼기`}
                       onClick={() => setEmails((prev) => prev.filter((x) => x !== email))}
-                      className="cursor-pointer rounded p-0.5 text-current transition-colors hover:bg-slate-900/10"
+                      className="-mr-0.5 flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-slate-400"
                     >
-                      <IconX size={11} />
+                      <IconX size={13} />
                     </button>
                   </span>
                 ))}
