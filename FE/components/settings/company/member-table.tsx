@@ -233,7 +233,10 @@ export function MemberTable({
             cell: (u) =>
               editing === u.email ? (
                 <span className="inline-flex gap-1.5">
-                  <Button size="sm" className="h-8" onClick={() => saveEdit(u.email)}>
+                  {/* 블루를 쓰지 않는다 — 이 화면의 주 액션은 위 「초대하기」다
+                      (DESIGN.md 「한 화면에 primary 버튼을 여러 개 두지 않는다」).
+                      옆의 「취소」가 ghost라 이것만 테두리를 가져도 무엇이 확정인지 읽힌다 */}
+                  <Button variant="secondary" size="sm" className="h-8" onClick={() => saveEdit(u.email)}>
                     저장
                   </Button>
                   <Button

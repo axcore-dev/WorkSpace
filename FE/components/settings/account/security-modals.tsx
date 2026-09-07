@@ -19,6 +19,7 @@ import { Modal } from "@/components/modal";
 import { IconCheck, IconCheckCircle, IconEye, IconEyeOff, IconKey, IconLock, IconMail, IconRefresh, IconShield, IconSmartphone, IconX } from "@/components/icons";
 import { Badge, Button, FIELD, FIELD_ERROR } from "@/components/ui";
 import { PROVIDER_LABELS } from "@/lib/auth";
+import { isEmailShape } from "@/data/invite";
 import { ACCOUNT_EMAILS, DEMO_USER, SOCIAL_LOGINS } from "@/data/org";
 
 /**
@@ -422,61 +423,155 @@ export function OtpEnrollModal({
     </Modal>
   );
 }
-
-
 /**
  * 계정 › 이메일 관리.
  *
- * BE에는 **대표 이메일 재인증만** 있다 (`POST /api/auth/email/verify-request`).
- * 추가 이메일 API가 없어서 `이메일 추가`와 추가 주소의 `삭제`는 비활성으로 둔다 —
- * 앞으로 무엇이 오는지는 보이고, BE가 생기면 `disabled`를 떼는 것으로 끝난다.
+ * **주소를 칩으로 쌓는다** — 초대 팝업과 같은 모양이다. 등록된 주소가 한 상자에 모여 있고
+ * 빼는 건 칩의 ✕, 더하는 건 그 옆 입력이다. 행 + 「삭제」 버튼으로 두면 주소 하나에 한 줄씩
+ * 쓰는데, 대부분 두세 개뿐이라 목록이라기엔 과하다.
+ *
+ * **Primary는 ✕가 없다.** 로그인과 복구 메일이 가는 주소라 지울 수 없다 —
+ * 바꾸려면 다른 주소를 Primary로 올리고 나서 지운다.
+ *
+ * 회사 메일이 아닌 주소를 막지 않는다. 개인 주소를 보조로 등록하는 건 정상이다 —
+ * 초대와 달리 여기는 자기 계정이다.
+ *
+ * **BE 연동 seam**: 추가·삭제·Primary 변경 API가 아직 없다 (`docs/be/account-api-postman-test.md`
+ * 에는 대표 이메일 재인증 `POST /api/auth/email/verify-request`만 있다). 지금은 화면
+ * state라 새로고침하면 돌아간다. API가 생기면 `add`·`remove`·`makePrimary`에서 부른다.
  */
 export function EmailModal({
   open,
   onClose,
+  onDone,
 }: {
   open: boolean;
   onClose: () => void;
+  onDone: (message: string, tone?: "ink" | "error") => void;
 }) {
+  const [list, setList] = useState(ACCOUNT_EMAILS);
+  const [draft, setDraft] = useState("");
+  const [error, setError] = useState("");
+
+  function add() {
+    const v = draft.trim().toLowerCase();
+    if (!v) return;
+    if (!isEmailShape(v)) {
+      setError("주소 형식이 아니에요");
+      return;
+    }
+    if (list.some((e) => e.address.toLowerCase() === v)) {
+      setError("이미 등록된 주소예요");
+      return;
+    }
+    setList((prev) => [...prev, { address: v, primary: false, verified: false }]);
+    setDraft("");
+    setError("");
+    onDone(`${v}로 확인 메일을 보냈어요`);
+  }
+
+  function remove(address: string) {
+    setList((prev) => prev.filter((e) => e.address !== address));
+    onDone(`${address}를 지웠어요`);
+  }
+
+  function makePrimary(address: string) {
+    setList((prev) => prev.map((e) => ({ ...e, primary: e.address === address })));
+    onDone(`${address}를 Primary로 바꿨어요`);
+  }
+
+  const extra = list.filter((e) => !e.primary);
+
   return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      size="md"
-      title="이메일 관리"
-      footer={
-        <Button variant="secondary" size="sm" disabled>
-          <IconMail size={14} />
-          이메일 추가
-        </Button>
-      }
-    >
-      <ul className="divide-y divide-slate-100 p-5">
-        {ACCOUNT_EMAILS.map((e) => (
-          <li key={e.address} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
-            <div className="min-w-0 flex-1">
-              <p className="flex items-center gap-2 font-mono text-[13px] text-slate-900">
-                {e.address}
-                {e.primary && <Badge tone="slate">Primary</Badge>}
-              </p>
-            </div>
-            {/* Primary는 고치고, 추가한 주소는 지운다 (수정요청 v12).
-                인증 상태 배지와 「인증 메일 보내기」는 뺐다 — 인증은 주소를 바꿀 때
-                딸려 오는 절차라 목록에 늘 띄워 둘 상태가 아니다. */}
-            {e.primary ? (
-              /* 대표 주소 변경 API가 없다 — `POST /api/auth/email/verify-request`는 재인증만 한다 */
-              <Button variant="ghost" size="sm" disabled>
-                수정
-              </Button>
-            ) : (
-              /* 추가 이메일 삭제 API가 없다 */
-              <Button variant="ghost" size="sm" disabled>
-                삭제
-              </Button>
-            )}
-          </li>
-        ))}
-      </ul>
+    <Modal open={open} onClose={onClose} size="md" title="이메일 관리">
+      <div className="p-5">
+        <label htmlFor="em-input" className="mb-1.5 block text-sm font-medium text-slate-700">
+          등록된 이메일
+        </label>
+        {/* 칩 상자 — 어디를 눌러도 입력으로 들어간다 */}
+        <div
+          className="flex min-h-[42px] flex-wrap items-center gap-1.5 rounded-lg border border-slate-300 p-1.5 focus-within:border-slate-400"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) document.getElementById("em-input")?.focus();
+          }}
+        >
+          {list.map((e) => (
+            <span
+              key={e.address}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 py-1 pl-2.5 pr-1.5 font-mono text-[12px] text-slate-700"
+            >
+              {e.address}
+              {e.primary ? (
+                /* 로그인·복구 메일이 가는 주소라 지울 수 없다 */
+                <span className="font-sans text-[10.5px] font-semibold text-slate-400">
+                  Primary
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  aria-label={`${e.address} 지우기`}
+                  onClick={() => remove(e.address)}
+                  className="-mr-0.5 flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-slate-400"
+                >
+                  <IconX size={13} />
+                </button>
+              )}
+            </span>
+          ))}
+          <input
+            id="em-input"
+            value={draft}
+            onChange={(e) => {
+              setDraft(e.target.value);
+              setError("");
+            }}
+            onBlur={add}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === ",") {
+                e.preventDefault();
+                add();
+              }
+            }}
+            placeholder="주소를 적고 Enter"
+            className="min-w-[150px] flex-1 bg-transparent px-1.5 py-1 text-[13px] text-slate-900 outline-none"
+          />
+        </div>
+        {error ? (
+          <p className="mt-1.5 text-xs text-red-600">{error}</p>
+        ) : (
+          <p className="mt-1.5 text-xs text-slate-400">
+            더한 주소로 확인 메일이 가요. 회사 메일이 아니어도 괜찮아요.
+          </p>
+        )}
+
+        {/* Primary 바꾸기 — 칩만으로는 「어느 걸 Primary로」를 표현할 수 없다 */}
+        {extra.length > 0 && (
+          <div className="mt-4 border-t border-slate-100 pt-3">
+            <p className="text-xs font-semibold text-slate-600">Primary로 쓸 주소</p>
+            <ul className="mt-1.5 space-y-1">
+              {extra.map((e) => (
+                <li key={e.address} className="flex items-center justify-between gap-3">
+                  <span className="min-w-0 truncate font-mono text-[12.5px] text-slate-500">
+                    {e.address}
+                    {!e.verified && (
+                      <span className="ml-2 font-sans text-[11px] text-amber-700">확인 대기</span>
+                    )}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    // 확인하지 않은 주소를 Primary로 두면 복구 메일이 닿지 않는다
+                    disabled={!e.verified}
+                    onClick={() => makePrimary(e.address)}
+                  >
+                    Primary로
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
     </Modal>
   );
 }

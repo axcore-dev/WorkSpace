@@ -26,6 +26,11 @@ export const SENDABLE: InviteVerdict["kind"][] = ["ok", "warn"];
 /** 주소 모양만 본다 — 실제로 받는 주소인지는 메일을 보내 봐야 안다 */
 const SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/** 주소 모양이 맞는가 — 계정 › 이메일 관리도 같은 판정을 쓴다 */
+export function isEmailShape(email: string): boolean {
+  return SHAPE.test(email.trim().toLowerCase());
+}
+
 /**
  * 이메일 한 줄을 판정한다.
  *
