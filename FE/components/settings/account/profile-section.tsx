@@ -16,7 +16,7 @@ import { DEMO_USER, DEPARTMENTS, SITES } from "@/data/org";
  * **사진·이름·부서·직책·메일은 한 덩어리다** — "내가 누구인가"라는 한 가지 사실이라
  * 다섯 줄로 쪼개면 다섯 개 설정처럼 보인다. 헤더로 묶고 나머지(사번·사업장)만 행으로 둔다.
  *
- * **직책은 여기서 못 고친다.** 권한 관리(`/settings/company/roles`)에서 받은 역할을 그대로
+ * **직책은 여기서 못 고친다.** 권한 관리(`/settings/company/roles`)에서 받은 직급을 그대로
  * 쓴다 — 사람이 직접 적으면 "팀장"이라 써 두고 실제 권한은 일반 사용자인 상태가 생긴다.
  *
  * 편집은 전부 그 자리에서 한다 (`InlineField`). 팝업은 절차가 있는 것만 쓴다.
@@ -69,8 +69,8 @@ export function ProfileSection({
             <span aria-hidden className="mx-1 text-slate-300">
               ·
             </span>
-            {/* 권한 관리에서 받은 역할. 여기서는 읽기만 한다
-                (BE 연동 seam: 세션의 역할로 바꾼다 — 지금은 더미) */}
+            {/* 권한 관리에서 받은 직급. 여기서는 읽기만 한다
+                (BE 연동 seam: 세션의 직급으로 바꾼다 — 지금은 더미) */}
             <span className="text-slate-500">{DEMO_USER.role}</span>
           </p>
           <p className="mt-1 truncate font-mono text-xs text-slate-400">{DEMO_USER.email}</p>

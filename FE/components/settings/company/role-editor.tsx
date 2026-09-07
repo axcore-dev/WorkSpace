@@ -7,7 +7,8 @@ import {
   SettingsRows,
 } from "@/components/settings/settings-section";
 import { RoleCreateModal } from "@/components/settings/company/role-create-modal";
-import { IconLock, IconPlus } from "@/components/icons";
+import { ICON_MAP, IconLock, IconPlus } from "@/components/icons";
+import { useModules } from "@/components/module-provider";
 import { Badge, Button, Segmented, Toast, Toggle } from "@/components/ui";
 import { useToast } from "@/components/use-toast";
 import { DATA_SCOPES, DEPARTMENTS, ROLES, USERS_ROLES } from "@/data/org";
@@ -24,22 +25,29 @@ import type { DataScope, RoleDef } from "@/data/roles";
 type PaneTab = "perms" | "members";
 
 /**
- * 회사 › 권한 관리 — 부서 → 역할 → 권한 3단.
+ * 회사 › 권한 관리 — 부서 → 직급 → 권한 3단.
  *
- * **좌우 2단이다.** 왼쪽에서 역할을 고르고 오른쪽에서 그 권한을 고친다. 예전에는 위아래
- * 섹션이라 역할을 바꿀 때마다 스크롤이 튀었다 (수정요청 v12).
+ * **좌우 2단이다.** 왼쪽에서 직급을 고르고 오른쪽에서 그 권한을 고친다. 예전에는 위아래
+ * 섹션이라 직급을 바꿀 때마다 스크롤이 튀었다 (수정요청 v12).
  *
- * **권한 단위는 서브기능이다.** 예전에는 모듈 8개 × 없음/읽기/쓰기 격자였는데 "생산관리
- * 전부 or 전무"가 되어 실무에서 못 쓴다. 지금은 서브기능 27개 + 워크스페이스 권한 4개를
- * 개별로 켠다.
+ * **권한 = 탭 접근이다.** 서브기능은 곧 모듈 화면의 탭이고(`components/module-view.tsx`의
+ * 「서브기능 탭」), 권한을 준다는 건 그 탭을 볼 수 있게 한다는 뜻이다. 그래서 체크박스가
+ * 아니라 **토글**이고, 모양이 기능 관리와 같다 — 저기는 "이 회사가 어떤 탭을 쓰나",
+ * 여기는 "이 직급이 그중 어떤 탭을 보나"다.
+ *
+ * **워크스페이스에서 꺼 둔 기능은 여기서도 잠긴다.** 아무도 못 보는 탭에 권한을 줘 봐야
+ * 소용이 없고, 켜 두면 기능을 다시 켰을 때 의도치 않게 열린다.
+ *
+ * 회사 단위 권한 4개(회사 정보 관리·구성원 정보 관리·데이터 연동·회사 삭제)는 탭이 아니라
+ * 따로 둔다.
  *
  * **데이터 접근 범위와 토글 두 개는 남겼다.** 체크박스만으로는 "자기 부서 것만"을 표현할 수
  * 없고, 금액 열을 누가 보느냐는 제조·유통에서 실제 요구였다.
  *
- * **이 화면은 보안 경계가 아니다.** 실제 접근 차단은 BE 세션의 역할 검사에서 한다.
+ * **이 화면은 보안 경계가 아니다.** 실제 접근 차단은 BE 세션의 직급 검사에서 한다.
  * `showAmounts`도 열을 가리는 표시일 뿐 — 값을 안 내려주는 건 BE가 해야 한다.
  *
- * **BE 연동 seam**: `save()`가 역할 upsert API를 부르고, 성공하면 그 역할을 가진 사용자에게
+ * **BE 연동 seam**: `save()`가 직급 upsert API를 부르고, 성공하면 그 직급을 가진 사용자에게
  * 즉시 적용된다. 실패하면 `showToast(문구, "error")`.
  */
 export function RoleEditor() {
@@ -47,7 +55,7 @@ export function RoleEditor() {
   const [roles, setRoles] = useState<RoleDef[]>(ROLES);
   /** 저장 전 값 — 「변경사항 되돌리기」가 여기로 돌아간다 */
   const [saved, setSaved] = useState<RoleDef[]>(ROLES);
-  // 처음에는 시스템이 아닌 첫 역할을 고른다 — 소유자를 열면 전부 잠겨 있어 화면이 죽어 보인다
+  // 처음에는 시스템이 아닌 첫 직급을 고른다 — 소유자를 열면 전부 잠겨 있어 화면이 죽어 보인다
   const [selectedId, setSelectedId] = useState(
     ROLES.find((r) => !r.system)?.id ?? ROLES[0].id,
   );
@@ -55,8 +63,8 @@ export function RoleEditor() {
   const [creating, setCreating] = useState(false);
 
   /**
-   * 만든 역할을 바로 고르고 `권한` 탭을 연다 — 만든 직후 할 일이 권한 고르기다.
-   * `saved`에도 같이 넣는다. 안 넣으면 새 역할이 처음부터 「변경됨」으로 보인다.
+   * 만든 직급을 바로 고르고 `권한` 탭을 연다 — 만든 직후 할 일이 권한 고르기다.
+   * `saved`에도 같이 넣는다. 안 넣으면 새 직급이 처음부터 「변경됨」으로 보인다.
    */
   function create(role: RoleDef) {
     setRoles((prev) => [...prev, role]);
@@ -67,28 +75,25 @@ export function RoleEditor() {
     showToast(`${role.name} 권한을 만들었어요. 이제 권한을 골라 주세요`);
   }
 
-  /**
-   * 화면에 그릴 권한 목록 — 워크스페이스 권한 4개가 먼저, 그 다음이 기능별 서브기능.
-   * 기능 이름으로 묶어 보여준다. 31줄이 평면으로 늘어서면 어디까지가 생산관리인지 안 읽힌다.
-   */
-  const groups = useMemo(
-    () => [
-      { title: "회사", items: WORKSPACE_PERMS },
-      ...MODULES.map((m) => ({
-        title: m.name,
-        items: m.subfunctions.map((s) => ({ id: s.id, name: s.name })),
-      })),
-    ],
+  /** 워크스페이스가 지금 켜 둔 기능 — 꺼진 기능의 탭은 아무도 못 보니 여기서도 잠근다 */
+  const { state } = useModules();
+
+  /** 기능 탭 전체 개수 (서브기능 27개) */
+  const totalTabs = useMemo(
+    () => MODULES.reduce((n, m) => n + m.subfunctions.length, 0),
     [],
   );
-  const totalPerms = useMemo(
-    () => groups.reduce((n, g) => n + g.items.length, 0),
-    [groups],
-  );
+  /** 권한 요약이 세는 전체 = 기능 탭 + 회사 권한 */
+  const totalPerms = totalTabs + WORKSPACE_PERMS.length;
 
   const role = roles.find((r) => r.id === selectedId) ?? roles[0];
   const locked = role.system;
   const dirty = JSON.stringify(role) !== JSON.stringify(saved.find((r) => r.id === role.id));
+
+  const onTabs = MODULES.reduce(
+    (n, m) => n + m.subfunctions.filter((s) => role.perms.includes(s.id)).length,
+    0,
+  );
 
   const members = USERS_ROLES.filter((u) => u.role === role.name);
 
@@ -100,6 +105,18 @@ export function RoleEditor() {
     patch({
       perms: on ? [...role.perms, id] : role.perms.filter((p) => p !== id),
     });
+  }
+
+  /**
+   * 기능 하나를 통째로 — 하위 탭을 다 켜거나 다 끈다.
+   *
+   * `feature-settings.tsx`의 `setModule`과 같은 규칙이다. 반대 방향(하위를 다 끄면 기능도
+   * 꺼진 것으로 보인다)은 따로 저장하지 않는다 — `on > 0`으로 파생하면 상태가 한 벌로 남는다.
+   */
+  function toggleModule(slug: string, on: boolean) {
+    const ids = MODULES.find((m) => m.slug === slug)?.subfunctions.map((s) => s.id) ?? [];
+    const rest = role.perms.filter((p) => !ids.includes(p));
+    patch({ perms: on ? [...rest, ...ids] : rest });
   }
 
   function save() {
@@ -125,7 +142,7 @@ export function RoleEditor() {
   return (
     <>
       <div className="mt-5 grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)]">
-        {/* ── 왼쪽: 부서별 역할 ── */}
+        {/* ── 왼쪽: 부서별 직급 ── */}
         <nav aria-label="권한 목록" className="min-w-0">
           {groupRolesByDept(roles, DEPARTMENTS).map((g) => (
             <div key={g.dept ?? "__none"} className="mb-4 last:mb-0">
@@ -136,7 +153,7 @@ export function RoleEditor() {
                 </p>
               )}
               {g.roles.length === 0 ? (
-                <p className="px-1 pb-1 text-xs text-slate-300">역할 없음</p>
+                <p className="px-1 pb-1 text-xs text-slate-300">직급 없음</p>
               ) : (
                 <ul className="space-y-0.5">
                   {g.roles.map((r) => {
@@ -179,14 +196,14 @@ export function RoleEditor() {
           </Button>
         </nav>
 
-        {/* ── 오른쪽: 고른 역할 ── */}
+        {/* ── 오른쪽: 고른 직급 ── */}
         {/* 오른쪽은 폭을 묶는다 — 페이지가 꽉 찬 폭이라(`wide`) 그대로 두면 「인사 관리」
             네 글자짜리 행의 구분선이 900px를 가로지른다. 왼쪽 목록은 그 폭이 필요하지만
-            (부서 머리글 + 역할 이름) 체크박스 목록은 아니다. */}
+            (부서 머리글 + 직급 이름) 체크박스 목록은 아니다. */}
         <section aria-label={`${role.name} 권한`} className="min-w-0 max-w-2xl">
           <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 border-b border-slate-200 pb-2.5">
             <h2 className="text-[15px] font-bold text-slate-900">{role.name}</h2>
-            {role.system && <Badge tone="slate">시스템 역할</Badge>}
+            {role.system && <Badge tone="slate">시스템 직급</Badge>}
             <span className="text-xs text-slate-400">
               {summarizeRole(role, totalPerms)} · {roleMemberCount(role.name, USERS_ROLES)}명
             </span>
@@ -224,39 +241,105 @@ export function RoleEditor() {
               {locked && (
                 <p className="mt-3 flex items-start gap-1.5 text-xs text-slate-400">
                   <IconLock size={14} className="mt-0.5 shrink-0" />
-                  시스템 역할의 설정은 편집할 수 없어요.
+                  시스템 직급의 설정은 편집할 수 없어요.
                 </p>
               )}
 
-              {/* 31줄이라 목록만 스크롤한다 — 페이지째 길어지면 저장 버튼이 화면 밖으로 나간다 */}
-              <div className="thin-scroll mt-3 max-h-[440px] overflow-y-auto pr-1">
-                {groups.map((g) => (
-                  <div key={g.title} className="mb-4 last:mb-0">
-                    <p className="pb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                      {g.title}
-                    </p>
-                    <ul className="divide-y divide-slate-100">
-                      {g.items.map((item) => (
-                        <li key={item.id}>
-                          <label
-                            className={`flex items-center gap-2.5 py-2.5 text-[13.5px] ${
-                              locked ? "text-slate-400" : "cursor-pointer text-slate-700"
-                            }`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={role.perms.includes(item.id)}
-                              disabled={locked}
-                              onChange={(e) => togglePerm(item.id, e.target.checked)}
-                              className="h-4 w-4 shrink-0 accent-slate-900"
-                            />
-                            {item.name}
-                          </label>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
+              {/* 회사 단위 권한 — 탭이 아니라 회사 자체를 다루는 것들이라 따로 둔다 */}
+              <div className="mt-4">
+                <p className="pb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                  회사
+                </p>
+                <SettingsRows tight>
+                  {WORKSPACE_PERMS.map((p) => (
+                    <SettingsRow key={p.id}>
+                      <ActionRow name={p.name}>
+                        <Toggle
+                          checked={role.perms.includes(p.id)}
+                          onChange={(v) => togglePerm(p.id, v)}
+                          label={p.name}
+                          disabled={locked}
+                        />
+                      </ActionRow>
+                    </SettingsRow>
+                  ))}
+                </SettingsRows>
+              </div>
+
+              {/* 기능 탭 — 기능 관리와 같은 모양이다. 저기는 "이 회사가 어떤 탭을 쓰나",
+                  여기는 "이 직급이 그중 어떤 탭을 보나"라서 같은 것을 두 번 묻지 않는다. */}
+              <div className="mt-6">
+                <div className="flex items-baseline justify-between gap-3 border-b border-slate-200 pb-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                    기능 탭
+                  </p>
+                  <span className="text-[11px] text-slate-400">
+                    켜진 탭 {onTabs}/{totalTabs}
+                  </span>
+                </div>
+
+                <div className="thin-scroll mt-1 max-h-[420px] overflow-y-auto pr-1">
+                  <SettingsRows>
+                    {MODULES.map((mod) => {
+                      const subs = mod.subfunctions;
+                      const on = subs.filter((s) => role.perms.includes(s.id)).length;
+                      // 워크스페이스에서 꺼 둔 기능은 아무도 못 본다 — 여기서 켜 봐야 소용없다
+                      const wsOff = !state[mod.slug]?.enabled;
+                      const Icon = ICON_MAP[mod.icon];
+                      return (
+                        <SettingsRow key={mod.slug}>
+                          <div className={wsOff ? "opacity-45" : ""}>
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="flex min-w-0 items-center gap-2.5">
+                                <Icon size={16} className="shrink-0 text-slate-400" />
+                                <span className="text-[13.5px] font-semibold text-slate-900">
+                                  {mod.name}
+                                </span>
+                                <span className="text-[11px] text-slate-400">
+                                  {on}/{subs.length}
+                                </span>
+                                {wsOff && (
+                                  <Badge tone="slate">워크스페이스에서 꺼짐</Badge>
+                                )}
+                              </span>
+                              {/* 기능 전체를 한 번에 — 하위 탭을 다 켜거나 다 끈다 */}
+                              <Toggle
+                                size="sm"
+                                checked={on > 0}
+                                onChange={(v) => toggleModule(mod.slug, v)}
+                                label={`${mod.name} 전체`}
+                                disabled={locked || wsOff}
+                              />
+                            </div>
+
+                            <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1.5 pl-[26px]">
+                              {subs.map((sub) => (
+                                <span key={sub.id} className="inline-flex items-center gap-1.5">
+                                  <Toggle
+                                    size="sm"
+                                    checked={role.perms.includes(sub.id)}
+                                    onChange={(v) => togglePerm(sub.id, v)}
+                                    label={`${mod.name} > ${sub.name}`}
+                                    disabled={locked || wsOff}
+                                  />
+                                  <span
+                                    className={`text-[13px] ${
+                                      role.perms.includes(sub.id)
+                                        ? "text-slate-600"
+                                        : "text-slate-400"
+                                    }`}
+                                  >
+                                    {sub.name}
+                                  </span>
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        </SettingsRow>
+                      );
+                    })}
+                  </SettingsRows>
+                </div>
               </div>
 
               <div className="mt-4 border-t border-slate-200 pt-3">

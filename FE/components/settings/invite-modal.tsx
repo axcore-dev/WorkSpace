@@ -8,11 +8,11 @@ import { MODULES } from "@/data/modules";
 import { DEPARTMENTS, ROLES } from "@/data/org";
 
 /**
- * 역할·부서는 data/org.ts가 단일 소스다.
+ * 직급·부서는 data/org.ts가 단일 소스다.
  *
  * 예전에는 이 파일이 자기 목록을 갖고 있었는데 USERS_ROLES에 실제로 쓰인 값과 달랐다 —
  * 여기엔 '생산 관리자'·'경영지원본부'가 있고 저기엔 '공장장'·'제조혁신팀'이 있었다.
- * 초대할 때 고른 역할이 구성원 목록에 없는 역할이 되는 상태였다.
+ * 초대할 때 고른 직급이 구성원 목록에 없는 직급이 되는 상태였다.
  */
 
 /**
@@ -110,7 +110,7 @@ export function InviteModal({ open, onClose }: { open: boolean; onClose: () => v
             </div>
             <div className="sm:col-span-2">
               <label htmlFor="inv-role" className="mb-1.5 block text-sm font-medium text-slate-700">
-                역할
+                직급
               </label>
               <select id="inv-role" value={role} onChange={(e) => setRole(e.target.value)} className={`${FIELD} cursor-pointer`}>
                 {ROLES.map((r) => (

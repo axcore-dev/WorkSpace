@@ -13,7 +13,7 @@ import { INVITE_LINKS } from "@/data/org";
  * 만료일시가 이미 "쓸 수 있나"를 말한다.
  *
  * **BE 연동 seam**: `deleteLink`가 링크 회수 API를 부른다.
- * `링크 만들기`는 역할·부서·횟수·만료일을 정하는 모달이 필요하다 — 다음 작업이다.
+ * `링크 만들기`는 직급·부서·횟수·만료일을 정하는 모달이 필요하다 — 다음 작업이다.
  */
 export function InviteLinks({
   onSaved,

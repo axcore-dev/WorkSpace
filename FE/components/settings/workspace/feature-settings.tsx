@@ -1,10 +1,6 @@
 "use client";
 
-import {
-  SettingsRow,
-  SettingsRows,
-  SettingsSection,
-} from "@/components/settings/settings-section";
+import { SettingsSection } from "@/components/settings/settings-section";
 import { ICON_MAP } from "@/components/icons";
 import { useModules } from "@/components/module-provider";
 import { AiBadge, Toast, Toggle } from "@/components/ui";
@@ -29,32 +25,43 @@ export function FeatureSettings() {
   const { state, setModule, setSub } = useModules();
   const [toast, showToast] = useToast();
 
+  const onCount = MODULES.filter((m) => state[m.slug]?.enabled).length;
+
   return (
     <>
-      {/* 개수 보조 문구를 두지 않는다 (수정요청 v12). 화면에서 「모듈」이라는 말을 쓰지
-          않기로 했는데, 세는 단위가 곧 모듈이라 「기능 8개」로 바꾸면 아래 목록의
-          「기능」(서브기능 포함)과 같은 말이 두 뜻이 된다. */}
-      <SettingsSection title="기능 활성화">
-        <SettingsRows>
+      <SettingsSection
+        title="기능 활성화"
+        aside={
+          <span className="text-xs text-slate-400">
+            {MODULES.length}가지 중 {onCount}가지 켜짐
+          </span>
+        }
+      >
+        {/* 2열 격자 — 한 줄에 하나씩 쌓으면 하위 탭이 가로로 흘러서 어디까지가 한 기능인지
+            눈으로 세어야 한다. 카드가 아니라 1px 구분선 격자다 (DESIGN.md 「카드에 그림자 금지」). */}
+        <div className="mt-3 grid gap-px overflow-hidden rounded-xl border border-slate-200 bg-slate-200 sm:grid-cols-2">
           {MODULES.map((mod) => {
             const Icon = ICON_MAP[mod.icon];
             const st = state[mod.slug];
+            const on = mod.subfunctions.filter((s) => st.subs[s.id]).length;
             return (
-              <SettingsRow key={mod.slug}>
+              <div
+                key={mod.slug}
+                className={`bg-white p-3.5 ${st.enabled ? "" : "opacity-55"}`}
+              >
                 <div className="flex items-center justify-between gap-3">
-                  <div className="flex min-w-0 items-center gap-3">
+                  <span className="flex min-w-0 items-center gap-2.5">
                     <Icon
-                      size={17}
+                      size={16}
                       className={`shrink-0 ${st.enabled ? "text-slate-600" : "text-slate-300"}`}
                     />
-                    <p
-                      className={`text-[13.5px] font-semibold ${
-                        st.enabled ? "text-slate-900" : "text-slate-400"
-                      }`}
-                    >
+                    <span className="truncate text-[13.5px] font-semibold text-slate-900">
                       {mod.name}
-                    </p>
-                  </div>
+                    </span>
+                    <span className="shrink-0 text-[11px] text-slate-400">
+                      {on}/{mod.subfunctions.length}
+                    </span>
+                  </span>
                   <Toggle
                     size="sm"
                     checked={st.enabled}
@@ -65,9 +72,12 @@ export function FeatureSettings() {
                     label={`${mod.name} 기능`}
                   />
                 </div>
-                <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1.5 pl-8">
+
+                {/* 하위 탭은 토글로 남긴다 — 칩으로 바꾸면 켜고 끄는 것인지 고르는 것인지
+                    구분이 안 되고, 위 기능 토글과 같은 동작이 두 모양이 된다 */}
+                <div className="mt-2.5 flex flex-col gap-1.5">
                   {mod.subfunctions.map((sub) => (
-                    <span key={sub.id} className="inline-flex items-center gap-1.5">
+                    <span key={sub.id} className="inline-flex items-center gap-2">
                       <Toggle
                         size="sm"
                         checked={st.subs[sub.id]}
@@ -88,10 +98,10 @@ export function FeatureSettings() {
                     </span>
                   ))}
                 </div>
-              </SettingsRow>
+              </div>
             );
           })}
-        </SettingsRows>
+        </div>
       </SettingsSection>
 
       <SettingsSection title="알림">

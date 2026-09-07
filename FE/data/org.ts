@@ -9,7 +9,7 @@ import type { Tone } from "./types";
  * 기능 권한 id 전체 — 서브기능 27개.
  *
  * 목록을 손으로 적지 않는다. `data/modules.ts`에 서브기능이 하나 늘면 여기 자동으로 따라오고,
- * 안 그러면 「모든 권한」이라는 역할이 새 기능만 빠진 채로 남는다.
+ * 안 그러면 「모든 권한」이라는 직급이 새 기능만 빠진 채로 남는다.
  */
 const ALL_FEATURE_PERMS = MODULES.flatMap((m) => m.subfunctions.map((s) => s.id));
 
@@ -42,7 +42,7 @@ export const DEMO_ADMIN = {
 
 /**
  * 로그인 후 내부 관리자 콘솔로 보낼 계정 목록.
- * 데모 분기용이며 **보안 경계가 아니다** — 실제 판정은 BE 세션의 역할로 한다.
+ * 데모 분기용이며 **보안 경계가 아니다** — 실제 판정은 BE 세션의 직급으로 한다.
  */
 export const INTERNAL_ADMIN_EMAILS = [DEMO_ADMIN.email];
 
@@ -58,7 +58,7 @@ export const WORKSPACES: { id: string; name: string; role: string; plan: string 
 
 export const DEFAULT_WORKSPACE_ID = "democompany";
 
-/** 관리 > 사용자 및 역할 (RBAC) */
+/** 관리 > 사용자 및 직급 (RBAC) */
 export const USERS_ROLES: {
   name: string;
   email: string;
@@ -82,22 +82,22 @@ export const DATA_SCOPES: { value: DataScope; label: string }[] = [
 ];
 
 /**
- * 역할 정의 — 단일 소스.
+ * 직급 정의 — 단일 소스.
  *
  * `name`은 `USERS_ROLES[].role`에 실제로 쓰인 값과 같아야 한다 — `roleMemberCount`가
  * 이름으로 맞추므로 어긋나면 구성원 수가 전부 0이 된다. `data/roles.test.ts`가 이걸 검증한다.
  *
- * **부서 → 역할 → 권한 3단이다** (수정요청 v12). 역할은 부서에 속하고, 권한은 켜진 것의
- * 목록이다. 예전에는 역할이 평면이었고 권한이 모듈 8개 × 없음/읽기/쓰기 격자였는데,
+ * **부서 → 직급 → 권한 3단이다** (수정요청 v12). 직급은 부서에 속하고, 권한은 켜진 것의
+ * 목록이다. 예전에는 직급이 평면이었고 권한이 모듈 8개 × 없음/읽기/쓰기 격자였는데,
  * "생산관리 전부 or 전무"라 실무에서 못 쓴다. 이제 서브기능 27개 + 워크스페이스 권한 4개를
  * 개별로 켠다.
  *
  * `dept: null`은 부서에 속하지 않는다는 뜻이다 — 소유자 하나뿐이다.
  *
- * **시스템 역할은 소유자 하나다.** 관리자를 포함해 나머지는 전부 고칠 수 있다 — 회사마다
- * 관리자가 무엇을 하는지가 달라서 잠가 두면 쓸 수 없는 역할이 된다.
+ * **시스템 직급은 소유자 하나다.** 관리자를 포함해 나머지는 전부 고칠 수 있다 — 회사마다
+ * 관리자가 무엇을 하는지가 달라서 잠가 두면 쓸 수 없는 직급이 된다.
  *
- * **이 값은 보안 경계가 아니다** — 실제 차단은 BE 세션의 역할 검사에서 한다.
+ * **이 값은 보안 경계가 아니다** — 실제 차단은 BE 세션의 직급 검사에서 한다.
  */
 export const ROLES: RoleDef[] = [
   {
@@ -107,7 +107,7 @@ export const ROLES: RoleDef[] = [
     dept: null,
     desc: "회사를 대표하는 자리",
     /**
-     * **`ws:delete`(회사 삭제)는 꺼 둔다.** 소유자는 잠긴 역할이라 여기서 켜져 있으면
+     * **`ws:delete`(회사 삭제)는 꺼 둔다.** 소유자는 잠긴 직급이라 여기서 켜져 있으면
      * 아무도 끌 수 없는 삭제 권한이 되고, 실수 한 번이 되돌릴 수 없는 결과가 된다.
      * 회사를 지우는 건 계약 해지라 운영팀을 거친다.
      */
@@ -207,7 +207,7 @@ export const PENDING_INVITES: {
   { id: "i2", name: "한지우", email: "jwhan@democompany.co.kr", dept: "품질관리팀", role: "품질 관리자", sentAt: "2026-09-04", expiresAt: "2026-09-11" },
 ];
 
-/** 관리 › 초대 관리 › 초대 링크 — 받은 사람 누구나 쓸 수 있어 역할·부서를 미리 박아둔다 */
+/** 관리 › 초대 관리 › 초대 링크 — 받은 사람 누구나 쓸 수 있어 직급·부서를 미리 박아둔다 */
 export const INVITE_LINKS: {
   id: string;
   url: string;
