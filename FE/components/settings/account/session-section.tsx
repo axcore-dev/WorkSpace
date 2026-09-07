@@ -2,13 +2,11 @@
 
 import { useState } from "react";
 import {
-  ActionRow,
-  SettingsRow,
-  SettingsRows,
+  SectionActions,
   SettingsSection,
 } from "@/components/settings/settings-section";
 import { IconLaptop } from "@/components/icons";
-import { Button } from "@/components/ui";
+import { Badge, Button } from "@/components/ui";
 import { DEVICES } from "@/data/org";
 
 /**
@@ -26,7 +24,9 @@ import { DEVICES } from "@/data/org";
 export function SessionSection({ onSaved }: { onSaved: (message: string) => void }) {
   const [devices, setDevices] = useState(DEVICES);
 
-  const others = devices.filter((d) => !d.current).length;
+  const current = devices.find((d) => d.current);
+  const rest = devices.filter((d) => !d.current);
+  const others = rest.length;
 
   function logoutOne(id: string) {
     const gone = devices.find((d) => d.id === id);
@@ -42,59 +42,73 @@ export function SessionSection({ onSaved }: { onSaved: (message: string) => void
   return (
     <SettingsSection
       title="기기"
-      aside={<span className="text-xs text-slate-400">활성 세션 {devices.length}개</span>}
+      aside={<span className="text-xs text-slate-400">다른 기기 {others}대</span>}
     >
-      <SettingsRows tight>
-        <SettingsRow>
-          <ActionRow name="모든 기기에서 로그아웃" value="이 기기만 남겨요">
-            <Button variant="danger" size="sm" disabled={others === 0} onClick={logoutOthers}>
-              모든 기기에서 로그아웃
-            </Button>
-          </ActionRow>
-        </SettingsRow>
-      </SettingsRows>
+      {/* 지금 쓰는 기기를 표 밖으로 뺀다. 그러면 아래 「다른 기기 모두 로그아웃」이 무엇을
+          지우고 무엇을 남기는지가 배치로 설명된다 — 문장으로 안 적어도 된다. */}
+      {current && (
+        <div className="mt-3 flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3">
+          <IconLaptop size={17} className="shrink-0 text-slate-500" />
+          <div className="min-w-0 flex-1">
+            <p className="flex items-center gap-1.5 text-[13.5px] font-semibold text-slate-900">
+              {current.name}
+              <Badge tone="green">지금 이 기기</Badge>
+            </p>
+            <p className="mt-0.5 text-xs text-slate-500">
+              {current.location} · {current.lastActive}
+            </p>
+          </div>
+        </div>
+      )}
 
-      <div className="thin-scroll mt-2 overflow-x-auto">
-        <table className="w-full min-w-[520px] text-left text-sm">
-          <thead>
-            <tr className="border-b border-slate-200 text-xs font-medium text-slate-400">
-              <th scope="col" className="py-2.5 pr-3">기기 이름</th>
-              <th scope="col" className="px-3 py-2.5">마지막 활동</th>
-              <th scope="col" className="px-3 py-2.5">위치</th>
-              {/* 동작 열은 이름을 두지 않는다 — 읽을 값이 아니다 */}
-              <th scope="col" className="py-2.5 pl-3">
-                <span className="sr-only">동작</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {devices.map((d) => (
-              <tr key={d.id} className="transition-colors hover:bg-slate-50/70">
-                <td className="py-3 pr-3">
-                  <span className="flex items-center gap-2">
-                    <IconLaptop size={15} className="shrink-0 text-slate-400" />
-                    <span className="min-w-0">
-                      <span className="block font-medium text-slate-900">{d.name}</span>
-                      {d.current && (
-                        <span className="block text-[11px] text-primary-600">이 기기</span>
-                      )}
-                    </span>
-                  </span>
-                </td>
-                <td className="px-3 py-3 text-slate-500">{d.lastActive}</td>
-                <td className="px-3 py-3 text-slate-600">{d.location}</td>
-                <td className="py-3 pl-3 text-right">
-                  {!d.current && (
-                    <Button variant="ghost" size="sm" onClick={() => logoutOne(d.id)}>
-                      로그아웃
-                    </Button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {rest.length === 0 ? (
+        <p className="py-8 text-center text-[13.5px] text-slate-400">
+          다른 기기에서 로그인한 기록이 없어요.
+        </p>
+      ) : (
+        <>
+          <div className="thin-scroll relative mt-3 overflow-x-auto">
+            <table className="w-full min-w-[520px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 text-xs font-medium text-slate-400">
+                  <th scope="col" className="py-2.5 pr-3">다른 기기</th>
+                  <th scope="col" className="px-3 py-2.5">마지막 활동</th>
+                  <th scope="col" className="px-3 py-2.5">위치</th>
+                  {/* 동작 열은 이름을 두지 않는다 — 읽을 값이 아니다 */}
+                  <th scope="col" className="py-2.5 pl-3">
+                    <span className="sr-only">동작</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {rest.map((d) => (
+                  <tr key={d.id} className="transition-colors hover:bg-slate-50/70">
+                    <td className="py-3 pr-3">
+                      <span className="flex items-center gap-2">
+                        <IconLaptop size={15} className="shrink-0 text-slate-400" />
+                        <span className="min-w-0 font-medium text-slate-900">{d.name}</span>
+                      </span>
+                    </td>
+                    <td className="px-3 py-3 text-slate-500">{d.lastActive}</td>
+                    <td className="px-3 py-3 text-slate-600">{d.location}</td>
+                    <td className="py-3 pl-3 text-right">
+                      <Button variant="ghost" size="sm" onClick={() => logoutOne(d.id)}>
+                        로그아웃
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <SectionActions>
+            <Button variant="danger" size="sm" onClick={logoutOthers}>
+              다른 기기 {others}대 모두 로그아웃
+            </Button>
+          </SectionActions>
+        </>
+      )}
     </SettingsSection>
   );
 }

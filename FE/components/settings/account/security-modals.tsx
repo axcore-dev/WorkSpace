@@ -16,8 +16,8 @@
 
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/modal";
-import { IconCheck, IconCheckCircle, IconEye, IconEyeOff, IconKey, IconLock, IconMail, IconShield, IconX } from "@/components/icons";
-import { Badge, Button, FIELD, FIELD_ERROR, Toggle } from "@/components/ui";
+import { IconCheck, IconCheckCircle, IconEye, IconEyeOff, IconKey, IconLock, IconMail, IconRefresh, IconShield, IconSmartphone, IconX } from "@/components/icons";
+import { Badge, Button, FIELD, FIELD_ERROR } from "@/components/ui";
 import { PROVIDER_LABELS } from "@/lib/auth";
 import { ACCOUNT_EMAILS, DEMO_USER, SOCIAL_LOGINS } from "@/data/org";
 
@@ -36,6 +36,13 @@ export const TFA_METHODS: { id: TfaId; name: string; desc: string; sentTo?: stri
   { id: "sms", name: "SMS OTP", desc: "휴대전화 문자로 인증 코드 발송", sentTo: "번호로" },
   { id: "totp", name: "Google Authenticator", desc: "인증 앱 기반 TOTP" },
 ];
+
+/** 수단마다 아이콘 하나 — 세 줄이 글자만이면 어느 게 앱이고 어느 게 문자인지 안 읽힌다 */
+const METHOD_ICON: Record<TfaId, typeof IconMail> = {
+  email: IconMail,
+  sms: IconSmartphone,
+  totp: IconRefresh,
+};
 
 /** 데모 검증 코드 — BE 연동 시 서버가 발송·검증한다 (코드는 서버에만 존재해야 한다) */
 const DEMO_OTP = "123456";
@@ -73,10 +80,16 @@ export function PasswordModal({
   open,
   onClose,
   onDone,
+  hasPassword = true,
 }: {
   open: boolean;
   onClose: () => void;
   onDone: (message: string) => void;
+  /**
+   * 비밀번호가 없는 계정(소셜로만 가입)이면 **현재 비밀번호를 묻지 않는다.**
+   * 물어봐야 댈 것이 없고, 빈 칸을 채우라고 요구하면 아무도 못 넘어간다.
+   */
+  hasPassword?: boolean;
 }) {
   const [cur, setCur] = useState("");
   const [pw, setPw] = useState("");
@@ -92,7 +105,9 @@ export function PasswordModal({
   ];
   const valid = rules.every((r) => r.ok);
   const match = pw2.length > 0 && pw === pw2;
-  const canSubmit = !!cur && valid && match;
+  const canSubmit = (!hasPassword || !!cur) && valid && match;
+
+  const verb = hasPassword ? "변경" : "추가";
 
   function close() {
     setCur("");
@@ -105,7 +120,7 @@ export function PasswordModal({
 
   function submit() {
     setDone(true);
-    onDone("비밀번호를 바꿨어요");
+    onDone(hasPassword ? "비밀번호를 바꿨어요" : "비밀번호를 추가했어요");
   }
 
   return (
@@ -113,7 +128,7 @@ export function PasswordModal({
       open={open}
       onClose={close}
       size="sm"
-      title="비밀번호 변경"
+      title={`비밀번호 ${verb}`}
       footer={
         !done && (
           <div className="flex justify-end gap-2">
@@ -125,10 +140,10 @@ export function PasswordModal({
             <Button
               disabled={!canSubmit}
               onClick={submit}
-              title={canSubmit ? undefined : "모든 조건을 충족하면 변경할 수 있어요"}
+              title={canSubmit ? undefined : `모든 조건을 충족하면 ${verb}할 수 있어요`}
             >
               <IconKey size={15} />
-              비밀번호 변경
+              비밀번호 {verb}
             </Button>
           </div>
         )
@@ -137,7 +152,9 @@ export function PasswordModal({
       {done ? (
         <div className="flex flex-col items-center justify-center px-6 py-12 text-center">
           <IconCheckCircle size={40} className="text-emerald-600" />
-          <p className="mt-3 text-sm font-semibold text-slate-900">비밀번호가 변경되었습니다</p>
+          <p className="mt-3 text-sm font-semibold text-slate-900">
+            비밀번호를 {verb}했어요
+          </p>
           <p className="mt-1 max-w-sm text-sm text-slate-500">
             다음 로그인부터 새 비밀번호를 사용해 주세요. 모든 기기에서 다시 로그인해야 합니다.
           </p>
@@ -150,20 +167,22 @@ export function PasswordModal({
           {/* 세 칸이 테두리 하나를 나눠 쓴다 — 사이는 옅은 실선만 (수정요청 v12).
               라벨은 placeholder로 대신하고 스크린리더용 label을 따로 둔다. */}
           <div className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-300 focus-within:border-slate-400">
-            <div>
-              <label htmlFor="pwm-cur" className="sr-only">
-                현재 비밀번호
-              </label>
-              <input
-                id="pwm-cur"
-                type="password"
-                autoComplete="current-password"
-                placeholder="현재 비밀번호"
-                value={cur}
-                onChange={(e) => setCur(e.target.value)}
-                className={PW_CELL}
-              />
-            </div>
+            {hasPassword && (
+              <div>
+                <label htmlFor="pwm-cur" className="sr-only">
+                  현재 비밀번호
+                </label>
+                <input
+                  id="pwm-cur"
+                  type="password"
+                  autoComplete="current-password"
+                  placeholder="현재 비밀번호"
+                  value={cur}
+                  onChange={(e) => setCur(e.target.value)}
+                  className={PW_CELL}
+                />
+              </div>
+            )}
 
             <div className="relative">
               <label htmlFor="pwm-new" className="sr-only">
@@ -508,34 +527,68 @@ export function TfaModal({
 
   return (
     <>
-      <Modal
-        open={open && !pending}
-        onClose={onClose}
-        size="md"
-        title="2단계 인증"
-      >
-        <ul className="divide-y divide-slate-100 p-5">
-          {TFA_METHODS.map((m) => {
-            const usable = available[m.id];
-            return (
-              <li key={m.id} className="flex items-center gap-3 py-3.5 first:pt-0 last:pb-0">
-                <IconShield size={16} className="shrink-0 text-slate-400" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-[13.5px] font-semibold text-slate-900">{m.name}</p>
-                  <p className="mt-0.5 text-xs text-slate-400">
-                    {m.sentTo ? `${targets[m.id]} ${m.sentTo} 6자리 코드를 보내요` : m.desc}
-                  </p>
-                </div>
-                <Toggle
-                  checked={tfa[m.id]}
-                  onChange={(v) => toggle(m.id, v)}
-                  label={m.name}
-                  disabled={!usable}
-                />
-              </li>
-            );
-          })}
-        </ul>
+      {/* 제목·설명을 `Modal`의 헤더가 아니라 본문 가운데에 둔다 — 아직 아무것도 안 켠
+          상태에서 여는 화면이라 목록이 아니라 "무엇으로 할까"를 고르는 자리다.
+          `Modal`에 title을 주지 않으면 헤더 줄이 사라지므로 (x)만 따로 얹는다. */}
+      <Modal open={open && !pending} onClose={onClose} size="sm">
+        <div className="relative px-6 pb-6 pt-5">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="닫기"
+            className="absolute right-3 top-3 flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400"
+          >
+            <IconX size={18} />
+          </button>
+
+          <div className="flex flex-col items-center pt-3 text-center">
+            <IconLock size={26} className="text-slate-400" />
+            <h2 className="mt-3 text-base font-bold text-slate-900">2단계 인증 활성화</h2>
+            <p className="mt-1.5 max-w-[19rem] text-[13px] text-slate-500">
+              로그인할 때 인증 코드를 한 번 더 입력해 본인을 확인해요.
+            </p>
+          </div>
+
+          <ul className="mt-5 space-y-2">
+            {TFA_METHODS.map((m) => {
+              const usable = available[m.id];
+              const Icon = METHOD_ICON[m.id];
+              return (
+                <li key={m.id}>
+                  {/* 켜져 있으면 끄는 버튼, 아니면 등록으로 들어가는 버튼.
+                      BE에 없는 수단은 opacity로 죽인다 (DESIGN.md: disabled는 노드 전체 opacity) */}
+                  <button
+                    type="button"
+                    disabled={!usable}
+                    onClick={() => toggle(m.id, !tfa[m.id])}
+                    className={`flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400 ${
+                      usable
+                        ? "cursor-pointer border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                        : "border-slate-200 opacity-45"
+                    }`}
+                  >
+                    <Icon size={18} className="shrink-0 text-slate-500" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[13.5px] font-semibold text-slate-900">
+                        {m.name}
+                      </span>
+                      <span className="mt-0.5 block text-xs text-slate-400">
+                        {m.sentTo ? `${targets[m.id]} ${m.sentTo} 6자리 코드를 보내요` : m.desc}
+                      </span>
+                    </span>
+                    {tfa[m.id] && (
+                      <IconCheck size={16} className="shrink-0 text-emerald-600" />
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+
+          <p className="mt-4 text-center text-xs text-slate-400">
+            지금은 이메일 코드만 쓸 수 있어요. 나머지는 준비 중이에요.
+          </p>
+        </div>
       </Modal>
 
       {pending && (

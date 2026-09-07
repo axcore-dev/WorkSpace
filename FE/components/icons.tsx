@@ -320,6 +320,13 @@ export const IconLaptop = (p: IconProps) =>
     <path d="M2 20h20" />
   </>);
 
+/** 휴대전화 — 2단계 인증의 문자 수단 */
+export const IconSmartphone = (p: IconProps) =>
+  base(p, <>
+    <rect width="14" height="20" x="5" y="2" rx="2" />
+    <path d="M12 18h.01" />
+  </>);
+
 export const IconArrowRight = (p: IconProps) =>
   base(p, <>
     <path d="M5 12h14" />

@@ -237,6 +237,21 @@ export const DEPARTMENTS = [
 export const SITES = ["본사", "1공장", "2공장"] as const;
 
 /**
+ * 계정 › 보안 상태.
+ *
+ * `hasPassword`가 false면 **소셜로만 가입한 계정**이다. 그때 화면이 달라진다 —
+ * 비밀번호 행이 「변경」이 아니라 「추가」가 되고, 2단계 인증을 켤 수 없다.
+ * 2단계 인증은 켜고 끌 때 비밀번호 재확인을 받는데, 없는 비밀번호는 확인할 수 없다.
+ *
+ * **BE 연동 seam**: `GET /api/auth/me`가 이 두 값을 주면 그걸 읽는다.
+ */
+export const ACCOUNT_SECURITY = {
+  hasPassword: true,
+  /** 마지막 변경일. `hasPassword`가 false면 `null` */
+  passwordChangedAt: "2026-06-12" as string | null,
+};
+
+/**
  * 계정 › 이메일.
  *
  * BE에는 **대표 이메일 재인증만** 있다 (`POST /api/auth/email/verify-request`). 추가 이메일

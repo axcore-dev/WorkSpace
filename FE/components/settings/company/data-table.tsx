@@ -34,7 +34,7 @@ export function DataTable<T>({
   }
 
   return (
-    <div className="thin-scroll mt-1 overflow-x-auto">
+    <div className="thin-scroll relative mt-1 overflow-x-auto">
       <table className="w-full text-left text-sm" style={{ minWidth }}>
         <thead>
           <tr className="border-b border-slate-200 text-xs font-medium text-slate-400">

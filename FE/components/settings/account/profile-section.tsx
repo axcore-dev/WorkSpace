@@ -1,146 +1,100 @@
 "use client";
 
 import { useState } from "react";
-import { Modal } from "@/components/modal";
+import { InlineField } from "@/components/settings/account/inline-field";
 import { ProfilePhoto } from "@/components/settings/account/profile-photo";
 import {
-  ActionRow,
   SettingsRow,
   SettingsRows,
   SettingsSection,
 } from "@/components/settings/settings-section";
-import { Button, FIELD } from "@/components/ui";
 import { DEMO_USER, DEPARTMENTS, SITES } from "@/data/org";
-
-/**
- * 고칠 수 있는 프로필 항목.
- *
- * 목록을 데이터로 두는 이유: 행 5개와 수정 팝업이 같은 정의를 봐야 한다. 나눠 놓으면
- * 항목을 하나 더할 때 두 곳을 고쳐야 하고, 한쪽만 고치면 팝업이 안 열리는 행이 생긴다.
- */
-const FIELDS = [
-  { key: "name", label: "이름" },
-  { key: "empNo", label: "사번" },
-  { key: "dept", label: "부서", options: DEPARTMENTS },
-  { key: "title", label: "직책" },
-  { key: "site", label: "기본 사업장", options: SITES },
-] as const;
-
-type FieldKey = (typeof FIELDS)[number]["key"];
 
 /**
  * 계정 › 프로필.
  *
- * **행마다 수정 버튼 + 팝업이다** (수정요청 v12). 전에는 5칸이 다 열린 입력이고 섹션 하단에
- * 저장 버튼 하나였는데, 계정 페이지의 다른 섹션(계정 보안·기기)은 전부 「값을 읽고, 고칠 건
- * 버튼을 눌러 팝업에서」라 프로필만 폼이었다.
+ * **사진·이름·부서·직책·메일은 한 덩어리다** — "내가 누구인가"라는 한 가지 사실이라
+ * 다섯 줄로 쪼개면 다섯 개 설정처럼 보인다. 헤더로 묶고 나머지(사번·사업장)만 행으로 둔다.
  *
- * 팝업은 **하나만 만들고 어느 항목이냐를 state로 받는다.** 5개를 만들면 같은 코드가 5벌 된다.
+ * **직책은 여기서 못 고친다.** 권한 관리(`/settings/company/roles`)에서 받은 역할을 그대로
+ * 쓴다 — 사람이 직접 적으면 "팀장"이라 써 두고 실제 권한은 일반 사용자인 상태가 생긴다.
  *
- * **BE 연동 seam**: 프로필 PATCH API가 아직 없다. 생기면 `save`에서 부르고, 실패할 때
- * `onSaved` 대신 에러 톤으로 알린다 (`onSaved`가 tone을 받는다).
+ * 편집은 전부 그 자리에서 한다 (`InlineField`). 팝업은 절차가 있는 것만 쓴다.
+ *
+ * **BE 연동 seam**: 프로필 PATCH API가 아직 없다. 생기면 `InlineField`의 `onSave`에서
+ * 부르고, 실패할 때 값을 되돌리고 에러 톤으로 알린다.
  */
 export function ProfileSection({
   onSaved,
 }: {
   onSaved: (message: string, tone?: "ink" | "error") => void;
 }) {
-  const [form, setForm] = useState<Record<FieldKey, string>>({
+  const [form, setForm] = useState({
     name: DEMO_USER.name,
-    empNo: DEMO_USER.empNo,
     dept: DEMO_USER.dept,
-    title: DEMO_USER.title,
+    empNo: DEMO_USER.empNo,
     site: DEMO_USER.site,
   });
-  /** 지금 고치고 있는 항목. `null`이면 팝업이 닫혀 있다 */
-  const [editing, setEditing] = useState<FieldKey | null>(null);
-  /** 팝업 안 입력값 — 저장 전에는 `form`에 쓰지 않는다. 취소하면 버려야 한다 */
-  const [draft, setDraft] = useState("");
 
-  const field = FIELDS.find((f) => f.key === editing) ?? null;
-
-  function open(key: FieldKey) {
-    setDraft(form[key]);
-    setEditing(key);
-  }
-
-  function save() {
-    if (!field) return;
-    const next = draft.trim();
-    if (!next) {
-      onSaved(`${field.label}을 비워 둘 수 없어요`, "error");
-      return;
-    }
-    setForm((f) => ({ ...f, [field.key]: next }));
-    setEditing(null);
-    onSaved(`${field.label}을 바꿨어요`);
+  function set(key: keyof typeof form, label: string) {
+    return (value: string) => {
+      setForm((f) => ({ ...f, [key]: value }));
+      onSaved(`${label}을 바꿨어요`);
+    };
   }
 
   return (
-    <SettingsSection title="프로필">
-      <SettingsRows>
-        <SettingsRow>
-          <ProfilePhoto onSaved={onSaved} />
-        </SettingsRow>
+    <>
+      {/* ── 아이덴티티 헤더 ── */}
+      <div className="flex items-center gap-4 pb-1">
+        <ProfilePhoto onSaved={onSaved} />
+        <div className="min-w-0">
+          <InlineField
+            variant="text"
+            label="이름"
+            value={form.name}
+            onSave={set("name", "이름")}
+            className="text-[19px] font-bold tracking-tight text-slate-900"
+          />
+          {/* gap을 두지 않는다 — 편집 버튼이 `-mx-1 px-1`로 자기 여백을 갖고 있어서
+              gap까지 주면 가운뎃점이 양쪽 글자에서 멀리 떨어진다 */}
+          <p className="mt-0.5 flex flex-wrap items-center text-[13px] text-slate-500">
+            <InlineField
+              variant="text"
+              label="부서"
+              value={form.dept}
+              options={DEPARTMENTS}
+              onSave={set("dept", "부서")}
+            />
+            <span aria-hidden className="mx-1 text-slate-300">
+              ·
+            </span>
+            {/* 권한 관리에서 받은 역할. 여기서는 읽기만 한다
+                (BE 연동 seam: 세션의 역할로 바꾼다 — 지금은 더미) */}
+            <span className="text-slate-500">{DEMO_USER.role}</span>
+          </p>
+          <p className="mt-1 truncate font-mono text-xs text-slate-400">{DEMO_USER.email}</p>
+        </div>
+      </div>
 
-        {FIELDS.map((f) => (
-          <SettingsRow key={f.key}>
-            <ActionRow name={f.label} value={form[f.key]}>
-              <Button variant="secondary" size="sm" onClick={() => open(f.key)}>
-                수정
-              </Button>
-            </ActionRow>
-          </SettingsRow>
-        ))}
-      </SettingsRows>
-
-      <Modal
-        open={field !== null}
-        onClose={() => setEditing(null)}
-        size="sm"
-        title={field ? `${field.label} 수정` : ""}
-        footer={
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={() => setEditing(null)}>
-              취소
-            </Button>
-            <Button onClick={save}>저장하기</Button>
-          </div>
-        }
+      <SettingsSection
+        title="프로필"
+        aside={<span className="text-xs text-slate-400">직책은 권한 관리에서 정해요</span>}
       >
-        {field && (
-          <div className="p-5">
-            <label htmlFor="pf-edit" className="sr-only">
-              {field.label}
-            </label>
-            {"options" in field ? (
-              <select
-                id="pf-edit"
-                className={FIELD}
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-              >
-                {field.options.map((o) => (
-                  <option key={o} value={o}>
-                    {o}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <input
-                id="pf-edit"
-                autoFocus
-                className={FIELD}
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") save();
-                }}
-              />
-            )}
-          </div>
-        )}
-      </Modal>
-    </SettingsSection>
+        <SettingsRows>
+          <SettingsRow>
+            <InlineField label="사번" value={form.empNo} onSave={set("empNo", "사번")} />
+          </SettingsRow>
+          <SettingsRow>
+            <InlineField
+              label="기본 사업장"
+              value={form.site}
+              options={SITES}
+              onSave={set("site", "기본 사업장")}
+            />
+          </SettingsRow>
+        </SettingsRows>
+      </SettingsSection>
+    </>
   );
 }

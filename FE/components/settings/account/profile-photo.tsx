@@ -58,7 +58,10 @@ export function ProfilePhoto({ onSaved }: { onSaved: (message: string) => void }
           // eslint-disable-next-line @next/next/no-img-element
           <img src={preview} alt="" className="h-full w-full object-cover" />
         ) : (
-          <span aria-hidden className="text-xl font-bold text-white">
+          // `leading-none`이 있어야 가운데로 온다. 기본 line-height는 라틴 문자 기준이라
+          // 한글 글리프가 그 안에서 아래로 치우친다 — flex 중앙 정렬은 줄 상자를 맞출 뿐
+          // 글자를 맞추지 않는다.
+          <span aria-hidden className="text-xl font-bold leading-none text-white">
             {DEMO_USER.initials}
           </span>
         )}

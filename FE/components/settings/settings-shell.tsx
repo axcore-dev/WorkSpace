@@ -76,7 +76,7 @@ export function SettingsShell({ children }: { children: React.ReactNode }) {
         <div className="hidden border-t border-slate-200 p-4 lg:block">
           <p className="px-1 pb-2 text-xs font-semibold text-slate-600">{workspace.name}</p>
           <div className="flex items-center gap-2.5 p-1">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-800 text-sm font-bold text-white">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-800 text-sm font-bold leading-none text-white">
               {DEMO_USER.initials}
             </span>
             <span className="min-w-0">

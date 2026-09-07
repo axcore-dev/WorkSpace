@@ -3,14 +3,14 @@
 import { ProfileSection } from "@/components/settings/account/profile-section";
 import { SecuritySection } from "@/components/settings/account/security-section";
 import { SessionSection } from "@/components/settings/account/session-section";
-import { UserIdSection } from "@/components/settings/account/user-id-section";
+import { UserIdFooter } from "@/components/settings/account/user-id-section";
 import { Toast } from "@/components/ui";
 import { useToast } from "@/components/use-toast";
 
 /**
- * 계정 — 한 페이지 4섹션.
+ * 계정 — 아이덴티티 헤더 + 3섹션 + 꼬리말.
  *
- * 프로필 · 계정 보안 · 기기 · 사용자 ID.
+ * 프로필 · 계정 보안 · 기기, 그리고 맨 아래 사용자 ID 한 줄.
  * 나누지 않고 스크롤로 간다 — 프로필과 보안을 두 라우트로 쪼갠 게 과했고, 다 "내 계정"이라
  * 오가며 본다.
  *
@@ -30,7 +30,7 @@ export function AccountSettings() {
       <ProfileSection onSaved={showToast} />
       <SecuritySection onSaved={showToast} />
       <SessionSection onSaved={showToast} />
-      <UserIdSection onSaved={showToast} />
+      <UserIdFooter onSaved={showToast} />
       <Toast toast={toast} />
     </>
   );

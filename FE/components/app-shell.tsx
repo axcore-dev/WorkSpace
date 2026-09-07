@@ -328,7 +328,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               collapsed ? "justify-center" : ""
             }`}
           >
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-800 text-sm font-bold text-white">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-800 text-sm font-bold leading-none text-white">
               {DEMO_USER.initials}
             </span>
             {!collapsed && (

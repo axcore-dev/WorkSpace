@@ -1,22 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import {
-  SettingsRow,
-  SettingsRows,
-  SettingsSection,
-} from "@/components/settings/settings-section";
 import { Button } from "@/components/ui";
 import { DEMO_USER } from "@/data/org";
 
 /**
- * 계정 › 사용자 ID.
+ * 계정 페이지 꼬리말 — 사용자 ID.
  *
- * 문의할 때 "누구인지"를 대는 값이다. 지원 섹션(운영팀 임시 접근·나가기 요청)과 한 파일에
- * 있었는데 그쪽이 없어져서(수정요청 v12) 따로 남았다 — 지원 창구가 사라져도 자기 식별자는
- * 필요하다.
+ * **섹션이 아니라 꼬리말이다.** 문의할 때 한 번 복사하는 값이라, 제목 + 실선을 두른 섹션으로
+ * 두면 프로필·보안·기기와 같은 급으로 보인다. 페이지 맨 아래 한 줄로 내린다.
  */
-export function UserIdSection({
+export function UserIdFooter({
   onSaved,
 }: {
   /** 복사 실패는 에러 톤으로 알려야 해서 tone까지 받는다 */
@@ -35,19 +29,14 @@ export function UserIdSection({
   }
 
   return (
-    <SettingsSection title="사용자 ID">
-      <SettingsRows tight>
-        <SettingsRow>
-          <div className="flex items-center gap-3">
-            <code className="min-w-0 flex-1 truncate rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 font-mono text-xs text-slate-600">
-              {DEMO_USER.userId}
-            </code>
-            <Button variant="secondary" size="sm" onClick={() => void copyId()}>
-              {copied ? "복사됨" : "복사"}
-            </Button>
-          </div>
-        </SettingsRow>
-      </SettingsRows>
-    </SettingsSection>
+    <div className="mt-10 flex flex-wrap items-center gap-x-2.5 gap-y-1 border-t border-slate-100 pt-3.5">
+      <span className="text-[11px] text-slate-400">사용자 ID</span>
+      <code className="min-w-0 truncate font-mono text-[11.5px] text-slate-400">
+        {DEMO_USER.userId}
+      </code>
+      <Button variant="ghost" size="sm" onClick={() => void copyId()}>
+        {copied ? "복사됨" : "복사"}
+      </Button>
+    </div>
   );
 }
