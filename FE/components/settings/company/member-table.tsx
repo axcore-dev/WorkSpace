@@ -2,10 +2,11 @@
 
 import { useMemo, useState } from "react";
 import { DataTable } from "@/components/settings/company/data-table";
+import { MemberEditModal } from "@/components/settings/company/member-edit-modal";
 import { IconPlus, IconSearch } from "@/components/icons";
 // `FIELD`는 `w-full`이라 필터 셋을 한 줄에 못 놓는다 — `FIELD_INLINE`이 그 용도다
 import { Button, FIELD, FIELD_INLINE } from "@/components/ui";
-import { josa } from "@/data/ko";
+import { josa, withJosa } from "@/data/ko";
 import { DEPARTMENTS, ROLES, USERS_ROLES } from "@/data/org";
 
 /**
@@ -21,15 +22,20 @@ const ALL = "__all";
 /**
  * 초대 관리 › 구성원 탭.
  *
- * 열은 **이름 · 이메일 · 부서 · 직급** 넷이다. 이름과 이메일은 각자 열을 갖는다 —
+ * 열은 **이름 · 이메일 · 부서 · 직급**이다. 이름과 이메일은 각자 열을 갖는다 —
  * 한 칸에 겹치면 이름으로 훑을 때 눈이 두 줄씩 건너뛴다.
+ *
+ * **표 안에서 고치지 않는다.** 직급 열이 `select`였는데 부서까지 넣으면 한 줄에 드롭다운이
+ * 둘이 되어 표가 폼처럼 보인다. 게다가 직급은 부서 안에 있어서 부서를 바꾸면 직급이 따라
+ * 바뀌어야 하는데, 표 안에서 두 칸이 서로를 다시 그리면 값이 엉킨다.
+ * 값은 읽기만 하고 고치는 건 「수정」 팝업이 맡는다 — 계정 페이지와 같은 모양이다.
  *
  * **검색과 필터를 표 위에 둔다.** 지금은 6명이라 없어도 되지만, 60명이 되면 스크롤로 사람을
  * 찾게 된다. 셋 다 화면 안에서만 거른다 — 목록이 커지면 BE 쿼리로 올린다.
  *
  * 구성원 제거는 넣지 않는다. 되돌릴 수 없는 동작이고 BE에 해당 API도 없다.
  *
- * **BE 연동 seam**: `changeRole`이 구성원 직급 변경 API를 부른다.
+ * **BE 연동 seam**: `saveMember`가 구성원 소속·직급 변경 API를 부른다.
  */
 export function MemberTable({
   onSaved,
@@ -42,11 +48,23 @@ export function MemberTable({
   const [q, setQ] = useState("");
   const [dept, setDept] = useState<string>(ALL);
   const [role, setRole] = useState<string>(ALL);
+  /** 지금 고치고 있는 구성원의 이메일. `null`이면 팝업이 닫혀 있다 */
+  const [editing, setEditing] = useState<string | null>(null);
 
-  function changeRole(email: string, next: string) {
-    const name = users.find((u) => u.email === email)?.name ?? "구성원";
-    setUsers((prev) => prev.map((u) => (u.email === email ? { ...u, role: next } : u)));
-    onSaved(`${name}의 직급을 ${next}${josa(next, "로/으로")} 바꿨어요`);
+  const target = users.find((u) => u.email === editing) ?? null;
+
+  function saveMember(email: string, next: { dept: string; rank: string }) {
+    const who = users.find((u) => u.email === email);
+    if (!who) return;
+    setUsers((prev) =>
+      prev.map((u) => (u.email === email ? { ...u, dept: next.dept, role: next.rank } : u)),
+    );
+    setEditing(null);
+    onSaved(
+      who.dept === next.dept
+        ? `${who.name}의 직급을 ${next.rank}${josa(next.rank, "로/으로")} 바꿨어요`
+        : `${withJosa(who.name, "을/를")} ${next.dept} ${next.rank}${josa(next.rank, "로/으로")} 옮겼어요`,
+    );
   }
 
   const shown = useMemo(() => {
@@ -126,32 +144,34 @@ export function MemberTable({
             cell: (u) => <span className="font-mono text-[12.5px] text-slate-500">{u.email}</span>,
           },
           { label: "부서", cell: (u) => <span className="text-slate-600">{u.dept}</span> },
+          { label: "직급", cell: (u) => <span className="text-slate-600">{u.role}</span> },
           {
-            label: "직급",
+            label: "",
+            right: true,
             cell: (u) => (
-              // 폭은 감싸는 쪽이 정한다. `FIELD`에 `w-[30%]`를 덧붙이는 걸로는 안 된다 —
-              // 클래스 문자열 순서가 CSS 우선순위를 정하지 않아 `w-full`이 이긴다
-              // (`ui.tsx`의 `FIELD_INLINE` 주석이 같은 함정을 적어뒀다).
-              // 직급 이름이 길어도 읽히도록 최소 폭은 준다.
-              <span className="block w-[30%] min-w-[132px]">
-                <select
-                  className={`${FIELD} py-1.5 text-[13px]`}
-                  value={u.role}
-                  disabled={!canManage}
-                  aria-label={`${u.name} 직급`}
-                  onChange={(e) => changeRole(u.email, e.target.value)}
-                >
-                  {ROLES.map((r) => (
-                    <option key={r.id} value={r.name}>
-                      {r.name}
-                    </option>
-                  ))}
-                </select>
-              </span>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={!canManage}
+                onClick={() => setEditing(u.email)}
+              >
+                수정
+              </Button>
             ),
           },
         ]}
       />
+
+      {/* 열 때만 마운트한다 — 닫으면 고르던 값이 사라지고, 지우는 effect가 필요 없어진다 */}
+      {target && (
+        <MemberEditModal
+          name={target.name}
+          dept={target.dept}
+          rank={target.role}
+          onClose={() => setEditing(null)}
+          onSave={(next) => saveMember(target.email, next)}
+        />
+      )}
     </>
   );
 }
