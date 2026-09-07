@@ -1,5 +1,17 @@
 import type { ICON_MAP } from "@/components/icons";
+import type { SocialProvider } from "@/lib/auth";
+import { MODULES } from "./modules";
+import { WORKSPACE_PERMS } from "./roles";
+import type { DataScope, RoleDef } from "./roles";
 import type { Tone } from "./types";
+
+/**
+ * 기능 권한 id 전체 — 서브기능 27개.
+ *
+ * 목록을 손으로 적지 않는다. `data/modules.ts`에 서브기능이 하나 늘면 여기 자동으로 따라오고,
+ * 안 그러면 「모든 권한」이라는 직급이 새 기능만 빠진 채로 남는다.
+ */
+const ALL_FEATURE_PERMS = MODULES.flatMap((m) => m.subfunctions.map((s) => s.id));
 
 /** 조직/워크스페이스·설정 관련 더미 데이터 */
 
@@ -7,10 +19,25 @@ import type { Tone } from "./types";
 export const DEMO_USER = {
   name: "박데모",
   email: "demo@axcore.it.kr",
-  role: "관리자",
-  title: "제조혁신팀 팀장",
+  /**
+   * 데모 계정의 직급 — **화면이 무엇을 보이는지가 여기서 갈린다.**
+   *
+   * 소유자로 두는 이유: 권한 관리가 소유자 전용이라, 다른 직급이면 그 화면이 아예 안 보인다.
+   * `공장장`이나 `일반 사용자`로 바꾸면 제한된 쪽(권한 관리 감춤, 초대 시 부서 고정,
+   * 고를 수 있는 직급 축소)을 그대로 볼 수 있다 (`data/grants.ts`).
+   */
+  role: "소유자",
+  /** 부서를 별도 필드로 뺐으므로 직책만 남긴다 (이전 값: "제조혁신팀 팀장") */
+  title: "팀장",
+  dept: "제조혁신팀",
+  empNo: "D-20180417",
+  /** 지금까지 account-settings.tsx가 SMS 2FA 대상으로 하드코딩하던 값 */
+  phone: "010-1234-5678",
+  site: "본사",
   company: "(주)데모컴퍼니",
   initials: "박",
+  /** 문의·감사 로그 조회용 식별자 */
+  userId: "3a5d872b-594c-816f-8386-0002e81c3bdc",
 };
 
 /** 내부 관리자(AXCORE 운영) 데모 계정 — 계약 시 고객 워크스페이스를 개설하는 쪽 */
@@ -22,7 +49,7 @@ export const DEMO_ADMIN = {
 
 /**
  * 로그인 후 내부 관리자 콘솔로 보낼 계정 목록.
- * 데모 분기용이며 **보안 경계가 아니다** — 실제 판정은 BE 세션의 역할로 한다.
+ * 데모 분기용이며 **보안 경계가 아니다** — 실제 판정은 BE 세션의 직급으로 한다.
  */
 export const INTERNAL_ADMIN_EMAILS = [DEMO_ADMIN.email];
 
@@ -38,7 +65,7 @@ export const WORKSPACES: { id: string; name: string; role: string; plan: string 
 
 export const DEFAULT_WORKSPACE_ID = "democompany";
 
-/** 관리 > 사용자 및 역할 (RBAC) */
+/** 관리 > 사용자 및 직급 (RBAC) */
 export const USERS_ROLES: {
   name: string;
   email: string;
@@ -53,6 +80,252 @@ export const USERS_ROLES: {
   { name: "정민호", email: "mhjung@democompany.co.kr", role: "설비 관리자", dept: "설비보전팀", lastActive: "3시간 전", status: { badge: "활성", tone: "green" } },
   { name: "오세라", email: "sroh@democompany.co.kr", role: "구매 담당", dept: "구매자재팀", lastActive: "어제", status: { badge: "활성", tone: "green" } },
   { name: "문가영", email: "gymoon@democompany.co.kr", role: "일반 사용자", dept: "해외영업팀", lastActive: "5일 전", status: { badge: "초대 대기", tone: "amber" } },
+];
+
+export const DATA_SCOPES: { value: DataScope; label: string }[] = [
+  { value: "all", label: "전체" },
+  { value: "dept", label: "부서" },
+  { value: "own", label: "본인" },
+];
+
+/**
+ * 직급 정의 — 단일 소스.
+ *
+ * `name`은 `USERS_ROLES[].role`에 실제로 쓰인 값과 같아야 한다 — `roleMemberCount`가
+ * 이름으로 맞추므로 어긋나면 구성원 수가 전부 0이 된다. `data/roles.test.ts`가 이걸 검증한다.
+ *
+ * **부서 → 직급 → 권한 3단이다** (수정요청 v12). 직급은 부서에 속하고, 권한은 켜진 것의
+ * 목록이다. 예전에는 직급이 평면이었고 권한이 모듈 8개 × 없음/읽기/쓰기 격자였는데,
+ * "생산관리 전부 or 전무"라 실무에서 못 쓴다. 이제 서브기능 27개 + 워크스페이스 권한 4개를
+ * 개별로 켠다.
+ *
+ * `dept: null`은 부서에 속하지 않는다는 뜻이다 — 소유자 하나뿐이다.
+ *
+ * **시스템 직급은 소유자 하나다.** 관리자를 포함해 나머지는 전부 고칠 수 있다 — 회사마다
+ * 관리자가 무엇을 하는지가 달라서 잠가 두면 쓸 수 없는 직급이 된다.
+ *
+ * **이 값은 보안 경계가 아니다** — 실제 차단은 BE 세션의 직급 검사에서 한다.
+ */
+export const ROLES: RoleDef[] = [
+  {
+    id: "owner",
+    name: "소유자",
+    system: true,
+    dept: null,
+    desc: "회사를 대표하는 자리",
+    perms: [...WORKSPACE_PERMS.map((p) => p.id), ...ALL_FEATURE_PERMS],
+    scope: "all",
+    showAmounts: true,
+    canDelegateInvite: true,
+  },
+  {
+    id: "admin",
+    name: "관리자",
+    system: false,
+    dept: "제조혁신팀",
+    desc: "모든 기능 탭과 구성원·연동 관리",
+    perms: [...WORKSPACE_PERMS.map((p) => p.id), ...ALL_FEATURE_PERMS],
+    scope: "all",
+    showAmounts: true,
+    canDelegateInvite: true,
+  },
+  {
+    id: "plant-head",
+    name: "공장장",
+    system: false,
+    dept: "생산본부",
+    perms: [
+      "ws:members",
+      "monitoring", "workorders", "bottleneck", "reporting",
+      "predict", "maintenance",
+      "defects", "control",
+      "items", "stock", "safety",
+      "drawings", "bom",
+    ],
+    scope: "all",
+    showAmounts: true,
+    canDelegateInvite: false,
+  },
+  {
+    id: "quality-mgr",
+    name: "품질 관리자",
+    system: false,
+    dept: "품질관리팀",
+    perms: ["defects", "control", "receiving", "specs", "tickets", "voc"],
+    scope: "dept",
+    showAmounts: false,
+    canDelegateInvite: false,
+  },
+  {
+    id: "equipment-mgr",
+    name: "설비 관리자",
+    system: false,
+    dept: "설비보전팀",
+    perms: ["predict", "maintenance", "monitoring", "defects"],
+    scope: "dept",
+    showAmounts: false,
+    canDelegateInvite: false,
+  },
+  {
+    id: "buyer",
+    name: "구매 담당",
+    system: false,
+    dept: "구매자재팀",
+    perms: ["purchasing", "items", "stock", "safety", "movements", "materials", "accounting"],
+    scope: "dept",
+    showAmounts: true,
+    canDelegateInvite: false,
+  },
+  {
+    id: "member",
+    name: "일반 사용자",
+    system: false,
+    dept: "해외영업팀",
+    perms: ["orders", "quotes", "forecast", "tickets", "tracking"],
+    scope: "own",
+    showAmounts: false,
+    canDelegateInvite: false,
+  },
+];
+
+/**
+ * 지금 로그인한 사람의 직급.
+ *
+ * 화면이 무엇을 보이고 무엇을 잠글지는 여기서 갈린다 — 권한 관리 접근, 초대할 때 고를 수
+ * 있는 직급·부서 (`data/grants.ts`).
+ *
+ * **보안 경계가 아니다.** 실제 차단은 BE가 세션의 직급으로 한다. 화면만 믿으면 요청을 직접
+ * 만들어 보내는 것을 못 막는다.
+ *
+ * **BE 연동 seam**: `GET /api/auth/me`가 직급을 주면 그걸 읽는다. 지금은 `DEMO_USER.role`
+ * 이름으로 `ROLES`에서 찾는다 — 데모 계정을 바꿔 가며 화면이 어떻게 갈리는지 볼 수 있다.
+ */
+export function currentRole(): RoleDef | null {
+  return ROLES.find((r) => r.name === DEMO_USER.role) ?? null;
+}
+
+/** 관리 › 초대 관리 › 초대 중인 구성원 — 보냈지만 아직 안 받은 것 */
+export const PENDING_INVITES: {
+  id: string;
+  name: string;
+  email: string;
+  dept: string;
+  role: string;
+  /** 초대 메일 발송일 · 유효기간 — 표의 열이라 절대 날짜다. "3일 전"은 정렬도 비교도 안 된다 */
+  sentAt: string;
+  expiresAt: string;
+}[] = [
+  { id: "i1", name: "문가영", email: "gymoon@democompany.co.kr", dept: "해외영업팀", role: "일반 사용자", sentAt: "2026-09-01", expiresAt: "2026-09-08" },
+  { id: "i2", name: "한지우", email: "jwhan@democompany.co.kr", dept: "품질관리팀", role: "품질 관리자", sentAt: "2026-09-04", expiresAt: "2026-09-11" },
+];
+
+/** 관리 › 초대 관리 › 초대 링크 — 받은 사람 누구나 쓸 수 있어 직급·부서를 미리 박아둔다 */
+export const INVITE_LINKS: {
+  id: string;
+  url: string;
+  role: string;
+  dept: string;
+  used: number;
+  limit: number;
+  /** 링크 만료일시 — 표의 열이라 시각까지 적는다. 만료가 하루 안에 갈리는 링크가 있다 */
+  expiresAt: string;
+  active: boolean;
+}[] = [
+  { id: "l1", url: "https://axcore.it.kr/invite/aB3xK9mQ", role: "일반 사용자", dept: "생산본부", used: 3, limit: 10, expiresAt: "2026-09-09 18:00", active: true },
+  { id: "l2", url: "https://axcore.it.kr/invite/7Zp2Rt", role: "품질 관리자", dept: "품질관리팀", used: 1, limit: 1, expiresAt: "2026-09-02 09:00", active: false },
+];
+
+/**
+ * 회사 메일 도메인.
+ *
+ * 초대할 때 사외 주소를 **막지는 않는다** — 협력사·감사인을 부를 일이 실제로 있다.
+ * 표시만 하고 보낸다 (`data/invite.ts`).
+ *
+ * **BE 연동 seam**: 워크스페이스 설정에서 오는 값이다. 지금은 데모 고정.
+ */
+export const WORK_DOMAINS = ["democompany.co.kr", "axcore.it.kr"] as const;
+
+/** 부서 — 프로필·초대·권한 관리가 같이 본다 */
+export const DEPARTMENTS = [
+  "제조혁신팀",
+  "생산본부",
+  "품질관리팀",
+  "설비보전팀",
+  "구매자재팀",
+  "해외영업팀",
+] as const;
+
+/** 사업장 — `EXTERNAL_SYSTEMS`에 "1공장 MES"가 있는 전제 */
+export const SITES = ["본사", "1공장", "2공장"] as const;
+
+/**
+ * 계정 › 보안 상태.
+ *
+ * `hasPassword`가 false면 **소셜로만 가입한 계정**이다. 그때 화면이 달라진다 —
+ * 비밀번호 행이 「변경」이 아니라 「추가」가 되고, 2단계 인증을 켤 수 없다.
+ * 2단계 인증은 켜고 끌 때 비밀번호 재확인을 받는데, 없는 비밀번호는 확인할 수 없다.
+ *
+ * **BE 연동 seam**: `GET /api/auth/me`가 이 두 값을 주면 그걸 읽는다.
+ */
+export const ACCOUNT_SECURITY = {
+  hasPassword: true,
+  /** 마지막 변경일. `hasPassword`가 false면 `null` */
+  passwordChangedAt: "2026-06-12" as string | null,
+};
+
+/**
+ * 계정 › 이메일.
+ *
+ * BE에는 **대표 이메일 재인증만** 있다 (`POST /api/auth/email/verify-request`). 추가 이메일
+ * API는 없어서, 두 번째 항목은 화면에 자리만 두고 버튼을 비활성으로 둔다.
+ */
+export const ACCOUNT_EMAILS: {
+  address: string;
+  primary: boolean;
+  verified: boolean;
+  /** 인증 대기 중일 때 마지막 발송 시점 (표시용 문구) */
+  sentAt?: string;
+}[] = [
+  { address: "demo@axcore.it.kr", primary: true, verified: true },
+  { address: "demo@democompany.co.kr", primary: false, verified: false, sentAt: "2일 전" },
+];
+
+/**
+ * 계정 › 소셜 로그인.
+ *
+ * **제공자는 `lib/auth.ts`의 `SocialProvider`가 단일 소스다** — `google`·`naver` 둘뿐이다.
+ * 이름은 `PROVIDER_LABELS`를 읽어 쓴다. Microsoft·Kakao를 넣지 않는 이유는 그 제공자가
+ * `lib/auth.ts`에 없어서다 — 눌러도 아무 일이 일어나지 않는다.
+ *
+ * 연동 해제 API는 BE에 없다. 화면은 상태만 보이고 해제 버튼은 비활성으로 둔다.
+ */
+export const SOCIAL_LOGINS: {
+  provider: SocialProvider;
+  account?: string;
+  connected: boolean;
+}[] = [
+  { provider: "google", account: "demo@democompany.co.kr", connected: true },
+  { provider: "naver", connected: false },
+];
+
+/**
+ * 계정 › 기기 — 활성 세션.
+ *
+ * 현장 공용 단말을 로그아웃하지 않고 떠나는 일이 잦아서 넣었다.
+ * BE에 `GET /api/auth/sessions`가 이미 있다 — 이 더미는 연동 전까지만 쓴다.
+ */
+export const DEVICES: {
+  id: string;
+  name: string;
+  detail?: string;
+  lastActive: string;
+  location: string;
+  /** 지금 보고 있는 기기 — 로그아웃 버튼을 주지 않는다 */
+  current: boolean;
+}[] = [
+  { id: "d1", name: "Windows · Chrome", lastActive: "지금", location: "본사 · KR", current: true },
+  { id: "d2", name: "1공장 공용 태블릿 · Android", detail: "현장 검사 단말", lastActive: "2026-09-02 14:20", location: "1공장 · KR", current: false },
+  { id: "d3", name: "iPhone · Safari", lastActive: "2026-08-28 09:10", location: "알 수 없음", current: false },
 ];
 
 /** 설정 > 외부 시스템 연동 — name은 사용자 설정 이름, system은 실제 시스템 명 */
@@ -115,47 +388,6 @@ export const EXTERNAL_SYSTEMS: {
   },
 ];
 
-/** 설정 > 모듈 간 데이터 연동 규칙 */
-export const SYNC_RULES: {
-  from: string;
-  to: string;
-  rule: string;
-  status: { badge: string; tone: Tone };
-}[] = [
-  { from: "제품설계 (BOM)", to: "경영지원 (자재)", rule: "BOM 변경 시 자재 소요량 재계산", status: { badge: "동작중", tone: "green" } },
-  { from: "영업관리 (수주)", to: "생산관리 (계획)", rule: "수주 확정 시 생산 계획 자동 제안", status: { badge: "동작중", tone: "green" } },
-  { from: "품질검사 (불량)", to: "장비관리 (정비)", rule: "설비 기인 불량 발생 시 정비 점검 연계", status: { badge: "동작중", tone: "green" } },
-  { from: "재고·물류 (안전재고)", to: "경영지원 (구매)", rule: "기준 미달 시 발주 권고 생성", status: { badge: "동작중", tone: "green" } },
-  { from: "경영지원 (인사)", to: "생산관리 (작업배분)", rule: "교대 조 편성 정보 동기화", status: { badge: "비활성 (서브기능 OFF)", tone: "slate" } },
-];
-
-/** 설정 > 외부 서비스 연동 — icon은 브랜드 로고 슬러그(brand-icons.tsx) */
-export const EXTERNAL_SERVICES: {
-  id: string;
-  name: string;
-  icon: string;
-  desc: string;
-  connected: boolean;
-  account?: string;
-}[] = [
-  { id: "slack", name: "Slack", icon: "slack", desc: "이상 감지·작업 지시 알림 전송", connected: true, account: "democompany-precision.slack.com" },
-  { id: "gmail", name: "Gmail", icon: "gmail", desc: "분석 결과 리포트 공유", connected: true, account: "demo@democompany.co.kr" },
-  { id: "drive", name: "Google Drive", icon: "googledrive", desc: "문서 백업·가져오기", connected: false },
-  { id: "calendar", name: "Google Calendar", icon: "googlecalendar", desc: "정비 일정 자동 등록", connected: true, account: "demo@democompany.co.kr" },
-  { id: "notion", name: "Notion", icon: "notion", desc: "이슈·조치 내역 기록", connected: false },
-];
-
-/** 설정 > 알림 설정 */
-export const NOTIFICATION_PREFS: {
-  event: string;
-  channels: { inapp: boolean; email: boolean; slack: boolean };
-}[] = [
-  { event: "공정 이상 징후 (긴급)", channels: { inapp: true, email: true, slack: true } },
-  { event: "설비 예지보전 경고", channels: { inapp: true, email: true, slack: true } },
-  { event: "안전 재고 미달", channels: { inapp: true, email: false, slack: true } },
-  { event: "스케줄링 최적화 제안", channels: { inapp: true, email: false, slack: false } },
-  { event: "AS 티켓 접수", channels: { inapp: true, email: true, slack: false } },
-];
 
 /** 법인(신용)정보 수집·이용 동의 전문 (요약 더미) */
 export const CONSENT_TEXT = {

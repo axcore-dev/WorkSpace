@@ -321,7 +321,7 @@ export function ChatRail({
             <p className="border-t border-slate-100 px-4 py-2.5 text-[13px] leading-relaxed text-slate-400">
               PDF·이미지·XLSX·DOCX를 올릴 수 있어요.
               <br />
-              공개 범위와 역할 권한에 따라 접근이 제어돼요.
+              공개 범위와 직급 권한에 따라 접근이 제어돼요.
             </p>
           </section>
         )}
