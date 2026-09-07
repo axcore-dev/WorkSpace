@@ -41,7 +41,10 @@ Handler** 가 맡는다. BE(Spring)는 인증 판정과 업무 데이터의 원�
 shared V16 이 `axcore_ai` 역할과 `shared.set_ai_role_password(text)` 를 만들고, 테넌트 V6 이 회사마다 `ai_*` 다섯 테이블과
 시퀀스에만 SELECT/INSERT/UPDATE/DELETE 를 준다. 비밀번호는 저장소에 없고 BE 가 부팅 때 `AI_DB_PASSWORD` 로 함수를 불러 설정한다
 (`AiDbRoleOnBoot`). Next 프로세스가 침해돼도 `shared.users` 나 다른 테이블에는 닿지 않는다. 새 `ai_` 테이블을 만들면 그
-마이그레이션에서 GRANT 를 같이 준다.
+마이그레이션에서 GRANT 를 같이 준다(시퀀스는 V7 처럼 이름을 지정해 준다).
+
+비밀번호 설정이 실패해도 값이 로그에 남지 않는다 — 함수(V17)가 `EXECUTE` 를 예외 블록으로 감싸 SQL 전문이 오류 CONTEXT 에
+붙지 않게 다시 던지고, `AiDbRoleOnBoot` 는 예외 종류와 SQLSTATE 만 기록한다.
 
 ## 인증 — 모든 `/ai/*` 요청은 BE 판정을 거친다
 

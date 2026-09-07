@@ -8,6 +8,8 @@ import org.springframework.context.event.EventListener;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
+import java.sql.SQLException;
+
 /**
  * AI 서버 전용 DB 역할({@code axcore_ai}, shared V16)의 비밀번호를 부팅 때 맞춘다.
  *
@@ -41,8 +43,23 @@ public class AiDbRoleOnBoot {
             jdbc.queryForObject("SELECT shared.set_ai_role_password(?)", Object.class, password);
             log.info("AI 서버 DB 역할(axcore_ai) 비밀번호를 설정했다");
         } catch (RuntimeException e) {
-            // 부팅은 막지 않는다. AI 서버만 DB 에 못 붙고, 원인은 여기 남는다
-            log.error("AI 서버 DB 역할 비밀번호 설정 실패", e);
+            // 부팅은 막지 않는다. AI 서버만 DB 에 못 붙고, 원인은 여기 남는다.
+            // 예외 객체를 통째로 찍지 않는다 — DB 오류 메시지에는 실행하던 SQL 이 딸려 올 수 있고(V17 이 막지만 두 겹으로),
+            // 그 안에 비밀번호가 있다. 종류와 SQLSTATE 만으로 원인은 충분히 좁혀진다.
+            log.error(
+                    "AI 서버 DB 역할 비밀번호 설정 실패: {} (SQLSTATE {})",
+                    e.getClass().getSimpleName(),
+                    sqlState(e));
         }
+    }
+
+    /** 원인 체인에서 SQLException 의 상태 코드만 꺼낸다. 메시지 본문은 쓰지 않는다 */
+    private static String sqlState(Throwable e) {
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof SQLException sql && sql.getSQLState() != null) {
+                return sql.getSQLState();
+            }
+        }
+        return "-";
     }
 }
