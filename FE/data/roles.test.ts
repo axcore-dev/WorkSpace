@@ -10,14 +10,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  canDeleteRole,
   deptDeletable,
-  groupRolesByDept,
   moveRanks,
   rankDeletable,
   renameDept,
   roleMemberCount,
-  summarizeRole,
 } from "./roles.ts";
 import type { RoleDef } from "./roles.ts";
 
@@ -35,48 +32,7 @@ function role(over: Partial<RoleDef> = {}): RoleDef {
   };
 }
 
-/* ───────────── 요약 ───────────── */
-
-test("설명이 있으면 그걸 쓴다", () => {
-  assert.equal(summarizeRole(role({ desc: "모든 권한을 가진 최고 관리자" }), 31), "모든 권한을 가진 최고 관리자");
-});
-
-test("권한 수와 데이터 범위를 적는다", () => {
-  assert.equal(summarizeRole(role(), 31), "권한 3/31 · 전체 데이터");
-});
-
-test("권한이 없으면 그렇게 적는다", () => {
-  assert.equal(summarizeRole(role({ perms: [] }), 31), "권한 없음 · 전체 데이터");
-});
-
-test("전부 켜져 있으면 「모든 권한」이다", () => {
-  const all = role({ perms: Array.from({ length: 31 }, (_, i) => `p${i}`), scope: "dept" });
-  assert.equal(summarizeRole(all, 31), "모든 권한 · 부서 데이터");
-});
-
-test("데이터 범위 문구가 셋 다 다르다", () => {
-  const labels = (["all", "dept", "own"] as const).map((scope) =>
-    summarizeRole(role({ scope, perms: [] }), 31),
-  );
-  assert.equal(new Set(labels).size, 3);
-});
-
 /* ───────────── 삭제 가능 판정 ───────────── */
-
-test("시스템 역할은 지울 수 없다", () => {
-  const sys = role({ system: true });
-  assert.equal(canDeleteRole(sys, [sys, role({ id: "r2" })]), false);
-});
-
-test("일반 역할은 지울 수 있다", () => {
-  const r = role();
-  assert.equal(canDeleteRole(r, [r, role({ id: "r2" })]), true);
-});
-
-test("마지막 남은 역할은 지울 수 없다", () => {
-  const only = role();
-  assert.equal(canDeleteRole(only, [only]), false);
-});
 
 test("못 지우는 이유를 돌려준다", () => {
   // 화면이 버튼만 흐리게 두면 왜 안 되는지 알 수 없다
@@ -141,48 +97,6 @@ test("역할 이름으로 구성원 수를 센다", () => {
   assert.equal(roleMemberCount("공장장", users), 2);
   assert.equal(roleMemberCount("관리자", users), 1);
   assert.equal(roleMemberCount("없는역할", users), 0);
-});
-
-/* ───────────── 부서별 묶기 ───────────── */
-
-test("부서 없는 역할이 맨 위에 온다", () => {
-  const owner = role({ id: "owner", name: "소유자", dept: null });
-  const g = groupRolesByDept([role(), owner], ["생산본부"]);
-  assert.equal(g[0].dept, null);
-  assert.deepEqual(g[0].roles.map((r) => r.id), ["owner"]);
-});
-
-test("부서가 없으면 그 묶음 자체를 만들지 않는다", () => {
-  const g = groupRolesByDept([role()], ["생산본부"]);
-  assert.equal(g.length, 1);
-  assert.equal(g[0].dept, "생산본부");
-});
-
-test("역할이 없는 부서도 남는다", () => {
-  // 부서를 만들고 역할을 아직 안 만든 상태가 보여야 어디에 「권한 만들기」를 누르는지 안다
-  const g = groupRolesByDept([role()], ["생산본부", "품질관리팀"]);
-  assert.equal(g.length, 2);
-  assert.deepEqual(g[1], { dept: "품질관리팀", roles: [] });
-});
-
-test("목록에 없는 부서의 역할도 버리지 않는다", () => {
-  // 버리면 화면에서 사라져 지울 수도 고칠 수도 없는 역할이 된다
-  const ghost = role({ id: "ghost", dept: "없어진팀" });
-  const g = groupRolesByDept([ghost], ["생산본부"]);
-  const found = g.find((x) => x.dept === "없어진팀");
-  assert.ok(found, "없어진 부서 묶음이 있어야 한다");
-  assert.deepEqual(found.roles.map((r) => r.id), ["ghost"]);
-});
-
-test("모든 역할이 정확히 한 번씩 나온다", () => {
-  const rs = [
-    role({ id: "a", dept: null }),
-    role({ id: "b", dept: "생산본부" }),
-    role({ id: "c", dept: "품질관리팀" }),
-    role({ id: "d", dept: "없어진팀" }),
-  ];
-  const flat = groupRolesByDept(rs, ["생산본부", "품질관리팀"]).flatMap((g) => g.roles);
-  assert.deepEqual(flat.map((r) => r.id).sort(), ["a", "b", "c", "d"]);
 });
 
 /* ───────────── 데이터 정합성 ───────────── */

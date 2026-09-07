@@ -1,7 +1,6 @@
 import type { ICON_MAP } from "@/components/icons";
 import type { SocialProvider } from "@/lib/auth";
 import { MODULES } from "./modules";
-import { canChooseDept } from "./grants";
 import { WORKSPACE_PERMS } from "./roles";
 import type { DataScope, RoleDef } from "./roles";
 import type { Tone } from "./types";
@@ -203,16 +202,6 @@ export const ROLES: RoleDef[] = [
  */
 export function currentRole(): RoleDef | null {
   return ROLES.find((r) => r.name === DEMO_USER.role) ?? null;
-}
-
-/**
- * 초대·링크 화면에서 고를 수 있는 부서.
- *
- * `data/grants.ts`의 `invitableDepts`를 부르는 얇은 껍데기다 — 부르는 쪽이 `DEPARTMENTS`를
- * 매번 같이 넘기지 않게 한다.
- */
-export function invitableDeptsOf(me: RoleDef | null, all: readonly string[]): string[] {
-  return canChooseDept(me) ? [...all] : me?.dept ? [me.dept] : [];
 }
 
 /** 관리 › 초대 관리 › 초대 중인 구성원 — 보냈지만 아직 안 받은 것 */

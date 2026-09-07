@@ -4,8 +4,8 @@ import { useState } from "react";
 import { Modal } from "@/components/modal";
 import { RankTabsPreview } from "@/components/settings/company/rank-perms";
 import { Button, FIELD } from "@/components/ui";
-import { canChooseDept, grantableRanks } from "@/data/grants";
-import { DEPARTMENTS, ROLES, currentRole, invitableDeptsOf } from "@/data/org";
+import { canChooseDept, grantableRanks, invitableDepts } from "@/data/grants";
+import { DEPARTMENTS, ROLES, currentRole } from "@/data/org";
 
 /** 사용 한도 — 「무제한」을 두지 않는다 (아래 주석) */
 const LIMITS = [1, 5, 10, 50] as const;
@@ -55,7 +55,7 @@ export function LinkCreateModal({
   onCreate: (link: NewLink) => void;
 }) {
   const me = currentRole();
-  const deptList = invitableDeptsOf(me, DEPARTMENTS);
+  const deptList = invitableDepts(me, DEPARTMENTS);
   const deptLocked = !canChooseDept(me);
 
   const [dept, setDept] = useState(deptList[0] ?? "");
