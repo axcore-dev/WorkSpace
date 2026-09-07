@@ -60,6 +60,9 @@ services:
       # FE 안의 AI 서버가 토큰 판정(POST /api/auth/introspect)을 요청할 때 내는 서비스 간 비밀.
       # frontend 와 같은 값이어야 하고 JWT_SECRET 과는 달라야 한다. 비어 있으면 introspect 가 닫힌다.
       AUTH_INTERNAL_TOKEN: ${AUTH_INTERNAL_TOKEN:?INFRA/.env 에 AUTH_INTERNAL_TOKEN 을 설정하세요}
+      # 부팅 뒤 기존 회사 스키마에 테넌트 마이그레이션(V3~)을 자동 적용한다. 서버가 한 대라 켜 둔다.
+      # 인스턴스를 늘리면 false 로 바꾸고 배포 파이프라인에서 POST /api/admin/workspaces/migrate 를 한 번 부른다.
+      TENANT_MIGRATE_ON_BOOT: ${TENANT_MIGRATE_ON_BOOT:-true}
 
       # --- 소셜 로그인 (비어 있으면 그 제공자만 비활성) ---
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}

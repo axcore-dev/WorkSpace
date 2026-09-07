@@ -155,8 +155,10 @@ BE(app 컨테이너)에는 `AUTH_INTERNAL_TOKEN` 하나가 추가된다. `INFRA/
 ## 배포 시 할 일
 
 1. `INFRA/.env` 에 위 변수 추가. `AUTH_INTERNAL_TOKEN` 은 32바이트 이상 무작위 값.
-2. DB 이미지를 `pgvector/pgvector:pg18` 로 다시 띄운다(볼륨은 그대로). BE 부팅 때 shared V15 가 확장을 만든다.
-3. 기존 회사 스키마에 테넌트 V3·V4·V5 를 적용한다 — 운영자 계정으로 `POST /api/admin/workspaces/migrate`.
+2. DB 이미지를 `pgvector/pgvector:pg18` 로 다시 띄운다(볼륨은 그대로) — Jenkins 를 한 번 `BUILD_MODE=APP_WITH_DB` 로 돌리면
+   compose 가 새 이미지로 컨테이너를 다시 만든다. BE 부팅 때 shared V15 가 확장을 만든다.
+3. 기존 회사 스키마의 테넌트 V3·V4·V5 는 BE 부팅 뒤 자동 적용된다(`TENANT_MIGRATE_ON_BOOT=true`, compose 기본값). 실패한 회사가
+   로그에 남으면 운영자 계정으로 `POST /api/admin/workspaces/migrate` 를 다시 부른다.
 4. 네이버 클라우드 콘솔에서 비공개 버킷을 만들고 API 인증키를 발급한다.
 5. FE 이미지를 다시 빌드한다(의존성이 늘었다).
 
