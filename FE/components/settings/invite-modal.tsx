@@ -11,7 +11,9 @@ import {
   ROLES,
   USERS_ROLES,
   WORK_DOMAINS,
+  currentRole,
 } from "@/data/org";
+import { grantableRanks, invitableDepts } from "@/data/grants";
 import {
   classifyEmail,
   parseInviteCsv,
@@ -31,9 +33,14 @@ const TONE: Record<InviteVerdict["kind"], "green" | "amber" | "red" | "slate"> =
   bad: "red",
 };
 
-/** 직급은 부서 안에 있다 — 부서를 고르면 그 부서 직급만 보인다 */
+/**
+ * 이 부서에서 **내가 줄 수 있는** 직급.
+ *
+ * 직급은 부서 안에 있고(부서로 한 번 거른다), 그중에서도 내 권한 안에 드는 것만 남긴다 —
+ * 내가 못 보는 탭을 남에게 열어 줄 수 없다 (`data/grants.ts`).
+ */
 function ranksOf(dept: string): string[] {
-  return ROLES.filter((r) => r.dept === dept).map((r) => r.name);
+  return grantableRanks(currentRole(), ROLES.filter((r) => r.dept === dept)).map((r) => r.name);
 }
 
 function verdictCtx() {
@@ -67,8 +74,16 @@ export function InviteModal({ open, onClose }: { open: boolean; onClose: () => v
   const [mode, setMode] = useState<Mode>("direct");
   const [emails, setEmails] = useState<string[]>([]);
   const [draft, setDraft] = useState("");
-  const [dept, setDept] = useState<string>(DEPARTMENTS[0]);
-  const [rank, setRank] = useState<string>(ranksOf(DEPARTMENTS[0])[0] ?? "");
+  /**
+   * 고를 수 있는 부서 — 전체 범위가 아니면 **자기 부서 하나로 고정**된다.
+   * 부서 범위인 사람이 남의 부서로 사람을 부르면 자기가 볼 수 없는 곳에 구성원을 만드는
+   * 셈이라, 부른 뒤에 확인도 못 한다 (`data/grants.ts`).
+   */
+  const deptList = invitableDepts(currentRole(), DEPARTMENTS);
+  const deptLocked = deptList.length <= 1;
+
+  const [dept, setDept] = useState<string>(deptList[0] ?? "");
+  const [rank, setRank] = useState<string>(ranksOf(deptList[0] ?? "")[0] ?? "");
   const [rows, setRows] = useState<InviteRow[]>([]);
   const [fileName, setFileName] = useState("");
   const [picked, setPicked] = useState<number | null>(null);
@@ -101,7 +116,8 @@ export function InviteModal({ open, onClose }: { open: boolean; onClose: () => v
     if (!file) return;
     const text = await file.text();
     setFileName(file.name);
-    setRows(parseInviteCsv(text, { depts: DEPARTMENTS, ranksOf }));
+    // 파일에도 같은 제약이 걸린다 — 고를 수 없는 부서·직급은 비워 두고 화면에서 고치게 한다
+    setRows(parseInviteCsv(text, { depts: deptList, ranksOf }));
     setPicked(null);
   }
 
@@ -373,7 +389,7 @@ export function InviteModal({ open, onClose }: { open: boolean; onClose: () => v
                                   onChange={(e) => fixRow(i, { dept: e.target.value })}
                                 >
                                   <option value="">고르기</option>
-                                  {DEPARTMENTS.map((d) => (
+                                  {deptList.map((d) => (
                                     <option key={d} value={d}>
                                       {d}
                                     </option>
@@ -425,18 +441,27 @@ export function InviteModal({ open, onClose }: { open: boolean; onClose: () => v
                 <label htmlFor="inv-dept" className="mb-1.5 block text-sm font-medium text-slate-700">
                   부서
                 </label>
-                <select
-                  id="inv-dept"
-                  value={dept}
-                  onChange={(e) => changeDept(e.target.value)}
-                  className={FIELD}
-                >
-                  {DEPARTMENTS.map((d) => (
-                    <option key={d} value={d}>
-                      {d}
-                    </option>
-                  ))}
-                </select>
+                {deptLocked ? (
+                  /* 고를 게 하나뿐이면 드롭다운을 두지 않는다 — 눌러도 안 바뀌는 컨트롤이
+                     제일 헷갈린다. 값과 이유만 보인다 */
+                  <p className="flex h-[38px] items-center gap-2 text-sm text-slate-600">
+                    {dept || "소속된 부서가 없어요"}
+                    <Badge tone="slate">내 부서로 고정</Badge>
+                  </p>
+                ) : (
+                  <select
+                    id="inv-dept"
+                    value={dept}
+                    onChange={(e) => changeDept(e.target.value)}
+                    className={FIELD}
+                  >
+                    {deptList.map((d) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
               <div>
                 <label htmlFor="inv-rank" className="mb-1.5 block text-sm font-medium text-slate-700">
@@ -450,7 +475,7 @@ export function InviteModal({ open, onClose }: { open: boolean; onClose: () => v
                   className={FIELD}
                 >
                   {rankList.length === 0 ? (
-                    <option value="">이 부서에 직급이 없어요</option>
+                    <option value="">줄 수 있는 직급이 없어요</option>
                   ) : (
                     rankList.map((n) => (
                       <option key={n} value={n}>

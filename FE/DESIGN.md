@@ -156,6 +156,8 @@ WorkSpace 데모의 시각 언어와 공용 컴포넌트 규칙. 코드가 단�
 | `Toast` | 저장 피드백 | `role="status"` + `aria-live="polite"`. 영역은 메시지가 없을 때도 DOM에 남긴다 — 영역째 나타나면 스크린리더가 읽지 않는다. 상태는 `components/use-toast.ts`의 `useToast()`가 쥔다 (`ui.tsx`에 `"use client"`가 없어 훅을 여기 두면 `Card`·`Button`을 쓰는 서버 컴포넌트가 전부 클라이언트 경계로 끌려간다) |
 | `FIELD` / `FIELD_LG` (상수) | 입력 필드 공용 클래스 | 설정·모달·관리자 폼은 `FIELD`, 인증처럼 필드가 주인공인 폼은 큰 변형 `FIELD_LG` |
 | `FIELD_ERROR` / `FIELD_LG_ERROR` (상수) | 입력 필드 에러 변형 | 테두리만 교체(`border-red-300`). 헬퍼는 `mt-1.5 text-xs text-red-600` |
+| `FIELD_SM` / `FIELD_SM_INLINE` (상수) | 작은 입력 변형 | 표 위 필터 줄·표 셀처럼 `Button size="sm"`과 나란히 놓을 때. **높이를 `h-8`로 못 박는다** — 패딩으로 맞추면 글자 크기가 다른 요소끼리 1~2px씩 어긋난다. `_INLINE`은 폭 자동 + `pr-2`(select 화살표가 글자에서 떨어져 보이지 않게) |
+| `FIELD_INLINE` (상수) | 폭 자동 변형 | 필터 드롭다운처럼 한 줄에 여러 개 놓을 때. `FIELD`에 `w-auto`를 덧붙이는 걸로는 안 된다 — 클래스 문자열 순서가 CSS 우선순위를 정하지 않는다 |
 | `isPersonalEmail` (유틸) | 개인 메일 도메인 판별 | 업무용 메일 지향 안내 (로그인·회원가입) |
 
 보조 — 다이얼로그: `Modal`(sm~xl, ESC 닫기 · `modal.tsx`), `RecordModal`(행 상세)·`MembersModal`(둘 다 `record-modal.tsx`).

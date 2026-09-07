@@ -19,7 +19,14 @@ const ALL_FEATURE_PERMS = MODULES.flatMap((m) => m.subfunctions.map((s) => s.id)
 export const DEMO_USER = {
   name: "박데모",
   email: "demo@axcore.it.kr",
-  role: "관리자",
+  /**
+   * 데모 계정의 직급 — **화면이 무엇을 보이는지가 여기서 갈린다.**
+   *
+   * 소유자로 두는 이유: 권한 관리가 소유자 전용이라, 다른 직급이면 그 화면이 아예 안 보인다.
+   * `공장장`이나 `일반 사용자`로 바꾸면 제한된 쪽(권한 관리 감춤, 초대 시 부서 고정,
+   * 고를 수 있는 직급 축소)을 그대로 볼 수 있다 (`data/grants.ts`).
+   */
+  role: "소유자",
   /** 부서를 별도 필드로 뺐으므로 직책만 남긴다 (이전 값: "제조혁신팀 팀장") */
   title: "팀장",
   dept: "제조혁신팀",
@@ -191,6 +198,22 @@ export const ROLES: RoleDef[] = [
     canDelegateInvite: false,
   },
 ];
+
+/**
+ * 지금 로그인한 사람의 직급.
+ *
+ * 화면이 무엇을 보이고 무엇을 잠글지는 여기서 갈린다 — 권한 관리 접근, 초대할 때 고를 수
+ * 있는 직급·부서 (`data/grants.ts`).
+ *
+ * **보안 경계가 아니다.** 실제 차단은 BE가 세션의 직급으로 한다. 화면만 믿으면 요청을 직접
+ * 만들어 보내는 것을 못 막는다.
+ *
+ * **BE 연동 seam**: `GET /api/auth/me`가 직급을 주면 그걸 읽는다. 지금은 `DEMO_USER.role`
+ * 이름으로 `ROLES`에서 찾는다 — 데모 계정을 바꿔 가며 화면이 어떻게 갈리는지 볼 수 있다.
+ */
+export function currentRole(): RoleDef | null {
+  return ROLES.find((r) => r.name === DEMO_USER.role) ?? null;
+}
 
 /** 관리 › 초대 관리 › 초대 중인 구성원 — 보냈지만 아직 안 받은 것 */
 export const PENDING_INVITES: {

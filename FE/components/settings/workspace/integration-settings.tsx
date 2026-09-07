@@ -11,7 +11,7 @@ import {
 import { BrandIcon } from "@/components/brand-icons";
 import { ConnectorModal } from "@/components/connector-modal";
 import { useConnectors } from "@/components/connector-provider";
-import { IconLock, IconPlus } from "@/components/icons";
+import { IconPlus } from "@/components/icons";
 import { Badge, Button, Toast, Toggle } from "@/components/ui";
 import { useToast } from "@/components/use-toast";
 import { CONNECTOR_LIB } from "@/data/chat";
@@ -21,8 +21,8 @@ import { CONNECTORS } from "@/data/org";
  * 워크스페이스 › 연동.
  *
  * **외부 시스템은 읽기 전용이다** — 운영팀이 연결해준다. 추가·설정 버튼을 두지 않고
- * 이름·시스템·상태만 보인다. 버튼 없는 목록은 고장으로 읽히므로 안내 한 줄은 남긴다
- * (계정 페이지의 문구 제거 규칙은 계정에만 적용한다).
+ * 이름·시스템·상태만 보인다. 안내 문구는 뺐다 — 배지가 이미 상태를 말하고, 바꿀 수 없다는
+ * 건 버튼이 없다는 것으로 충분하다.
  *
  * **외부 서비스는 `/ai-chat`과 같은 상태를 본다** (수정요청 v12). 예전에는 이 화면이
  * `EXTERNAL_SERVICES`(워크스페이스 알림·리포트 연동)를 그리는데 아래 `커넥터 연결` 버튼은
@@ -77,10 +77,6 @@ export function IntegrationSettings() {
             </SettingsRow>
           ))}
         </SettingsRows>
-        <p className="mt-3 flex items-start gap-1.5 text-xs text-slate-400">
-          <IconLock size={14} className="mt-0.5 shrink-0" />
-          외부 시스템은 운영팀이 연결해 드려요. 추가하거나 바꿀 게 있으면 담당자에게 알려주세요.
-        </p>
       </SettingsSection>
 
       <SettingsSection
