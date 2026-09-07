@@ -7,6 +7,9 @@ const nextConfig: NextConfig = {
   output: "standalone",
   // 데모 환경: 좌측 하단 Next.js 개발 인디케이터(플로팅) 숨김
   devIndicators: false,
+  // AI 서버(lib/ai/server)가 쓰는 네이티브·Node 전용 패키지. 번들러가 감싸면 pg 의 동적 require 와
+  // pdf.js 의 워커 로딩이 깨진다. 외부 모듈로 두고 런타임 node_modules 에서 그대로 불러온다.
+  serverExternalPackages: ["pg", "unpdf", "mammoth", "exceljs"],
 };
 
 export default nextConfig;

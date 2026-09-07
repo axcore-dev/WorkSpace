@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { BrandIcon } from "@/components/brand-icons";
+import { Markdown } from "@/components/chat/markdown";
 import {
   IconChevronDown,
   IconSparkles,
@@ -119,7 +120,8 @@ export function StreamingText({
     const t = setTimeout(() => setN((v) => Math.min(text.length, v + 2)), 18);
     return () => clearTimeout(t);
   }, [n, text, onDone]);
-  return <>{text.slice(0, n)}</>;
+  // 잘린 마크다운도 그대로 렌더한다 — 파서가 관대해서 닫히지 않은 구문은 잠시 평문으로 보일 뿐이다
+  return <Markdown text={text.slice(0, n)} />;
 }
 
 function sec(ms?: number) {

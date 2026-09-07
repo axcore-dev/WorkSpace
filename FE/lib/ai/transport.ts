@@ -1,9 +1,10 @@
 /**
- * `useChat` 이 쓰는 전송 계층. **BE 전환 시 고치는 파일은 여기 하나다.**
+ * `useChat` 이 쓰는 전송 계층.
  *
- * 지금은 같은 오리진의 Next Route Handler(`app/ai/chat`)를 부른다. BE(Spring)가 스트리밍을
- * 가져가면 `NEXT_PUBLIC_AI_API_BASE` 에 BE 주소를 넣는 것으로 끝난다 — 프로토콜이 같으므로
- * 화면도 `lib/ai/ui-messages.ts` 도 그대로다.
+ * 같은 오리진의 Next Route Handler(`app/ai/chat`)를 부른다. 그 라우트가 곧 AI 서버다 — 모델 호출·
+ * 검색·스트리밍을 FE 안에서 처리하고, BE(Spring)에는 토큰 판정만 묻는다(docs/ai/ai-server.md).
+ * AI 서버를 나중에 별도 인스턴스로 떼어내면 `NEXT_PUBLIC_AI_API_BASE` 에 그 주소를 넣는 것으로
+ * 끝난다 — 프로토콜이 같으므로 화면도 `lib/ai/ui-messages.ts` 도 그대로다.
  *
  * ── 경로가 `/api/` 가 아닌 이유 ────────────────────────────────────────────
  * nginx 가 `/api/*` 를 전부 Spring 으로 보낸다(`INFRA/nginx/default.conf`). Route Handler 를
@@ -15,13 +16,14 @@ import { ensureAccessToken } from "@/lib/session";
 import type { OcrProposal } from "@/data/chat";
 import type { AxpUIMessage } from "./ui-messages";
 
-/** 비어 있으면 같은 오리진(Next Route Handler). BE 로 넘길 때만 값이 생긴다 */
+/** 비어 있으면 같은 오리진(Next Route Handler). AI 서버를 분리 배포할 때만 값이 생긴다 */
 const AI_BASE = process.env.NEXT_PUBLIC_AI_API_BASE ?? "";
 
-const AI_PREFIX = AI_BASE ? `${AI_BASE}/api/ai` : "/ai";
+const AI_PREFIX = AI_BASE ? `${AI_BASE}/ai` : "/ai";
 
 export const CHAT_ENDPOINT = `${AI_PREFIX}/chat`;
 export const SOURCES_ENDPOINT = `${AI_PREFIX}/sources`;
+export const CONVERSATIONS_ENDPOINT = `${AI_PREFIX}/conversations`;
 
 /**
  * 한 턴에 함께 보내는 화면 상태.
@@ -31,19 +33,28 @@ export const SOURCES_ENDPOINT = `${AI_PREFIX}/sources`;
  * 그러면 첫 렌더의 대화 id 가 갇혀 두 번째 턴부터 엉뚱한 대화로 나간다.
  */
 export interface TurnContext {
-  conversationId: number;
+  /** 서버 대화 id. 화면은 대화를 먼저 만들고(`createConversation`) 그 id 로 턴을 보낸다 */
+  conversationId: string;
   /** 선택된 소스 문서 이름 */
   sources: string[];
   /** 이 턴에 적용할 스킬 id (`SKILL_LIB`) */
   skills: string[];
   /**
-   * 질문이 아닌 턴 — 제안 카드 승인.
-   *
-   * 제안 내용을 통째로 넘기는 이유는 지금 대화가 localStorage 에만 있어서다. BE 가 대화를
-   * 가져가면 서버가 자기 저장본에서 읽으므로 `{ type }` 만 남는다 — 클라이언트가 보낸 제안을
-   * 그대로 믿고 실행하면, 화면에 뜬 적 없는 값을 승인시킬 수 있다.
+   * 편집·다시 시도 — 이 순번 이상을 서버가 지우고 새 질문으로 다시 답한다.
+   * 화면이 잘라내는 것과 서버 저장본이 같이 움직이게 하려는 것이다.
    */
-  action?: { type: "approve-proposal"; proposal: OcrProposal };
+  replaceFromSeq?: number;
+  /**
+   * 질문이 아닌 턴.
+   *
+   * - `approve-proposal`: 제안 카드 승인. 제안 내용은 넘기지 않는다 — 서버가 자기 저장본에서 읽어야
+   *   화면에 뜬 적 없는 값을 승인시키는 길이 없다(지금은 업무 모듈 연결 전이라 안내만 돌아온다).
+   * - `tool-approval`: 도구 실행 승인·거절. `approvalId` 는 서버가 발급한 값이고, 서버는 자기 감사
+   *   기록의 입력으로 실행한다 — 클라이언트가 입력을 바꿔 보낼 수 없다.
+   */
+  action?:
+    | { type: "approve-proposal"; proposal: OcrProposal }
+    | { type: "tool-approval"; approvalId: string; approved: boolean };
 }
 
 export function createChatTransport() {

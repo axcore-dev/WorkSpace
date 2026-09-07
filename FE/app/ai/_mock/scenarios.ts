@@ -1,15 +1,14 @@
 /**
- * ⚠️ AI-MOCK — BE 연동 시 삭제 대상 ⚠️
+ * ⚠️ AI-MOCK — 모델 키가 없을 때의 대본 ⚠️
  *
- * BE(Spring, :8080)에 `/api/ai/*`가 없어서 화면을 눈으로 확인할 수 없다. 이 파일은
- * 그때까지만 쓰는 시나리오 대본이다. 커밋 `72709db`에서 화면 코드(`data/chat.ts`)에서
- * 걷어낸 데모 응답을 서버 쪽으로 옮겨 놓은 것이다 — 화면 코드에는 더미가 없다.
+ * `ANTHROPIC_API_KEY` 가 설정되지 않은 환경(로컬 개발 · 데모)에서 `lib/ai/server/chat-mock.ts` 가
+ * 이 대본을 흘린다. 키가 있으면 `chat-llm.ts` 가 실제 모델로 답하고 이 파일은 쓰이지 않는다.
+ * 커밋 `72709db`에서 화면 코드(`data/chat.ts`)에서 걷어낸 데모 응답을 서버 쪽으로 옮겨 놓은
+ * 것이다 — 화면 코드에는 더미가 없다.
  *
- * ── BE가 준비되면 ──────────────────────────────────────────────
- * 1. `FE/app/ai/` 폴더를 통째로 지운다 (이 파일 + chat/sources 라우트)
- * 2. `FE/lib/ai/transport.ts`의 `NEXT_PUBLIC_AI_API_BASE`에 BE 주소를 넣는다
- * 와이어 포맷이 같으므로 화면과 `lib/ai/ui-messages.ts`는 그대로 둔다.
- * `grep -r "AI-MOCK" FE/`로 남은 자리를 확인한다.
+ * 처음 계획은 BE(Spring)가 `/api/ai/*` 를 갖는 것이었지만, AI 서버는 FE 안(Next Route Handler,
+ * `app/ai/*` + `lib/ai/server/*`)에 두는 것으로 결정됐다(docs/ai/ai-server.md). 그래서 이 폴더는
+ * 삭제 대상이 아니라 대체 경로다. 대본이 더 필요 없어지면 이 파일과 `chat-mock.ts` 만 지운다.
  */
 import type { ChatMessage } from "@/data/chat";
 

@@ -1,80 +1,86 @@
 /**
- * ⚠️ AI-MOCK — BE 연동 시 삭제 대상 ⚠️
+ * 소스 문서 — `POST /ai/sources` 업로드 · `GET /ai/sources` 내 문서 목록.
  *
- * `POST /ai/sources` 업로드 목업. 파일을 저장하지 않고 메타만 돌려준다.
+ * 업로드 흐름: 검증 → Object Storage 저장(회사 스키마 접두어) → 테넌트 스키마에 메타 행(`indexing`)
+ * → 응답 → 응답 뒤에 색인(`after`). 화면은 돌아온 `SourceDoc[]` 를 목록에 넣고 `status` 로 진행을 본다.
+ *
+ * 같은 이름을 다시 올리면 기존 문서를 지우고 새로 만든다(재색인). 화면이 문서를 이름으로 고르기
+ * 때문에 이름은 한 사람 안에서 유일해야 한다.
+ *
  * 계약은 `FE/lib/ai/sources.ts` 참고 — 필드명 `files`(multipart), 응답 `SourceDoc[]`.
  */
+import { randomUUID } from "node:crypto";
+import { after } from "next/server";
 import type { SourceDoc } from "@/data/chat";
+import { authenticate } from "@/lib/ai/server/auth";
+import { withTenant } from "@/lib/ai/server/db";
+import { checkFiles, contentTypeOf } from "@/lib/ai/server/files";
+import { handle } from "@/lib/ai/server/http";
+import { indexSource } from "@/lib/ai/server/indexer";
+import {
+  deleteDoc,
+  findDocByName,
+  insertDoc,
+  listDocs,
+  toSourceDoc,
+} from "@/lib/ai/server/sources";
+import { buildStorageKey, deleteObject, putObject } from "@/lib/ai/server/storage";
 
-const MAX_FILES = 10;
-const MAX_BYTES = 20 * 1024 * 1024;
-const MAX_NAME = 200;
-/** 파일 선택창의 `accept`와 같은 목록이어야 한다 (page.tsx의 input) */
-const ALLOWED = new Set(["pdf", "png", "jpg", "jpeg", "xlsx", "docx"]);
-
-/** 경로 조작 방지 — `/`와 `\` 둘 다 잘라낸다. 길이는 확장자를 살린 채 줄인다 */
-function safeName(raw: string) {
-  const base = raw.split(/[\\/]/).pop() || "문서";
-  if (base.length <= MAX_NAME) return base;
-  const e = ext(base);
-  // 그냥 자르면 확장자가 날아가 정상 파일이 415로 막힌다
-  return e
-    ? `${base.slice(0, MAX_NAME - e.length - 1)}.${e}`
-    : base.slice(0, MAX_NAME);
-}
-
-/** 확장자 위조 방지 — 마지막 점 뒤만 본다 */
-function ext(name: string) {
-  return name.includes(".") ? name.split(".").pop()!.toLowerCase() : "";
+export async function GET(req: Request) {
+  return handle(async () => {
+    const principal = await authenticate(req);
+    const rows = await withTenant(principal.schemaName, (db) => listDocs(db, principal.userId));
+    return Response.json(rows.map(toSourceDoc));
+  });
 }
 
 export async function POST(req: Request) {
-  const form = await req.formData().catch(() => null);
-  const files =
-    form?.getAll("files").filter((f): f is File => f instanceof File) ?? [];
+  return handle(async () => {
+    const principal = await authenticate(req);
 
-  if (!files.length) {
-    return Response.json(
-      { code: "VALIDATION_FAILED", message: "파일이 없어요" },
-      { status: 400 },
+    const form = await req.formData().catch(() => null);
+    const files = checkFiles(
+      form?.getAll("files").filter((f): f is File => f instanceof File) ?? [],
     );
-  }
-  if (files.length > MAX_FILES) {
-    return Response.json(
-      {
-        code: "TOO_MANY_FILES",
-        message: `한 번에 ${MAX_FILES}개까지 올릴 수 있어요`,
-      },
-      { status: 400 },
-    );
-  }
 
-  const docs: SourceDoc[] = [];
-  for (const f of files) {
-    const name = safeName(f.name);
-    const type = ext(name);
-    if (!ALLOWED.has(type)) {
-      return Response.json(
-        {
-          code: "UNSUPPORTED_TYPE",
-          message: `${name}은(는) 올릴 수 없는 형식이에요`,
-        },
-        { status: 415 },
-      );
-    }
-    if (f.size > MAX_BYTES) {
-      return Response.json(
-        { code: "FILE_TOO_LARGE", message: `${name}이(가) 20MB를 넘어요` },
-        { status: 413 },
-      );
-    }
-    docs.push({
-      name,
-      type: type.toUpperCase(),
-      scope: "개인",
-      updated: "방금 전",
-    });
-  }
+    const docs: SourceDoc[] = [];
+    const uploadedKeys: string[] = [];
+    for (const { file, name, type } of files) {
+      const id = randomUUID();
+      const key = buildStorageKey(principal.schemaName, principal.userId, id, name);
+      const body = Buffer.from(await file.arrayBuffer());
 
-  return Response.json(docs);
+      await putObject(key, body, contentTypeOf(type));
+      uploadedKeys.push(key);
+
+      const row = await withTenant(principal.schemaName, async (db) => {
+        // 같은 이름은 교체다. 이전 객체는 행이 지워진 뒤 스토리지에서도 지운다
+        const prev = await findDocByName(db, principal.userId, name);
+        if (prev) {
+          await deleteDoc(db, principal.userId, prev.id);
+          after(() => deleteObject(prev.storage_key).catch((e) =>
+            console.error("[ai-sources] 이전 객체 삭제 실패", e),
+          ));
+        }
+        return insertDoc(db, {
+          id,
+          ownerUserId: principal.userId,
+          name,
+          type: type.toUpperCase(),
+          sizeBytes: file.size,
+          storageKey: key,
+        });
+      }).catch(async (e) => {
+        // 메타를 못 남기면 스토리지에 고아 객체가 남는다. 올린 것은 되돌린다
+        await Promise.all(uploadedKeys.map((k) => deleteObject(k).catch(() => undefined)));
+        throw e;
+      });
+
+      docs.push(toSourceDoc(row));
+      // 응답이 나간 뒤에 색인한다. 실패해도 응답에는 영향이 없고 status 가 failed 로 남는다
+      after(() => indexSource(principal, id));
+    }
+
+    return Response.json(docs);
+  });
 }
