@@ -94,6 +94,9 @@ export const DATA_SCOPES: { value: DataScope; label: string }[] = [
  *
  * `dept: null`은 부서에 속하지 않는다는 뜻이다 — 소유자 하나뿐이다.
  *
+ * **시스템 역할은 소유자 하나다.** 관리자를 포함해 나머지는 전부 고칠 수 있다 — 회사마다
+ * 관리자가 무엇을 하는지가 달라서 잠가 두면 쓸 수 없는 역할이 된다.
+ *
  * **이 값은 보안 경계가 아니다** — 실제 차단은 BE 세션의 역할 검사에서 한다.
  */
 export const ROLES: RoleDef[] = [
@@ -102,8 +105,16 @@ export const ROLES: RoleDef[] = [
     name: "소유자",
     system: true,
     dept: null,
-    desc: "모든 권한을 가진 최고 관리자",
-    perms: [...WORKSPACE_PERMS.map((p) => p.id), ...ALL_FEATURE_PERMS],
+    desc: "회사를 대표하는 자리",
+    /**
+     * **`ws:delete`(회사 삭제)는 꺼 둔다.** 소유자는 잠긴 역할이라 여기서 켜져 있으면
+     * 아무도 끌 수 없는 삭제 권한이 되고, 실수 한 번이 되돌릴 수 없는 결과가 된다.
+     * 회사를 지우는 건 계약 해지라 운영팀을 거친다.
+     */
+    perms: [
+      ...WORKSPACE_PERMS.filter((p) => p.id !== "ws:delete").map((p) => p.id),
+      ...ALL_FEATURE_PERMS,
+    ],
     scope: "all",
     showAmounts: true,
     canDelegateInvite: true,
@@ -111,7 +122,7 @@ export const ROLES: RoleDef[] = [
   {
     id: "admin",
     name: "관리자",
-    system: true,
+    system: false,
     dept: "제조혁신팀",
     desc: "회사 삭제를 뺀 모든 권한",
     perms: [

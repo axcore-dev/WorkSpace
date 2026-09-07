@@ -40,11 +40,12 @@ export function PeopleManager() {
 
   return (
     <>
-      {/* 탭 3개는 넓은 본문에서 가로로 다 들어간다 — 그래도 좁은 화면을 위해 스크롤은 남긴다 */}
+      {/* 탭 3개는 390px에서도 줄바꿈으로 들어간다 — 스크롤을 두지 않는다.
+          가로 스크롤은 스크롤바가 밑줄과 겹쳐 활성 탭 표시를 가린다. */}
       <div
         role="tablist"
         aria-label="초대 관리"
-        className="thin-scroll mt-4 flex gap-1 overflow-x-auto border-b border-slate-200"
+        className="mt-4 flex flex-wrap gap-1 border-b border-slate-200"
       >
         {TABS.map((t) => {
           const on = t.id === tab;

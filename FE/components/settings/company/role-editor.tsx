@@ -6,6 +6,7 @@ import {
   SettingsRow,
   SettingsRows,
 } from "@/components/settings/settings-section";
+import { RoleCreateModal } from "@/components/settings/company/role-create-modal";
 import { IconLock, IconPlus } from "@/components/icons";
 import { Badge, Button, Segmented, Toast, Toggle } from "@/components/ui";
 import { useToast } from "@/components/use-toast";
@@ -51,6 +52,20 @@ export function RoleEditor() {
     ROLES.find((r) => !r.system)?.id ?? ROLES[0].id,
   );
   const [tab, setTab] = useState<PaneTab>("perms");
+  const [creating, setCreating] = useState(false);
+
+  /**
+   * 만든 역할을 바로 고르고 `권한` 탭을 연다 — 만든 직후 할 일이 권한 고르기다.
+   * `saved`에도 같이 넣는다. 안 넣으면 새 역할이 처음부터 「변경됨」으로 보인다.
+   */
+  function create(role: RoleDef) {
+    setRoles((prev) => [...prev, role]);
+    setSaved((prev) => [...prev, role]);
+    setSelectedId(role.id);
+    setTab("perms");
+    setCreating(false);
+    showToast(`${role.name} 권한을 만들었어요. 이제 권한을 골라 주세요`);
+  }
 
   /**
    * 화면에 그릴 권한 목록 — 워크스페이스 권한 4개가 먼저, 그 다음이 기능별 서브기능.
@@ -153,7 +168,12 @@ export function RoleEditor() {
             </div>
           ))}
 
-          <Button variant="secondary" size="sm" className="mt-1 w-full">
+          <Button
+            variant="secondary"
+            size="sm"
+            className="mt-1 w-full"
+            onClick={() => setCreating(true)}
+          >
             <IconPlus size={14} />
             권한 만들기
           </Button>
@@ -328,6 +348,15 @@ export function RoleEditor() {
         </section>
       </div>
 
+      {/* 열 때만 마운트한다 — 닫으면 입력이 사라지고, 지우는 effect가 필요 없어진다 */}
+      {creating && (
+        <RoleCreateModal
+          onClose={() => setCreating(false)}
+          onCreate={create}
+          depts={DEPARTMENTS}
+          taken={roles.map((r) => r.name)}
+        />
+      )}
       <Toast toast={toast} />
     </>
   );

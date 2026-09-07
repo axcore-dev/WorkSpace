@@ -57,19 +57,25 @@ export function MemberTable({
           {
             label: "역할",
             cell: (u) => (
-              <select
-                className={`${FIELD} py-1.5 text-[13px]`}
-                value={u.role}
-                disabled={!canManage}
-                aria-label={`${u.name} 역할`}
-                onChange={(e) => changeRole(u.email, e.target.value)}
-              >
-                {ROLES.map((r) => (
-                  <option key={r.id} value={r.name}>
-                    {r.name}
-                  </option>
-                ))}
-              </select>
+              // 폭은 감싸는 쪽이 정한다. `FIELD`에 `w-[30%]`를 덧붙이는 걸로는 안 된다 —
+              // 클래스 문자열 순서가 CSS 우선순위를 정하지 않아 `w-full`이 이긴다
+              // (`ui.tsx`의 `FIELD_INLINE` 주석이 같은 함정을 적어뒀다).
+              // 역할 이름이 길어도 읽히도록 최소 폭은 준다.
+              <span className="block w-[30%] min-w-[132px]">
+                <select
+                  className={`${FIELD} py-1.5 text-[13px]`}
+                  value={u.role}
+                  disabled={!canManage}
+                  aria-label={`${u.name} 역할`}
+                  onChange={(e) => changeRole(u.email, e.target.value)}
+                >
+                  {ROLES.map((r) => (
+                    <option key={r.id} value={r.name}>
+                      {r.name}
+                    </option>
+                  ))}
+                </select>
+              </span>
             ),
           },
         ]}
