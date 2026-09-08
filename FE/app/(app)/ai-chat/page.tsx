@@ -914,12 +914,13 @@ export default function AiChatPage() {
         onClose={() => setConnectorOpen(false)}
         connected={linkedApps}
         onConnect={(slug) => {
-          connect(slug);
+          // 저장이 거절되면 스토어가 되돌린다 — 칩은 연결된 앱만 그리므로 함께 사라진다
+          void connect(slug).catch(() => {});
           // 새로 연결한 앱은 켜진 상태로 시작한다
           setEnabledApps((prev) => [...prev, slug]);
         }}
         onDisconnect={(slug) => {
-          disconnect(slug);
+          void disconnect(slug).catch(() => {});
           setEnabledApps((prev) => prev.filter((x) => x !== slug));
         }}
       />

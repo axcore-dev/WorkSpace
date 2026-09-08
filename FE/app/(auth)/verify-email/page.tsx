@@ -28,7 +28,13 @@ type State =
  */
 function VerifyEmailContent() {
   const token = useSearchParams().get("token");
-  const [state, setState] = useState<State>({ kind: "verifying" });
+  // 토큰이 없는 링크는 요청을 보낼 것도 없다 — 첫 렌더부터 실패 화면이다.
+  // (effect 안에서 setState 로 뒤집으면 렌더가 한 번 더 돈다 — react-hooks/set-state-in-effect)
+  const [state, setState] = useState<State>(() =>
+    token
+      ? { kind: "verifying" }
+      : { kind: "failed", message: "확인 링크가 올바르지 않습니다. 메일의 링크를 다시 열어 주세요" },
+  );
 
   // React 18 StrictMode는 개발 중 effect를 두 번 실행한다. 토큰은 한 번만 쓸 수 있어서
   // 그대로 두면 두 번째 호출이 401을 받고 화면이 실패로 뒤집힌다.
@@ -38,10 +44,7 @@ function VerifyEmailContent() {
     if (sent.current) return;
     sent.current = true;
 
-    if (!token) {
-      setState({ kind: "failed", message: "확인 링크가 올바르지 않습니다. 메일의 링크를 다시 열어 주세요" });
-      return;
-    }
+    if (!token) return;
 
     apiPost<UserResponse>("/api/auth/email/verify", { token })
       .then((user) => {

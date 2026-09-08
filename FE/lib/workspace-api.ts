@@ -215,3 +215,32 @@ export const createInviteLink = async (input: {
 }) => must(await apiPostAuthed<InviteLinkDto>(`${BASE}/invite-links`, input));
 
 export const revokeInviteLink = (id: string) => apiDelete<void>(`${BASE}/invite-links/${id}`);
+
+/* ─────────────────────────────── 연동 ─────────────────────────────── */
+
+/** 외부 시스템 한 줄 — 운영팀이 등록한다. 화면에서는 읽기만 한다 */
+export type ExternalSystemDto = {
+  id: number;
+  name: string;
+  vendor: string;
+  kind: string;
+  status: "ok" | "delayed" | "down";
+};
+
+export type ConnectorsDto = {
+  systems: ExternalSystemDto[];
+  /** 연결한 외부 서비스 slug — 카탈로그(`data/chat.ts` CONNECTOR_LIB) 순서 */
+  services: string[];
+  /** 내가 연결·해제할 수 있는가 (`can_manage_integrations`) */
+  editable: boolean;
+};
+
+export const getConnectors = async () => must(await apiGet<ConnectorsDto>(`${BASE}/connectors`));
+
+/** 외부 서비스 하나를 연결·해제하고 바뀐 전체를 받는다. 권한이 없으면 403 */
+export const putConnectorService = async (slug: string, connected: boolean) =>
+  must(
+    await apiPut<ConnectorsDto>(`${BASE}/connectors/services/${encodeURIComponent(slug)}`, {
+      connected,
+    }),
+  );
