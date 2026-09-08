@@ -4,6 +4,7 @@ import { useState } from "react";
 import { IconDownload } from "@/components/icons";
 import { RecordModal } from "@/components/record-modal";
 import { Button, Card, DataTable, SectionHeader } from "@/components/ui";
+import { withJosa } from "@/data/ko";
 import { ORG } from "@/data/pages/management";
 import type { Cell, DetailRecord, Member } from "@/data/types";
 import { downloadCsv } from "@/lib/download";
@@ -38,12 +39,14 @@ export function HrWorkbench() {
   const team = current.startsWith("team:") ? teams.find((t) => t.name === current.slice(5)) : undefined;
   const division = current.startsWith("div:") ? ORG.divisions.find((d) => d.name === current.slice(4)) : undefined;
 
-  const items: MasterItem[] = [{ id: COMPANY_ID, name: ORG.company, meta: `${total}명 · ${ORG.divisions.length}본부 ${teams.length}팀` }];
+  const treeItems: MasterItem[] = [];
+  let matched = 0;
   for (const d of ORG.divisions) {
     const visibleTeams = d.teams.filter((t) => matches(t.name));
     if (q && visibleTeams.length === 0) continue;
+    matched += visibleTeams.length;
     const open = q ? true : !collapsed.has(d.name);
-    items.push({
+    treeItems.push({
       id: divId(d.name),
       name: d.name,
       meta: `${visibleTeams.reduce((s, t) => s + (members[t.name]?.length ?? t.size), 0)}명`,
@@ -60,9 +63,11 @@ export function HrWorkbench() {
     });
     if (!open) continue;
     for (const t of visibleTeams) {
-      items.push({ id: teamId(t.name), name: t.name, meta: `${members[t.name]?.length ?? t.size}명 · 팀장 ${t.head}`, badge: t.badge, indent: 2 });
+      treeItems.push({ id: teamId(t.name), name: t.name, meta: `${members[t.name]?.length ?? t.size}명 · 팀장 ${t.head}`, badge: t.badge, indent: 2 });
     }
   }
+  const items: MasterItem[] =
+    q && matched === 0 ? [] : [{ id: COMPANY_ID, name: ORG.company, meta: `${total}명 · ${ORG.divisions.length}본부 ${teams.length}팀` }, ...treeItems];
 
   function exportCsv() {
     const scope = team ? [team.name] : division ? division.teams.map((t) => t.name) : teams.map((t) => t.name);
@@ -165,7 +170,7 @@ export function HrWorkbench() {
         defaultTeam={team?.name}
         onSave={(t, m) => {
           dispatch({ type: "addMember", team: t, member: m });
-          notify(`${t}에 ${m.name}을 등록했어요`);
+          notify(`${t}에 ${withJosa(m.name, "을/를")} 등록했어요`);
         }}
         onClose={() => setCreateOpen(false)}
       />
