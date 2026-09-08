@@ -4,10 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { IconShield, IconUser } from "@/components/icons";
 import { SETTINGS_NAV, activeSettings } from "@/data/settings-nav";
-import { canManageRoles } from "@/data/grants";
-import { currentRole } from "@/data/org";
+import { canManageRoles, useWorkspaceMe } from "@/lib/workspace-me";
 
-/** 소유자만 여는 화면 */
+/** 소유자·관리자만 여는 화면 */
 const ROLES_HREF = "/settings/company/roles";
 
 /** 단일 항목에만 아이콘을 준다 — 그룹 라벨과 구분되게 한다 */
@@ -32,9 +31,11 @@ const ITEM_OFF = "font-medium text-slate-600 hover:bg-slate-200/60 hover:text-sl
 export function SettingsNav({ variant }: { variant: "side" | "top" }) {
   const pathname = usePathname();
   const active = activeSettings(pathname);
-  // 소유자만 여는 화면은 내비에서도 감춘다 — 눌러서 거부 화면을 만나는 것보다 낫다.
+  // 소유자·관리자만 여는 화면은 내비에서도 감춘다 — 눌러서 거부 화면을 만나는 것보다 낫다.
+  // 자격은 서버(`/api/workspace/me`)가 준다. 받기 전에는 감춰 두고 오면 나타난다.
   // **보안 경계가 아니다**: 주소로 직접 들어올 수 있어서 페이지도 따로 막는다.
-  const canRoles = canManageRoles(currentRole());
+  const { me } = useWorkspaceMe();
+  const canRoles = canManageRoles(me);
   const visible = (href: string) => canRoles || href !== ROLES_HREF;
   // 중첩 판별식 좁히기에 기대지 않고 그룹을 미리 꺼낸다.
   const activeGroup = active && active.section.kind === "group" ? active.section : null;

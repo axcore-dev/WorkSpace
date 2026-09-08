@@ -77,7 +77,8 @@ public class TenantAccess {
                     workspace.getName(),
                     workspace.getSchemaName(),
                     null,
-                    TenantContext.INTERNAL_ADMIN_ROLE,
+                    null,
+                    "internal_admin",
                     "서버 운영자",
                     true,
                     false,
@@ -92,7 +93,7 @@ public class TenantAccess {
                 jdbc.query(
                         """
                         select m.id, r.code, r.name, coalesce(r.is_admin, false), coalesce(r.can_invite, false),
-                               d.id, d.name, m.title
+                               d.id, d.name, m.title, r.id
                           from members m
                           left join roles r on r.id = m.role_id
                           left join departments d on d.id = m.department_id
@@ -106,6 +107,7 @@ public class TenantAccess {
                                     workspace.getName(),
                                     workspace.getSchemaName(),
                                     rs.getLong(1),
+                                    rs.getObject(9, Long.class),
                                     code,
                                     rs.getString(3),
                                     rs.getBoolean(4),

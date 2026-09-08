@@ -1,5 +1,6 @@
 package com.axcore.workspace.workspace.settings.dto;
 
+import com.axcore.workspace.workspace.settings.RolePermissions;
 import com.axcore.workspace.workspace.settings.TenantContext;
 
 import java.util.List;
@@ -11,6 +12,8 @@ import java.util.List;
  * 요청을 보내면 각 API 의 {@link TenantContext} 검사가 막는다. 여기 값은 그 검사의 결과를 미리 알려 주는 것뿐이다.
  *
  * @param modules  이 사람이 쓸 수 있는 모듈 slug. 회사가 켠 것 ∩ 직급·개인 권한. introspect 가 AI 서버에 주는 값과 같다
+ * @param permissions 내 직급의 권한 묶음(탭 · 회사 권한 · 범위). 회사가 끈 기능의 탭도 들어 있다 — "가졌나" 의 값이다.
+ *                    관리자가 다른 직급을 고칠 때 화면이 "내 권한 안인가" 를 미리 보여 주는 데 쓴다. {@code tabs} 는 배열로 나간다
  * @param features 회사가 켠 기능 탭 전부. 관리자가 아니어도 본다 — 사이드바가 "회사가 무엇을 쓰나" 를 알아야 한다
  */
 public record WorkspaceMeResponse(
@@ -18,6 +21,7 @@ public record WorkspaceMeResponse(
         String workspaceName,
         Member member,
         List<String> modules,
+        RolePermissions permissions,
         List<FeatureModuleResponse> features) {
 
     public record Member(

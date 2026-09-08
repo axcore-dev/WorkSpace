@@ -63,10 +63,6 @@ public final class FeatureCatalog {
         return Optional.ofNullable(BY_SLUG.get(slug));
     }
 
-    public static boolean isKnownModule(String slug) {
-        return BY_SLUG.containsKey(slug);
-    }
-
     /** 이 모듈의 탭이 행 없이 기본으로 켜져 있는가. */
     public static boolean defaultEnabled(String moduleSlug) {
         return DEFAULT_ON.contains(moduleSlug);

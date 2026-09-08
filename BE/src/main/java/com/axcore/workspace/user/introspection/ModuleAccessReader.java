@@ -23,8 +23,8 @@ import java.util.UUID;
  * <ul>
  *   <li><b>회사가 끈 기능은 누구에게도 없다</b> — 서버 운영자·관리자도 마찬가지다. 꺼진 기능은 사이드바에도 없고
  *       AI 가 그 분야를 답해도 확인할 화면이 없다 ({@code enabled_features}, tenant V8)</li>
- *   <li>서버 운영자 · 관리자 역할({@code roles.is_admin}) — 켜진 것 전부</li>
- *   <li>역할 범위와 개인 부여가 둘 다 있으면 — 교집합</li>
+ *   <li>서버 운영자 · 소유자({@code roles.code = 'owner'}) — 켜진 것 전부. 관리자는 예외가 아니다 — 소유자가 관리자의 탭도 정한다</li>
+ *   <li>역할 범위({@code role_module_grants}, 탭 단위 행에서 모듈만 뽑음)와 개인 부여가 둘 다 있으면 — 교집합</li>
  *   <li>개인 부여가 없으면 — 역할 범위. 역할 범위도 없으면 — 없음</li>
  * </ul>
  *
@@ -58,29 +58,32 @@ public class ModuleAccessReader {
             return ordered(enabled);
         }
 
-        // 활성 구성원인지와 관리자 역할인지. 행이 없으면 구성원이 아니다(소속은 확인됐지만 members 가 아직 없는 경우 포함).
-        List<Boolean> adminFlags =
+        // 활성 구성원인지와 소유자인지. 행이 없으면 구성원이 아니다(소속은 확인됐지만 members 가 아직 없는 경우 포함).
+        // 소유자만 표를 보지 않고 전부다. 관리자(is_admin)는 회사 설정을 다루는 자격이지 기능 접근이 아니다 —
+        // 기능 탭은 role_module_grants 에서만 나온다(tenant V9 · V10, 결정 B: 소유자가 관리자의 권한도 정한다).
+        List<Boolean> ownerFlags =
                 jdbc.query(
                         """
-                        select coalesce(r.is_admin, false)
+                        select coalesce(r.code = 'owner', false)
                           from members m
                           left join roles r on r.id = m.role_id
                          where m.user_id = ? and m.status = 'active'
                         """,
                         (rs, i) -> rs.getBoolean(1),
                         userId);
-        if (adminFlags.isEmpty()) {
+        if (ownerFlags.isEmpty()) {
             return List.of();
         }
-        if (adminFlags.get(0)) {
+        if (ownerFlags.get(0)) {
             return ordered(enabled);
         }
 
+        // 탭 단위 행에서 모듈만 뽑는다 — 탭이 하나라도 있으면 그 모듈은 열린다
         Set<String> role =
                 new HashSet<>(
                         jdbc.queryForList(
                                 """
-                                select g.module_slug
+                                select distinct g.module_slug
                                   from role_module_grants g
                                   join members m on m.role_id = g.role_id
                                  where m.user_id = ?

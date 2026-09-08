@@ -18,7 +18,9 @@ import com.axcore.workspace.workspace.admin.exception.WorkspaceNotFoundException
 import com.axcore.workspace.workspace.admin.exception.WorkspaceStateException;
 import com.axcore.workspace.workspace.provisioning.TenantProvisioningException;
 import com.axcore.workspace.workspace.service.WorkspaceAccessDeniedException;
+import com.axcore.workspace.workspace.settings.SettingsConflictException;
 import com.axcore.workspace.workspace.settings.SettingsForbiddenException;
+import com.axcore.workspace.workspace.settings.SettingsNotFoundException;
 import com.axcore.workspace.workspace.settings.SettingsValidationException;
 import com.axcore.workspace.workspace.settings.WorkspaceNotSelectedException;
 import org.slf4j.Logger;
@@ -199,6 +201,21 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleWorkspaceNotSelected(WorkspaceNotSelectedException e) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ErrorResponse.of(e.code(), e.getMessage()));
+    }
+
+    /**
+     * 지금 상태에서는 할 수 없는 설정 변경(직급이 남은 부서 · 구성원이 있는 직급 · 이미 있는 이름). 409 다.
+     * 코드가 경우를 가르므로 화면이 「옮기고 지우기」 같은 다음 할 일을 안내할 수 있다.
+     */
+    @ExceptionHandler(SettingsConflictException.class)
+    public ResponseEntity<ErrorResponse> handleSettingsConflict(SettingsConflictException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponse.of(e.code(), e.getMessage()));
+    }
+
+    /** 이 회사에 그런 부서·직급이 없다. 404 다. */
+    @ExceptionHandler(SettingsNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleSettingsNotFound(SettingsNotFoundException e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ErrorResponse.of("NOT_FOUND", e.getMessage()));
     }
 
     /** 설정 값이 카탈로그·규칙에 맞지 않는다. {@code @Valid} 실패와 같은 코드다. */

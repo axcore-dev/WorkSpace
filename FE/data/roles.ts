@@ -22,12 +22,15 @@ export type DataScope = "all" | "dept" | "own";
  * 「권한을 줬는데 왜 아무것도 안 되지?」가 된다 — 실체 없는 스위치를 두지 않는다.
  * 고객 쪽에 그 화면이 생기는 날 다시 넣는다.
  *
- * 여기 남는 둘은 각자 열리는 곳이 있다:
- * - `ws:members` → 회사 › 초대 관리
- * - `ws:integrations` → 워크스페이스 › 연동
+ * 여기 남는 둘은 각자 열리는 곳이 있고, BE `roles` 의 컬럼 하나씩에 대응한다:
+ * - `ws:settings` → 회사 설정(기능 관리 · 부서 · 직급)과 구성원 관리. `roles.is_admin`
+ * - `ws:integrations` → 워크스페이스 › 연동. `roles.can_manage_integrations`
+ *
+ * 「구성원 초대 위임」은 여기 없고 `RoleDef.canDelegateInvite`(= `roles.can_invite`)다 — 위임은
+ * "내 권한 안에서만" 이라는 조건이 붙는 다른 종류의 스위치라 화면에서도 따로 둔다.
  */
 export const WORKSPACE_PERMS: { id: string; name: string }[] = [
-  { id: "ws:members", name: "구성원 정보 관리" },
+  { id: "ws:settings", name: "회사 설정 · 구성원 관리" },
   { id: "ws:integrations", name: "데이터 연동" },
 ];
 

@@ -27,12 +27,17 @@ public class WorkspaceSettingsService {
     private final TenantAccess access;
     private final EnabledFeatureStore features;
     private final ModuleAccessReader moduleAccess;
+    private final RolePermissionReader permissions;
 
     public WorkspaceSettingsService(
-            TenantAccess access, EnabledFeatureStore features, ModuleAccessReader moduleAccess) {
+            TenantAccess access,
+            EnabledFeatureStore features,
+            ModuleAccessReader moduleAccess,
+            RolePermissionReader permissions) {
         this.access = access;
         this.features = features;
         this.moduleAccess = moduleAccess;
+        this.permissions = permissions;
     }
 
     /** 내 자격과 회사가 켠 기능. 구성원이면 누구나 본다. */
@@ -46,6 +51,7 @@ public class WorkspaceSettingsService {
                 ctx.workspaceName(),
                 WorkspaceMeResponse.Member.from(ctx),
                 modules,
+                permissions.forContext(ctx),
                 toResponse(features.readAll()));
     }
 

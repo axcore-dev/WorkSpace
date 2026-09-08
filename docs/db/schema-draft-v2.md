@@ -377,8 +377,9 @@ graph TD
 | `members` | `workspace_members` | **개칭.** `workspaces` 테이블이 없어져 `workspace_` 접두사가 무의미해졌다. `workspace_id` 컬럼 삭제, `user_id`는 `shared.users`를 가리킴 |
 | `roles` | `roles` | **`organization_id` 컬럼 삭제** — 스키마 전체가 한 회사라 테넌트 전역 역할이다 |
 | `departments` | `departments` | **`organization_id` 컬럼 삭제** — 위와 같음 |
-| `role_module_grants` | 동일 | 변경 없음 |
-| `member_module_grants` | 동일 | 변경 없음 |
+| `role_module_grants` | 동일 | **탭 단위로 내렸다** (tenant V10, 2026-09-08). `subfunction_id` 추가, 한 행이 탭 하나. 화면의 권한이 「모듈 전부」가 아니라 탭 하나하나라서다. 소유자는 이 표를 보지 않고 전부, 관리자는 V10 이 27개 탭을 심어 시작한다 |
+| `member_module_grants` | 동일 | 변경 없음 (아직 모듈 단위. 개인 부여 화면이 생길 때 같이 내린다) |
+| `roles` (V9) | — | `department_id`(부서 소속, RESTRICT) · `data_scope` · `show_amounts` · `can_manage_integrations` 추가, `name` 유일. `is_system` 은 owner · member 만 true — admin 은 소유자가 고치고 지울 수 있는 보통 직급이다. 회사 권한 세 가지는 `is_admin`(회사 설정·구성원) · `can_invite`(초대 위임) · `can_manage_integrations`(연동) |
 | `invitation_module_grants` | 동일 | `invitation_id`가 `shared.invitations`를 가리키는 크로스 스키마 참조가 됨 |
 
 > **역할은 사람이 아니라 "사람 × 회사"에 붙습니다.** v1의 이 원칙은 그대로 유지되는데,
