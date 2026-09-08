@@ -33,6 +33,7 @@ import {
   IconSearch,
 } from "@/components/icons";
 import { Modal } from "@/components/modal";
+import { PayrollWorkbench } from "@/components/management/payroll-workbench";
 import { useModules } from "@/components/module-provider";
 import { RecordModal } from "@/components/record-modal";
 import { DrawingManager } from "@/components/drawing-manager";
@@ -573,6 +574,10 @@ export function ModuleView({ mod, page, subtitle }: { mod: ModuleDef; page: Modu
       ) : active?.custom === "receiving-inspection" ? (
         <div role="tabpanel">
           <ReceivingInspection query={filterQuery} />
+        </div>
+      ) : active?.custom === "payroll-workbench" ? (
+        <div role="tabpanel">
+          <PayrollWorkbench onOpenTab={switchTab} />
         </div>
       ) : active ? (
         <div role="tabpanel" className="space-y-4">
