@@ -13,7 +13,6 @@ export const MODULES: ModuleDef[] = [
     subfunctions: [
       { id: "hr", name: "인사 관리" },
       { id: "payroll", name: "급여 관리" },
-      { id: "materials", name: "자재 관리" },
       { id: "accounting", name: "회계 관리" },
     ],
   },

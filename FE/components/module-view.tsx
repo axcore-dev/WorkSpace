@@ -41,7 +41,8 @@ import { PurchaseOrder } from "@/components/purchase-order";
 import { ReceivingInspection } from "@/components/receiving-inspection";
 import { ReportAutomation } from "@/components/report-automation";
 import { AiBadge, Badge, Button, Card, DataTable, EmptyState, FIELD, SectionHeader, Stat , WizardSteps } from "@/components/ui";
-import { HR_MEMBERS, ROW_DETAILS } from "@/data/module-details";
+import { ROW_DETAILS } from "@/data/module-details";
+import { HR_MEMBERS } from "@/data/pages/management";
 import { downloadCsv } from "@/lib/download";
 import type { Cell, DetailRecord, Member, ModuleDef, ModulePageData, TabAction, TreeNode } from "@/data/types";
 
