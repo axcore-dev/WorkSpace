@@ -2,20 +2,15 @@
 
 import { useState } from "react";
 import { Modal } from "@/components/modal";
-import { RankTabsPreview } from "@/components/settings/company/rank-perms";
+import type { PeopleData } from "@/components/settings/company/people-manager";
+import { RankTabsPreview, roleDefOf } from "@/components/settings/company/rank-perms";
 import { Button, FIELD } from "@/components/ui";
-import { canChooseDept, grantableRanks, invitableDepts } from "@/data/grants";
-import { DEPARTMENTS, ROLES, currentRole } from "@/data/org";
+import type { DepartmentDto, RoleDto, WorkspaceMeDto } from "@/lib/workspace-api";
 
 /** 사용 한도 — 「무제한」을 두지 않는다 (아래 주석) */
 const LIMITS = [1, 5, 10, 50] as const;
 /** 만료 — 「만료 없음」을 두지 않는다 */
 const DAYS = [1, 7, 30] as const;
-
-/** 이 부서에서 내가 줄 수 있는 직급 */
-function ranksOf(dept: string): string[] {
-  return grantableRanks(currentRole(), ROLES.filter((r) => r.dept === dept)).map((r) => r.name);
-}
 
 /** `YYYY-MM-DD HH:00` — 「7일 뒤」만으로는 그게 언제인지 모른다 */
 function expiryAt(days: number): string {
@@ -26,11 +21,21 @@ function expiryAt(days: number): string {
 }
 
 export type NewLink = {
-  role: string;
-  dept: string;
-  limit: number;
-  expiresAt: string;
+  roleId: number;
+  departmentId: number | null;
+  maxUses: number;
+  expiresInDays: number;
 };
+
+/** 초대할 때 고를 수 있는 부서 — 초대는 소유자만 하므로 전부다. 소유자가 아니면(팝업이 열릴 일이 없지만) 비어 있다 */
+export function invitableDepts(me: WorkspaceMeDto | null, all: DepartmentDto[]): DepartmentDto[] {
+  return me?.member.owner ? all : [];
+}
+
+/** 이 부서에서 줄 수 있는 직급 — 부서 소속 + 전사(부서 없음) 직급 중 서버가 `assignable` 이라 한 것(소유자 직급 제외) */
+export function grantableRanks(roles: RoleDto[], deptId: number | null): RoleDto[] {
+  return roles.filter((r) => r.assignable && (r.departmentId === deptId || r.departmentId === null));
+}
 
 /**
  * 초대 링크 만들기.
@@ -41,36 +46,36 @@ export type NewLink = {
  * **「무제한」과 「만료 없음」을 두지 않는다.** 한 번 새어 나가면 회수할 방법이 그 링크를
  * 지우는 것뿐인데, 지우기 전까지 누구나 들어온다. 길게 필요하면 30일을 고르고 다시 만든다.
  *
- * 부서·직급은 초대 팝업과 같은 규칙으로 좁힌다 — 내가 못 보는 탭을 남에게 열어 줄 수 없다
- * (`data/grants.ts`).
- *
- * **BE 연동 seam**: `onCreate`가 링크 발급 API를 부른다. 지금은 URL을 화면에서 만든다 —
- * 실제 토큰은 서버가 만들어야 한다(추측할 수 없어야 하므로).
+ * 토큰은 서버가 만든다(`POST /api/workspace/invite-links`) — 추측할 수 없어야 하므로 화면에서 만들지 않는다.
  */
 export function LinkCreateModal({
+  data,
+  me,
   onClose,
   onCreate,
 }: {
+  data: PeopleData;
+  me: WorkspaceMeDto | null;
   onClose: () => void;
-  onCreate: (link: NewLink) => void;
+  onCreate: (link: NewLink) => Promise<void>;
 }) {
-  const me = currentRole();
-  const deptList = invitableDepts(me, DEPARTMENTS);
-  const deptLocked = !canChooseDept(me);
+  const deptList = invitableDepts(me, data.depts);
+  const deptLocked = deptList.length <= 1;
 
-  const [dept, setDept] = useState(deptList[0] ?? "");
-  const [rank, setRank] = useState(ranksOf(deptList[0] ?? "")[0] ?? "");
+  const [deptId, setDeptId] = useState<number | null>(deptList[0]?.id ?? null);
+  const [roleId, setRoleId] = useState<number | null>(grantableRanks(data.roles, deptList[0]?.id ?? null)[0]?.id ?? null);
   const [limit, setLimit] = useState<number>(10);
   const [days, setDays] = useState<number>(7);
+  const [busy, setBusy] = useState(false);
 
-  const rankList = ranksOf(dept);
-  const role = ROLES.find((r) => r.dept === dept && r.name === rank) ?? null;
-  const ok = !!dept && !!rank;
+  const rankList = grantableRanks(data.roles, deptId);
+  const role = data.roles.find((r) => r.id === roleId) ?? null;
+  const ok = roleId !== null;
 
-  function changeDept(next: string) {
-    setDept(next);
+  function changeDept(next: number | null) {
+    setDeptId(next);
     // 부서를 바꾸면 직급도 그 부서 것으로 옮긴다 — 안 하면 없는 조합이 남는다
-    setRank(ranksOf(next)[0] ?? "");
+    setRoleId(grantableRanks(data.roles, next)[0]?.id ?? null);
   }
 
   return (
@@ -85,10 +90,16 @@ export function LinkCreateModal({
             취소
           </Button>
           <Button
-            disabled={!ok}
-            onClick={() => onCreate({ dept, role: rank, limit, expiresAt: expiryAt(days) })}
+            disabled={!ok || busy}
+            onClick={() => {
+              if (roleId === null) return;
+              setBusy(true);
+              void onCreate({ roleId, departmentId: deptId, maxUses: limit, expiresInDays: days }).finally(() =>
+                setBusy(false),
+              );
+            }}
           >
-            링크 만들기
+            {busy ? "만드는 중…" : "링크 만들기"}
           </Button>
         </div>
       }
@@ -103,18 +114,19 @@ export function LinkCreateModal({
               /* 고를 게 하나뿐이면 드롭다운을 두지 않는다 — 눌러도 안 바뀌는 컨트롤이
                  제일 헷갈린다 */
               <p className="flex h-[38px] items-center text-sm text-slate-600">
-                {dept || "소속된 부서가 없어요"}
+                {deptList[0]?.name ?? "소속된 부서가 없어요"}
               </p>
             ) : (
               <select
                 id="lk-dept"
                 className={FIELD}
-                value={dept}
-                onChange={(e) => changeDept(e.target.value)}
+                value={deptId ?? ""}
+                onChange={(e) => changeDept(e.target.value === "" ? null : Number(e.target.value))}
               >
+                <option value="">부서 없음</option>
                 {deptList.map((d) => (
-                  <option key={d} value={d}>
-                    {d}
+                  <option key={d.id} value={d.id}>
+                    {d.name}
                   </option>
                 ))}
               </select>
@@ -128,16 +140,16 @@ export function LinkCreateModal({
             <select
               id="lk-rank"
               className={FIELD}
-              value={rank}
+              value={roleId ?? ""}
               disabled={rankList.length === 0}
-              onChange={(e) => setRank(e.target.value)}
+              onChange={(e) => setRoleId(Number(e.target.value))}
             >
               {rankList.length === 0 ? (
                 <option value="">줄 수 있는 직급이 없어요</option>
               ) : (
-                rankList.map((n) => (
-                  <option key={n} value={n}>
-                    {n}
+                rankList.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}
                   </option>
                 ))
               )}
@@ -148,12 +160,7 @@ export function LinkCreateModal({
             <label htmlFor="lk-limit" className="mb-1.5 block text-sm font-medium text-slate-700">
               사용 한도
             </label>
-            <select
-              id="lk-limit"
-              className={FIELD}
-              value={limit}
-              onChange={(e) => setLimit(Number(e.target.value))}
-            >
+            <select id="lk-limit" className={FIELD} value={limit} onChange={(e) => setLimit(Number(e.target.value))}>
               {LIMITS.map((n) => (
                 <option key={n} value={n}>
                   {n}명
@@ -167,12 +174,7 @@ export function LinkCreateModal({
             <label htmlFor="lk-exp" className="mb-1.5 block text-sm font-medium text-slate-700">
               만료
             </label>
-            <select
-              id="lk-exp"
-              className={FIELD}
-              value={days}
-              onChange={(e) => setDays(Number(e.target.value))}
-            >
+            <select id="lk-exp" className={FIELD} value={days} onChange={(e) => setDays(Number(e.target.value))}>
               {DAYS.map((n) => (
                 <option key={n} value={n}>
                   {n}일 뒤
@@ -186,12 +188,10 @@ export function LinkCreateModal({
 
         <div className="mt-4 overflow-hidden rounded-xl border border-slate-200">
           <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-slate-50 px-3 py-2">
-            <span className="text-xs font-semibold text-slate-600">
-              이 링크로 들어오면 볼 수 있는 탭
-            </span>
+            <span className="text-xs font-semibold text-slate-600">이 링크로 들어오면 볼 수 있는 탭</span>
             <span className="text-[11px] text-slate-400">읽기 전용</span>
           </div>
-          <RankTabsPreview role={role} />
+          <RankTabsPreview role={role ? roleDefOf(role) : null} />
         </div>
       </div>
     </Modal>

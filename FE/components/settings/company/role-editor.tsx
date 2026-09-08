@@ -401,9 +401,7 @@ export function RoleEditor() {
                     <IconLock size={14} className="mt-0.5 shrink-0" />
                     {role.code === "owner"
                       ? "소유자 직급은 모든 권한을 가지며 편집할 수 없어요."
-                      : role.system
-                        ? "고정 직급의 권한은 소유자만 고칠 수 있어요."
-                        : "이 직급은 편집할 수 없어요 — 내 권한보다 넓거나 내 직급이에요."}
+                      : "직급은 소유자만 고칠 수 있어요."}
                   </p>
                 )}
 

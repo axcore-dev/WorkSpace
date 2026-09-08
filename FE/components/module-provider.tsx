@@ -6,6 +6,7 @@ import {
   moduleStateFromServer,
   type ModuleState,
 } from "@/lib/module-state";
+import { SESSION_CHANGED } from "@/lib/session";
 import { getFeatures, putModuleFeatures } from "@/lib/workspace-api";
 
 /**
@@ -98,10 +99,12 @@ async function apply(slug: string, tabs: Record<string, boolean>): Promise<void>
   }
 }
 
-/** 모듈 전체 ON/OFF (서브기능 일괄 적용) */
-function setModule(slug: string, on: boolean): Promise<void> {
-  const tabs = Object.fromEntries(Object.keys(cache[slug].subs).map((k) => [k, on]));
-  return apply(slug, tabs);
+/**
+ * 모듈 전체 ON/OFF — 서브기능 일괄 적용. `only` 를 주면 그 탭들만 바꾼다(내 직급이 가진 탭만 만질 수 있는 경우).
+ */
+function setModule(slug: string, on: boolean, only?: string[]): Promise<void> {
+  const keys = only ?? Object.keys(cache[slug].subs);
+  return apply(slug, Object.fromEntries(keys.map((k) => [k, on])));
 }
 
 /** 서브기능 단위 ON/OFF */
@@ -109,10 +112,20 @@ function setSub(slug: string, sub: string, on: boolean): Promise<void> {
   return apply(slug, { [sub]: on });
 }
 
+// 로그인 · 회사 선택 · 로그아웃 — 다른 회사의 기능 상태가 남지 않게 다시 받는다
+if (typeof window !== "undefined") {
+  window.addEventListener(SESSION_CHANGED, () => {
+    invalidateModules();
+  });
+}
+
 export function useModules() {
   const state = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   useEffect(() => {
     void ensureLoaded();
+    const again = () => void ensureLoaded();
+    window.addEventListener(SESSION_CHANGED, again);
+    return () => window.removeEventListener(SESSION_CHANGED, again);
   }, []);
   return { state, setModule, setSub };
 }

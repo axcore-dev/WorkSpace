@@ -2,26 +2,20 @@
 
 import { useMemo, useRef, useState } from "react";
 import { Modal } from "@/components/modal";
-import { RankTabsPreview } from "@/components/settings/company/rank-perms";
+import { grantableRanks, invitableDepts } from "@/components/settings/company/link-create-modal";
+import type { PeopleData } from "@/components/settings/company/people-manager";
+import { RankTabsPreview, roleDefOf } from "@/components/settings/company/rank-perms";
 import { IconCheckCircle, IconUpload, IconX } from "@/components/icons";
 import { Badge, Button, FIELD } from "@/components/ui";
-import {
-  DEPARTMENTS,
-  PENDING_INVITES,
-  ROLES,
-  USERS_ROLES,
-  WORK_DOMAINS,
-  currentRole,
-} from "@/data/org";
-import { grantableRanks, invitableDepts } from "@/data/grants";
 import {
   classifyEmail,
   parseInviteCsv,
   splitEmails,
-  summarize,
   type InviteRow,
   type InviteVerdict,
 } from "@/data/invite";
+import { ApiRequestError } from "@/lib/api";
+import { inviteMembers, type InviteResultDto, type WorkspaceMeDto } from "@/lib/workspace-api";
 
 type Mode = "direct" | "file";
 
@@ -33,23 +27,8 @@ const TONE: Record<InviteVerdict["kind"], "green" | "amber" | "red" | "slate"> =
   bad: "red",
 };
 
-/**
- * 이 부서에서 **내가 줄 수 있는** 직급.
- *
- * 직급은 부서 안에 있고(부서로 한 번 거른다), 그중에서도 내 권한 안에 드는 것만 남긴다 —
- * 내가 못 보는 탭을 남에게 열어 줄 수 없다 (`data/grants.ts`).
- */
-function ranksOf(dept: string): string[] {
-  return grantableRanks(currentRole(), ROLES.filter((r) => r.dept === dept)).map((r) => r.name);
-}
-
-function verdictCtx() {
-  return {
-    members: USERS_ROLES.map((u) => u.email),
-    pending: PENDING_INVITES.map((p) => p.email),
-    workDomains: [...WORK_DOMAINS],
-  };
-}
+/** 보낸 결과 — 보냈다 · 서버가 건너뛰었다 · 화면에서 이미 걸러졌다(고쳐야 하는 줄) */
+type Sent = { sent: number; skipped: number; blocked: number };
 
 /**
  * 구성원 초대 팝업.
@@ -57,47 +36,65 @@ function verdictCtx() {
  * **한 번에 여러 명이다.** 직접 입력은 주소를 칩으로 쌓고, 파일은 이름·이메일·부서·직급
  * 네 칸짜리 CSV를 읽는다. 판정 로직은 `data/invite.ts`에 있고 테스트가 지킨다.
  *
- * **권한을 여기서 만들지 않는다.** 예전에는 이 팝업에서 기능을 직접 켰는데, 이제 권한은
- * 직급이 정하고 직급은 권한 관리(소유자 전용)에서 만든다. 여기서는 고른 직급이 어떤 탭을
- * 여는지 **읽기 전용**으로 보여줄 뿐이다 — 안 그러면 초대하는 사람이 우회로 권한을 만든다.
+ * **권한을 여기서 만들지 않는다.** 권한은 직급이 정하고 직급은 권한 관리에서 만든다. 여기서는 고른 직급이 어떤 탭을
+ * 여는지 **읽기 전용**으로 보여줄 뿐이다. 고를 수 있는 직급은 서버가 `assignable` 로 준 것만 — 내가 못 보는 탭을
+ * 남에게 열어 줄 수 없다(서버 `PeopleGuard` 가 같은 규칙으로 거절한다).
  *
- * 「팀장 관점 미리보기」 토글은 뺐다. 위임 여부는 고를 수 있는 직급 목록이 줄어드는 것으로
- * 드러나는 게 맞다 — 관점을 바꿔 보는 것보다 실제로 못 고르는 편이 정확하다.
+ * 보내기는 `POST /api/workspace/invitations` — 서버가 주소마다 보냈는지/건너뛰었는지를 돌려주고 메일을 보낸다.
+ * 화면의 사전 판정(이미 구성원 · 초대 중 · 형식)은 서버 판정을 미리 보여 주는 것이고, 최종은 응답이다.
  *
  * **엑셀(.xlsx)은 아직 안 받는다.** 읽으려면 패키지가 하나 필요하고 그건 승인 사항이다
  * (루트 CLAUDE.md 의존성 규칙). CSV는 지금 코드로 읽는다.
- *
- * **BE 연동 seam**: `send()`가 초대 발급 API를 부른다. 운영자 콘솔 쪽에는 이미 발급·목록·
- * 취소가 있다(`lib/admin-api.ts`) — 고객 워크스페이스 관리자용이 생기면 그걸 부른다.
  */
-export function InviteModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function InviteModal({
+  open,
+  onClose,
+  data,
+  me,
+  onSent,
+}: {
+  open: boolean;
+  onClose: () => void;
+  data: PeopleData;
+  me: WorkspaceMeDto | null;
+  onSent: () => void;
+}) {
   const [mode, setMode] = useState<Mode>("direct");
   const [emails, setEmails] = useState<string[]>([]);
   const [draft, setDraft] = useState("");
-  /**
-   * 고를 수 있는 부서 — 전체 범위가 아니면 **자기 부서 하나로 고정**된다.
-   * 부서 범위인 사람이 남의 부서로 사람을 부르면 자기가 볼 수 없는 곳에 구성원을 만드는
-   * 셈이라, 부른 뒤에 확인도 못 한다 (`data/grants.ts`).
-   */
-  const deptList = invitableDepts(currentRole(), DEPARTMENTS);
+  const deptList = invitableDepts(me, data.depts);
   const deptLocked = deptList.length <= 1;
 
-  const [dept, setDept] = useState<string>(deptList[0] ?? "");
-  const [rank, setRank] = useState<string>(ranksOf(deptList[0] ?? "")[0] ?? "");
+  const [deptId, setDeptId] = useState<number | null>(deptList[0]?.id ?? null);
+  const [roleId, setRoleId] = useState<number | null>(grantableRanks(data.roles, deptList[0]?.id ?? null)[0]?.id ?? null);
   const [rows, setRows] = useState<InviteRow[]>([]);
   const [fileName, setFileName] = useState("");
   const [picked, setPicked] = useState<number | null>(null);
-  const [sent, setSent] = useState<ReturnType<typeof summarize> | null>(null);
+  const [sent, setSent] = useState<Sent | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // 목록은 렌더마다 다시 만들 이유가 없다 — 판정이 매번 배열을 훑는다
-  const ctx = useMemo(() => verdictCtx(), []);
-  const rankList = ranksOf(dept);
+  // 회사 메일 도메인은 따로 설정이 없다 — 지금 구성원들의 주소 도메인을 회사 것으로 본다
+  const ctx = useMemo(
+    () => ({
+      members: data.members.map((u) => u.email),
+      pending: data.pending.map((p) => p.email),
+      workDomains: [...new Set(data.members.map((u) => u.email.slice(u.email.lastIndexOf("@") + 1)))],
+    }),
+    [data.members, data.pending],
+  );
 
-  function changeDept(next: string) {
-    setDept(next);
+  const rankList = grantableRanks(data.roles, deptId);
+  /** 부서 이름 → id, 직급 이름 → 직급. CSV 는 이름으로 적혀 온다 */
+  const deptByName = (name: string | null) => deptList.find((d) => d.name === name) ?? null;
+  const rankNamesOf = (deptName: string) =>
+    grantableRanks(data.roles, deptByName(deptName)?.id ?? null).map((r) => r.name);
+
+  function changeDept(next: number | null) {
+    setDeptId(next);
     // 부서를 바꾸면 직급도 그 부서 것으로 옮긴다 — 안 하면 없는 조합이 남는다
-    setRank(ranksOf(next)[0] ?? "");
+    setRoleId(grantableRanks(data.roles, next)[0]?.id ?? null);
   }
 
   /* ── 직접 입력 ── */
@@ -117,7 +114,7 @@ export function InviteModal({ open, onClose }: { open: boolean; onClose: () => v
     const text = await file.text();
     setFileName(file.name);
     // 파일에도 같은 제약이 걸린다 — 고를 수 없는 부서·직급은 비워 두고 화면에서 고치게 한다
-    setRows(parseInviteCsv(text, { depts: deptList, ranksOf }));
+    setRows(parseInviteCsv(text, { depts: deptList.map((d) => d.name), ranksOf: rankNamesOf }));
     setPicked(null);
   }
 
@@ -127,7 +124,7 @@ export function InviteModal({ open, onClose }: { open: boolean; onClose: () => v
         if (k !== i) return r;
         const next = { ...r, ...patch };
         // 부서를 바꾸면 그 부서에 없는 직급은 버린다
-        if (patch.dept !== undefined && next.rank && !ranksOf(patch.dept ?? "").includes(next.rank)) {
+        if (patch.dept !== undefined && next.rank && !rankNamesOf(patch.dept ?? "").includes(next.rank)) {
           next.rank = null;
         }
         return next;
@@ -145,13 +142,61 @@ export function InviteModal({ open, onClose }: { open: boolean; onClose: () => v
   }
 
   const verdicts = mode === "direct" ? chips.map((c) => c.v) : rows.map(rowVerdict);
-  const tally = summarize(verdicts);
+  const sendable = verdicts.filter((v) => v.kind === "ok" || v.kind === "warn").length;
+  const notSendable = verdicts.length - sendable;
+  const canSend = sendable > 0 && (mode === "file" || roleId !== null);
 
   const pickedRow = picked !== null ? rows[picked] : null;
   const previewRole =
     mode === "direct"
-      ? (ROLES.find((r) => r.dept === dept && r.name === rank) ?? null)
-      : (ROLES.find((r) => r.dept === pickedRow?.dept && r.name === pickedRow?.rank) ?? null);
+      ? (data.roles.find((r) => r.id === roleId) ?? null)
+      : (data.roles.find((r) => r.name === pickedRow?.rank) ?? null);
+
+  /* ── 보내기 ── */
+  async function send() {
+    setBusy(true);
+    setError(null);
+    try {
+      const results: InviteResultDto[] = [];
+      let blocked = 0;
+      if (mode === "direct") {
+        if (roleId === null) return;
+        const list = chips.filter((c) => c.v.kind === "ok" || c.v.kind === "warn").map((c) => c.email);
+        blocked = chips.length - list.length;
+        results.push(await inviteMembers({ emails: list, roleId, departmentId: deptId }));
+      } else {
+        // 줄마다 직급·부서가 다르다 — 같은 조합끼리 묶어 한 번씩 보낸다
+        const groups = new Map<string, { roleId: number; departmentId: number | null; emails: string[] }>();
+        for (const r of rows) {
+          const v = rowVerdict(r);
+          if (v.kind !== "ok" && v.kind !== "warn") {
+            blocked += 1;
+            continue;
+          }
+          const dept = deptByName(r.dept);
+          const role = data.roles.find((x) => x.name === r.rank);
+          if (!role) {
+            blocked += 1;
+            continue;
+          }
+          const key = `${role.id}:${dept?.id ?? ""}`;
+          const g = groups.get(key) ?? { roleId: role.id, departmentId: dept?.id ?? null, emails: [] };
+          g.emails.push(r.email);
+          groups.set(key, g);
+        }
+        for (const g of groups.values()) {
+          results.push(await inviteMembers(g));
+        }
+      }
+      const lines = results.flatMap((r) => r.results);
+      setSent({ sent: lines.filter((l) => l.status === "sent").length, skipped: lines.length - lines.filter((l) => l.status === "sent").length, blocked });
+      onSent();
+    } catch (e) {
+      setError(e instanceof ApiRequestError ? e.body.message : "초대를 보내지 못했어요");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   function close() {
     setMode("direct");
@@ -161,6 +206,7 @@ export function InviteModal({ open, onClose }: { open: boolean; onClose: () => v
     setFileName("");
     setPicked(null);
     setSent(null);
+    setError(null);
     onClose();
   }
 
@@ -174,16 +220,15 @@ export function InviteModal({ open, onClose }: { open: boolean; onClose: () => v
         !sent && (
           <div className="flex flex-wrap items-center justify-between gap-3">
             <span className="text-xs text-slate-400">
-              {tally.sending}명에게 보냅니다
-              {tally.skipped + tally.blocked > 0 &&
-                ` · ${tally.skipped + tally.blocked}명은 건너뜁니다`}
+              {sendable}명에게 보냅니다
+              {notSendable > 0 && ` · ${notSendable}명은 건너뜁니다`}
             </span>
             <span className="flex gap-2">
               <Button variant="secondary" onClick={close}>
                 취소
               </Button>
-              <Button disabled={tally.sending === 0} onClick={() => setSent(tally)}>
-                초대 보내기
+              <Button disabled={!canSend || busy} onClick={() => void send()}>
+                {busy ? "보내는 중…" : "초대 보내기"}
               </Button>
             </span>
           </div>
@@ -194,17 +239,11 @@ export function InviteModal({ open, onClose }: { open: boolean; onClose: () => v
         <div className="flex flex-col items-center justify-center px-6 py-12 text-center">
           <IconCheckCircle size={40} className="text-emerald-600" />
           <p className="mt-3 text-sm font-semibold text-slate-900">
-            {sent.total}명 중 {sent.sending}명에게 초대를 보냈어요
+            {sent.sent + sent.skipped + sent.blocked}명 중 {sent.sent}명에게 초대를 보냈어요
           </p>
           {sent.skipped + sent.blocked > 0 && (
             <p className="mt-1.5 max-w-sm text-sm text-slate-500">
-              {[
-                sent.skipped > 0 && `이미 있거나 초대 중인 ${sent.skipped}명`,
-                sent.blocked > 0 && `고쳐야 하는 ${sent.blocked}명`,
-              ]
-                .filter(Boolean)
-                .join(", ")}
-              은 건너뛰었어요.
+              이미 있거나 초대 중인 {sent.skipped}명, 고쳐야 하는 {sent.blocked}명은 건너뛰었어요.
             </p>
           )}
           <Button className="mt-5" onClick={close}>
@@ -240,6 +279,12 @@ export function InviteModal({ open, onClose }: { open: boolean; onClose: () => v
               );
             })}
           </div>
+
+          {error && (
+            <p className="mt-4 rounded-md bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
+              {error}
+            </p>
+          )}
 
           {mode === "direct" ? (
             <div className="mt-4">
@@ -301,10 +346,9 @@ export function InviteModal({ open, onClose }: { open: boolean; onClose: () => v
                   className="min-w-[150px] flex-1 bg-transparent px-1.5 py-1 text-[13px] text-slate-900 outline-none"
                 />
               </div>
-              {tally.total > 0 && tally.sending < tally.total && (
+              {chips.length > 0 && notSendable > 0 && (
                 <p className="mt-1.5 text-xs text-slate-400">
-                  {tally.total}명 중 {tally.total - tally.sending}명은 보낼 수 없어요 — 칩에
-                  커서를 올리면 이유가 보여요
+                  {chips.length}명 중 {notSendable}명은 보낼 수 없어요 — 칩에 커서를 올리면 이유가 보여요
                 </p>
               )}
             </div>
@@ -327,16 +371,9 @@ export function InviteModal({ open, onClose }: { open: boolean; onClose: () => v
                   void readFile(e.dataTransfer.files?.[0]);
                 }}
               >
-                <p className="text-[13.5px] font-semibold text-slate-700">
-                  CSV를 여기에 끌어다 놓으세요
-                </p>
+                <p className="text-[13.5px] font-semibold text-slate-700">CSV를 여기에 끌어다 놓으세요</p>
                 <p className="mt-1 text-xs text-slate-400">이름 · 이메일 · 부서 · 직급</p>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="mt-3"
-                  onClick={() => fileRef.current?.click()}
-                >
+                <Button variant="secondary" size="sm" className="mt-3" onClick={() => fileRef.current?.click()}>
                   <IconUpload size={14} />
                   파일 고르기
                 </Button>
@@ -373,9 +410,7 @@ export function InviteModal({ open, onClose }: { open: boolean; onClose: () => v
                             }`}
                           >
                             <td className="py-2 pr-3 font-medium text-slate-900">{r.name}</td>
-                            <td className="px-3 py-2 font-mono text-[11.5px] text-slate-500">
-                              {r.email}
-                            </td>
+                            <td className="px-3 py-2 font-mono text-[11.5px] text-slate-500">{r.email}</td>
                             <td className="px-3 py-2">
                               {/* 없는 이름은 자동으로 고르지 않는다 — 잘못 짚으면 엉뚱한 권한이 나간다 */}
                               {r.dept ? (
@@ -390,8 +425,8 @@ export function InviteModal({ open, onClose }: { open: boolean; onClose: () => v
                                 >
                                   <option value="">고르기</option>
                                   {deptList.map((d) => (
-                                    <option key={d} value={d}>
-                                      {d}
+                                    <option key={d.id} value={d.name}>
+                                      {d.name}
                                     </option>
                                   ))}
                                 </select>
@@ -409,7 +444,7 @@ export function InviteModal({ open, onClose }: { open: boolean; onClose: () => v
                                   onChange={(e) => fixRow(i, { rank: e.target.value })}
                                 >
                                   <option value="">고르기</option>
-                                  {ranksOf(r.dept).map((n) => (
+                                  {rankNamesOf(r.dept).map((n) => (
                                     <option key={n} value={n}>
                                       {n}
                                     </option>
@@ -420,9 +455,7 @@ export function InviteModal({ open, onClose }: { open: boolean; onClose: () => v
                               )}
                             </td>
                             <td className="py-2 pl-3">
-                              <Badge tone={TONE[v.kind]}>
-                                {v.kind === "ok" ? "보낼 수 있어요" : v.why}
-                              </Badge>
+                              <Badge tone={TONE[v.kind]}>{v.kind === "ok" ? "보낼 수 있어요" : v.why}</Badge>
                             </td>
                           </tr>
                         );
@@ -445,19 +478,20 @@ export function InviteModal({ open, onClose }: { open: boolean; onClose: () => v
                   /* 고를 게 하나뿐이면 드롭다운을 두지 않는다 — 눌러도 안 바뀌는 컨트롤이
                      제일 헷갈린다. 값과 이유만 보인다 */
                   <p className="flex h-[38px] items-center gap-2 text-sm text-slate-600">
-                    {dept || "소속된 부서가 없어요"}
+                    {deptList[0]?.name ?? "소속된 부서가 없어요"}
                     <Badge tone="slate">내 부서로 고정</Badge>
                   </p>
                 ) : (
                   <select
                     id="inv-dept"
-                    value={dept}
-                    onChange={(e) => changeDept(e.target.value)}
+                    value={deptId ?? ""}
+                    onChange={(e) => changeDept(e.target.value === "" ? null : Number(e.target.value))}
                     className={FIELD}
                   >
+                    <option value="">부서 없음</option>
                     {deptList.map((d) => (
-                      <option key={d} value={d}>
-                        {d}
+                      <option key={d.id} value={d.id}>
+                        {d.name}
                       </option>
                     ))}
                   </select>
@@ -469,17 +503,17 @@ export function InviteModal({ open, onClose }: { open: boolean; onClose: () => v
                 </label>
                 <select
                   id="inv-rank"
-                  value={rank}
-                  onChange={(e) => setRank(e.target.value)}
+                  value={roleId ?? ""}
+                  onChange={(e) => setRoleId(Number(e.target.value))}
                   disabled={rankList.length === 0}
                   className={FIELD}
                 >
                   {rankList.length === 0 ? (
                     <option value="">줄 수 있는 직급이 없어요</option>
                   ) : (
-                    rankList.map((n) => (
-                      <option key={n} value={n}>
-                        {n}
+                    rankList.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name}
                       </option>
                     ))
                   )}
@@ -500,7 +534,7 @@ export function InviteModal({ open, onClose }: { open: boolean; onClose: () => v
               </span>
               <span className="text-[11px] text-slate-400">읽기 전용</span>
             </div>
-            <RankTabsPreview role={previewRole} />
+            <RankTabsPreview role={previewRole ? roleDefOf(previewRole) : null} />
           </div>
         </div>
       )}

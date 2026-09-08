@@ -14,6 +14,8 @@ import java.util.List;
  * @param memberCount 이 직급을 가진 구성원 수. 0 이 아니면 지울 때 옮길 곳이 필요하다
  * @param editable    <b>지금 부른 사람이</b> 이 직급을 고칠 수 있는가. 서버 규칙(소유자 직급 불가 · 관리자는 자기 권한 안 ·
  *                    자기 직급 불가)을 미리 계산해 준다. 화면은 이 값으로 잠근다 — 보안 경계는 서버의 PUT 검사다
+ * @param assignable  <b>지금 부른 사람이</b> 이 직급을 남에게 줄 수 있는가(초대 · 소속 변경). 소유자 직급은 아무도 못 주고,
+ *                    관리자·위임받은 사람은 자기 권한 안의 직급만. 초대 팝업의 직급 목록이 이 값으로 걸러진다
  */
 public record RoleResponse(
         Long id,
@@ -29,4 +31,5 @@ public record RoleResponse(
         boolean showAmounts,
         List<String> tabs,
         int memberCount,
-        boolean editable) {}
+        boolean editable,
+        boolean assignable) {}

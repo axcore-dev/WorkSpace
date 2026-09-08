@@ -95,7 +95,9 @@ public class SecurityConfig {
                                                 //   초대인지 모르는 채로 가입을 요구할 수는 없다.
                                                 //   회사 이름과 대상 주소까지만 돌려준다.
                                                 //   수락(accept)은 로그인이 필요하다.
-                                                "/api/auth/invitations/preview")
+                                                "/api/auth/invitations/preview",
+                                                // invite-links/preview — 회사 관리자가 만든 초대 링크. 같은 이유로 로그인 전에 연다
+                                                "/api/auth/invite-links/preview")
                                         .permitAll()
                                         .requestMatchers("/actuator/health/**")
                                         .permitAll()

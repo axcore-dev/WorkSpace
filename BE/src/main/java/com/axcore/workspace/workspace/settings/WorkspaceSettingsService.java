@@ -62,9 +62,12 @@ public class WorkspaceSettingsService {
     }
 
     /**
-     * 한 모듈의 탭을 켜고 끈다. 관리자만.
+     * 한 모듈의 탭을 켜고 끈다. 관리자만, 그리고 <b>자기 직급이 가진 탭만</b>.
      *
-     * <p>넘어온 탭이 전부 그 모듈의 것인지 카탈로그로 본다. 하나라도 어긋나면 아무것도 저장하지 않는다 —
+     * <p>회사 설정 권한({@code is_admin})이 있어도 자기 직급에 없는 기능은 켜고 끌 수 없다 — 경영지원·영업만 받은 팀장이
+     * 생산관리를 켜면 자기가 볼 수도 없는 화면을 회사 전체에 여는 셈이다. 소유자는 전부다.
+     *
+     * <p>넘어온 탭이 전부 그 모듈의 것이고 내 권한 안인지 먼저 본다. 하나라도 어긋나면 아무것도 저장하지 않는다 —
      * 절반만 저장되면 화면이 보여 주는 것과 DB 가 다른 상태로 남는다.
      */
     @Transactional
@@ -72,6 +75,7 @@ public class WorkspaceSettingsService {
             JwtPrincipal principal, String moduleSlug, FeatureUpdateRequest request) {
         TenantContext ctx = access.open(principal);
         ctx.requireAdmin();
+        RolePermissions mine = permissions.forContext(ctx);
 
         FeatureCatalog.Module module =
                 FeatureCatalog.module(moduleSlug)
@@ -83,6 +87,9 @@ public class WorkspaceSettingsService {
             }
             if (e.getValue() == null) {
                 throw new SettingsValidationException("탭 상태는 true 또는 false 여야 합니다: " + e.getKey());
+            }
+            if (!mine.tabs().contains(e.getKey())) {
+                throw new SettingsForbiddenException("내 직급에 없는 기능은 켜고 끌 수 없습니다: " + module.name());
             }
         }
 

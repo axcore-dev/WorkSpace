@@ -66,6 +66,23 @@ public class TenantMemberWriter {
      */
     @Transactional
     public void join(String schemaName, UUID userId, boolean asOwner) {
+        insert(schemaName, userId, null, asOwner ? OWNER : ADMIN, null);
+    }
+
+    /**
+     * 회사 관리자의 초대(이메일 · 링크)로 들어온 사람을 그 초대의 직급·부서로 넣는다. 이미 있으면 아무 일도 하지 않는다.
+     *
+     * <p>초대에 실린 직급이 그 사이 지워졌을 수 있다(초대는 shared 에, 직급은 테넌트에 있어 FK 가 없다).
+     * 그러면 {@code member} 직급으로 넣는다 — 못 들어오는 것보다 낮은 직급으로 들어오는 편이 낫고, 관리자가 올려 주면 된다.
+     * 부서도 마찬가지로 없으면 비운다.
+     */
+    @Transactional
+    public void joinWithRole(String schemaName, UUID userId, Long roleId, Long departmentId) {
+        insert(schemaName, userId, roleId, "member", departmentId);
+    }
+
+    /** 직급은 id 가 있으면 그것, 없으면 {@code fallbackCode}. 부서는 있으면 그것, 없으면 비운다. */
+    private void insert(String schemaName, UUID userId, Long roleId, String fallbackCode, Long departmentId) {
         if (isBlank(schemaName)) {
             log.warn("스키마가 없는 워크스페이스에 구성원을 넣으려 했다. 사용자 {}", userId);
             return;
@@ -74,14 +91,19 @@ public class TenantMemberWriter {
 
         jdbcTemplate.update(
                 """
-                insert into members (user_id, role_id, status, created_at, updated_at)
-                select ?, (select id from roles where code = ?), 'active', now(), now()
+                insert into members (user_id, role_id, department_id, status, created_at, updated_at)
+                select ?,
+                       coalesce((select id from roles where id = ?::bigint), (select id from roles where code = ?)),
+                       (select id from departments where id = ?::bigint),
+                       'active', now(), now()
                 on conflict (user_id) do nothing
                 """,
                 userId,
-                asOwner ? OWNER : ADMIN);
+                roleId,
+                fallbackCode,
+                departmentId);
 
-        log.info("테넌트 {} 에 구성원 {} 를 {} 로 넣었다", schemaName, userId, asOwner ? OWNER : ADMIN);
+        log.info("테넌트 {} 에 구성원 {} 를 넣었다 (직급 {} / {} · 부서 {})", schemaName, userId, roleId, fallbackCode, departmentId);
     }
 
     /**

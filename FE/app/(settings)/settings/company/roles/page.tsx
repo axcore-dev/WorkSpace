@@ -5,7 +5,7 @@ import { RolesDenied } from "@/components/settings/company/roles-denied";
 import { canManageRoles, useWorkspaceMe } from "@/lib/workspace-me";
 
 /**
- * 회사 › 권한 관리 — **소유자 · 관리자 전용**.
+ * 회사 › 권한 관리 — **소유자 전용**.
  *
  * 내비에서도 감추지만(`settings-nav.tsx`) 주소로 직접 들어올 수 있어서 여기서도 막는다.
  * 판정은 서버가 준 내 자격(`GET /api/workspace/me`)으로 한다. **보안 경계는 아니다** — 실제 차단은
@@ -19,6 +19,17 @@ export default function Page() {
 
   if (status === "idle" || status === "loading") {
     return <h1 className="text-xl font-bold tracking-tight text-slate-900">권한 관리</h1>;
+  }
+  if (status === "error") {
+    // 자격을 못 받은 것과 자격이 없는 것은 다르다 — 로그인이 끊겼거나 회사를 고르지 않은 경우가 대부분이다
+    return (
+      <>
+        <h1 className="text-xl font-bold tracking-tight text-slate-900">권한 관리</h1>
+        <p className="mt-6 text-sm text-slate-500">
+          내 자격을 확인하지 못했어요. 로그인이 끊겼거나 회사를 아직 고르지 않았을 수 있어요. 새로고침해 주세요.
+        </p>
+      </>
+    );
   }
   if (!canManageRoles(me)) return <RolesDenied />;
 

@@ -2,6 +2,25 @@
 
 import { MODULES } from "@/data/modules";
 import type { RoleDef } from "@/data/roles";
+import type { RoleDto } from "@/lib/workspace-api";
+
+/** 서버 직급 → 화면 직급 모양. 회사 권한 두 개는 탭과 같은 목록(`perms`)에 `ws:*` 로 들어간다 */
+export function roleDefOf(r: RoleDto): RoleDef {
+  return {
+    id: String(r.id),
+    name: r.name,
+    system: r.system,
+    dept: r.departmentName,
+    perms: [
+      ...(r.admin ? ["ws:settings"] : []),
+      ...(r.canManageIntegrations ? ["ws:integrations"] : []),
+      ...r.tabs,
+    ],
+    scope: r.dataScope,
+    showAmounts: r.showAmounts,
+    canDelegateInvite: r.canInvite,
+  };
+}
 
 /** 이 직급이 볼 수 있는 서브기능 탭 id — 여러 화면이 같은 계산을 쓴다 */
 export function grantedTabs(role: RoleDef, slug: string): string[] {

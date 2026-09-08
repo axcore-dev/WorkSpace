@@ -6,7 +6,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { AuthSplit } from "@/components/auth-shell";
 import { ApiRequestError, apiGet, apiPost } from "@/lib/api";
 import { PROVIDER_LABELS, SocialProvider, consumeState } from "@/lib/auth";
-import { readInvite } from "@/lib/pending-invite";
+import { inviteHref, readInvite } from "@/lib/pending-invite";
 import { DEMO_USER } from "@/data/org";
 
 /** BE의 LoginResponse.AuthStep 과 같은 값이어야 한다. */
@@ -118,7 +118,7 @@ function OAuthCallbackContent() {
         // 것과 같은 판단이다. 주소가 맞는지는 초대 화면이 /me 로 다시 확인한다.
         const invite = readInvite();
         if (invite) {
-          router.replace(`/invite/accept?token=${encodeURIComponent(invite.token)}`);
+          router.replace(inviteHref(invite));
           return;
         }
 

@@ -49,6 +49,11 @@ public record MailProperties(
         return "%s/invite/accept?token=%s".formatted(trimmedBaseUrl(), token);
     }
 
+    /** 회사 관리자가 만든 초대 링크(주소에 묶이지 않음). 화면이 다르다 — 이메일 고정이 없다. */
+    public String workspaceInviteLinkLink(String token) {
+        return "%s/invite/link?token=%s".formatted(trimmedBaseUrl(), token);
+    }
+
     private String trimmedBaseUrl() {
         return baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
     }

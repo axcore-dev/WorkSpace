@@ -18,7 +18,7 @@ import java.util.List;
  * 지우려면 직급을 다른 부서로 옮기거나 먼저 지운다({@code moveRolesTo}). DB 의 {@code ON DELETE RESTRICT} 가 같은 규칙을
  * 마지막에 한 번 더 지킨다. 구성원의 소속 부서는 {@code SET NULL} 로 풀린다 — 부서가 사라지는 것과 사람이 사라지는 것은 다르다.
  *
- * <p>관리자면 다룰 수 있다. 부서는 권한을 담지 않으므로 직급 편집보다 문턱이 낮다.
+ * <p>소유자만 다룬다 — 권한 관리 화면 전체가 소유자 전용이다(2026-09-08 변경).
  * 이름 중복은 DB 의 {@code ux_departments_name} 이 막고 {@code GlobalExceptionHandler} 가 409 로 옮긴다.
  */
 @Service
@@ -43,7 +43,7 @@ public class DepartmentService {
     @Transactional
     public DepartmentResponse create(JwtPrincipal principal, DepartmentRequest request) {
         TenantContext ctx = access.open(principal);
-        ctx.requireAdmin();
+        ctx.requireOwner();
         String name = request.name().trim();
         Long id =
                 jdbc.queryForObject(
@@ -57,7 +57,7 @@ public class DepartmentService {
     @Transactional
     public DepartmentResponse rename(JwtPrincipal principal, long id, DepartmentRequest request) {
         TenantContext ctx = access.open(principal);
-        ctx.requireAdmin();
+        ctx.requireOwner();
         requireExists(id);
         jdbc.update("update departments set name = ?, updated_at = now() where id = ?", request.name().trim(), id);
         log.info("워크스페이스 {} 부서 {} 의 이름을 사용자 {} 가 바꿨다", ctx.workspaceId(), id, ctx.userId());
@@ -72,7 +72,7 @@ public class DepartmentService {
     @Transactional
     public void delete(JwtPrincipal principal, long id, Long moveRolesTo) {
         TenantContext ctx = access.open(principal);
-        ctx.requireAdmin();
+        ctx.requireOwner();
         requireExists(id);
 
         int roles = jdbc.queryForObject("select count(*) from roles where department_id = ?", Integer.class, id);

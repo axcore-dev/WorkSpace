@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useSyncExternalStore } from "react";
+import { SESSION_CHANGED } from "@/lib/session";
 import { getWorkspaceMe, type WorkspaceMeDto } from "@/lib/workspace-api";
 
 /**
@@ -54,15 +55,30 @@ export function refreshWorkspaceMe(): Promise<void> {
   return ensureLoaded();
 }
 
+// 로그인 · 회사 선택 · 로그아웃으로 토큰이 바뀌면 이전 사람의 자격을 버린다. 토큰 재발급(같은 세션)도 이 이벤트를 내지만
+// 그때는 값이 같아 한 번 더 받는 비용뿐이다.
+if (typeof window !== "undefined") {
+  window.addEventListener(SESSION_CHANGED, () => {
+    commit(INITIAL);
+  });
+}
+
 export function useWorkspaceMe() {
   const s = useSyncExternalStore(subscribe, () => state, () => INITIAL);
   useEffect(() => {
     void ensureLoaded();
+    // 세션이 바뀌어 비워졌으면 화면이 살아 있는 동안 다시 받는다
+    const again = () => void ensureLoaded();
+    window.addEventListener(SESSION_CHANGED, again);
+    return () => window.removeEventListener(SESSION_CHANGED, again);
   }, []);
   return { me: s.me, status: s.status, refresh: refreshWorkspaceMe };
 }
 
-/** 권한 관리 화면을 열 수 있는가 — 소유자 또는 관리자. 받기 전에는 false 다 */
+/**
+ * 권한 관리 화면을 열고, 초대 관리에서 무엇을 바꿀 수 있는가 — **소유자만**.
+ * 직급·권한·구성원을 정하는 자리는 회사를 대표하는 한 사람에게만 둔다(2026-09-08). 받기 전에는 false 다.
+ */
 export function canManageRoles(me: WorkspaceMeDto | null): boolean {
-  return !!me && (me.member.owner || me.member.admin);
+  return !!me?.member.owner;
 }

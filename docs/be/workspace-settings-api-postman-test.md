@@ -48,7 +48,7 @@ POST {{baseUrl}}/api/auth/workspaces/{id}/select      → accessToken (wsid 있�
 |---|---|---|---|
 | 1 | GET | `{{baseUrl}}/api/workspace/me` | 구성원 |
 | 2 | GET | `{{baseUrl}}/api/workspace/features` | 구성원 |
-| 3 | PUT | `{{baseUrl}}/api/workspace/features/{module}` | **관리자** |
+| 3 | PUT | `{{baseUrl}}/api/workspace/features/{module}` | **관리자 · 자기 직급이 가진 탭만**(소유자는 전부) |
 
 ---
 
@@ -146,16 +146,18 @@ Content-Type: application/json
 - `BE/.../workspace/settings/RolePermissions.java`(권한 묶음 · `covers` 부분집합 판정) · `RolePermissionReader.java`
 - tenant `V9__roles_department_scope.sql` · `V10__role_grants_by_tab.sql`
 
-## 누가 무엇을 고칠 수 있는가 (결정 B)
+## 누가 무엇을 고칠 수 있는가 (2026-09-08 변경 — 소유자만)
 
-| 대상 | 소유자 | 관리자(`is_admin`) | 그 외 |
-|---|---|---|---|
-| 부서 만들기 · 이름 · 지우기 | ○ | ○ | 읽기만 |
-| `owner` 직급 | × (고정, 권한은 항상 전부) | × | × |
-| `member` 직급 | 권한만 ○ (이름·부서·`admin` 고정) | × | × |
-| 그 밖의 직급 | ○ | **자기 권한 안에서만.** 고치기 전·후 상태가 모두 내 권한의 부분집합이어야 하고, 자기 직급은 불가 | × |
+처음엔 관리자도 자기 권한 안에서 편집할 수 있게 했지만(결정 B), 직급·권한·구성원을 정하는 자리는 회사를 대표하는 한 사람에게만 두기로 바꿨다.
 
-`GET /roles` 의 `editable` 이 이 표를 부른 사람 기준으로 계산해 준다. 화면은 그 값으로 잠근다 — 보안 경계는 서버의 PUT/DELETE 검사다.
+| 대상 | 소유자 | 그 외(관리자 포함) |
+|---|---|---|
+| 부서 만들기 · 이름 · 지우기 | ○ | 읽기만 |
+| `owner` 직급 | × (고정, 권한은 항상 전부) | × |
+| `member` 직급 | 권한만 ○ (이름·부서·`admin` 고정) | × |
+| 그 밖의 직급 | ○ | × |
+
+`GET /roles` 의 `editable` · `assignable` 은 소유자에게만 true 다(소유자 직급 제외). 화면은 그 값으로 잠근다 — 보안 경계는 서버의 `requireOwner` 다.
 
 ## 테스트 계정
 
@@ -217,3 +219,72 @@ owner DELETE /roles/3 (고정)             → 403 "고정 직급은 지울 수 
 owner DELETE /roles/7 · /departments/5   → 204 · 204
 introspect(admin) modules == GET /me modules
 ```
+
+---
+
+# 3단계: 구성원 · 이메일 초대 · 초대 링크 (`/api/workspace/members` · `/invitations` · `/invite-links`)
+
+설정 › 회사 › 초대 관리 화면의 API 다. 아래 응답은 로컬에서 실제로 호출한 값이다(2026-09-08).
+
+대상 코드
+- `BE/.../workspace/settings/PeopleSettingsController.java` · `MemberService.java` · `MemberInvitationService.java` · `InviteLinkService.java`
+- `BE/.../workspace/settings/PeopleGuard.java` — "내가 이 직급·부서를 줄 수 있는가" (초대 · 링크 · 소속 변경이 같은 규칙)
+- `BE/.../workspace/controller/InviteLinkController.java` — 링크를 연 사람의 공개 경로
+- `BE/.../workspace/service/TenantMemberWriter.joinWithRole` · `WorkspaceInvitationService.accept`(kind = member 분기)
+- shared `V18__member_invitations.sql`
+
+## 규칙
+
+| 무엇 | 누가 | 조건 |
+|---|---|---|
+| 구성원 목록 | 구성원 누구나 | |
+| 소속(부서·직급) 변경 · 초대 · 링크 | **소유자만**(2026-09-08 변경) | 소유자 직급은 줄 수 없다 |
+| 소속 변경 예외 | | 소유자의 소속은 불가 |
+| 이메일 초대 수락 | 초대받은 주소의 계정 | 기존 `/api/auth/invitations/accept`. 초대에 실린 직급·부서로 들어간다(직급이 지워졌으면 member) |
+| 링크 수락 | 이메일 확인된 아무 계정 | `use_count < max_uses` 를 한 문장으로 선점. 이미 구성원이면 자리를 쓰지 않는다 |
+
+`GET /roles` 의 `assignable` 이 "줄 수 있는 직급"(소유자에게 소유자 직급 제외 전부) 을 미리 준다 — 초대 팝업·링크 만들기·소속 변경의 직급 목록이 이 값으로 걸러진다.
+
+## 컬렉션
+
+| Method | URL | 가드 | 비고 |
+|---|---|---|---|
+| GET | `/api/workspace/members` | 구성원 | `roleCode = owner` 행은 소속 변경 불가 |
+| PATCH | `/api/workspace/members/{id}` `{"roleId","departmentId"}` | 소유자 | |
+| GET | `/api/workspace/invitations` | 소유자 | 살아 있는(pending) 직원 초대만 |
+| POST | `/api/workspace/invitations` `{"emails":[…],"roleId","departmentId"}` | 소유자 | 최대 100명. `results` 에 주소마다 `sent` / `skipped`(이유) — 합계는 화면이 센다. **메일은 시스템이 보낸다**(`MAIL_MODE=log` 면 BE 로그에 링크) |
+| POST | `/api/workspace/invitations/{id}/resend` | 소유자 | 새 링크 발급 + 메일. 이전 링크 회수 |
+| DELETE | `/api/workspace/invitations/{id}` | 소유자 | 회수 |
+| GET | `/api/workspace/invite-links` | 소유자 | `url` 은 null — 해시만 저장 |
+| POST | `/api/workspace/invite-links` `{"roleId","departmentId","maxUses"(1~50),"expiresInDays"(1~30)}` | 소유자 | 201. **`url` 은 이 응답에만** |
+| DELETE | `/api/workspace/invite-links/{id}` | 소유자 | 회수 |
+| POST | `/api/auth/invite-links/preview` `{"token"}` | 공개 | 회사 이름 · 받게 될 직급·부서 |
+| POST | `/api/auth/invite-links/accept` `{"token"}` | 로그인 | 소속을 만들고 돌려준다 |
+
+## 실제 호출 결과
+
+```
+member PATCH /members/{admin}              → 403 FORBIDDEN
+admin  PATCH /members/{owner}              → 403 "소유자의 소속은 바꿀 수 없습니다"
+admin  PATCH /members/{self}               → 403 "자기 소속은 바꿀 수 없습니다"
+owner  PATCH /members/{m} roleId=owner     → 403 "소유자 직급은 줄 수 없습니다"
+admin  PATCH /members/{m} admin · 부서1     → 200 ["admin","미지정"]
+admin  POST /invitations 4건(정상·이미 구성원·형식 오류·중복) → 200 results: sent 1 · skipped 3 (이유 각각, 중복은 "초대 중")
+admin  POST /invitations 같은 주소 다시     → skipped "초대 중이에요"
+admin  POST /invitations/{id}/resend       → 200 (BE 로그에 새 링크, 이전 링크는 회수)
+다른 계정 POST /api/auth/invitations/accept → 403 WORKSPACE_ACCESS_DENIED (주소 불일치)
+초대받은 계정 accept                        → 200 → /me roleCode "member"; 다시 accept → 401
+admin  POST /invite-links maxUses 0        → 400 VALIDATION_FAILED
+admin  POST /invite-links maxUses 1 · 1일   → 201 url 있음 · GET 목록에서는 url null
+공개   preview 링크                          → 200 ["에이엑스코어","구성원"] · 잘못된 토큰 → 401
+계정 A accept 링크                          → 200 → /me "member" (use_count 1/1)
+계정 B accept 같은 링크                     → 401 (한도 소진) · preview 도 401
+admin  GET /invite-links                   → [["1/1", active:false]] · DELETE → 204 · 다시 → 404
+```
+
+## 남긴 것
+
+- 구성원 제거(탈퇴 처리)는 없다. 소속(shared)과 구성원(테넌트)을 함께 닫아야 해서 별도 작업.
+- 초대 메일 실제 발송은 `MAIL_MODE=smtp` + 발송 계정 설정이 있어야 한다(`docs/infra/ci-cd.md` 운영 작업). 지금 운영 서버는 `log` 라
+  초대는 만들어지되 메일은 나가지 않는다 — 켤 때까지는 「초대 중」 목록의 「다시 보내기」로 재발송하는 것 외에 링크를 꺼낼 길이 없다.
+- 이미 구성원인 사람이 **한도가 다 찬** 링크를 다시 열면 401 이다(살아 있는 링크면 자리를 쓰지 않고 200). 화면상 "쓸 수 없는 링크" 로 보이지만 이미 들어와 있으므로 문제되지 않는다.

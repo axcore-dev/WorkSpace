@@ -22,9 +22,20 @@ let expiresAt = 0;
 const RENEW_MARGIN_MS = 30_000;
 
 /** 로그인·재발급 응답에서 토큰을 받아 둔다. */
+/**
+ * 토큰이 바뀌면 브라우저에 알린다 — 로그인 · 회사 선택 · 로그아웃.
+ *
+ * 회사 자격(`lib/workspace-me.ts`)과 기능 상태(`components/module-provider.tsx`)는 모듈 스코프에 받아 둔 값이라, 다른 계정으로
+ * 다시 로그인하거나 회사를 바꿔도 새로고침 전까지 이전 사람의 값이 남는다. 그 스토어들이 이 이벤트를 듣고 다시 받는다.
+ * 여기서 직접 부르지 않고 이벤트로 알리는 이유는 순환 import(스토어 → api → session → 스토어)를 피하기 위해서다.
+ */
+export const SESSION_CHANGED = "axpoint:session-changed";
+
 export function setAccessToken(token: string | null, expiresAtIso?: string | null) {
+  const changed = token !== accessToken;
   accessToken = token;
   expiresAt = token && expiresAtIso ? Date.parse(expiresAtIso) : 0;
+  if (changed && typeof window !== "undefined") window.dispatchEvent(new Event(SESSION_CHANGED));
 }
 
 export function clearSession() {

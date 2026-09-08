@@ -104,6 +104,8 @@ export type RoleDto = {
    * 자기 직급 불가)을 미리 계산해 준다. 화면은 이 값으로 잠근다 — 보안 경계는 서버의 PUT 검사다.
    */
   editable: boolean;
+  /** **지금 로그인한 사람이** 이 직급을 남에게 줄 수 있는가(초대 · 소속 변경). 소유자 직급은 아무도 못 준다 */
+  assignable: boolean;
 };
 
 /** 직급 전체 저장 본문 — 화면의 「저장하기」 한 번 */
@@ -141,3 +143,75 @@ export const updateRole = async (id: number, input: RoleUpdateInput) =>
 /** 구성원이 있으면 `moveMembersTo` 가 필요하다. 없으면 409 `ROLE_HAS_MEMBERS` */
 export const deleteRole = (id: number, moveMembersTo?: number | null) =>
   apiDelete<void>(`${BASE}/roles/${id}${moveMembersTo ? `?moveMembersTo=${moveMembersTo}` : ""}`);
+
+/* ─────────────────────── 구성원 · 초대 · 초대 링크 (초대 관리) ─────────────────────── */
+
+export type MemberDto = {
+  id: number;
+  name: string;
+  email: string;
+  roleId: number | null;
+  /** `owner` 면 소속을 바꿀 수 없다 */
+  roleCode: string | null;
+  roleName: string | null;
+  departmentId: number | null;
+  departmentName: string | null;
+};
+
+export type PendingInvitationDto = {
+  id: string;
+  email: string;
+  roleId: number | null;
+  roleName: string | null;
+  departmentId: number | null;
+  departmentName: string | null;
+  createdAt: string;
+  expiresAt: string;
+};
+
+export type InviteResultDto = {
+  results: { email: string; status: "sent" | "skipped"; reason: string | null }[];
+};
+
+export type InviteLinkDto = {
+  id: string;
+  /** 만든 직후의 응답에만 있다. 목록에서는 null — 서버는 해시만 저장한다 */
+  url: string | null;
+  roleId: number;
+  roleName: string | null;
+  departmentId: number | null;
+  departmentName: string | null;
+  maxUses: number;
+  useCount: number;
+  expiresAt: string;
+  revokedAt: string | null;
+  active: boolean;
+};
+
+export const getMembers = async () => (await apiGet<MemberDto[]>(`${BASE}/members`)) ?? [];
+
+export const updateMember = async (id: number, input: { roleId: number; departmentId: number | null }) =>
+  must(await apiPatch<MemberDto>(`${BASE}/members/${id}`, input));
+
+export const getInvitations = async () =>
+  (await apiGet<PendingInvitationDto[]>(`${BASE}/invitations`)) ?? [];
+
+/** 여러 명을 같은 직급·부서로. 건너뛴 주소는 이유와 함께 돌아온다 */
+export const inviteMembers = async (input: { emails: string[]; roleId: number; departmentId: number | null }) =>
+  must(await apiPostAuthed<InviteResultDto>(`${BASE}/invitations`, input));
+
+export const resendInvitation = async (id: string) =>
+  must(await apiPostAuthed<PendingInvitationDto>(`${BASE}/invitations/${id}/resend`));
+
+export const revokeInvitation = (id: string) => apiDelete<void>(`${BASE}/invitations/${id}`);
+
+export const getInviteLinks = async () => (await apiGet<InviteLinkDto[]>(`${BASE}/invite-links`)) ?? [];
+
+export const createInviteLink = async (input: {
+  roleId: number;
+  departmentId: number | null;
+  maxUses: number;
+  expiresInDays: number;
+}) => must(await apiPostAuthed<InviteLinkDto>(`${BASE}/invite-links`, input));
+
+export const revokeInviteLink = (id: string) => apiDelete<void>(`${BASE}/invite-links/${id}`);
