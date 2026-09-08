@@ -37,6 +37,10 @@ dependencies {
 	// 메일 실발송(SMTP). JavaMailSender 자동설정이 spring.mail.* 를 읽는다.
 	// app.mail.mode=smtp 일 때만 SmtpMailSender 가 이걸 쓴다. log 모드에서는 놀고 있는 빈이다.
 	implementation("org.springframework.boot:spring-boot-starter-mail")
+	// 오브젝트 스토리지(네이버 클라우드 Object Storage). S3 호환 API 라 AWS SDK 를 그대로 쓴다 —
+	// FE 의 AI 서버가 같은 버킷을 같은 방식(AWS SDK v3)으로 이미 쓰고 있다.
+	// s3 모듈만 넣는다. bom 이나 aws-sdk 전체를 넣으면 쓰지도 않는 수십 개 서비스 클라이언트가 따라온다.
+	implementation("software.amazon.awssdk:s3:2.35.9")
 	runtimeOnly("org.postgresql:postgresql")
 	annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
 	testImplementation("org.springframework.boot:spring-boot-starter-actuator-test")

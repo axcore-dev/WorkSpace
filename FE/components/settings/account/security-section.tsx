@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActionRow,
   SettingsRow,
@@ -16,7 +16,12 @@ import {
 import { IconCheck } from "@/components/icons";
 import { Badge, Button } from "@/components/ui";
 import { PROVIDER_LABELS } from "@/lib/auth";
-import { ACCOUNT_EMAILS, ACCOUNT_SECURITY, SOCIAL_LOGINS } from "@/data/org";
+import {
+  getMfaMethods,
+  getSocialIdentities,
+  type AccountMeDto,
+  type SocialIdentityDto,
+} from "@/lib/account-api";
 
 type Which = "email" | "password" | "tfa" | "social" | null;
 
@@ -46,46 +51,71 @@ function Done({ on, label }: { on: boolean; label: string }) {
  * 항목만 「권장」을 붙인다. 경고를 다섯 개 띄우면 다섯 개 다 안 읽힌다.
  * 색 띠·알약 배지는 쓰지 않는다 (DESIGN.md 「배경 채움·알약 배지 금지」).
  *
- * **비밀번호가 없는 계정이 있다.** 소셜로만 가입한 경우다 — 그때 비밀번호 행은 「추가」가
- * 되고 **2단계 인증은 켤 수 없다.** 2단계 인증은 켜고 끌 때 비밀번호 재확인을 받는데,
- * 없는 비밀번호는 확인할 수 없다.
+ * **비밀번호가 없는 계정이 있다.** 소셜로만 가입한 경우다(`me.hasPassword`) — 그때 비밀번호
+ * 행은 「추가」가 되고 **2단계 인증은 켤 수 없다.** 서버가 2단계를 끌 때 비밀번호를 다시 묻는데,
+ * 없는 비밀번호는 확인할 수 없어서 켜 두면 영영 못 끄는 상태가 된다.
  *
  * **패스키는 BE에 없다** (WebAuthn 엔드포인트가 없다). 행만 두고 버튼을 비활성으로 둔다 —
  * 브라우저 API를 부르지 않는다. BE 검증 없이 부르면 등록된 것처럼 보이고 로그인은 안 되는
  * 상태가 된다.
  */
-export function SecuritySection({ onSaved }: { onSaved: (message: string) => void }) {
+export function SecuritySection({
+  me,
+  onSaved,
+}: {
+  me: AccountMeDto;
+  onSaved: (message: string, tone?: "ink" | "error") => void;
+}) {
   const [open, setOpen] = useState<Which>(null);
+  const [tfaOn, setTfaOn] = useState(false);
+  const [identities, setIdentities] = useState<SocialIdentityDto[]>([]);
 
-  const { hasPassword, passwordChangedAt } = ACCOUNT_SECURITY;
-  const primary = ACCOUNT_EMAILS.find((e) => e.primary)?.address ?? "";
-  const connected = SOCIAL_LOGINS.filter((s) => s.connected);
+  const reloadTfa = useCallback(async () => {
+    const methods = await getMfaMethods().catch(() => []);
+    setTfaOn(methods.some((m) => m.method === "email" && m.enabled));
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    async function load() {
+      const [methods, social] = await Promise.all([
+        getMfaMethods().catch(() => []),
+        getSocialIdentities().catch(() => []),
+      ]);
+      if (!alive) return;
+      setTfaOn(methods.some((m) => m.method === "email" && m.enabled));
+      setIdentities(social);
+    }
+    void load();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const { hasPassword, passwordChangedAt, email, emailVerified } = me;
   const socialValue =
-    connected.length === 0
-      ? SOCIAL_LOGINS.map((s) => PROVIDER_LABELS[s.provider]).join(" · ")
-      : `${connected.map((s) => PROVIDER_LABELS[s.provider]).join(" · ")} 연동됨`;
+    identities.length === 0
+      ? "연동한 계정이 없어요"
+      : `${identities.map((s) => PROVIDER_LABELS[s.provider]).join(" · ")} 연동됨`;
 
-  // 2단계 인증은 아직 아무것도 켜지 않은 상태다 (BE 연동 seam: `GET /api/auth/mfa/methods`)
-  const tfaOn = false;
-  const done = [true, hasPassword, tfaOn].filter(Boolean).length;
+  const done = [emailVerified, hasPassword, tfaOn].filter(Boolean).length;
 
   return (
     <SettingsSection
       title="계정 보안"
-      aside={
-        <span className="text-xs text-slate-400">3가지 중 {done}가지 설정됨</span>
-      }
+      aside={<span className="text-xs text-slate-400">3가지 중 {done}가지 설정됨</span>}
     >
       <SettingsRows>
         <SettingsRow>
           <ActionRow
             name={
               <span className="flex items-center gap-1.5">
-                <Done on label="이메일" />
+                <Done on={emailVerified} label="이메일" />
                 이메일
+                {!emailVerified && <Badge tone="amber">확인 대기</Badge>}
               </span>
             }
-            value={<span className="pl-[22px] font-mono">{primary}</span>}
+            value={<span className="pl-[22px] font-mono">{email}</span>}
           >
             <Button variant="ghost" size="sm" onClick={() => setOpen("email")}>
               관리
@@ -104,8 +134,10 @@ export function SecuritySection({ onSaved }: { onSaved: (message: string) => voi
             value={
               <span className="pl-[22px]">
                 {hasPassword && passwordChangedAt
-                  ? `${passwordChangedAt}에 바꿨어요`
-                  : "소셜 계정으로만 로그인하고 있어요"}
+                  ? `${formatDate(passwordChangedAt)}에 바꿨어요`
+                  : hasPassword
+                    ? "비밀번호로 로그인하고 있어요"
+                    : "소셜 계정으로만 로그인하고 있어요"}
               </span>
             }
           >
@@ -131,9 +163,11 @@ export function SecuritySection({ onSaved }: { onSaved: (message: string) => voi
             }
             value={
               <span className="pl-[22px]">
-                {hasPassword
-                  ? "비밀번호가 새어도 로그인은 막을 수 있어요"
-                  : "비밀번호를 먼저 추가해 주세요"}
+                {!hasPassword
+                  ? "비밀번호를 먼저 설정해 주세요"
+                  : tfaOn
+                    ? "로그인할 때 이메일 코드를 한 번 더 받아요"
+                    : "비밀번호가 새어도 로그인은 막을 수 있어요"}
               </span>
             }
           >
@@ -143,7 +177,7 @@ export function SecuritySection({ onSaved }: { onSaved: (message: string) => voi
               disabled={!hasPassword}
               onClick={() => setOpen("tfa")}
             >
-              켜기
+              {tfaOn ? "관리" : "켜기"}
             </Button>
           </ActionRow>
         </SettingsRow>
@@ -169,7 +203,7 @@ export function SecuritySection({ onSaved }: { onSaved: (message: string) => voi
           <ActionRow
             name={
               <span className="flex items-center gap-1.5">
-                <Done on={connected.length > 0} label="소셜 로그인" />
+                <Done on={identities.length > 0} label="소셜 로그인" />
                 소셜 로그인
               </span>
             }
@@ -182,15 +216,40 @@ export function SecuritySection({ onSaved }: { onSaved: (message: string) => voi
         </SettingsRow>
       </SettingsRows>
 
-      <EmailModal open={open === "email"} onClose={() => setOpen(null)} onDone={onSaved} />
+      <EmailModal
+        open={open === "email"}
+        email={email}
+        verified={emailVerified}
+        onClose={() => setOpen(null)}
+        onDone={onSaved}
+      />
       <PasswordModal
         open={open === "password"}
+        email={email}
         hasPassword={hasPassword}
         onClose={() => setOpen(null)}
         onDone={onSaved}
       />
-      <TfaModal open={open === "tfa"} onClose={() => setOpen(null)} onDone={onSaved} />
-      <SocialModal open={open === "social"} onClose={() => setOpen(null)} />
+      <TfaModal
+        open={open === "tfa"}
+        email={email}
+        enabled={tfaOn}
+        onClose={() => setOpen(null)}
+        onChanged={() => void reloadTfa()}
+        onDone={onSaved}
+      />
+      <SocialModal
+        open={open === "social"}
+        identities={identities}
+        onClose={() => setOpen(null)}
+      />
     </SettingsSection>
   );
+}
+
+function formatDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "언젠가";
+  const two = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`;
 }

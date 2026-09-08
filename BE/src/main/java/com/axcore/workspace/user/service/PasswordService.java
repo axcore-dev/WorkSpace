@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.UUID;
 
 /**
  * 비밀번호 변경(로그인 상태)과 재설정(메일 링크).
@@ -49,9 +50,19 @@ public class PasswordService {
      *
      * <p>현재 비밀번호를 다시 묻는 이유: access 토큰만 탈취한 쪽이 비밀번호를 갈아 끼워 계정을
      * 통째로 가져가는 것을 막는다. 토큰은 15분이지만 비밀번호를 바꾸면 영구적이다.
+     *
+     * <p><b>계정을 여기서 직접 읽는다.</b> 컨트롤러가 먼저 읽어 넘겨 주면 그 객체는
+     * {@code AuthService#requireUser} 의 트랜잭션과 함께 <b>준영속</b>이 된다
+     * ({@code spring.jpa.open-in-view=false}). 그 상태로 {@code changePassword} 를 불러도 변경 추적이
+     * 걸리지 않아 새 해시가 저장되지 않는다 — 세션은 폐기되고 안내 메일까지 나가는데 옛 비밀번호가
+     * 그대로 통하는 상태가 된다. 실제로 그랬다.
      */
     @Transactional
-    public void change(User user, String currentPassword, String newPassword, Instant now) {
+    public void change(UUID userId, String currentPassword, String newPassword, Instant now) {
+        User user =
+                userRepository
+                        .findById(userId)
+                        .orElseThrow(() -> new BadCredentialsException("세션이 만료되었습니다. 다시 로그인해 주세요"));
         // 소셜 전용 계정은 대조할 해시가 없다. 이 검사 없이 내려가면 PasswordEncoder 가
         // IllegalArgumentException 을 던져 500 이 된다.
         if (!user.hasPassword()) {

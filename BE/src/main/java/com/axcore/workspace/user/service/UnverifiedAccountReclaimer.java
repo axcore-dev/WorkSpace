@@ -5,6 +5,10 @@ import com.axcore.workspace.user.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+
+import java.util.UUID;
 
 /**
  * 이메일 확인이 끝나지 않은 계정을 밀어낸다.
@@ -41,9 +45,11 @@ public class UnverifiedAccountReclaimer {
     private static final Logger log = LoggerFactory.getLogger(UnverifiedAccountReclaimer.class);
 
     private final UserRepository userRepository;
+    private final ProfilePhotoService photos;
 
-    public UnverifiedAccountReclaimer(UserRepository userRepository) {
+    public UnverifiedAccountReclaimer(UserRepository userRepository, ProfilePhotoService photos) {
         this.userRepository = userRepository;
+        this.photos = photos;
     }
 
     /**
@@ -70,8 +76,32 @@ public class UnverifiedAccountReclaimer {
         log.info(
                 "확인되지 않은 계정 {} 를 밀어낸다. 이 주소로 새 가입 요청이 들어왔다",
                 user.getId());
+        UUID deletedId = user.getId();
         userRepository.delete(user);
         userRepository.flush();
+        deletePhotosAfterCommit(deletedId);
         return true;
+    }
+
+    /**
+     * 프로필 사진 폴더는 <b>커밋 뒤에</b> 비운다. 계정을 지우는 트랜잭션 안에서 지우면, 그 트랜잭션이
+     * 롤백됐을 때 계정은 살아 있는데 사진만 사라진 상태가 남는다. 반대(커밋 뒤 삭제 실패)는 파일 하나가
+     * 남는 것으로 끝나고 {@link AvatarSweeper} 가 지운다 — 실패해도 되는 쪽에 둔다.
+     *
+     * <p>트랜잭션 밖에서 불렸다면(테스트 · 앞으로 생길 다른 삭제 경로) 바로 비운다.
+     * <b>계정을 지우는 다른 흐름이 생기면 같은 호출을 붙인다.</b> 빠뜨려도 청소가 잡지만, 하루 늦다.
+     */
+    private void deletePhotosAfterCommit(UUID userId) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            photos.deleteFolder(userId);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        photos.deleteFolder(userId);
+                    }
+                });
     }
 }

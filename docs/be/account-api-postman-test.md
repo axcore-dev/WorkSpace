@@ -53,6 +53,11 @@ Subject : [AXpoint] 로그인 확인 코드
 | POST | `/api/auth/password/reset` | **없음** | 204 |
 | GET | `/api/auth/sessions` | Bearer | 200 배열 |
 | DELETE | `/api/auth/sessions/{sessionId}` | Bearer | 204 |
+| PATCH | `/api/auth/profile` | Bearer | 200 `UserResponse` |
+| GET | `/api/auth/identities` | Bearer | 200 배열 |
+| POST | `/api/auth/profile/photo` (multipart) | Bearer | 200 `UserResponse` |
+| DELETE | `/api/auth/profile/photo` | Bearer | 200 `UserResponse` |
+| GET | `/api/avatars/{사용자 id}/{파일명}` | **없음** | 200 이미지 |
 | GET | `/api/auth/mfa/methods` | Bearer | 200 배열 |
 | POST | `/api/auth/mfa/email` | Bearer | 202 `{mfaToken}` |
 | POST | `/api/auth/mfa/email/confirm` | Bearer | 204 |
@@ -525,3 +530,169 @@ DELETE FROM shared.workspaces WHERE biz_number IN ('1112223334','5556667778');
 - **권한(role) 클레임** — 테넌트 스키마의 `roles`/`members` 가 선행되어야 한다.
 - **요청 빈도 제한(rate limit)** — `password/reset-request` 와 `mfa/email` 은 메일을 유발하는
   경로다. 지금은 호출 빈도를 막는 장치가 없다. 외부에 열기 전에 필요하다.
+
+---
+
+## 12. 계정 화면 배선 (2026-09-08)
+
+설정 › 계정 화면을 이 API 들에 붙이면서 더한 것과 고친 것.
+
+### 더한 것
+
+| Method | Path | 하는 일 |
+|---|---|---|
+| PATCH | `/api/auth/profile` `{"name"}` | 이름 변경. 앞뒤 공백은 버린다. 1~100자, 공백만이면 400 |
+| GET | `/api/auth/identities` | 연결된 소셜 제공자 목록 (`provider`·`email`·`connectedAt`) |
+
+`GET /api/auth/me` 응답에 **`hasPassword`** 가 늘었다. 소셜로만 가입한 계정을 화면이 구분해야 한다 —
+비밀번호 변경도, 2단계 인증도 걸 수 없다(해제할 때 비밀번호를 묻기 때문이다).
+
+이메일 주소 변경 · 보조 이메일 · 프로필 사진 업로드 · 소셜 연동 해제는 만들지 않았다. 화면에서도 그 자리를 비웠다.
+
+### 고친 것 — 비밀번호 변경이 저장되지 않던 문제
+
+`POST /api/auth/password` 가 **204 를 주고도 비밀번호를 바꾸지 않았다.** 세션은 폐기되고 안내 메일까지
+나가는데 옛 비밀번호가 그대로 통했다.
+
+원인은 준영속(detached) 엔티티다. 컨트롤러가 `AuthService#requireUser` 로 계정을 먼저 읽어 서비스에
+넘겼는데, 그 조회는 자기 트랜잭션 안에서 끝난다(`spring.jpa.open-in-view=false`). 서비스가 받은 객체는
+영속성 컨텍스트 밖이라 `changePassword` 로 바꿔도 변경 추적이 걸리지 않는다. 같은 메서드가 부르는
+세션 폐기는 리포지터리 쿼리라 정상 동작했고, 그래서 겉보기에는 성공으로 보였다.
+
+고침: `PasswordService.change` 가 `userId` 를 받아 **자기 트랜잭션 안에서** 계정을 읽는다.
+같은 모양의 다른 경로는 확인했고 문제가 없다 — MFA 해제는 수단 엔티티를 자기 트랜잭션에서 읽고,
+비밀번호 재설정은 토큰에서 계정을 꺼내며, 나머지 `requireUser` 호출부는 읽기만 한다.
+
+### 실제 호출 결과
+
+```
+GET  /me                                → hasPassword true
+PATCH /profile {"name":"이름 바꿈"}       → 200, 앞뒤 공백은 잘려서 저장
+PATCH /profile {"name":"   "}           → 400 VALIDATION_FAILED · 101자 → 400 · 토큰 없이 → 401
+GET  /identities                        → 200 [] (소셜로 가입하지 않은 계정)
+GET  /sessions                          → 200 [현재, 다른] · DELETE 다른 세션 → 204
+POST /mfa/email                         → 202 mfaToken · 로그의 코드로 confirm → 204
+GET  /mfa/methods                       → ["email:true"] · 이 상태로 로그인 → next MFA_REQUIRED
+DELETE /mfa/email {"password"}          → 204 · methods → ["email:false"]
+DELETE /mfa/email 틀린 비번               → 401 · 안 켠 상태 → 409 ACCOUNT_STATE_CONFLICT
+POST /password 현재 비번 틀림             → 401 · 규칙 위반 → 400
+POST /password 변경                      → 204 → 새 비번으로 로그인 200 (고치기 전에는 401 이었다)
+```
+
+> 끊은 세션의 access 토큰은 만료(15분) 전까지 살아 있다. 세션 폐기는 refresh 를 막는 것이고
+> 서명된 토큰을 회수하지는 않는다 — 화면이 「로그아웃했어요」라고 말하는 범위도 거기까지다.
+
+---
+
+## 13. 프로필 사진과 비밀번호 추가 (2026-09-08)
+
+### 이메일 주소는 바꾸지 않는다
+
+기능을 미룬 것이 아니라 **바꾸지 않기로 정했다.** 이 주소는 로그인 아이디이고, 회사 초대
+(`shared.workspace_invitations.email`)와 운영자 콘솔의 담당자 규칙(`WorkspaceContactService`)이
+이 값으로 사람을 찾는다. 바꾸게 하면 진행 중인 초대가 옛 주소 앞으로 남고, 담당자로 지정된 사람이
+소유자로 올라오지 못한다. 화면(`EmailModal`)도 "바꿀 수 없어요" 로 말한다. 주소를 잘못 적고 가입했다면
+새로 가입한다.
+
+### 소셜 전용 계정의 비밀번호 추가
+
+새 엔드포인트를 만들지 않았다. **재설정 메일과 같은 링크를 보낸다** —
+`POST /api/auth/password/reset-request` 에 자기 주소를 넣으면 되고, 링크를 연 화면에서
+`POST /api/auth/password/reset` 이 비밀번호를 정한다. 그 경로가 이미 이메일 확인까지 끝내고
+모든 세션을 폐기한다.
+
+로그인해 있는 자리에서 바로 정하게 하지 않은 이유: 대조할 옛 비밀번호가 없어서 그 자리가 진짜 주인인지
+확인할 근거가 access 토큰뿐이다. 토큰만 훔친 쪽이 비밀번호를 심어 계정을 통째로 가져갈 수 있다.
+남은 증거는 메일함을 열 수 있는가 하나다.
+
+### 프로필 사진
+
+| Method | Path | 인증 | 하는 일 |
+|---|---|---|---|
+| POST | `/api/auth/profile/photo` | Bearer | `multipart/form-data` 의 `file` 한 칸. 바뀐 `UserResponse` |
+| DELETE | `/api/auth/profile/photo` | Bearer | 올린 사진을 지운다. 소셜 사진으로 되돌아간다 |
+| GET | `/api/avatars/{사용자 id}/{파일명}` | **없음** | 이미지 바이트 |
+
+- **저장소**: 네이버 클라우드 Object Storage. AI 문서와 같은 버킷을 쓰고 키 앞마디로 갈린다
+  (`profile/<사용자 id>/<uuid>.<확장자>`). 설정(`app.storage.*`)이 없으면 부팅은 되고 업로드만 503 이다.
+- **컬럼**: shared V19 가 `users.avatar_object_key` 를 더한다. 기존 `avatar_url` 은 소셜 제공자가 준
+  남의 주소라 칸을 섞지 않았다. 둘 다 있으면 올린 사진이 이긴다.
+- **왜 로그인 없이 여는가**: `<img src>` 에는 Authorization 헤더를 실을 수 없다. 대신 키가 추측할 수 없는
+  uuid 이고, 목록으로 훑을 경로가 없고, 사진을 바꾸거나 지우면 새 키를 발급하고 옛 객체를 지운다.
+- **형식 판정**: 요청이 적어 보낸 `Content-Type` 과 파일 이름을 쓰지 않고 **바이트 앞머리**로 본다
+  (`ImageBytes`). 내려줄 때도 그때 판정한 형식으로 내려주고 `X-Content-Type-Options: nosniff` 를 붙인다.
+  SVG 는 받지 않는다 — 스크립트를 담을 수 있는 문서 형식이다.
+- **크기**: 2MB. 화면이 먼저 512px 정사각 WebP 로 줄여서 보낸다(브라우저 canvas — 서버에 이미지
+  라이브러리를 들이지 않으려고).
+- **SDK 주의**: AWS SDK 2.30 부터 기본으로 붙는 CRC32 체크섬을 네이버가 403 으로 거절한다.
+  `requestChecksumCalculation(WHEN_REQUIRED)` 로 되돌려야 업로드가 된다. 처음에 이것 때문에 막혔다.
+
+### 실제 호출 결과
+
+```
+POST /profile/photo (1x1 PNG)   → 200 avatarUrl "/api/avatars/<사용자 id>/<uuid>.png"
+GET  그 주소 (토큰 없이)          → 200 image/png · nosniff · 69 bytes
+GET  그 주소 (FE 8000 경유)       → 200 image/png (next.config 의 rewrites 가 BE 로 넘긴다)
+GET  남의 폴더 + 내 파일 이름      → 404
+GET  /api/avatars/<파일명> 한 마디 → 401 (permitAll 은 두 마디뿐이다)
+GET  /api/avatars/not-a-uuid.png → 404 (모양이 맞지 않으면 스토리지에 묻지도 않는다)
+GET  /api/avatars/..%2F..%2Fetc%2Fpasswd → 400
+POST /profile/photo 다시         → 200 새 주소 · 옛 주소 404 (옛 객체를 지운다)
+DELETE /profile/photo            → 200 avatarUrl null · 주소 404
+POST /profile/photo 쉘 스크립트   → 400 "PNG · JPG · WebP 이미지만 올릴 수 있습니다"
+POST /profile/photo 빈 파일       → 400 · 3MB → 413 · 토큰 없이 → 401
+저장소 설정 없이 업로드            → 503 "파일 저장소가 설정되지 않아 사진을 올릴 수 없습니다"
+POST /password/reset-request     → 202 (비밀번호 추가 링크)
+```
+
+### 로컬에서 쓰려면
+
+`BE/.env` 에 값 세 개가 더 필요하다. 이름은 FE 의 AI 서버와 같다.
+
+```
+NCP_OBJECT_STORAGE_BUCKET=
+NCP_ACCESS_KEY=
+NCP_SECRET_KEY=
+```
+
+없어도 서버는 뜨고, 사진 업로드만 503 이다. compose 로 띄울 때는 `INFRA/.env` 의 같은 값을 그대로 받는다.
+
+### 로컬에서 사진이 안 바뀌던 이유
+
+사진은 `<img src="/api/avatars/...">` 라 **상대 경로**다. 운영에서는 nginx 가 `/api/` 를 Spring 으로 보내니
+맞는 주소지만, 로컬에서는 브라우저가 FE(8000)에 묻고 Next 에는 그 경로가 없어서 404 가 났다. 업로드는
+성공하고 버킷에도 올라가는데 화면만 옛 사진이었다.
+
+`FE/next.config.ts` 의 `rewrites()` 가 이 한 경로만 BE 로 넘긴다. `/api/` 전체를 넘기지 않는 이유는 나머지
+호출이 이미 `lib/api.ts` 의 `API_BASE` 로 직접 가기 때문이고, 운영에서는 nginx 가 먼저 가로채서 이 규칙이
+발동하지 않는다. CSP 의 `img-src 'self'` 도 그대로 둘 수 있다 — 브라우저가 보는 주소는 여전히 자기 오리진이다.
+
+사이드바 프로필도 같은 값을 보게 했다(`lib/account-me.ts`). 전에는 계정 화면만 서버 값을 읽고 사이드바는
+데모 상수를 그려서, 사진을 바꿔도 좌측 아래는 그대로였다.
+
+### 남는 파일은 어떻게 정리되는가
+
+파일이 남는 길은 셋이고, 전부 **"어느 계정도 가리키지 않는 객체"** 로 귀결된다.
+
+| 남는 경우 | 처리 |
+|---|---|
+| 사진을 바꾸거나 지울 때 옛 객체 삭제가 실패 | 요청은 성공, 경고 로그. 다음 청소가 지운다 |
+| 올린 직후 DB 반영 전에 서버가 죽음 | 다음 청소가 지운다 |
+| 계정 삭제 | 커밋 뒤 그 사용자의 폴더를 바로 비운다. 실패하면 다음 청소가 지운다 |
+
+**청소(`AvatarSweeper`)** 는 매일 04:30 에 `profile/` 아래를 전부 훑고, 계정들이 가리키는 키 집합에 없는 객체를
+지운다. 실패한 삭제를 기록해 두는 표를 따로 두지 않는 이유가 이것이다 — 기록이 빠져도 이 규칙이 잡는다.
+올라간 지 한 시간이 안 된 객체는 건드리지 않는다. 업로드는 객체를 먼저 올리고 DB 를 바꾸는 순서라, 그 사이에
+훑으면 정상 업로드가 주인 없는 파일로 보인다. 인스턴스가 여럿이면 각자 돌지만 삭제는 두 번 해도 같은 결과다.
+`@EnableScheduling` 은 이것 때문에 켰다 — 앱의 첫 주기 작업이다.
+
+**계정 삭제 연결.** 지금 계정을 지우는 흐름은 미확인 계정 회수(`UnverifiedAccountReclaimer`) 하나다. 여기에
+`ProfilePhotoService.deleteFolder` 를 붙였고, **트랜잭션이 커밋된 뒤**에 돈다. 안에서 지우면 커밋이 실패했을 때
+계정은 살아 있는데 사진만 사라진다. 계정을 지우는 다른 흐름이 생기면 같은 호출을 붙인다. 빠뜨려도 청소가 잡지만 하루 늦다.
+
+확인한 것(실제 버킷): 스프링 목록 조회가 방금 올린 객체를 즉시 본다 · 유예 안에서는 지우지 않고 유예 뒤에 지운다 ·
+`deleteFolder` 가 폴더의 객체를 전부 지운다 · 미확인 계정에 사진을 올리고 같은 주소로 재가입하면 회수와 함께
+사진이 404 가 된다.
+
+> 참고: FE 에 설치된 JS SDK(`@aws-sdk/client-s3`)로 같은 버킷의 객체를 GET/HEAD 하면 403 이 난다.
+> 스프링(Java SDK, 체크섬 끔)은 정상이다. AI 문서 기능이 같은 SDK 로 읽고 있으니 그쪽도 같은 증상이 있는지 볼 것.

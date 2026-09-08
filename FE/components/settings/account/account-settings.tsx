@@ -6,6 +6,7 @@ import { SessionSection } from "@/components/settings/account/session-section";
 import { UserIdFooter } from "@/components/settings/account/user-id-section";
 import { Toast } from "@/components/ui";
 import { useToast } from "@/components/use-toast";
+import { setAccountMe, useAccountMe } from "@/lib/account-me";
 
 /**
  * 계정 — 아이덴티티 헤더 + 3섹션 + 꼬리말.
@@ -14,23 +15,35 @@ import { useToast } from "@/components/use-toast";
  * 나누지 않고 스크롤로 간다 — 프로필과 보안을 두 라우트로 쪼갠 게 과했고, 다 "내 계정"이라
  * 오가며 본다.
  *
- * 알림·지원 섹션은 뺐다 (수정요청 v12). 사용자 ID는 지원 섹션과 한 파일이었어서 따로 남겼다.
+ * **내 계정은 스토어에서 온다**(`lib/account-me.ts`). 사이드바 프로필도 같은 값을 보므로, 여기서
+ * 이름이나 사진을 바꾸면 그쪽도 함께 바뀐다. 바꾼 결과는 서버 응답을 그대로 `setAccountMe` 로
+ * 올린다 — 다시 받지 않는다.
  *
- * **설명 문구를 두지 않는다.** 값(이메일 주소·변경일·`사용 안 함`)은 그 행의 현재 상태라
- * 남기고, 설명체 문장은 지웠다.
+ * 세션 목록과 2단계 수단은 이 화면에서만 쓰므로 그 섹션이 각자 받는다.
  *
- * `Toast`는 **여기서 한 번만** 렌더한다. 섹션마다 두면 화면에 네 개가 겹친다 —
- * 섹션은 `onSaved` 콜백만 받는다.
+ * `Toast`는 **여기서 한 번만** 렌더한다. 섹션마다 두면 화면에 네 개가 겹친다.
  */
 export function AccountSettings() {
   const [toast, showToast] = useToast();
+  const { me, status } = useAccountMe();
+
+  if (status === "error") {
+    return (
+      <p className="mt-6 text-sm text-slate-500">
+        내 계정을 불러오지 못했어요. 로그인이 끊겼을 수 있어요. 새로고침해 주세요.
+      </p>
+    );
+  }
+
+  // 받기 전에는 아무것도 그리지 않는다 — 빈 값으로 그렸다가 채우면 이름과 이메일이 한 번 튄다
+  if (!me) return null;
 
   return (
     <>
-      <ProfileSection onSaved={showToast} />
-      <SecuritySection onSaved={showToast} />
+      <ProfileSection me={me} onChanged={setAccountMe} onSaved={showToast} />
+      <SecuritySection me={me} onSaved={showToast} />
       <SessionSection onSaved={showToast} />
-      <UserIdFooter onSaved={showToast} />
+      <UserIdFooter userId={me.id} onSaved={showToast} />
       <Toast toast={toast} />
     </>
   );
