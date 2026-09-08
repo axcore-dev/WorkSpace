@@ -6,11 +6,8 @@ import com.axcore.workspace.user.entity.User;
 import com.axcore.workspace.user.entity.UserSession;
 import com.axcore.workspace.user.service.AuthService;
 import com.axcore.workspace.user.service.UserSessionService;
-import com.axcore.workspace.workspace.entity.UserWorkspaceMembership;
 import com.axcore.workspace.workspace.entity.Workspace;
-import com.axcore.workspace.workspace.repository.UserWorkspaceMembershipRepository;
-import com.axcore.workspace.workspace.repository.WorkspaceRepository;
-import com.axcore.workspace.workspace.service.WorkspaceAccessDeniedException;
+import com.axcore.workspace.workspace.settings.TenantAccess;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,22 +34,19 @@ public class TokenIntrospectionService {
     private final AuthProperties properties;
     private final AuthService authService;
     private final UserSessionService sessionService;
-    private final UserWorkspaceMembershipRepository membershipRepository;
-    private final WorkspaceRepository workspaceRepository;
+    private final TenantAccess tenantAccess;
     private final ModuleAccessReader moduleAccess;
 
     public TokenIntrospectionService(
             AuthProperties properties,
             AuthService authService,
             UserSessionService sessionService,
-            UserWorkspaceMembershipRepository membershipRepository,
-            WorkspaceRepository workspaceRepository,
+            TenantAccess tenantAccess,
             ModuleAccessReader moduleAccess) {
         this.properties = properties;
         this.authService = authService;
         this.sessionService = sessionService;
-        this.membershipRepository = membershipRepository;
-        this.workspaceRepository = workspaceRepository;
+        this.tenantAccess = tenantAccess;
         this.moduleAccess = moduleAccess;
     }
 
@@ -73,7 +67,8 @@ public class TokenIntrospectionService {
             throw new IntrospectionRejectedException(
                     HttpStatus.CONFLICT, "WORKSPACE_REQUIRED", "회사를 먼저 선택해 주세요");
         }
-        Workspace workspace = resolveWorkspace(user, principal.workspaceId());
+        // 소속 판정은 설정 API(TenantAccess)와 한 곳을 쓴다 — 규칙이 두 벌로 갈라지지 않게.
+        Workspace workspace = tenantAccess.resolveWorkspace(user, principal.workspaceId());
 
         if (workspace.getSchemaName() == null) {
             // 프로비저닝이 끝나기 전. 열 스키마가 없으니 AI 서버가 할 수 있는 일도 없다.
@@ -120,25 +115,5 @@ public class TokenIntrospectionService {
             throw new IntrospectionRejectedException(
                     HttpStatus.FORBIDDEN, "FORBIDDEN", "권한이 없습니다");
         }
-    }
-
-    private Workspace resolveWorkspace(User user, Long workspaceId) {
-        if (user.isInternalAdmin()) {
-            // 운영자는 소속 없이 들어간다. 상태로도 막지 않는다 — WorkspaceService#selectAsInternalAdmin
-            return workspaceRepository
-                    .findById(workspaceId)
-                    .orElseThrow(() -> new WorkspaceAccessDeniedException("접근할 수 없는 회사입니다"));
-        }
-        UserWorkspaceMembership membership =
-                membershipRepository
-                        .findByUserIdAndWorkspaceIdWithWorkspace(user.getId(), workspaceId)
-                        .orElseThrow(() -> new WorkspaceAccessDeniedException("접근할 수 없는 회사입니다"));
-        if (!membership.isEnterable()) {
-            throw new WorkspaceAccessDeniedException(
-                    membership.getStatus().isEnterable()
-                            ? "지금 이용할 수 없는 회사입니다"
-                            : "이 회사에 대한 접근 권한이 없습니다");
-        }
-        return membership.getWorkspace();
     }
 }

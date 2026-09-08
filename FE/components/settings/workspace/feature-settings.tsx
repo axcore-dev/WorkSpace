@@ -13,8 +13,9 @@ import { MODULES } from "@/data/modules";
  * 화면 문구에서 「모듈」이라는 말을 쓰지 않는다 (수정요청 v12). 코드 이름
  * (`MODULES`·`slug`·`data/modules.ts`)은 그대로 둔다 — 화면에 안 나온다.
  *
- * 토글은 즉시 저장한다(`useModules`가 localStorage에 바로 쓴다) — 폼이 아니라 스위치라
- * 저장 버튼을 두지 않는다. 대신 무엇이 바뀌었는지 토스트로 알린다.
+ * 토글은 즉시 저장한다(`useModules`가 서버에 바로 쓴다 — `PUT /api/workspace/features/{module}`) —
+ * 폼이 아니라 스위치라 저장 버튼을 두지 않는다. 대신 무엇이 바뀌었는지 토스트로 알린다.
+ * 화면은 먼저 바뀌고, 저장이 거절되면(관리자가 아님 · 네트워크) 스토어가 되돌리고 여기서 에러 톤으로 알린다.
  *
  * 알림 안내가 여기 있는 이유: 워크스페이스 알림 설정은 임시 비활성화 상태라 내비 항목을
  * 만들지 않았다 — 눌러서 도착한 페이지에 안내문만 있으면 막힌 길이 된다. 기능을 켜고 끄는
@@ -26,6 +27,15 @@ export function FeatureSettings() {
   const [toast, showToast] = useToast();
 
   const onCount = MODULES.filter((m) => state[m.slug]?.enabled).length;
+
+  /** 저장 결과를 토스트로. 성공 문구는 바로, 실패는 스토어가 되돌린 뒤 에러 톤으로 */
+  function report(saving: Promise<void>, done: string) {
+    saving.then(
+      () => showToast(done),
+      (e: unknown) =>
+        showToast(e instanceof Error && e.message ? e.message : "저장하지 못했어요", "error"),
+    );
+  }
 
   return (
     <>
@@ -65,10 +75,9 @@ export function FeatureSettings() {
                   <Toggle
                     size="sm"
                     checked={st.enabled}
-                    onChange={(v) => {
-                      setModule(mod.slug, v);
-                      showToast(`${mod.name} 기능을 ${v ? "켰어요" : "껐어요"}`);
-                    }}
+                    onChange={(v) =>
+                      report(setModule(mod.slug, v), `${mod.name} 기능을 ${v ? "켰어요" : "껐어요"}`)
+                    }
                     label={`${mod.name} 기능`}
                   />
                 </div>
@@ -81,10 +90,9 @@ export function FeatureSettings() {
                       <Toggle
                         size="sm"
                         checked={st.subs[sub.id]}
-                        onChange={(v) => {
-                          setSub(mod.slug, sub.id, v);
-                          showToast(`${sub.name}을 ${v ? "켰어요" : "껐어요"}`);
-                        }}
+                        onChange={(v) =>
+                          report(setSub(mod.slug, sub.id, v), `${sub.name}을 ${v ? "켰어요" : "껐어요"}`)
+                        }
                         label={`${mod.name} > ${sub.name}`}
                       />
                       <span
