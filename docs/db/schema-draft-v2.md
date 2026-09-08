@@ -381,6 +381,8 @@ graph TD
 | `member_module_grants` | 동일 | 변경 없음 (아직 모듈 단위. 개인 부여 화면이 생길 때 같이 내린다) |
 | `roles` (V9) | — | `department_id`(부서 소속, RESTRICT) · `data_scope` · `show_amounts` · `can_manage_integrations` 추가, `name` 유일. `is_system` 은 owner · member 만 true — admin 은 소유자가 고치고 지울 수 있는 보통 직급이다. 회사 권한 세 가지는 `is_admin`(회사 설정·구성원) · `can_invite`(초대 위임) · `can_manage_integrations`(연동) |
 | `invitation_module_grants` | 동일 | `invitation_id`가 `shared.invitations`를 가리키는 크로스 스키마 참조가 됨 |
+| `shared.workspace_invitations` (V12 · V18) | `invitations` | 실제로 쓰는 초대 표는 이것이다(V2 `shared.invitations` 는 코드가 쓰지 않음). V18 에서 `kind`(operator = 운영자 접속 링크 · member = 회사 관리자의 직원 초대) · `role_id` · `department_id` 추가. 역방향 참조라 FK 없음 — 수락 때 직급이 없으면 member 로 |
+| `shared.workspace_invite_links` (V18) | — | 회사 관리자가 만든 **누구나 쓰는** 초대 링크. 해시 토큰 · `max_uses`(1~50) · `use_count` · 만료 · 회수. 수락은 `UPDATE … WHERE use_count < max_uses RETURNING` 선점 |
 
 > **역할은 사람이 아니라 "사람 × 회사"에 붙습니다.** v1의 이 원칙은 그대로 유지되는데,
 > 표현 방식이 더 자연스러워졌습니다. `role_id`가 `users`가 아니라 `members`에 있고,

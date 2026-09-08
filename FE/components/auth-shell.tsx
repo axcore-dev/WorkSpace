@@ -158,3 +158,13 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+
+/** 인증 화면의 대기 표시 — 초대 확인 · 로그인 처리 중 */
+export function AuthSpinner({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-3.5" role="status" aria-live="polite">
+      <span className="spinner shrink-0" />
+      <span className="text-sm text-slate-600">{label}</span>
+    </div>
+  );
+}

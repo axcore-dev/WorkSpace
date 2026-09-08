@@ -7,7 +7,7 @@ import { useLogout } from "@/components/use-logout";
 import { SUPPORT_EMAIL } from "@/data/org";
 import { ApiRequestError, apiGet, apiPostAuthed } from "@/lib/api";
 import { setAccessToken } from "@/lib/session";
-import { readInvite, type PendingInvite } from "@/lib/pending-invite";
+import { inviteHref, readInvite, type PendingInvite } from "@/lib/pending-invite";
 
 /**
  * 로그인 뒤 어디로 들어갈지 정하는 화면.
@@ -144,7 +144,7 @@ export default function WorkspaceSelectPage() {
 
         {pending && (
           <a
-            href={`/invite/accept?token=${encodeURIComponent(pending.token)}`}
+            href={inviteHref(pending)}
             className="mt-6 block rounded-xl border border-primary-200 bg-primary-50 px-4 py-4 transition-colors hover:border-primary-300"
           >
             <p className="text-sm font-semibold text-slate-900">

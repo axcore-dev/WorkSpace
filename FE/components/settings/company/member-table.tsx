@@ -2,25 +2,16 @@
 
 import { useMemo, useState } from "react";
 import { DataTable } from "@/components/settings/company/data-table";
+import { grantableRanks as ranksOf } from "@/components/settings/company/link-create-modal";
+import type { PeopleData } from "@/components/settings/company/people-manager";
 import { IconPlus, IconSearch } from "@/components/icons";
 import { Button, FIELD_SM, FIELD_SM_INLINE } from "@/components/ui";
 import { josa, withJosa } from "@/data/ko";
-import { DEPARTMENTS, ROLES, USERS_ROLES } from "@/data/org";
-
-/**
- * 관리 기능을 쓸 수 있는지. **보안 경계가 아니다** — 실제 차단은 BE 세션의 직급 검사에서 한다.
- *
- * **BE 연동 seam**: 지금은 더미라 항상 true다. 세션이 붙으면 이 값을 세션 직급에서 읽고,
- * false일 때 내비의 `회사` 그룹도 함께 감춘다 (`data/settings-nav.ts`).
- */
-const canManage: boolean = true;
+import { ApiRequestError } from "@/lib/api";
+import { updateMember, type MemberDto, type WorkspaceMeDto } from "@/lib/workspace-api";
 
 const ALL = "__all";
-
-/** 직급은 부서 안에 있다 — 부서를 고르면 그 부서 직급만 보인다 */
-function ranksOf(dept: string): string[] {
-  return ROLES.filter((r) => r.dept === dept).map((r) => r.name);
-}
+const NONE = "";
 
 /**
  * 초대 관리 › 구성원 탭.
@@ -35,69 +26,88 @@ function ranksOf(dept: string): string[] {
  * 직급은 부서 안에 있으므로 부서를 바꾸면 그 부서의 첫 직급으로 함께 옮긴다 — 두 값을 각각
  * 두면 「생산본부 · 품질 관리자」처럼 없는 조합이 화면에 남는다.
  *
- * 저장 전에는 `draft`에만 쓴다. 취소하면 버린다.
+ * 저장 전에는 `draft`에만 쓴다. 취소하면 버린다. 저장은 `PATCH /api/workspace/members/{id}` —
+ * **소유자만** 바꿀 수 있고 소유자 자신의 소속은 못 바꾼다. 화면은 「수정」 버튼을 그 규칙대로 잠글 뿐이고, 진짜 문은 서버다.
  *
- * **검색과 필터를 표 위에 둔다.** 지금은 6명이라 없어도 되지만, 60명이 되면 스크롤로 사람을
+ * **검색과 필터를 표 위에 둔다.** 지금은 몇 명이라 없어도 되지만, 60명이 되면 스크롤로 사람을
  * 찾게 된다. 셋 다 화면 안에서만 거른다 — 목록이 커지면 BE 쿼리로 올린다.
  *
  * 구성원 제거는 넣지 않는다. 되돌릴 수 없는 동작이고 BE에 해당 API도 없다.
- *
- * **BE 연동 seam**: `saveEdit`이 구성원 소속·직급 변경 API를 부른다.
  */
 export function MemberTable({
+  data,
+  me,
   onSaved,
   onInvite,
+  onChanged,
 }: {
-  onSaved: (message: string) => void;
+  data: PeopleData;
+  me: WorkspaceMeDto | null;
+  onSaved: (message: string, tone?: "ink" | "error") => void;
   onInvite: () => void;
+  onChanged: () => Promise<void>;
 }) {
-  const [users, setUsers] = useState(USERS_ROLES);
+  const { members, depts, roles } = data;
+  // 소유자만 바꾼다 — 「수정」·「초대하기」 버튼이 소유자에게만 살아 있다
+  const canManage = !!me?.member.owner;
+
   const [q, setQ] = useState("");
   const [dept, setDept] = useState<string>(ALL);
   const [role, setRole] = useState<string>(ALL);
-  /** 지금 고치고 있는 행의 이메일. 한 번에 한 행만 연다 */
-  const [editing, setEditing] = useState<string | null>(null);
+  /** 지금 고치고 있는 행의 id. 한 번에 한 행만 연다 */
+  const [editing, setEditing] = useState<number | null>(null);
   /** 저장 전 값 — 취소하면 버린다 */
-  const [draft, setDraft] = useState<{ dept: string; rank: string }>({ dept: "", rank: "" });
+  const [draft, setDraft] = useState<{ deptId: number | null; roleId: number | null }>({ deptId: null, roleId: null });
+  const [saving, setSaving] = useState(false);
 
-  function startEdit(u: { email: string; dept: string; role: string }) {
-    setDraft({ dept: u.dept, rank: u.role });
-    setEditing(u.email);
+  function startEdit(u: MemberDto) {
+    setDraft({ deptId: u.departmentId, roleId: u.roleId });
+    setEditing(u.id);
   }
 
-  /**
-   * 부서를 바꾸면 직급도 그 부서 것으로 함께 옮긴다.
-   * 두 값을 각각 두면 「생산본부 · 품질 관리자」처럼 없는 조합이 화면에 남는다.
-   */
-  function draftDept(nextDept: string) {
-    setDraft({ dept: nextDept, rank: ranksOf(nextDept)[0] ?? "" });
+  /** 부서를 바꾸면 직급도 그 부서 것으로 함께 옮긴다 */
+  function draftDept(next: number | null) {
+    const list = ranksOf(roles, next);
+    setDraft({ deptId: next, roleId: list.find((r) => r.id === draft.roleId)?.id ?? list[0]?.id ?? null });
   }
 
-  function saveEdit(email: string) {
-    const who = users.find((u) => u.email === email);
-    if (!who) return;
-    setUsers((prev) =>
-      prev.map((u) => (u.email === email ? { ...u, dept: draft.dept, role: draft.rank } : u)),
-    );
-    setEditing(null);
-    if (who.dept === draft.dept) {
-      onSaved(`${who.name}의 직급을 ${draft.rank}${josa(draft.rank, "로/으로")} 바꿨어요`);
+  async function saveEdit(u: MemberDto) {
+    if (draft.roleId === null) {
+      onSaved("직급을 골라 주세요", "error");
       return;
     }
-    const where = draft.rank ? `${draft.dept} ${draft.rank}` : draft.dept;
-    onSaved(`${withJosa(who.name, "을/를")} ${where}${josa(where, "로/으로")} 옮겼어요`);
+    setSaving(true);
+    try {
+      const next = await updateMember(u.id, { roleId: draft.roleId, departmentId: draft.deptId });
+      setEditing(null);
+      await onChanged();
+      const rankName = next.roleName ?? "";
+      if (u.departmentId === next.departmentId) {
+        onSaved(`${u.name}의 직급을 ${rankName}${josa(rankName, "로/으로")} 바꿨어요`);
+      } else {
+        const where = `${next.departmentName ?? "전사"} ${rankName}`.trim();
+        onSaved(`${withJosa(u.name, "을/를")} ${where}${josa(where, "로/으로")} 옮겼어요`);
+      }
+    } catch (e) {
+      onSaved(e instanceof ApiRequestError ? e.body.message : "저장하지 못했어요", "error");
+    } finally {
+      setSaving(false);
+    }
   }
+
+  /** 이 행을 고칠 수 있는가 — 소유자가, 소유자 아닌 사람을 */
+  const editable = (u: MemberDto) => canManage && u.roleCode !== "owner";
 
   const shown = useMemo(() => {
     // 이름과 이메일 둘 다 본다 — 사람을 찾을 때 둘 중 뭐가 기억나는지는 그때그때 다르다
     const needle = q.trim().toLowerCase();
-    return users.filter((u) => {
+    return members.filter((u) => {
       if (needle && !`${u.name} ${u.email}`.toLowerCase().includes(needle)) return false;
-      if (dept !== ALL && u.dept !== dept) return false;
-      if (role !== ALL && u.role !== role) return false;
+      if (dept !== ALL && String(u.departmentId ?? NONE) !== dept) return false;
+      if (role !== ALL && String(u.roleId ?? NONE) !== role) return false;
       return true;
     });
-  }, [users, q, dept, role]);
+  }, [members, q, dept, role]);
 
   const filtered = q.trim() !== "" || dept !== ALL || role !== ALL;
 
@@ -128,9 +138,10 @@ export function MemberTable({
           onChange={(e) => setDept(e.target.value)}
         >
           <option value={ALL}>부서 전체</option>
-          {DEPARTMENTS.map((d) => (
-            <option key={d} value={d}>
-              {d}
+          <option value={NONE}>부서 없음</option>
+          {depts.map((d) => (
+            <option key={d.id} value={String(d.id)}>
+              {d.name}
             </option>
           ))}
         </select>
@@ -142,8 +153,8 @@ export function MemberTable({
           onChange={(e) => setRole(e.target.value)}
         >
           <option value={ALL}>직급 전체</option>
-          {ROLES.map((r) => (
-            <option key={r.id} value={r.name}>
+          {roles.map((r) => (
+            <option key={r.id} value={String(r.id)}>
               {r.name}
             </option>
           ))}
@@ -157,7 +168,7 @@ export function MemberTable({
 
       <DataTable
         rows={shown}
-        rowKey={(u) => u.email}
+        rowKey={(u) => String(u.id)}
         // 거른 결과가 빈 것과 애초에 아무도 없는 것은 다음에 할 일이 다르다
         empty={filtered ? "찾는 구성원이 없어요" : "데이터가 없습니다"}
         columns={[
@@ -172,53 +183,52 @@ export function MemberTable({
             label: "이메일",
             width: "30%",
             cell: (u) => (
-              <span className="block truncate font-mono text-[12.5px] text-slate-500">
-                {u.email}
-              </span>
+              <span className="block truncate font-mono text-[12.5px] text-slate-500">{u.email}</span>
             ),
           },
           {
             label: "부서",
             width: "20%",
             cell: (u) =>
-              editing === u.email ? (
+              editing === u.id ? (
                 <select
                   className={FIELD_SM_INLINE}
-                  value={draft.dept}
+                  value={draft.deptId === null ? NONE : String(draft.deptId)}
                   aria-label={`${u.name} 부서`}
-                  onChange={(e) => draftDept(e.target.value)}
+                  onChange={(e) => draftDept(e.target.value === NONE ? null : Number(e.target.value))}
                 >
-                  {DEPARTMENTS.map((d) => (
-                    <option key={d} value={d}>
-                      {d}
+                  <option value={NONE}>부서 없음</option>
+                  {depts.map((d) => (
+                    <option key={d.id} value={String(d.id)}>
+                      {d.name}
                     </option>
                   ))}
                 </select>
               ) : (
-                <span className="text-slate-600">{u.dept}</span>
+                <span className="text-slate-600">{u.departmentName ?? "—"}</span>
               ),
           },
           {
             label: "직급",
             width: "22%",
             cell: (u) => {
-              if (editing !== u.email) return <span className="text-slate-600">{u.role}</span>;
-              const list = ranksOf(draft.dept);
+              if (editing !== u.id) return <span className="text-slate-600">{u.roleName ?? "—"}</span>;
+              const list = ranksOf(roles, draft.deptId);
               return (
                 <select
                   className={FIELD_SM_INLINE}
-                  value={draft.rank}
+                  value={draft.roleId === null ? "" : String(draft.roleId)}
                   disabled={list.length === 0}
                   aria-label={`${u.name} 직급`}
-                  onChange={(e) => setDraft((d) => ({ ...d, rank: e.target.value }))}
+                  onChange={(e) => setDraft((d) => ({ ...d, roleId: Number(e.target.value) }))}
                 >
-                  {/* 그 부서에 직급이 하나도 없을 수 있다 — 권한 관리에서 다 지운 경우 */}
+                  {/* 그 부서에 줄 수 있는 직급이 하나도 없을 수 있다 — 권한 관리에서 다 지운 경우, 또는 내 권한 밖 */}
                   {list.length === 0 ? (
-                    <option value="">직급 없음</option>
+                    <option value="">줄 수 있는 직급이 없어요</option>
                   ) : (
-                    list.map((n) => (
-                      <option key={n} value={n}>
-                        {n}
+                    list.map((r) => (
+                      <option key={r.id} value={String(r.id)}>
+                        {r.name}
                       </option>
                     ))
                   )}
@@ -231,20 +241,15 @@ export function MemberTable({
             right: true,
             width: "132px",
             cell: (u) =>
-              editing === u.email ? (
+              editing === u.id ? (
                 <span className="inline-flex gap-1.5">
                   {/* 블루를 쓰지 않는다 — 이 화면의 주 액션은 위 「초대하기」다
                       (DESIGN.md 「한 화면에 primary 버튼을 여러 개 두지 않는다」).
                       옆의 「취소」가 ghost라 이것만 테두리를 가져도 무엇이 확정인지 읽힌다 */}
-                  <Button variant="secondary" size="sm" className="h-8" onClick={() => saveEdit(u.email)}>
-                    저장
+                  <Button variant="secondary" size="sm" className="h-8" disabled={saving} onClick={() => void saveEdit(u)}>
+                    {saving ? "저장 중…" : "저장"}
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8"
-                    onClick={() => setEditing(null)}
-                  >
+                  <Button variant="ghost" size="sm" className="h-8" onClick={() => setEditing(null)}>
                     취소
                   </Button>
                 </span>
@@ -253,7 +258,7 @@ export function MemberTable({
                   variant="secondary"
                   size="sm"
                   className="h-8"
-                  disabled={!canManage}
+                  disabled={!editable(u)}
                   onClick={() => startEdit(u)}
                 >
                   수정

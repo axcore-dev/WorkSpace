@@ -217,6 +217,14 @@ public class WorkspaceInvitationService {
         //
         // 담당자 이메일로 들어온 사람이 소유자다. 운영자가 담당자를 바꾼 뒤 그 사람이 수락하는
         // 경로가 여기라, 이 시점에 소유자를 옮긴다 — 이전 담당자는 관리자로 내려간다.
+        //
+        // 회사 관리자가 보낸 초대(kind = member)는 그 초대에 실린 직급·부서로 들어간다. 담당자 규칙은 운영자 초대에만 적용된다 —
+        // 관리자가 우연히 담당자 주소로 직원 초대를 보냈다고 소유자가 바뀌어서는 안 된다.
+        if (invitation.isMemberInvite()) {
+            tenantMembers.joinWithRole(
+                    workspace.getSchemaName(), user.getId(), invitation.getRoleId(), invitation.getDepartmentId());
+            return membershipOf(user, workspace, invitation);
+        }
         boolean contact = workspace.isContactEmail(invitation.getEmail());
         tenantMembers.join(workspace.getSchemaName(), user.getId(), contact);
         if (contact) {
@@ -230,7 +238,11 @@ public class WorkspaceInvitationService {
                     "담당자 %s 초대 수락 → 소유자 부여 (이전 소유자 %d명 관리자로)"
                             .formatted(invitation.getEmail(), demoted));
         }
+        return membershipOf(user, workspace, invitation);
+    }
 
+    /** 라우팅 인덱스(shared) 의 소속. 없으면 만든다 — 이미 소속돼 있으면 초대만 소진하고 기존 것을 돌려준다. */
+    private UserWorkspaceMembership membershipOf(User user, Workspace workspace, WorkspaceInvitation invitation) {
         return membershipRepository
                 .findByUserIdAndWorkspaceIdWithWorkspace(user.getId(), workspace.getId())
                 .orElseGet(

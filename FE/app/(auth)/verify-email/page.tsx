@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { AuthSplit } from "@/components/auth-shell";
 import { ApiRequestError, apiPost } from "@/lib/api";
-import { readInvite } from "@/lib/pending-invite";
+import { inviteHref, readInvite } from "@/lib/pending-invite";
 
 type UserResponse = { email: string; name: string; emailVerified: boolean };
 
@@ -51,7 +51,7 @@ function VerifyEmailContent() {
         // 열려서, 여기서 이어 주지 않으면 "확인은 됐는데 어느 회사였지" 로 끊긴다.
         const invite = readInvite();
         if (invite) {
-          window.location.replace(`/invite/accept?token=${encodeURIComponent(invite.token)}`);
+          window.location.replace(inviteHref(invite));
           return;
         }
         setState({ kind: "done", user });

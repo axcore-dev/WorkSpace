@@ -18,17 +18,16 @@ import java.util.UUID;
 /**
  * 직급 — 권한 관리 화면의 가운데·오른쪽 열. 이름 · 부서 · 회사 권한 · 데이터 범위 · 기능 탭.
  *
- * <h2>누가 무엇을 고칠 수 있는가 (결정 B, 2026-09-08)</h2>
+ * <h2>누가 무엇을 고칠 수 있는가 (2026-09-08 변경)</h2>
+ *
+ * <p><b>소유자만이다.</b> 처음엔 관리자도 자기 권한 안에서 편집할 수 있게 했지만(결정 B), 직급과 권한을 정하는 자리는 회사를
+ * 대표하는 한 사람에게만 두기로 바꿨다. 그 안에서:
  *
  * <ul>
- *   <li><b>소유자(owner)</b> — 고정. 아무도 고치거나 지우지 못한다. 권한은 언제나 전부다</li>
- *   <li><b>구성원(member)</b> — 고정. 이름·부서는 바꿀 수 없고 지울 수도 없다. 권한(탭 · 범위 · 위임)은 <b>소유자만</b> 고친다</li>
- *   <li><b>그 밖의 직급</b> — 소유자는 마음대로. 관리자({@code is_admin})는 <b>자기 권한 안에서만</b>: 고치기 전 상태와
- *       고친 뒤 상태가 둘 다 자기 권한의 부분집합이어야 하고, 자기 직급은 건드릴 수 없다</li>
+ *   <li><b>소유자(owner) 직급</b> — 고정. 소유자 자신도 고치거나 지우지 못한다. 권한은 언제나 전부다</li>
+ *   <li><b>구성원(member) 직급</b> — 고정. 이름·부서는 바꿀 수 없고 지울 수도 없다. 권한(탭 · 범위 · 위임)은 고칠 수 있다</li>
+ *   <li>그 밖의 직급 — 만들고 · 고치고 · 지운다</li>
  * </ul>
- *
- * <p>"자기 권한 안" 을 전후 모두 보는 이유: 뒤만 보면 관리자가 자기보다 큰 직급의 권한을 <i>줄이는</i> 것이 통한다.
- * 그건 다른 방향의 월권이다.
  *
  * <p>기능 탭은 카탈로그에 있으면 저장한다. 회사가 끈 기능의 탭도 "가진" 것으로 남고, 실제 접근은 회사가 켠 것과의 교집합이다
  * ({@code ModuleAccessReader}). 화면은 끈 기능의 토글을 잠가 바꾸지 못하게만 한다.
@@ -59,15 +58,14 @@ public class RoleService {
     @Transactional(readOnly = true)
     public List<RoleResponse> list(JwtPrincipal principal) {
         TenantContext ctx = access.open(principal);
-        RolePermissions mine = permissions.forContext(ctx);
-        return rows(null).stream().map(r -> toResponse(r, ctx, mine)).toList();
+        return rows(null).stream().map(r -> toResponse(r, ctx)).toList();
     }
 
-    /** 권한 없이 만든다. 관리자도 만들 수 있다 — 빈 권한은 누구의 부분집합이다. */
+    /** 권한 없이 만든다 — 새 직급이 뭘 볼 수 있는지는 이어서 정한다. */
     @Transactional
     public RoleResponse create(JwtPrincipal principal, RoleCreateRequest request) {
         TenantContext ctx = access.open(principal);
-        ctx.requireRoleEditor();
+        ctx.requireOwner();
         departments.requireExists(request.departmentId());
 
         Long id =
@@ -90,24 +88,10 @@ public class RoleService {
     @Transactional
     public RoleResponse update(JwtPrincipal principal, long id, RoleUpdateRequest request) {
         TenantContext ctx = access.open(principal);
-        ctx.requireRoleEditor();
+        ctx.requireOwner();
         Row target = requireRow(id);
-        RolePermissions mine = permissions.forContext(ctx);
-        RolePermissions before = permissions.forRole(id).orElseThrow();
-
         if ("owner".equals(target.code)) {
             throw new SettingsForbiddenException("소유자 직급은 고칠 수 없습니다");
-        }
-        if (target.system && !ctx.owner()) {
-            throw new SettingsForbiddenException("고정 직급의 권한은 소유자만 고칠 수 있습니다");
-        }
-        if (!ctx.owner()) {
-            if (ctx.roleId() != null && ctx.roleId() == id) {
-                throw new SettingsForbiddenException("자기 직급은 고칠 수 없습니다");
-            }
-            if (!mine.covers(before)) {
-                throw new SettingsForbiddenException("내 권한보다 넓은 직급은 고칠 수 없습니다");
-            }
         }
 
         // 고정 직급(member)은 이름·부서·admin 을 그대로 둔다. 부서 없음(「전사」)은 허용 — 기본 관리자 직급이 그렇다
@@ -118,12 +102,6 @@ public class RoleService {
             departments.requireExists(departmentId);
         }
         Set<String> tabs = validatedTabs(request.tabs());
-        RolePermissions after =
-                new RolePermissions(
-                        tabs, admin, request.canInvite(), request.canManageIntegrations(), request.dataScope(), request.showAmounts());
-        if (!ctx.owner() && !mine.covers(after)) {
-            throw new SettingsForbiddenException("내 권한 밖의 권한은 줄 수 없습니다");
-        }
 
         jdbc.update(
                 """
@@ -161,18 +139,10 @@ public class RoleService {
     @Transactional
     public void delete(JwtPrincipal principal, long id, Long moveMembersTo) {
         TenantContext ctx = access.open(principal);
-        ctx.requireRoleEditor();
+        ctx.requireOwner();
         Row target = requireRow(id);
-
         if (target.system) {
             throw new SettingsForbiddenException("고정 직급은 지울 수 없습니다");
-        }
-        if (ctx.roleId() != null && ctx.roleId() == id) {
-            throw new SettingsForbiddenException("자기 직급은 지울 수 없습니다");
-        }
-        RolePermissions mine = permissions.forContext(ctx);
-        if (!ctx.owner() && !mine.covers(permissions.forRole(id).orElseThrow())) {
-            throw new SettingsForbiddenException("내 권한보다 넓은 직급은 지울 수 없습니다");
         }
 
         if (target.memberCount > 0) {
@@ -183,13 +153,8 @@ public class RoleService {
             if (moveMembersTo == id) {
                 throw new SettingsValidationException("지우는 직급으로는 옮길 수 없습니다");
             }
-            Row dest = requireRow(moveMembersTo);
-            if ("owner".equals(dest.code)) {
+            if ("owner".equals(requireRow(moveMembersTo).code)) {
                 throw new SettingsForbiddenException("소유자 직급으로는 옮길 수 없습니다");
-            }
-            // 옮기는 것도 권한을 주는 일이다 — 관리자는 자기 권한 안의 직급으로만
-            if (!ctx.owner() && !mine.covers(permissions.forRole(moveMembersTo).orElseThrow())) {
-                throw new SettingsForbiddenException("내 권한보다 넓은 직급으로는 옮길 수 없습니다");
             }
             jdbc.update("update members set role_id = ?, updated_at = now() where role_id = ?", moveMembersTo, id);
         }
@@ -207,7 +172,7 @@ public class RoleService {
     // ---------------------------------------------------------------- 내부
 
     private RoleResponse get(TenantContext ctx, long id) {
-        return toResponse(requireRow(id), ctx, permissions.forContext(ctx));
+        return toResponse(requireRow(id), ctx);
     }
 
     /** 카탈로그에 있는 탭만 통과한다. */
@@ -238,18 +203,10 @@ public class RoleService {
         }
     }
 
-    private RoleResponse toResponse(Row r, TenantContext ctx, RolePermissions mine) {
+    private RoleResponse toResponse(Row r, TenantContext ctx) {
         RolePermissions perms = permissions.forRole(r.id).orElseThrow();
-        boolean editable;
-        if ("owner".equals(r.code)) {
-            editable = false;
-        } else if (r.system) {
-            editable = ctx.owner();
-        } else if (ctx.owner()) {
-            editable = true;
-        } else {
-            editable = ctx.admin() && (ctx.roleId() == null || ctx.roleId() != r.id) && mine.covers(perms);
-        }
+        // 소유자만 고치고 줄 수 있다. 소유자 직급 자체는 누구도 못 만진다
+        boolean ownerCanTouch = ctx.owner() && !"owner".equals(r.code);
         return new RoleResponse(
                 r.id,
                 r.code,
@@ -264,7 +221,8 @@ public class RoleService {
                 perms.showAmounts(),
                 List.copyOf(perms.tabs()),
                 r.memberCount,
-                editable);
+                ownerCanTouch,
+                ownerCanTouch);
     }
 
     private record Row(

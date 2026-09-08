@@ -86,6 +86,20 @@ public class WorkspaceInvitation {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    /**
+     * 누가 보낸 초대인가. {@code operator} 는 우리 운영자가 담당자에게 보낸 접속 링크(수락자는 owner · admin),
+     * {@code member} 는 회사 관리자가 직원에게 보낸 초대({@link #roleId} · {@link #departmentId} 로 들어간다).
+     */
+    @Column(nullable = false, length = 10)
+    private String kind = "operator";
+
+    /** member 초대가 부여할 테넌트 roles.id. 스키마가 행마다 달라 FK 가 없다 — 수락 때 없으면 member 직급. */
+    @Column(name = "role_id")
+    private Long roleId;
+
+    @Column(name = "department_id")
+    private Long departmentId;
+
     protected WorkspaceInvitation() {
         // JPA 용
     }
@@ -110,6 +124,34 @@ public class WorkspaceInvitation {
                 SecureTokens.hash(rawToken),
                 invitedBy,
                 now.plus(TTL));
+    }
+
+    /** 회사 관리자가 직원에게 보내는 초대. 수락하면 이 직급·부서로 들어간다. */
+    public static WorkspaceInvitation issueForMember(
+            Workspace workspace,
+            String email,
+            String rawToken,
+            User invitedBy,
+            Long roleId,
+            Long departmentId,
+            Instant now) {
+        WorkspaceInvitation i = issue(workspace, email, rawToken, invitedBy, now);
+        i.kind = "member";
+        i.roleId = roleId;
+        i.departmentId = departmentId;
+        return i;
+    }
+
+    public boolean isMemberInvite() {
+        return "member".equals(kind);
+    }
+
+    public Long getRoleId() {
+        return roleId;
+    }
+
+    public Long getDepartmentId() {
+        return departmentId;
     }
 
     /** 조회·저장 양쪽에서 같은 규칙을 써야 해서 여기에 둔다. {@code User.normalizeEmail} 과 같다. */

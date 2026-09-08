@@ -3,9 +3,10 @@
 import { SettingsSection } from "@/components/settings/settings-section";
 import { ICON_MAP } from "@/components/icons";
 import { useModules } from "@/components/module-provider";
-import { AiBadge, Toast, Toggle } from "@/components/ui";
+import { AiBadge, Badge, Toast, Toggle } from "@/components/ui";
 import { useToast } from "@/components/use-toast";
 import { MODULES } from "@/data/modules";
+import { useWorkspaceMe } from "@/lib/workspace-me";
 
 /**
  * 워크스페이스 › 기능 관리 — 기능과 그 하위 항목 ON/OFF.
@@ -24,9 +25,18 @@ import { MODULES } from "@/data/modules";
  */
 export function FeatureSettings() {
   const { state, setModule, setSub } = useModules();
+  const { me } = useWorkspaceMe();
   const [toast, showToast] = useToast();
 
   const onCount = MODULES.filter((m) => state[m.slug]?.enabled).length;
+
+  /**
+   * 내 직급이 가진 탭만 켜고 끌 수 있다 — 회사 설정 권한이 있어도 자기 직급에 없는 기능은 잠긴다.
+   * 경영지원·영업만 받은 팀장이 생산관리를 켜면 자기가 볼 수도 없는 화면을 회사 전체에 여는 셈이다.
+   * 소유자는 전부다. 자격을 받기 전에는 전부 잠근다 — 서버도 같은 규칙으로 거절한다(403).
+   */
+  const canEdit = !!me && (me.member.admin || me.member.owner);
+  const granted = new Set(canEdit ? me.permissions.tabs : []);
 
   /** 저장 결과를 토스트로. 성공 문구는 바로, 실패는 스토어가 되돌린 뒤 에러 톤으로 */
   function report(saving: Promise<void>, done: string) {
@@ -54,6 +64,8 @@ export function FeatureSettings() {
             const Icon = ICON_MAP[mod.icon];
             const st = state[mod.slug];
             const on = mod.subfunctions.filter((s) => st.subs[s.id]).length;
+            /** 이 기능에서 내가 만질 수 있는 탭. 하나도 없으면 기능 토글도 잠긴다 */
+            const mine = mod.subfunctions.filter((s) => granted.has(s.id)).map((s) => s.id);
             return (
               <div
                 key={mod.slug}
@@ -71,14 +83,17 @@ export function FeatureSettings() {
                     <span className="shrink-0 text-[11px] text-slate-400">
                       {on}/{mod.subfunctions.length}
                     </span>
+                    {canEdit && mine.length === 0 && <Badge tone="slate">내 직급에 없음</Badge>}
                   </span>
                   <Toggle
                     size="sm"
                     checked={st.enabled}
+                    // 내가 가진 탭만 바꾼다 — 남의 탭까지 통째로 켜고 끄지 않는다
                     onChange={(v) =>
-                      report(setModule(mod.slug, v), `${mod.name} 기능을 ${v ? "켰어요" : "껐어요"}`)
+                      report(setModule(mod.slug, v, mine), `${mod.name} 기능을 ${v ? "켰어요" : "껐어요"}`)
                     }
                     label={`${mod.name} 기능`}
+                    disabled={mine.length === 0}
                   />
                 </div>
 
@@ -94,6 +109,7 @@ export function FeatureSettings() {
                           report(setSub(mod.slug, sub.id, v), `${sub.name}을 ${v ? "켰어요" : "껐어요"}`)
                         }
                         label={`${mod.name} > ${sub.name}`}
+                        disabled={!granted.has(sub.id)}
                       />
                       <span
                         className={`flex items-center gap-1 text-[13px] ${

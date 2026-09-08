@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { AuthPrimaryButton, AuthSplit, SocialAuthButtons } from "@/components/auth-shell";
+import { AuthPrimaryButton, AuthSpinner, AuthSplit, SocialAuthButtons } from "@/components/auth-shell";
 import { FIELD_LG } from "@/components/ui";
 import { ApiRequestError, apiGet, apiPost, apiPostAuthed } from "@/lib/api";
 import {
@@ -68,20 +68,12 @@ type Stage =
 
 export default function InviteAcceptPage() {
   return (
-    <Suspense fallback={<AuthSplit><Spinner label="초대를 확인하고 있어요" /></AuthSplit>}>
+    <Suspense fallback={<AuthSplit><AuthSpinner label="초대를 확인하고 있어요" /></AuthSplit>}>
       <InviteAccept />
     </Suspense>
   );
 }
 
-function Spinner({ label }: { label: string }) {
-  return (
-    <div className="flex items-center gap-3.5" role="status" aria-live="polite">
-      <span className="spinner shrink-0" />
-      <span className="text-sm text-slate-600">{label}</span>
-    </div>
-  );
-}
 
 function InviteAccept() {
   const router = useRouter();
@@ -260,7 +252,7 @@ function InviteAccept() {
   if (stage.kind === "loading") {
     return (
       <AuthSplit>
-        <Spinner label="초대를 확인하고 있어요" />
+        <AuthSpinner label="초대를 확인하고 있어요" />
       </AuthSplit>
     );
   }
