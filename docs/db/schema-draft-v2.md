@@ -402,8 +402,7 @@ graph TD
 
 | v2 테이블 | v1 이름 | 변경 |
 |---|---|---|
-| `enabled_modules` | `workspace_modules` | **개칭** + `workspace_id` 삭제 |
-| `enabled_subfunctions` | `workspace_subfunctions` | **개칭** + `workspace_id` 삭제 |
+| `enabled_features` | `workspace_modules` + `workspace_subfunctions` | **둘을 한 표로 합쳤다** (tenant V8, 2026-09-08). 한 행이 탭 하나고 모듈 ON/OFF 는 "탭이 하나라도 켜졌나" 로 파생한다 — 화면이 그렇게 계산하고 있고, 두 값을 따로 두면 어긋난다. 카탈로그(모듈·탭 목록·기본 ON)는 DB 가 아니라 코드(`FeatureCatalog` = `FE/data/modules.ts`)에 둔다 |
 | `connectors` | 동일 | `workspace_id` 삭제 |
 | `service_connections` | 동일 | `workspace_id` 삭제 |
 | `notification_prefs` | 동일 | `workspace_id` 삭제 |

@@ -18,6 +18,9 @@ import com.axcore.workspace.workspace.admin.exception.WorkspaceNotFoundException
 import com.axcore.workspace.workspace.admin.exception.WorkspaceStateException;
 import com.axcore.workspace.workspace.provisioning.TenantProvisioningException;
 import com.axcore.workspace.workspace.service.WorkspaceAccessDeniedException;
+import com.axcore.workspace.workspace.settings.SettingsForbiddenException;
+import com.axcore.workspace.workspace.settings.SettingsValidationException;
+import com.axcore.workspace.workspace.settings.WorkspaceNotSelectedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -174,6 +177,34 @@ public class GlobalExceptionHandler {
             InternalAdminRequiredException e) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(ErrorResponse.of("FORBIDDEN", e.getMessage()));
+    }
+
+    /**
+     * 회사에는 들어왔지만 이 설정 작업을 할 직급이 아니다. 403 이다.
+     *
+     * <p>{@code WORKSPACE_ACCESS_DENIED}(회사 자체에 못 들어감)와 코드를 다르게 둔다. 화면은 이 코드를 받으면
+     * 회사 선택으로 보내지 않고, 그 버튼만 잠근 채로 둔다.
+     */
+    @ExceptionHandler(SettingsForbiddenException.class)
+    public ResponseEntity<ErrorResponse> handleSettingsForbidden(SettingsForbiddenException e) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ErrorResponse.of("FORBIDDEN", e.getMessage()));
+    }
+
+    /**
+     * 설정 API 를 불렀는데 회사가 아직 정해지지 않았다. 409 다. 코드({@code WORKSPACE_REQUIRED} ·
+     * {@code WORKSPACE_NOT_READY})는 introspect 와 같다 — 화면이 두 API 를 한 가지로 다룬다.
+     */
+    @ExceptionHandler(WorkspaceNotSelectedException.class)
+    public ResponseEntity<ErrorResponse> handleWorkspaceNotSelected(WorkspaceNotSelectedException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ErrorResponse.of(e.code(), e.getMessage()));
+    }
+
+    /** 설정 값이 카탈로그·규칙에 맞지 않는다. {@code @Valid} 실패와 같은 코드다. */
+    @ExceptionHandler(SettingsValidationException.class)
+    public ResponseEntity<ErrorResponse> handleSettingsValidation(SettingsValidationException e) {
+        return ResponseEntity.badRequest().body(ErrorResponse.of("VALIDATION_FAILED", e.getMessage()));
     }
 
     /** 없는 워크스페이스. 404 다. */
