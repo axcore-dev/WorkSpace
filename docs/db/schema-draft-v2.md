@@ -406,8 +406,8 @@ graph TD
 | v2 테이블 | v1 이름 | 변경 |
 |---|---|---|
 | `enabled_features` | `workspace_modules` + `workspace_subfunctions` | **둘을 한 표로 합쳤다** (tenant V8, 2026-09-08). 한 행이 탭 하나고 모듈 ON/OFF 는 "탭이 하나라도 켜졌나" 로 파생한다 — 화면이 그렇게 계산하고 있고, 두 값을 따로 두면 어긋난다. 카탈로그(모듈·탭 목록·기본 ON)는 DB 가 아니라 코드(`FeatureCatalog` = `FE/data/modules.ts`)에 둔다 |
-| `connectors` | 동일 | `workspace_id` 삭제 |
-| `service_connections` | 동일 | `workspace_id` 삭제 |
+| `external_systems` | `connectors` | **이름을 바꿨다** (tenant V11, 2026-09-08). 화면의 「외부 시스템」 섹션과 같은 말이다 — `connectors` 는 FE 에서 Slack·Notion 쪽을 가리키는 말이라 두 표가 서로 바뀌어 읽혔다. `workspace_id` 삭제. 회사가 부르는 이름(`name`)과 제품 이름(`vendor`)을 나눠 두고, 상태는 `ok`·`delayed`·`down` 셋이다. 화면에서는 읽기 전용이라 쓰기 API 가 없다 |
+| `connected_services` | `service_connections` | **이름을 바꿨다** (tenant V11, 2026-09-08). 화면의 「외부 서비스」 섹션. `workspace_id` 삭제. 한 행이 서비스 하나고 해제해도 행을 지우지 않는다(`connected = false`). 카탈로그(어떤 서비스가 있는가)는 DB 가 아니라 코드(`ConnectorCatalog` = `FE/data/chat.ts` `CONNECTOR_LIB`)에 둔다 — `enabled_features` 와 같은 규칙이다 |
 | `notification_prefs` | 동일 | `workspace_id` 삭제 |
 | `module_sync_rules` | 동일 | `workspace_id` 삭제 |
 | `audit_logs` | 동일 | `workspace_id` 삭제. `actor_member_id`는 `members`를 그대로 가리킴 |

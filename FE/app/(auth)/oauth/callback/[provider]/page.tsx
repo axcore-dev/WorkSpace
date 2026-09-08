@@ -57,93 +57,101 @@ function OAuthCallbackContent() {
     if (sent.current) return;
     sent.current = true;
 
-    if (!isSupported(routeProvider)) {
-      setState({ kind: "failed", message: "지원하지 않는 로그인 방식입니다" });
-      return;
-    }
-    const provider = routeProvider;
+    // 검증 · 교환을 effect 본문 밖(마이크로태스크)으로 미룬다. 렌더 도중 setState 를 부르면
+    // 렌더가 연쇄로 다시 돈다 (react-hooks/set-state-in-effect). 여기 검증들을 useState
+    // 초기값으로 옮기지 않는 이유는 consumeState 가 저장된 state 를 소비하기 때문이다 —
+    // StrictMode 가 초기화 함수를 두 번 부르면 두 번째가 실패한다.
+    void (async () => {
+      await Promise.resolve();
 
-    // 사용자가 동의 화면에서 취소하면 code 대신 error 가 온다.
-    const providerError = params.get("error");
-    if (providerError) {
-      setState({
-        kind: "failed",
-        message:
-          providerError === "access_denied"
-            ? "로그인을 취소했습니다"
-            : `${PROVIDER_LABELS[provider]} 로그인이 완료되지 않았습니다`,
-      });
-      return;
-    }
+      if (!isSupported(routeProvider)) {
+        setState({ kind: "failed", message: "지원하지 않는 로그인 방식입니다" });
+        return;
+      }
+      const provider = routeProvider;
 
-    const code = params.get("code");
-    const returnedState = params.get("state");
-    // state 검증은 code 를 보내기 전에 한다. 통과하지 못한 code 를 서버로 넘기면 공격자 계정으로
-    // 로그인되는 것을 막을 수 없다.
-    if (!consumeState(provider, returnedState)) {
-      setState({
-        kind: "failed",
-        message: "로그인 요청을 확인할 수 없습니다. 로그인 화면에서 다시 시도해 주세요",
-      });
-      return;
-    }
-    if (!code) {
-      setState({ kind: "failed", message: "인증 코드를 받지 못했습니다" });
-      return;
-    }
-
-    // state 를 함께 보낸다. 검증은 위에서 이미 끝났고, 이 값은 네이버가 토큰 요청에 요구해서
-    // BE 가 제공자에게 그대로 넘겨주기 위한 것이다. Google 은 쓰지 않는다.
-    apiPost<LoginResponse>(`/api/auth/oauth/${provider}`, { code, state: returnedState })
-      .then((result) => {
-        if (!result) {
-          setState({ kind: "failed", message: "서버 응답이 비어 있습니다" });
-          return;
-        }
-        if (result.next === "MFA_REQUIRED") {
-          setState({ kind: "mfa" });
-          return;
-        }
-        if (result.next === "EMAIL_VERIFICATION_REQUIRED") {
-          setState({ kind: "verifyEmail", email: result.user?.email ?? "" });
-          return;
-        }
-        localStorage.setItem(
-          "axpoint-user",
-          JSON.stringify({ ...DEMO_USER, name: result.user?.name, email: result.user?.email }),
-        );
-
-        // 초대 링크에서 소셜 로그인으로 넘어온 사람은 초대로 돌려보낸다. 여기서 회사 선택
-        // 화면으로 보내면 초대 링크를 다시 찾아 열어야 한다. 이메일 확인 화면이 초대로 돌아가는
-        // 것과 같은 판단이다. 주소가 맞는지는 초대 화면이 /me 로 다시 확인한다.
-        const invite = readInvite();
-        if (invite) {
-          router.replace(inviteHref(invite));
-          return;
-        }
-
-        // 운영자는 운영자 콘솔로. 이메일 로그인(login/page.tsx)과 같은 판정이다 — 소셜 로그인만
-        // 이 확인이 빠져 있어서 운영자가 Google 로 들어오면 회사 선택 화면에 떨어졌다.
-        // 여기 결과는 어느 화면으로 보낼지만 정한다. 실제 인가는 서버가 요청마다 DB 로 본다.
-        // /me 가 실패해도 로그인은 이미 됐으니 일반 경로로 보낸다.
-        return apiGet<{ internalAdmin: boolean }>("/api/auth/me")
-          .then((me) => {
-            router.replace(me?.internalAdmin ? "/admin" : "/workspace");
-          })
-          .catch(() => {
-            // SELECT_WORKSPACE · READY — 회사 선택 화면으로 넘긴다.
-            router.replace("/workspace");
-          });
-      })
-      .catch((e: unknown) => {
+      // 사용자가 동의 화면에서 취소하면 code 대신 error 가 온다.
+      const providerError = params.get("error");
+      if (providerError) {
         setState({
           kind: "failed",
           message:
-            e instanceof ApiRequestError
-              ? e.message
-              : "서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요",
+            providerError === "access_denied"
+              ? "로그인을 취소했습니다"
+              : `${PROVIDER_LABELS[provider]} 로그인이 완료되지 않았습니다`,
         });
-      });
+        return;
+      }
+
+      const code = params.get("code");
+      const returnedState = params.get("state");
+      // state 검증은 code 를 보내기 전에 한다. 통과하지 못한 code 를 서버로 넘기면 공격자 계정으로
+      // 로그인되는 것을 막을 수 없다.
+      if (!consumeState(provider, returnedState)) {
+        setState({
+          kind: "failed",
+          message: "로그인 요청을 확인할 수 없습니다. 로그인 화면에서 다시 시도해 주세요",
+        });
+        return;
+      }
+      if (!code) {
+        setState({ kind: "failed", message: "인증 코드를 받지 못했습니다" });
+        return;
+      }
+
+      // state 를 함께 보낸다. 검증은 위에서 이미 끝났고, 이 값은 네이버가 토큰 요청에 요구해서
+      // BE 가 제공자에게 그대로 넘겨주기 위한 것이다. Google 은 쓰지 않는다.
+      apiPost<LoginResponse>(`/api/auth/oauth/${provider}`, { code, state: returnedState })
+        .then((result) => {
+          if (!result) {
+            setState({ kind: "failed", message: "서버 응답이 비어 있습니다" });
+            return;
+          }
+          if (result.next === "MFA_REQUIRED") {
+            setState({ kind: "mfa" });
+            return;
+          }
+          if (result.next === "EMAIL_VERIFICATION_REQUIRED") {
+            setState({ kind: "verifyEmail", email: result.user?.email ?? "" });
+            return;
+          }
+          localStorage.setItem(
+            "axpoint-user",
+            JSON.stringify({ ...DEMO_USER, name: result.user?.name, email: result.user?.email }),
+          );
+
+          // 초대 링크에서 소셜 로그인으로 넘어온 사람은 초대로 돌려보낸다. 여기서 회사 선택
+          // 화면으로 보내면 초대 링크를 다시 찾아 열어야 한다. 이메일 확인 화면이 초대로 돌아가는
+          // 것과 같은 판단이다. 주소가 맞는지는 초대 화면이 /me 로 다시 확인한다.
+          const invite = readInvite();
+          if (invite) {
+            router.replace(inviteHref(invite));
+            return;
+          }
+
+          // 운영자는 운영자 콘솔로. 이메일 로그인(login/page.tsx)과 같은 판정이다 — 소셜 로그인만
+          // 이 확인이 빠져 있어서 운영자가 Google 로 들어오면 회사 선택 화면에 떨어졌다.
+          // 여기 결과는 어느 화면으로 보낼지만 정한다. 실제 인가는 서버가 요청마다 DB 로 본다.
+          // /me 가 실패해도 로그인은 이미 됐으니 일반 경로로 보낸다.
+          return apiGet<{ internalAdmin: boolean }>("/api/auth/me")
+            .then((me) => {
+              router.replace(me?.internalAdmin ? "/admin" : "/workspace");
+            })
+            .catch(() => {
+              // SELECT_WORKSPACE · READY — 회사 선택 화면으로 넘긴다.
+              router.replace("/workspace");
+            });
+        })
+        .catch((e: unknown) => {
+          setState({
+            kind: "failed",
+            message:
+              e instanceof ApiRequestError
+                ? e.message
+                : "서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요",
+          });
+        });
+    })();
   }, [params, routeProvider, router]);
 
   const label = isSupported(routeProvider) ? PROVIDER_LABELS[routeProvider] : "소셜";

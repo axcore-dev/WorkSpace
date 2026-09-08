@@ -288,3 +288,51 @@ admin  GET /invite-links                   → [["1/1", active:false]] · DELETE
 - 초대 메일 실제 발송은 `MAIL_MODE=smtp` + 발송 계정 설정이 있어야 한다(`docs/infra/ci-cd.md` 운영 작업). 지금 운영 서버는 `log` 라
   초대는 만들어지되 메일은 나가지 않는다 — 켤 때까지는 「초대 중」 목록의 「다시 보내기」로 재발송하는 것 외에 링크를 꺼낼 길이 없다.
 - 이미 구성원인 사람이 **한도가 다 찬** 링크를 다시 열면 401 이다(살아 있는 링크면 자리를 쓰지 않고 200). 화면상 "쓸 수 없는 링크" 로 보이지만 이미 들어와 있으므로 문제되지 않는다.
+
+---
+
+# 4단계 — 연동 (`/api/workspace/connectors`)
+
+화면 「설정 › 워크스페이스 › 연동」의 두 섹션이 그대로 두 표다.
+
+- **외부 시스템** (`external_systems`) — 회사의 ERP·MES·센서. 화면은 읽기만 한다. 운영팀이 등록한다 — 쓰기 API 가 없다.
+- **외부 서비스** (`connected_services`) — AI 대화가 부를 수 있는 외부 앱 중 이 회사가 연결한 것. 카탈로그는 코드에 있다(`ConnectorCatalog`).
+
+## 규칙
+
+| | 목록 보기 | 연결 · 해제 |
+|---|---|---|
+| 소유자 | O | O |
+| 관리자 직급 (`can_manage_integrations`) | O | O |
+| 그 외 구성원 | O | 403 |
+
+목록에 권한을 걸지 않는 이유: AI 대화 입력창이 같은 사실을 쓴다. 막으면 대화 화면의 앱 칩이 통째로 빈다.
+
+## 컬렉션
+
+| 메서드 | 경로 | 권한 | 비고 |
+|---|---|---|---|
+| GET | `/api/workspace/connectors` | 구성원 | `{systems, services, editable}`. `editable` 은 화면 잠금용 |
+| PUT | `/api/workspace/connectors/services/{slug}` `{"connected":true\|false}` | 연동 관리 | 바뀐 전체를 돌려준다. 카탈로그에 없는 slug 는 400 |
+
+## 실제 호출 결과
+
+```
+owner  GET /connectors            → 200 systems 3건(ERP·MES·센서 · ok/ok/delayed) · services [] · editable true
+member GET /connectors            → 200 같은 systems · editable false
+owner  PUT services/slack  true   → 200 ["slack"]
+owner  PUT services/notion true   → 200 ["slack","notion"]   (카탈로그 순서)
+member GET /connectors            → 200 ["slack","notion"]   (같은 회사는 같은 값을 본다)
+owner  PUT services/slack  false  → 200 ["notion"]
+member PUT services/slack         → 403 "연동을 바꿀 수 있는 권한이 없습니다"
+owner  PUT services/dropbox       → 400 "알 수 없는 서비스입니다: dropbox"
+owner  PUT services/notion {}     → 400 VALIDATION_FAILED
+토큰 없이 GET                      → 401 UNAUTHORIZED
+admin  GET /connectors            → editable true · PUT services/teams → 200 ["teams"]
+```
+
+## 남긴 것
+
+- **외부 시스템을 등록할 화면이 없다.** 표와 조회만 만들었고 행은 운영이 직접 넣는다. 운영자 콘솔(`/admin`)에 붙이는 것이 다음 자리다.
+- 커넥터 OAuth 는 없다. 지금 「연결」은 "이 회사가 쓰기로 했다" 는 표시일 뿐 실제 계정 인증이 아니다.
+- 기존 회사에 표를 만들려면 `TENANT_MIGRATE_ON_BOOT=true` 로 한 번 띄운다 (부팅 후 전 스키마 순회).

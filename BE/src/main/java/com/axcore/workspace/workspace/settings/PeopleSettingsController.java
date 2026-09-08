@@ -28,8 +28,8 @@ import java.util.UUID;
 /**
  * 회사 사람들 — 설정 › 회사 › 초대 관리 화면의 API. 구성원 · 이메일 초대 · 초대 링크.
  *
- * <p>구성원 목록은 회사 구성원 누구나 본다. 그 외는 초대 권한({@link TenantContext#requireInviter}: 관리자 또는
- * 초대 위임을 받은 직급)이 있어야 하고, 줄 수 있는 직급·부서는 {@link PeopleGuard} 규칙이다.
+ * <p>구성원 목록은 회사 구성원 누구나 본다. 그 외 쓰기는 전부 소유자만이다({@link TenantContext#requireOwner}).
+ * 줄 수 있는 직급·부서는 {@link PeopleGuard} 규칙이다.
  */
 @RestController
 @RequestMapping("/api/workspace")

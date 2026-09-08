@@ -328,21 +328,9 @@ export const DEVICES: {
   { id: "d3", name: "iPhone · Safari", lastActive: "2026-08-28 09:10", location: "알 수 없음", current: false },
 ];
 
-/** 설정 > 외부 시스템 연동 — name은 사용자 설정 이름, system은 실제 시스템 명 */
-export const CONNECTORS: {
-  name: string;
-  system: string;
-  type: string;
-  endpoint: string;
-  status: { badge: string; tone: Tone };
-}[] = [
-  { name: "본사 ERP", system: "더존비즈온 iCUBE", type: "ERP", endpoint: "https://erp.democompany.co.kr/api", status: { badge: "정상", tone: "green" } },
-  { name: "1공장 MES", system: "미라콤 MESplus", type: "MES", endpoint: "https://mes.democompany.local/v2", status: { badge: "정상", tone: "green" } },
-  { name: "설비 IoT 게이트웨이", system: "PTC ThingWorx", type: "센서", endpoint: "mqtt://iot.democompany.local:8883", status: { badge: "지연", tone: "amber" } },
-];
-
-/** 외부 시스템 추가/설정 팝업의 시스템 유형 목록 */
-export const CONNECTOR_TYPES = ["ERP", "MES", "PLM", "QMS", "WMS", "CRM", "센서", "기타"];
+// 설정 › 워크스페이스 › 연동의 외부 시스템 목록(CONNECTORS)과 유형 목록(CONNECTOR_TYPES)은
+// 서버로 옮겼다 — 테넌트 `external_systems` 표를 `GET /api/workspace/connectors` 가 내려준다.
+// 유형은 그 표의 CHECK 제약이 정한다 (tenant V11).
 
 /**
  * 좌측 패널 외부 시스템 바로가기 — name은 사용자가 설정한 "목록에 표시될 이름"(CONNECTORS와 동일).

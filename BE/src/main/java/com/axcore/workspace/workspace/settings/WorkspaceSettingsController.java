@@ -1,6 +1,8 @@
 package com.axcore.workspace.workspace.settings;
 
 import com.axcore.workspace.security.JwtPrincipal;
+import com.axcore.workspace.workspace.settings.dto.ConnectorUpdateRequest;
+import com.axcore.workspace.workspace.settings.dto.ConnectorsResponse;
 import com.axcore.workspace.workspace.settings.dto.FeatureModuleResponse;
 import com.axcore.workspace.workspace.settings.dto.FeatureUpdateRequest;
 import com.axcore.workspace.workspace.settings.dto.WorkspaceMeResponse;
@@ -30,9 +32,11 @@ import java.util.List;
 public class WorkspaceSettingsController {
 
     private final WorkspaceSettingsService service;
+    private final ConnectorService connectors;
 
-    public WorkspaceSettingsController(WorkspaceSettingsService service) {
+    public WorkspaceSettingsController(WorkspaceSettingsService service, ConnectorService connectors) {
         this.service = service;
+        this.connectors = connectors;
     }
 
     /** 이 회사에서 나는 누구인가 — 직급 · 자격 · 쓸 수 있는 모듈 · 회사가 켠 기능. */
@@ -54,5 +58,20 @@ public class WorkspaceSettingsController {
             @PathVariable String module,
             @Valid @RequestBody FeatureUpdateRequest request) {
         return service.updateFeatures(JwtPrincipal.of(jwt), module, request);
+    }
+
+    /** 연동 한 화면 — 외부 시스템 목록과 연결한 외부 서비스. 구성원 누구나 본다. */
+    @GetMapping("/connectors")
+    public ConnectorsResponse connectors(@AuthenticationPrincipal Jwt jwt) {
+        return connectors.list(JwtPrincipal.of(jwt));
+    }
+
+    /** 외부 서비스 하나를 연결·해제. 연동 관리 권한이 있어야 한다. */
+    @PutMapping("/connectors/services/{slug}")
+    public ConnectorsResponse updateConnector(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable String slug,
+            @Valid @RequestBody ConnectorUpdateRequest request) {
+        return connectors.update(JwtPrincipal.of(jwt), slug, request);
     }
 }
