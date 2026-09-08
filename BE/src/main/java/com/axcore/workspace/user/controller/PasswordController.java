@@ -3,8 +3,6 @@ package com.axcore.workspace.user.controller;
 import com.axcore.workspace.security.JwtPrincipal;
 import com.axcore.workspace.security.RefreshCookieFactory;
 import com.axcore.workspace.user.dto.PasswordRequests;
-import com.axcore.workspace.user.entity.User;
-import com.axcore.workspace.user.service.AuthService;
 import com.axcore.workspace.user.service.PasswordService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
@@ -32,15 +30,12 @@ import java.time.Instant;
 public class PasswordController {
 
     private final PasswordService passwordService;
-    private final AuthService authService;
     private final RefreshCookieFactory refreshCookies;
 
     public PasswordController(
             PasswordService passwordService,
-            AuthService authService,
             RefreshCookieFactory refreshCookies) {
         this.passwordService = passwordService;
-        this.authService = authService;
         this.refreshCookies = refreshCookies;
     }
 
@@ -54,9 +49,13 @@ public class PasswordController {
     public ResponseEntity<Void> change(
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody PasswordRequests.ChangeRequest request) {
-        User user = authService.requireUser(JwtPrincipal.of(jwt).userId());
+        // 계정은 서비스가 자기 트랜잭션 안에서 읽는다 — 여기서 읽어 넘기면 준영속 객체가 되어
+        // 새 비밀번호가 저장되지 않는다 (PasswordService#change 주석)
         passwordService.change(
-                user, request.currentPassword(), request.newPassword(), Instant.now());
+                JwtPrincipal.of(jwt).userId(),
+                request.currentPassword(),
+                request.newPassword(),
+                Instant.now());
         return clearedCookieResponse();
     }
 

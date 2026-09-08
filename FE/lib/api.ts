@@ -69,14 +69,19 @@ type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
  * 403 은 재시도하지 않는다. 인증은 됐고 권한이 없다는 뜻이라 토큰을 새로 받아도 같다.
  */
 async function authed<T>(method: Method, path: string, body?: unknown): Promise<T | null> {
+  // FormData 는 직렬화하지 않고 그대로 보낸다. Content-Type 도 우리가 정하지 않는다 —
+  // multipart 는 경계 문자열이 헤더에 들어가야 하고, 그건 브라우저가 만든다.
+  const multipart = typeof FormData !== "undefined" && body instanceof FormData;
   const send = async (token: string | null) => {
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    const headers: Record<string, string> = multipart
+      ? {}
+      : { "Content-Type": "application/json" };
     if (token) headers.Authorization = `Bearer ${token}`;
     return fetch(`${API_BASE}${path}`, {
       method,
       headers,
       credentials: "include",
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: body === undefined ? undefined : multipart ? (body as FormData) : JSON.stringify(body),
     });
   };
 
@@ -99,4 +104,7 @@ export const apiGet = <T,>(path: string) => authed<T>("GET", path);
 export const apiPostAuthed = <T,>(path: string, body?: unknown) => authed<T>("POST", path, body);
 export const apiPut = <T,>(path: string, body?: unknown) => authed<T>("PUT", path, body);
 export const apiPatch = <T,>(path: string, body?: unknown) => authed<T>("PATCH", path, body);
-export const apiDelete = <T,>(path: string) => authed<T>("DELETE", path);
+/** 본문을 받는 DELETE 가 하나 있다 — 2단계 인증 해제는 비밀번호를 다시 묻는다 */
+export const apiDelete = <T,>(path: string, body?: unknown) => authed<T>("DELETE", path, body);
+/** 파일 업로드. `FormData` 를 그대로 보낸다 — 프로필 사진 하나뿐이다 */
+export const apiUpload = <T,>(path: string, form: FormData) => authed<T>("POST", path, form);

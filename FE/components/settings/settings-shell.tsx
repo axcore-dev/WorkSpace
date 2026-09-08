@@ -1,9 +1,11 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
+import { Avatar } from "@/components/avatar";
 import { IconArrowLeft, IconLogOut } from "@/components/icons";
 import { SettingsNav } from "@/components/settings/settings-nav";
 import { useLogout } from "@/components/use-logout";
+import { useAccountMe } from "@/lib/account-me";
 import { DEFAULT_WORKSPACE_ID, DEMO_USER, WORKSPACES } from "@/data/org";
 import { activeSettings } from "@/data/settings-nav";
 
@@ -22,6 +24,9 @@ export function SettingsShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const logout = useLogout();
+  // 사이드바와 같은 값을 본다 — 계정 화면에서 사진을 바꾸면 여기도 함께 바뀐다
+  const { me: account } = useAccountMe();
+  const displayName = account?.name ?? DEMO_USER.name;
 
   const leaf = activeSettings(pathname)?.leaf;
   const wide = leaf?.wide ?? false;
@@ -78,12 +83,10 @@ export function SettingsShell({ children }: { children: React.ReactNode }) {
         <div className="hidden border-t border-slate-200 p-4 lg:block">
           <p className="px-1 pb-2 text-xs font-semibold text-slate-600">{workspace.name}</p>
           <div className="flex items-center gap-2.5 p-1">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-800 text-sm font-bold leading-none text-white">
-              {DEMO_USER.initials}
-            </span>
+            <Avatar name={displayName} src={account?.avatarUrl ?? null} size={36} />
             <span className="min-w-0">
               <span className="block truncate text-sm font-semibold text-slate-900">
-                {DEMO_USER.name}
+                {displayName}
               </span>
               <span className="block truncate text-xs text-slate-500">{DEMO_USER.role}</span>
             </span>

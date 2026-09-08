@@ -67,6 +67,14 @@ services:
       # 16자 이상. 슈퍼유저(POSTGRES_PASSWORD)와 달라야 한다 — AI 서버는 ai_* 테이블만 만진다.
       AI_DB_PASSWORD: ${AI_DB_PASSWORD:?INFRA/.env 에 AI_DB_PASSWORD 를 설정하세요}
 
+      # --- 오브젝트 스토리지 (프로필 사진) ---
+      # AI 서버와 같은 버킷을 쓰고 키 앞마디로 갈린다(avatars/). 비어 있으면 부팅은 되고 사진 업로드만 503 이다.
+      NCP_OBJECT_STORAGE_ENDPOINT: ${NCP_OBJECT_STORAGE_ENDPOINT:-https://kr.object.ncloudstorage.com}
+      NCP_OBJECT_STORAGE_REGION: ${NCP_OBJECT_STORAGE_REGION:-kr-standard}
+      NCP_OBJECT_STORAGE_BUCKET: ${NCP_OBJECT_STORAGE_BUCKET}
+      NCP_ACCESS_KEY: ${NCP_ACCESS_KEY}
+      NCP_SECRET_KEY: ${NCP_SECRET_KEY}
+
       # --- 소셜 로그인 (비어 있으면 그 제공자만 비활성) ---
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}

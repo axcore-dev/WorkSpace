@@ -17,8 +17,31 @@ const nextConfig: NextConfig = {
    *
    * 다른 지시어(script-src 등)는 두지 않는다 — Next 의 인라인 스크립트·스타일에 nonce 를 붙이는 작업이 따로
    * 필요하고, 지금 막으려는 것은 이미지 한 종류다. 허용 목록은 화면이 실제로 그리는 곳만이다:
-   * 자기 오리진(브랜드 아이콘·외부 시스템 캡처), data:/blob:(프로필 사진 미리보기), 외부 시스템 데모 화면.
+   * 자기 오리진(브랜드 아이콘·외부 시스템 캡처·올린 프로필 사진 `/api/avatars/*`), data:/blob:,
+   * 외부 시스템 데모 화면, 그리고 소셜 로그인이 준 프로필 사진 두 곳.
+   *
+   * 소셜 사진 호스트를 여는 이유: 구글·네이버로 가입하면 계정에 남는 사진 주소가 그쪽 CDN 이다
+   * (`shared.users.avatar_url`). 막아 두면 그 사용자만 계정 화면에서 깨진 이미지를 본다. 두 호스트는
+   * 우리가 고른 제공자의 것이고 경로가 아니라 호스트 단위로만 연다. 사용자가 직접 올린 사진은 우리
+   * 오리진으로 나가므로 이 항목과 무관하다.
    */
+  /**
+   * 프로필 사진만 BE 로 넘긴다.
+   *
+   * 사진은 `<img src="/api/avatars/...">` 로 그린다 — 이미지 태그에는 Authorization 헤더도, API 주소도
+   * 실을 수 없어서 상대 경로여야 한다. 운영에서는 nginx 가 `/api/` 를 전부 Spring 으로 보내므로 이 규칙이
+   * 발동하지 않는다. 문제는 로컬이다: 브라우저가 FE(8000)로 요청하는데 Next 에는 그 경로가 없어서 404 가
+   * 나고, 사진이 안 바뀐 것처럼 보인다.
+   *
+   * 그래서 이 한 경로만 BE 로 넘긴다. `/api/` 전체를 넘기지 않는 이유는 나머지 호출이 이미
+   * `lib/api.ts` 의 `API_BASE` 로 직접 가고 있어서다. CSP 의 `img-src 'self'` 도 그대로 둘 수 있다 —
+   * 브라우저가 보는 주소는 여전히 자기 오리진이다.
+   */
+  async rewrites() {
+    const be = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
+    return [{ source: "/api/avatars/:path*", destination: `${be}/api/avatars/:path*` }];
+  },
+
   async headers() {
     return [
       {
@@ -26,7 +49,9 @@ const nextConfig: NextConfig = {
         headers: [
           {
             key: "Content-Security-Policy",
-            value: "img-src 'self' data: blob: https://www.mespluscloud.com",
+            value:
+              "img-src 'self' data: blob: https://www.mespluscloud.com" +
+              " https://lh3.googleusercontent.com https://phinf.pstatic.net",
           },
         ],
       },

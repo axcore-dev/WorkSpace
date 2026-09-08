@@ -63,8 +63,18 @@ public class User {
     @Column(nullable = false, length = 100)
     private String name;
 
+    /** 소셜 제공자가 준 사진 주소. 우리가 관리하지 않는다 — 제공자가 바꾸면 깨진다. */
     @Column(name = "avatar_url", length = 500)
     private String avatarUrl;
+
+    /**
+     * 사용자가 직접 올린 사진의 오브젝트 키. 둘 다 있으면 이쪽이 이긴다.
+     *
+     * <p>주소가 아니라 키를 든다 — 우리 버킷의 객체라 우리가 지울 수도 바꿀 수도 있어야 한다.
+     * 값의 모양과 공개 규칙은 shared V19 주석을 본다.
+     */
+    @Column(name = "avatar_object_key", length = 200)
+    private String avatarObjectKey;
 
     /**
      * 이메일 소유가 확인된 시각. null 이면 미확인이다.
@@ -293,6 +303,20 @@ public class User {
 
     public String getAvatarUrl() {
         return avatarUrl;
+    }
+
+    public String getAvatarObjectKey() {
+        return avatarObjectKey;
+    }
+
+    /**
+     * 올린 사진을 갈아 끼운다. {@code null} 이면 지운 것이고 소셜 사진으로 되돌아간다.
+     *
+     * <p>옛 객체를 지우는 것은 부르는 쪽의 몫이다 — 엔티티가 스토리지를 알면 안 되고, 저장이 롤백되면
+     * 파일만 사라진 상태가 남는다.
+     */
+    public void changeAvatarObjectKey(String key) {
+        this.avatarObjectKey = key;
     }
 
     public Instant getEmailVerifiedAt() {

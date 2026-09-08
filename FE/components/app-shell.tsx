@@ -16,10 +16,12 @@ import {
   IconLogOut,
   IconSettings,
 } from "@/components/icons";
+import { Avatar } from "@/components/avatar";
 import { Logo } from "@/components/logo";
 import { useModules } from "@/components/module-provider";
 import { useLogout } from "@/components/use-logout";
 import { useSidebarCollapsed } from "@/components/use-sidebar-collapsed";
+import { useAccountMe } from "@/lib/account-me";
 import { MODULES } from "@/data/modules";
 import { DEFAULT_WORKSPACE_ID, DEMO_USER, EXTERNAL_SYSTEMS, WORKSPACES } from "@/data/org";
 
@@ -87,6 +89,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const logout = useLogout();
 
   const currentOrg = WORKSPACES.find((w) => w.id === orgId) ?? WORKSPACES[0];
+
+  // 이름과 사진은 서버가 준다. 받기 전에는 데모 값으로 그린다 — 여기서 빈칸을 보이면 사이드바가 무너진다
+  const { me: account } = useAccountMe();
+  const displayName = account?.name ?? DEMO_USER.name;
 
   return (
     <div className="flex min-h-screen">
@@ -321,20 +327,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             type="button"
             aria-expanded={profileOpen && !collapsed}
             aria-haspopup="menu"
-            title={collapsed ? DEMO_USER.name : undefined}
-            aria-label={collapsed ? DEMO_USER.name : undefined}
+            title={collapsed ? displayName : undefined}
+            aria-label={collapsed ? displayName : undefined}
             onClick={() => !collapsed && setProfileOpen((v) => !v)}
             className={`flex w-full cursor-pointer items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-slate-200/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400 ${
               collapsed ? "justify-center" : ""
             }`}
           >
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-800 text-sm font-bold leading-none text-white">
-              {DEMO_USER.initials}
-            </span>
+            <Avatar name={displayName} src={account?.avatarUrl ?? null} size={36} />
             {!collapsed && (
               <>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold text-slate-900">{DEMO_USER.name}</span>
+                  <span className="block truncate text-sm font-semibold text-slate-900">{displayName}</span>
                   <span className="block truncate text-xs text-slate-500">{DEMO_USER.role}</span>
                 </span>
                 <IconChevronDown size={15} className="shrink-0 text-slate-400" />

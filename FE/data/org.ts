@@ -1,5 +1,4 @@
 import type { ICON_MAP } from "@/components/icons";
-import type { SocialProvider } from "@/lib/auth";
 import { MODULES } from "./modules";
 import { WORKSPACE_PERMS } from "./roles";
 import type { DataScope, RoleDef } from "./roles";
@@ -255,78 +254,10 @@ export const DEPARTMENTS = [
   "해외영업팀",
 ] as const;
 
-/** 사업장 — `EXTERNAL_SYSTEMS`에 "1공장 MES"가 있는 전제 */
-export const SITES = ["본사", "1공장", "2공장"] as const;
+// 계정 화면의 더미(SITES · ACCOUNT_SECURITY · ACCOUNT_EMAILS · SOCIAL_LOGINS · DEVICES)는 지웠다 —
+// 전부 서버가 준다: GET /api/auth/me · /identities · /sessions (lib/account-api.ts).
+// 사업장은 회사 단위 값이라 계정에서 고르지 않는다 (shared.workspace_sites).
 
-/**
- * 계정 › 보안 상태.
- *
- * `hasPassword`가 false면 **소셜로만 가입한 계정**이다. 그때 화면이 달라진다 —
- * 비밀번호 행이 「변경」이 아니라 「추가」가 되고, 2단계 인증을 켤 수 없다.
- * 2단계 인증은 켜고 끌 때 비밀번호 재확인을 받는데, 없는 비밀번호는 확인할 수 없다.
- *
- * **BE 연동 seam**: `GET /api/auth/me`가 이 두 값을 주면 그걸 읽는다.
- */
-export const ACCOUNT_SECURITY = {
-  hasPassword: true,
-  /** 마지막 변경일. `hasPassword`가 false면 `null` */
-  passwordChangedAt: "2026-06-12" as string | null,
-};
-
-/**
- * 계정 › 이메일.
- *
- * BE에는 **대표 이메일 재인증만** 있다 (`POST /api/auth/email/verify-request`). 추가 이메일
- * API는 없어서, 두 번째 항목은 화면에 자리만 두고 버튼을 비활성으로 둔다.
- */
-export const ACCOUNT_EMAILS: {
-  address: string;
-  primary: boolean;
-  verified: boolean;
-  /** 인증 대기 중일 때 마지막 발송 시점 (표시용 문구) */
-  sentAt?: string;
-}[] = [
-  { address: "demo@axcore.it.kr", primary: true, verified: true },
-  { address: "demo@democompany.co.kr", primary: false, verified: false, sentAt: "2일 전" },
-];
-
-/**
- * 계정 › 소셜 로그인.
- *
- * **제공자는 `lib/auth.ts`의 `SocialProvider`가 단일 소스다** — `google`·`naver` 둘뿐이다.
- * 이름은 `PROVIDER_LABELS`를 읽어 쓴다. Microsoft·Kakao를 넣지 않는 이유는 그 제공자가
- * `lib/auth.ts`에 없어서다 — 눌러도 아무 일이 일어나지 않는다.
- *
- * 연동 해제 API는 BE에 없다. 화면은 상태만 보이고 해제 버튼은 비활성으로 둔다.
- */
-export const SOCIAL_LOGINS: {
-  provider: SocialProvider;
-  account?: string;
-  connected: boolean;
-}[] = [
-  { provider: "google", account: "demo@democompany.co.kr", connected: true },
-  { provider: "naver", connected: false },
-];
-
-/**
- * 계정 › 기기 — 활성 세션.
- *
- * 현장 공용 단말을 로그아웃하지 않고 떠나는 일이 잦아서 넣었다.
- * BE에 `GET /api/auth/sessions`가 이미 있다 — 이 더미는 연동 전까지만 쓴다.
- */
-export const DEVICES: {
-  id: string;
-  name: string;
-  detail?: string;
-  lastActive: string;
-  location: string;
-  /** 지금 보고 있는 기기 — 로그아웃 버튼을 주지 않는다 */
-  current: boolean;
-}[] = [
-  { id: "d1", name: "Windows · Chrome", lastActive: "지금", location: "본사 · KR", current: true },
-  { id: "d2", name: "1공장 공용 태블릿 · Android", detail: "현장 검사 단말", lastActive: "2026-09-02 14:20", location: "1공장 · KR", current: false },
-  { id: "d3", name: "iPhone · Safari", lastActive: "2026-08-28 09:10", location: "알 수 없음", current: false },
-];
 
 // 설정 › 워크스페이스 › 연동의 외부 시스템 목록(CONNECTORS)과 유형 목록(CONNECTOR_TYPES)은
 // 서버로 옮겼다 — 테넌트 `external_systems` 표를 `GET /api/workspace/connectors` 가 내려준다.

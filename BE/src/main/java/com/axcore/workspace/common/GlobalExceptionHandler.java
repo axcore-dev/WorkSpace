@@ -7,7 +7,9 @@ import com.axcore.workspace.oauth.exception.SocialLinkBlockedException;
 import com.axcore.workspace.user.service.DuplicateEmailException;
 import com.axcore.workspace.user.service.EmailAlreadyVerifiedException;
 import com.axcore.workspace.user.service.MfaStateException;
+import com.axcore.workspace.storage.StorageUnavailableException;
 import com.axcore.workspace.user.service.PasswordNotSetException;
+import com.axcore.workspace.user.service.ProfilePhotoService;
 import com.axcore.workspace.user.service.SamePasswordException;
 import com.axcore.workspace.user.introspection.IntrospectionRejectedException;
 import com.axcore.workspace.user.service.SessionNotFoundException;
@@ -35,6 +37,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -216,6 +219,35 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(SettingsNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleSettingsNotFound(SettingsNotFoundException e) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ErrorResponse.of("NOT_FOUND", e.getMessage()));
+    }
+
+    /** 올린 파일이 이미지가 아니거나 상한을 넘었다. */
+    @ExceptionHandler(ProfilePhotoService.InvalidImageException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidImage(
+            ProfilePhotoService.InvalidImageException e) {
+        return ResponseEntity.badRequest().body(ErrorResponse.of("VALIDATION_FAILED", e.getMessage()));
+    }
+
+    /**
+     * 서블릿이 먼저 거르는 크기 초과. {@code spring.servlet.multipart.max-file-size} 를 넘으면 컨트롤러까지
+     * 오지 않으므로 여기서 같은 문구로 맞춘다 — 사용자에게는 같은 실패다.
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> handleUploadTooLarge(MaxUploadSizeExceededException e) {
+        // 413. HttpStatus.PAYLOAD_TOO_LARGE 는 RFC 9110 에서 이름이 바뀌어 deprecated 다
+        return ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE)
+                .body(ErrorResponse.of("VALIDATION_FAILED", "사진은 2MB 까지 올릴 수 있습니다"));
+    }
+
+    /**
+     * 파일 저장소가 없거나 응답하지 않는다. 설정 누락도 여기로 온다 — 화면에는 "지금은 안 된다" 로 같다.
+     * 원인(자격증명·엔드포인트)은 로그에만 남기고 응답에 담지 않는다.
+     */
+    @ExceptionHandler(StorageUnavailableException.class)
+    public ResponseEntity<ErrorResponse> handleStorageUnavailable(StorageUnavailableException e) {
+        log.warn("파일 저장소 오류", e);
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(ErrorResponse.of("STORAGE_UNAVAILABLE", e.getMessage()));
     }
 
     /** 설정 값이 카탈로그·규칙에 맞지 않는다. {@code @Valid} 실패와 같은 코드다. */

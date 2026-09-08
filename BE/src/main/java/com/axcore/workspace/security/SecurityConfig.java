@@ -6,6 +6,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -98,6 +99,12 @@ public class SecurityConfig {
                                                 "/api/auth/invitations/preview",
                                                 // invite-links/preview — 회사 관리자가 만든 초대 링크. 같은 이유로 로그인 전에 연다
                                                 "/api/auth/invite-links/preview")
+                                        .permitAll()
+                                        // 프로필 사진. <img src> 는 Authorization 헤더를 실을 수 없어서
+                                        // 로그인 검사를 걸 수 없다. 대신 키가 추측할 수 없는 uuid 이고
+                                        // (shared V19), 목록으로 훑을 방법이 없으며, 사진을 바꾸면 새 키를
+                                        // 발급하고 옛 객체를 지운다. 내려주는 것은 이미지 바이트뿐이다.
+                                        .requestMatchers(HttpMethod.GET, "/api/avatars/*/*")
                                         .permitAll()
                                         .requestMatchers("/actuator/health/**")
                                         .permitAll()
