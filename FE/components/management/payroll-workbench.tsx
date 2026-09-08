@@ -24,15 +24,18 @@ export function PayrollWorkbench({ onOpenTab }: { onOpenTab: (tabId: string) => 
   const visible = runs.filter((r) => !q || r.name.toLowerCase().includes(q) || r.voucherNo?.toLowerCase().includes(q));
   const years = [...new Set(visible.map((r) => r.payDate.slice(0, 4)))];
 
-  if (!run) return <Card className="text-center text-sm text-slate-500">급여 회차가 없어요. 「회차 만들기」로 시작해요.</Card>;
-
-  const voucher = run.voucherNo ? state.vouchers.find((v) => v.no === run.voucherNo) : undefined;
-  const prev = runs.find((r) => r.id !== run.id && r.status === "지급 완료");
-  const dday = ddayLabel(run.payDate, today);
-  const daysLeft = daysBetween(today, run.payDate);
-  const items: Cell[][] = run.items.map((i) => [i.label, i.amount < 0 ? { badge: formatWon(i.amount), tone: "red" } : formatWon(i.amount), i.note]);
+  // 마지막 회차를 지우면 run이 없어질 수 있다 — 그래도 좌 마스터(회차 만들기 포함)는 그대로 두고
+  // 우측 디테일만 안내 카드로 바꾼다(마스터를 통째로 걷어내면 다시 만들 방법이 없어진다).
+  const voucher = run && run.voucherNo ? state.vouchers.find((v) => v.no === run.voucherNo) : undefined;
+  const prev = run ? runs.find((r) => r.id !== run.id && r.status === "지급 완료") : undefined;
+  const dday = run ? ddayLabel(run.payDate, today) : "";
+  const daysLeft = run ? daysBetween(today, run.payDate) : 0;
+  const items: Cell[][] = run
+    ? run.items.map((i) => [i.label, i.amount < 0 ? { badge: formatWon(i.amount), tone: "red" } : formatWon(i.amount), i.note])
+    : [];
 
   function exportCsv() {
+    if (!run) return;
     downloadCsv(`경영지원_${run.name}_지급항목.csv`, [["항목", "금액", "비고"], ...run.items.map((i) => [i.label, String(i.amount), i.note] as Cell[])]);
     notify(`${run.name} 지급 항목을 내보냈어요`);
   }
@@ -42,21 +45,22 @@ export function PayrollWorkbench({ onOpenTab }: { onOpenTab: (tabId: string) => 
     onOpenTab("accounting");
   }
 
-  const primary =
+  const primary = !run ? null : (
     run.status === "처리 대기" ? (
       <Button onClick={() => setDialog("wizard")}>급여 처리 시작하기</Button>
     ) : run.status === "전표 생성" ? (
       <Button onClick={() => setDialog("paid")}>지급 완료 처리하기</Button>
     ) : run.status === "전표 반려" ? (
       <Button onClick={() => dispatch({ type: "recalc", runId: run.id })}>다시 계산하기</Button>
-    ) : null;
+    ) : null
+  );
 
   return (
     <>
       <Workbench
         pickerTitle="회차 고르기"
-        pickerLabel={`보고 있는 회차 · ${run.name}`}
-        pickerBadge={<Badge tone={payrollTone(run.status)}>{run.status}</Badge>}
+        pickerLabel={run ? `보고 있는 회차 · ${run.name}` : "보고 있는 회차 · 없음"}
+        pickerBadge={run && <Badge tone={payrollTone(run.status)}>{run.status}</Badge>}
         renderMaster={(close) => (
           <MasterList
             create={{ label: "회차 만들기", onClick: () => setDialog("create") }}
@@ -67,7 +71,7 @@ export function PayrollWorkbench({ onOpenTab }: { onOpenTab: (tabId: string) => 
                 .filter((r) => r.payDate.startsWith(y))
                 .map((r) => ({ id: r.id, name: r.name.replace(`${y}년 `, ""), meta: `${r.headcount}명 · ${formatWon(r.gross)}`, badge: { text: r.status, tone: payrollTone(r.status) } })),
             }))}
-            selectedId={run.id}
+            selectedId={run?.id}
             onSelect={(id) => {
               select("payroll", id);
               close();
@@ -77,146 +81,156 @@ export function PayrollWorkbench({ onOpenTab }: { onOpenTab: (tabId: string) => 
           />
         )}
       >
-        <EntityHeader
-          title={run.name}
-          status={{ label: run.status, tone: payrollTone(run.status) }}
-          meta={
-            <>
-              지급 대상 {run.headcount}명 · 지급 예정일 {run.payDate} ({weekdayKo(run.payDate)})
-              {run.status !== "지급 완료" && (
+        {!run ? (
+          <Card className="text-center text-sm text-slate-500">급여 회차가 없어요. 왼쪽 「회차 만들기」로 시작해요.</Card>
+        ) : (
+          <>
+            <EntityHeader
+              title={run.name}
+              status={{ label: run.status, tone: payrollTone(run.status) }}
+              meta={
                 <>
-                  {" · "}
-                  <span className="font-semibold text-amber-600">{dday}</span>
-                </>
-              )}
-            </>
-          }
-          actions={
-            <>
-              <Button variant="secondary" size="sm" className="h-8" onClick={() => setDialog("menu")}>
-                처리 <IconChevronDown size={14} />
-              </Button>
-              <Button variant="secondary" size="sm" className="h-8" onClick={exportCsv}>
-                <IconDownload size={14} /> 내보내기
-              </Button>
-              {primary}
-            </>
-          }
-        />
-
-        {run.status === "처리 대기" && (
-          <Banner tone="amber">
-            지급 예정일 {Number(run.payDate.slice(5, 7))}월 {Number(run.payDate.slice(8, 10))}일까지 {daysLeft}일 남았어요 · 전표는 아직 만들지 않았어요
-          </Banner>
-        )}
-        {run.status === "전표 생성" && (
-          <Banner tone="slate">
-            전표 {run.voucherNo}를 만들었어요 · 회계 관리에서 {voucher?.status === "승인" ? "승인됐어요" : "검토를 기다려요"} · {run.payDate} ({weekdayKo(run.payDate)}) 이체 예정
-          </Banner>
-        )}
-        {run.status === "전표 반려" && (
-          <Banner tone="amber">
-            전표 {run.voucherNo}가 반려됐어요{voucher?.rejectReason ? ` · 사유: ${voucher.rejectReason}` : ""} · 다시 계산한 뒤 처리해요
-          </Banner>
-        )}
-
-        <Tiles
-          items={[
-            { label: "지급 총액", value: formatWon(run.gross), sub: run.items.filter((i) => i.amount > 0).map((i) => i.label).join(" · ") },
-            { label: "공제 총액", value: formatWon(run.deduction), sub: run.items.filter((i) => i.amount < 0).map((i) => i.label).join(" · "), tone: "red" },
-            { label: "실지급액", value: formatWon(run.net), sub: prev ? `전월 ${formatWon(prev.net)}` : undefined },
-          ]}
-        />
-
-        <Card>
-          <SectionHeader title="지급 항목" desc="재직 명단과 지난달 근태 기준으로 계산했어요" />
-          <DataTable dense data={{ columns: ["항목", "금액", "비고"], rows: items }} colAlign={["left", "right", "left"]} />
-        </Card>
-
-        <Card>
-          <SectionHeader title="전표" />
-          <KvGrid>
-            <Kv label="이 회차 전표">
-              {run.voucherNo ? (
-                <>
-                  {run.voucherNo}
-                  {voucher && (
+                  지급 대상 {run.headcount}명 · 지급 예정일 {run.payDate} ({weekdayKo(run.payDate)})
+                  {run.status !== "지급 완료" && (
                     <>
                       {" · "}
-                      <Badge tone={voucher.status === "승인" ? "green" : voucher.status === "반려" ? "red" : "amber"}>{voucher.status}</Badge>
+                      <span className="font-semibold text-amber-600">{dday}</span>
                     </>
                   )}
                 </>
+              }
+              actions={
+                <>
+                  <Button variant="secondary" size="sm" className="h-8" onClick={() => setDialog("menu")}>
+                    처리 <IconChevronDown size={14} />
+                  </Button>
+                  <Button variant="secondary" size="sm" className="h-8" onClick={exportCsv}>
+                    <IconDownload size={14} /> 내보내기
+                  </Button>
+                  {primary}
+                </>
+              }
+            />
+
+            {run.status === "처리 대기" && (
+              <Banner tone="amber">
+                지급 예정일 {Number(run.payDate.slice(5, 7))}월 {Number(run.payDate.slice(8, 10))}일까지 {daysLeft}일 남았어요 · 전표는 아직 만들지 않았어요
+              </Banner>
+            )}
+            {run.status === "전표 생성" && (
+              <Banner tone="slate">
+                전표 {run.voucherNo}를 만들었어요 · 회계 관리에서 {voucher?.status === "승인" ? "승인됐어요" : "검토를 기다려요"} · {run.payDate} ({weekdayKo(run.payDate)}) 이체 예정
+              </Banner>
+            )}
+            {run.status === "전표 반려" && (
+              <Banner tone="amber">
+                전표 {run.voucherNo}가 반려됐어요{voucher?.rejectReason ? ` · 사유: ${voucher.rejectReason}` : ""} · 다시 계산한 뒤 처리해요
+              </Banner>
+            )}
+
+            <Tiles
+              items={[
+                { label: "지급 총액", value: formatWon(run.gross), sub: run.items.filter((i) => i.amount > 0).map((i) => i.label).join(" · ") },
+                { label: "공제 총액", value: formatWon(run.deduction), sub: run.items.filter((i) => i.amount < 0).map((i) => i.label).join(" · "), tone: "red" },
+                { label: "실지급액", value: formatWon(run.net), sub: prev ? `전월 ${formatWon(prev.net)}` : undefined },
+              ]}
+            />
+
+            <Card>
+              <SectionHeader title="지급 항목" desc="재직 명단과 지난달 근태 기준으로 계산했어요" />
+              <DataTable dense data={{ columns: ["항목", "금액", "비고"], rows: items }} colAlign={["left", "right", "left"]} />
+            </Card>
+
+            <Card>
+              <SectionHeader title="전표" />
+              <KvGrid>
+                <Kv label="이 회차 전표">
+                  {run.voucherNo ? (
+                    <>
+                      {run.voucherNo}
+                      {voucher && (
+                        <>
+                          {" · "}
+                          <Badge tone={voucher.status === "승인" ? "green" : voucher.status === "반려" ? "red" : "amber"}>{voucher.status}</Badge>
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    <span className="font-normal text-slate-400">미생성</span>
+                  )}
+                </Kv>
+                <Kv label="지난 회차 전표">{prev?.voucherNo ? `${prev.voucherNo} · 지급 완료 ${prev.paidAt}` : "—"}</Kv>
+              </KvGrid>
+              {voucher ? (
+                <button type="button" onClick={openVoucher} className="mt-3 cursor-pointer text-xs font-semibold text-primary-700 transition-colors hover:text-primary-800">
+                  회계 관리에서 {voucher.no} 보기 →
+                </button>
               ) : (
-                <span className="font-normal text-slate-400">미생성</span>
+                <p className="mt-3 text-sm text-slate-500">급여 처리를 마치면 전표가 회계 관리에 검토중 상태로 올라가요.</p>
               )}
-            </Kv>
-            <Kv label="지난 회차 전표">{prev?.voucherNo ? `${prev.voucherNo} · 지급 완료 ${prev.paidAt}` : "—"}</Kv>
-          </KvGrid>
-          {voucher ? (
-            <button type="button" onClick={openVoucher} className="mt-3 cursor-pointer text-xs font-semibold text-primary-700 transition-colors hover:text-primary-800">
-              회계 관리에서 {voucher.no} 보기 →
-            </button>
-          ) : (
-            <p className="mt-3 text-sm text-slate-500">급여 처리를 마치면 전표가 회계 관리에 검토중 상태로 올라가요.</p>
-          )}
-        </Card>
+            </Card>
+          </>
+        )}
       </Workbench>
 
-      {dialog === "wizard" && (
-        <PayrollWizard
-          open
-          run={run}
-          voucherNo={nextVoucherNo(state.vouchers, today)}
-          author={user}
-          today={today}
-          onClose={() => setDialog(null)}
-          onCreate={() => {
-            dispatch({ type: "createVoucher", runId: run.id, date: today, author: user });
-            notify(`${run.name.replace(/^\d{4}년 /, "")} 전표를 만들었어요`);
-          }}
-        />
+      {run && (
+        <>
+          {dialog === "wizard" && (
+            <PayrollWizard
+              open
+              run={run}
+              voucherNo={nextVoucherNo(state.vouchers, today)}
+              author={user}
+              today={today}
+              onClose={() => setDialog(null)}
+              onCreate={() => {
+                dispatch({ type: "createVoucher", runId: run.id, date: today, author: user });
+                notify(`${run.name.replace(/^\d{4}년 /, "")} 전표를 만들었어요`);
+              }}
+            />
+          )}
+
+          <ConfirmModal
+            open={dialog === "paid"}
+            title={`${run.name}를 지급 완료로 바꿀까요?`}
+            message="바꾼 뒤에는 회차를 다시 계산할 수 없어요. 이체가 끝난 뒤에 눌러 주세요."
+            cta="지급 완료로 바꾸기"
+            variant="primary"
+            icon="check"
+            onConfirm={() => {
+              dispatch({ type: "markPaid", runId: run.id, date: run.payDate });
+              notify(`${run.name}를 지급 완료로 바꿨어요`);
+              setDialog(null);
+            }}
+            onClose={() => setDialog(null)}
+          />
+
+          <MenuModal
+            open={dialog === "menu"}
+            title="회차 처리"
+            items={[
+              { label: "다시 계산하기", hint: "전표 반려 회차만", disabled: run.status !== "전표 반려", onClick: () => dispatch({ type: "recalc", runId: run.id }) },
+              { label: "회차 삭제", hint: "처리 대기 회차만", danger: true, disabled: run.status !== "처리 대기", onClick: () => setDialog("delete") },
+            ]}
+            onClose={() => setDialog(null)}
+          />
+
+          <ConfirmModal
+            open={dialog === "delete"}
+            title="회차를 삭제할까요?"
+            message={<><span className="font-semibold text-slate-900">{run.name}</span> 회차를 지워요. 지운 회차는 되돌릴 수 없어요.</>}
+            cta="삭제하기"
+            variant="danger"
+            icon="warn"
+            onConfirm={() => {
+              dispatch({ type: "deleteRun", runId: run.id });
+              notify(`${run.name} 회차를 지웠어요`);
+              setDialog(null);
+            }}
+            onClose={() => setDialog(null)}
+          />
+        </>
       )}
-
-      <ConfirmModal
-        open={dialog === "paid"}
-        title={`${run.name}를 지급 완료로 바꿀까요?`}
-        message="바꾼 뒤에는 회차를 다시 계산할 수 없어요. 이체가 끝난 뒤에 눌러 주세요."
-        cta="지급 완료로 바꾸기"
-        variant="primary"
-        icon="check"
-        onConfirm={() => {
-          dispatch({ type: "markPaid", runId: run.id, date: run.payDate });
-          notify(`${run.name}를 지급 완료로 바꿨어요`);
-          setDialog(null);
-        }}
-        onClose={() => setDialog(null)}
-      />
-
-      <MenuModal
-        open={dialog === "menu"}
-        title="회차 처리"
-        items={[
-          { label: "다시 계산하기", hint: "전표 반려 회차만", disabled: run.status !== "전표 반려", onClick: () => dispatch({ type: "recalc", runId: run.id }) },
-          { label: "회차 삭제", hint: "처리 대기 회차만", danger: true, disabled: run.status !== "처리 대기", onClick: () => setDialog("delete") },
-        ]}
-        onClose={() => setDialog(null)}
-      />
-
-      <ConfirmModal
-        open={dialog === "delete"}
-        title="회차를 삭제할까요?"
-        message={<><span className="font-semibold text-slate-900">{run.name}</span> 회차를 지워요. 지운 회차는 되돌릴 수 없어요.</>}
-        cta="삭제하기"
-        variant="danger"
-        icon="warn"
-        onConfirm={() => {
-          dispatch({ type: "deleteRun", runId: run.id });
-          notify(`${run.name} 회차를 지웠어요`);
-          setDialog(null);
-        }}
-        onClose={() => setDialog(null)}
-      />
 
       <CreateRunModal
         key={String(dialog === "create")}
