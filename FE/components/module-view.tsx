@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef, useState } from "react";
-import Link from "next/link";
 import {
   DndContext,
   KeyboardSensor,
@@ -35,16 +34,15 @@ import {
 } from "@/components/icons";
 import { Modal } from "@/components/modal";
 import { useModules } from "@/components/module-provider";
-import { MembersModal, RecordModal } from "@/components/record-modal";
+import { RecordModal } from "@/components/record-modal";
 import { DrawingManager } from "@/components/drawing-manager";
 import { PurchaseOrder } from "@/components/purchase-order";
 import { ReceivingInspection } from "@/components/receiving-inspection";
 import { ReportAutomation } from "@/components/report-automation";
 import { AiBadge, Badge, Button, Card, DataTable, EmptyState, FIELD, SectionHeader, Stat , WizardSteps } from "@/components/ui";
 import { ROW_DETAILS } from "@/data/module-details";
-import { HR_MEMBERS } from "@/data/pages/management";
 import { downloadCsv } from "@/lib/download";
-import type { Cell, DetailRecord, Member, ModuleDef, ModulePageData, TabAction, TreeNode } from "@/data/types";
+import type { Cell, DetailRecord, ModuleDef, ModulePageData, TabAction, TreeNode } from "@/data/types";
 
 /** 탭별 액션 버튼 정의 — data의 tab.actions로 필요한 곳에만 노출 */
 const TAB_ACTIONS: Record<TabAction, { label: string; icon: typeof IconFilter; primary?: boolean }> = {
@@ -107,20 +105,9 @@ function SortableTab({
   );
 }
 
-function TreeItem({
-  node,
-  depth = 0,
-  selectable,
-  onSelect,
-}: {
-  node: TreeNode;
-  depth?: number;
-  selectable?: (name: string) => boolean;
-  onSelect?: (name: string) => void;
-}) {
+function TreeItem({ node, depth = 0 }: { node: TreeNode; depth?: number }) {
   const [open, setOpen] = useState(depth < 2);
   const hasChildren = (node.children?.length ?? 0) > 0;
-  const isSelectable = !!selectable?.(node.name);
   return (
     <li>
       <div className="flex items-center gap-2 rounded-lg py-1.5 pr-2" style={{ paddingLeft: `${depth * 20}px` }}>
@@ -137,29 +124,14 @@ function TreeItem({
         ) : (
           <span className="h-5 w-5 shrink-0 text-center text-slate-300">·</span>
         )}
-        {isSelectable ? (
-          <button
-            type="button"
-            onClick={() => onSelect?.(node.name)}
-            className="group flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-0.5 text-left transition-colors hover:bg-slate-100"
-          >
-            <span className="text-sm font-medium text-slate-800">{node.name}</span>
-            {node.meta && <span className="text-xs text-slate-400">{node.meta}</span>}
-            {node.badge && <Badge tone={node.badge.tone}>{node.badge.text}</Badge>}
-            <IconChevronRight size={13} className="text-slate-300 transition-colors group-hover:text-slate-500" />
-          </button>
-        ) : (
-          <>
-            <span className="text-sm font-medium text-slate-800">{node.name}</span>
-            {node.meta && <span className="text-xs text-slate-400">{node.meta}</span>}
-            {node.badge && <Badge tone={node.badge.tone}>{node.badge.text}</Badge>}
-          </>
-        )}
+        <span className="text-sm font-medium text-slate-800">{node.name}</span>
+        {node.meta && <span className="text-xs text-slate-400">{node.meta}</span>}
+        {node.badge && <Badge tone={node.badge.tone}>{node.badge.text}</Badge>}
       </div>
       {hasChildren && open && (
         <ul>
           {node.children!.map((c) => (
-            <TreeItem key={c.name} node={c} depth={depth + 1} selectable={selectable} onSelect={onSelect} />
+            <TreeItem key={c.name} node={c} depth={depth + 1} />
           ))}
         </ul>
       )}
@@ -218,7 +190,7 @@ function UploadReviewModal({
           <span className="text-xs text-slate-400">{fileName && `${fileName} · ${rows.length}건`}</span>
           <div className="flex gap-2">
             <Button variant="secondary" onClick={close}>
-              취소
+              닫기
             </Button>
             <Button
               disabled={step !== 2 || rows.length === 0}
@@ -331,7 +303,7 @@ function CreateRecordModal({
       footer={
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onClick={onClose}>
-            취소
+            닫기
           </Button>
           <Button onClick={save} disabled={!values[0]?.trim()}>
             등록
@@ -360,104 +332,7 @@ function CreateRecordModal({
   );
 }
 
-/** 인사 관리 전용 — 구성원 등록 팝업 */
-function CreateMemberModal({
-  open,
-  teams,
-  onSave,
-  onClose,
-}: {
-  open: boolean;
-  teams: string[];
-  onSave: (team: string, member: Member) => void;
-  onClose: () => void;
-}) {
-  const [name, setName] = useState("");
-  const [team, setTeam] = useState(teams[0] ?? "");
-  const [rank, setRank] = useState("사원");
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
-  function save() {
-    if (!name.trim()) return;
-    const now = new Date();
-    const joined = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-    onSave(team, {
-      name: name.trim(),
-      rank,
-      phone: phone.trim() || "010-0000-0000",
-      email: email.trim() || "new@democompany.co.kr",
-      joined,
-    });
-    onClose();
-  }
-  return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      size="md"
-      title="구성원 등록"
-      footer={
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={onClose}>
-            취소
-          </Button>
-          <Button onClick={save} disabled={!name.trim()}>
-            등록
-          </Button>
-        </div>
-      }
-    >
-      <form
-        className="grid gap-4 p-5 sm:grid-cols-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          save();
-        }}
-      >
-        <div>
-          <label htmlFor="cm-name" className="mb-1.5 block text-sm font-medium text-slate-700">
-            이름 <span className="text-red-500">*</span>
-          </label>
-          <input id="cm-name" value={name} onChange={(e) => setName(e.target.value)} className={FIELD} />
-        </div>
-        <div>
-          <label htmlFor="cm-team" className="mb-1.5 block text-sm font-medium text-slate-700">
-            소속 팀
-          </label>
-          <select id="cm-team" value={team} onChange={(e) => setTeam(e.target.value)} className={`${FIELD} cursor-pointer`}>
-            {teams.map((t) => (
-              <option key={t}>{t}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label htmlFor="cm-rank" className="mb-1.5 block text-sm font-medium text-slate-700">
-            직급
-          </label>
-          <select id="cm-rank" value={rank} onChange={(e) => setRank(e.target.value)} className={`${FIELD} cursor-pointer`}>
-            {["사원", "주임", "선임", "책임", "팀장"].map((r) => (
-              <option key={r}>{r}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label htmlFor="cm-phone" className="mb-1.5 block text-sm font-medium text-slate-700">
-            연락처
-          </label>
-          <input id="cm-phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="010-0000-0000" className={FIELD} />
-        </div>
-        <div className="sm:col-span-2">
-          <label htmlFor="cm-email" className="mb-1.5 block text-sm font-medium text-slate-700">
-            이메일
-          </label>
-          <input id="cm-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@democompany.co.kr" className={FIELD} />
-        </div>
-      </form>
-    </Modal>
-  );
-}
-
-export function ModuleView({ mod, page }: { mod: ModuleDef; page: ModulePageData }) {
+export function ModuleView({ mod, page, subtitle }: { mod: ModuleDef; page: ModulePageData; subtitle?: React.ReactNode }) {
   const { state } = useModules();
   const modState = state[mod.slug];
   const Icon = ICON_MAP[mod.icon];
@@ -469,7 +344,9 @@ export function ModuleView({ mod, page }: { mod: ModuleDef; page: ModulePageData
     .filter((t): t is NonNullable<typeof t> => !!t);
 
   const enabledTabs = orderedTabs.filter((t) => modState?.subs[t.id] !== false);
-  const [activeId, setActiveId] = useState(enabledTabs[0]?.id);
+  const [activeId, setActiveId] = useState(() =>
+    page.defaultTabId && enabledTabs.some((t) => t.id === page.defaultTabId) ? page.defaultTabId : enabledTabs[0]?.id,
+  );
   const active = enabledTabs.find((t) => t.id === activeId) ?? enabledTabs[0];
 
   const [editingTabs, setEditingTabs] = useState(false);
@@ -494,7 +371,6 @@ export function ModuleView({ mod, page }: { mod: ModuleDef; page: ModulePageData
   const [uploadOpen, setUploadOpen] = useState(false);
   /** 행 액션 대상 — 원본 행 인덱스 */
   const [actionRow, setActionRow] = useState<number | null>(null);
-  const [members, setMembers] = useState<Record<string, Member[]>>(HR_MEMBERS);
 
   function switchTab(id: string, query?: string) {
     setActiveId(id);
@@ -503,10 +379,8 @@ export function ModuleView({ mod, page }: { mod: ModuleDef; page: ModulePageData
   }
 
   const [record, setRecord] = useState<DetailRecord | null>(null);
-  const [team, setTeam] = useState<string | null>(null);
 
   const rowDetails = active ? ROW_DETAILS[mod.slug]?.[active.id] : undefined;
-  const isHrTab = active?.id === "hr" && !!active.tree;
 
   // 표시할 행: [신규 등록분, ...원본] 에 검색 필터 적용. 원본 행만 상세 팝업과 연결한다.
   const q = filterQuery.trim().toLowerCase();
@@ -532,12 +406,6 @@ export function ModuleView({ mod, page }: { mod: ModuleDef; page: ModulePageData
     if (action === "export") {
       if (active.table) {
         downloadCsv(`${mod.name}_${active.label}.csv`, [active.table.columns, ...visibleRows.map((r) => r.cells)]);
-      } else if (isHrTab) {
-        const columns = ["팀", "이름", "직급", "연락처", "이메일", "입사일"];
-        const rows: Cell[][] = Object.entries(members).flatMap(([t, list]) =>
-          list.map((m) => [t, m.name, m.rank, m.phone, m.email, m.joined] as Cell[]),
-        );
-        downloadCsv(`${mod.name}_구성원.csv`, [columns, ...rows]);
       }
       return;
     }
@@ -588,12 +456,12 @@ export function ModuleView({ mod, page }: { mod: ModuleDef; page: ModulePageData
       <div className="mx-auto max-w-7xl px-6 py-6 lg:px-8">
         <EmptyState
           icon={<Icon size={32} />}
-          title={`${mod.name} 기능이 비활성화되어 있습니다`}
-          desc={`외부 ${mod.externalSystem} 시스템과 결합 사용 중이거나 설정에서 OFF된 상태입니다. 데이터는 보존되며 재활성화 시 즉시 복원됩니다.`}
+          title={`${mod.name} 기능이 꺼져 있어요`}
+          desc={`외부 ${mod.externalSystem} 시스템과 함께 쓰고 있거나 기능 관리에서 꺼진 상태예요. 데이터는 보존되고 다시 켜면 바로 돌아와요.`}
           action={
-            <Link href="/settings/workspace">
-              <Button variant="secondary">기능 활성화 설정으로 이동</Button>
-            </Link>
+            <Button variant="secondary" href="/settings/workspace">
+              기능 관리로 이동
+            </Button>
           }
         />
       </div>
@@ -602,23 +470,25 @@ export function ModuleView({ mod, page }: { mod: ModuleDef; page: ModulePageData
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-6 lg:px-8">
-      {/* 헤더 — 실용성 위주: 아이콘 없이 타이틀만 */}
-      <div className="mb-6 flex flex-wrap items-center gap-2">
+      {/* 헤더 — 실용성 위주: 아이콘 없이 타이틀만. 부제는 모듈이 주면 그린다(경영지원 「처리를 기다리는 일 N건」) */}
+      <div className="mb-6 flex flex-wrap items-baseline gap-2.5">
         <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight text-slate-900">
           {mod.name}
           {mod.subfunctions.some((s) => s.ai) && <AiBadge />}
         </h1>
+        {subtitle}
       </div>
 
-      {/* KPI */}
-      <div className="mb-6 grid grid-cols-2 gap-4 xl:grid-cols-4">
-        {page.stats.map((s) => (
-          <Stat key={s.label} stat={s} onCta={(tabId) => switchTab(tabId)} />
-        ))}
-      </div>
+      {page.stats.length > 0 && (
+        <div className="mb-6 grid grid-cols-2 gap-4 xl:grid-cols-4">
+          {page.stats.map((s) => (
+            <Stat key={s.label} stat={s} onCta={(tabId) => switchTab(tabId)} />
+          ))}
+        </div>
+      )}
 
       {/* 서브기능 탭 + 액션 버튼(동일 뎁스) — 우측 끝 편집 버튼으로 순서 변경 */}
-      <div className="mb-4 flex flex-wrap items-center gap-1 border-b border-slate-200" role="tablist">
+      <div className="thin-scroll mb-4 flex items-center gap-1 overflow-x-auto border-b border-slate-200 pb-px" role="tablist">
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={tabOrder} strategy={horizontalListSortingStrategy}>
             {orderedTabs.map((tab, i) => {
@@ -637,7 +507,7 @@ export function ModuleView({ mod, page }: { mod: ModuleDef; page: ModulePageData
           </SortableContext>
         </DndContext>
 
-        <div className="mb-1.5 ml-auto flex items-center gap-2">
+        <div className="mb-1.5 ml-auto flex shrink-0 items-center gap-2">
           {filterOpen && active?.table && (
             <div className="relative">
               <IconSearch size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -717,7 +587,7 @@ export function ModuleView({ mod, page }: { mod: ModuleDef; page: ModulePageData
             <Card>
               <ul className="space-y-0.5">
                 {active.tree.map((n) => (
-                  <TreeItem key={n.name} node={n} selectable={(name) => name in members} onSelect={setTeam} />
+                  <TreeItem key={n.name} node={n} />
                 ))}
               </ul>
             </Card>
@@ -797,7 +667,7 @@ export function ModuleView({ mod, page }: { mod: ModuleDef; page: ModulePageData
           footer={
             <div className="flex justify-end gap-2">
               <Button variant="secondary" onClick={() => setActionRow(null)}>
-                취소
+                닫기
               </Button>
               <Button variant="danger" onClick={() => applyRowAction(actionRow!)}>
                 {active.rowAction.confirm.cta}
@@ -819,28 +689,16 @@ export function ModuleView({ mod, page }: { mod: ModuleDef; page: ModulePageData
       )}
 
       <RecordModal record={record} onClose={() => setRecord(null)} />
-      <MembersModal team={team} members={team ? (members[team] ?? []) : []} onClose={() => setTeam(null)} />
 
-      {/* 신규 등록 — 인사 관리는 구성원 등록, 그 외 테이블 탭은 컬럼 기반 폼 */}
-      {isHrTab ? (
-        <CreateMemberModal
-          key={`hr-${createOpen}`}
+      {active?.table && (
+        <CreateRecordModal
+          key={`${active.id}-${createOpen}`}
           open={createOpen}
-          teams={Object.keys(members)}
-          onSave={(t, m) => setMembers((prev) => ({ ...prev, [t]: [...(prev[t] ?? []), m] }))}
+          title={active.label}
+          columns={active.table.columns}
+          onSave={(row) => setExtraRows((prev) => ({ ...prev, [active.id]: [row, ...(prev[active.id] ?? [])] }))}
           onClose={() => setCreateOpen(false)}
         />
-      ) : (
-        active?.table && (
-          <CreateRecordModal
-            key={`${active.id}-${createOpen}`}
-            open={createOpen}
-            title={active.label}
-            columns={active.table.columns}
-            onSave={(row) => setExtraRows((prev) => ({ ...prev, [active.id]: [row, ...(prev[active.id] ?? [])] }))}
-            onClose={() => setCreateOpen(false)}
-          />
-        )
       )}
     </div>
   );
