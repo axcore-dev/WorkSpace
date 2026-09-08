@@ -73,9 +73,10 @@ shared V16 이 `axcore_ai` 역할과 `shared.set_ai_role_password(text)` 를 만
 - **분야(모듈) 제한**: 문서마다 색인 때 모델이 업무 분야(`module_slug`, 핵심 기능 8개 중 하나)를 분류해 붙인다. 검색은
   `module_slug IS NULL OR module_slug = ANY(허용 모듈)` 로 걸러, 권한 없는 분야의 문서는 조각 단계에서 빠진다. 허용 모듈은 BE
   introspect 가 `enabled_features`(회사가 켠 기능, tenant V8) · `roles.is_admin` · `role_module_grants` · `member_module_grants` 로
-  계산해 준다(`ModuleAccessReader`: **회사가 끈 기능은 누구에게도 없고**, 그 안에서 관리자·서버 운영자는 전부, 개인 부여가 없으면
-  역할 범위, 둘 다 있으면 교집합). 설정 › 워크스페이스 › 기능 관리에서 끈 분야는 AI 답변 범위에서도 빠진다. 분류가 안 된 문서(NULL)는
-  제한 없이 잡힌다.
+  계산해 준다(`ModuleAccessReader`: **회사가 끈 기능은 누구에게도 없고**, 그 안에서 소유자(`owner`)·서버 운영자는 전부, 나머지는
+  직급의 탭 권한(`role_module_grants`, tenant V10 부터 탭 단위)에서 모듈을 뽑고 개인 부여가 있으면 교집합). 관리자(`is_admin`)도
+  예외가 아니다 — 소유자가 설정 › 회사 › 권한 관리에서 관리자의 탭을 정한다. 기능 관리에서 끈 분야는 AI 답변 범위에서도 빠진다.
+  분류가 안 된 문서(NULL)는 제한 없이 잡힌다.
 - **외부 전송**: 조각 임베딩과 답변 생성을 위해 문서 조각이 OpenAI API(임베딩 `text-embedding-3-small`, 생성
   `gpt-5.6-luna`)로 나간다. 스캔 PDF·이미지는 통째로 같은 모델에 보내 옮겨 적는다. 이 점은 결정 사항으로
   받아들였다(2026-09-07).

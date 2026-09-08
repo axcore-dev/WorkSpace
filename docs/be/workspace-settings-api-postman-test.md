@@ -134,3 +134,86 @@ Content-Type: application/json
 
 소속 판정을 `TenantAccess.resolveWorkspace` 한 곳으로 모으면서 `POST /api/auth/introspect` 도 그 메서드를 쓰게 됐다.
 같은 토큰으로 introspect 를 부르면 `modules` 가 `GET /me` 의 `modules` 와 같아야 한다. (로컬 확인: `["management","design","inventory"]` 로 일치)
+
+---
+
+# 2단계: 부서 · 직급 · 탭 권한 (`/api/workspace/departments` · `/api/workspace/roles`)
+
+설정 › 회사 › 권한 관리 화면의 API 다. 아래 응답은 로컬에서 실제로 호출한 값이다(2026-09-08).
+
+대상 코드
+- `BE/.../workspace/settings/OrganizationSettingsController.java` · `DepartmentService.java` · `RoleService.java`
+- `BE/.../workspace/settings/RolePermissions.java`(권한 묶음 · `covers` 부분집합 판정) · `RolePermissionReader.java`
+- tenant `V9__roles_department_scope.sql` · `V10__role_grants_by_tab.sql`
+
+## 누가 무엇을 고칠 수 있는가 (결정 B)
+
+| 대상 | 소유자 | 관리자(`is_admin`) | 그 외 |
+|---|---|---|---|
+| 부서 만들기 · 이름 · 지우기 | ○ | ○ | 읽기만 |
+| `owner` 직급 | × (고정, 권한은 항상 전부) | × | × |
+| `member` 직급 | 권한만 ○ (이름·부서·`admin` 고정) | × | × |
+| 그 밖의 직급 | ○ | **자기 권한 안에서만.** 고치기 전·후 상태가 모두 내 권한의 부분집합이어야 하고, 자기 직급은 불가 | × |
+
+`GET /roles` 의 `editable` 이 이 표를 부른 사람 기준으로 계산해 준다. 화면은 그 값으로 잠근다 — 보안 경계는 서버의 PUT/DELETE 검사다.
+
+## 테스트 계정
+
+| 계정 | 역할 |
+|---|---|
+| `settings.owner@axcore.ai.kr` | `owner` |
+| `settings.admin@axcore.ai.kr` | `admin` |
+| `settings.member@axcore.ai.kr` | `member` |
+
+## 컬렉션
+
+| Method | URL | 가드 | 비고 |
+|---|---|---|---|
+| GET | `/api/workspace/departments` | 구성원 | `roleCount` 가 0 이어야 지울 수 있다 |
+| POST | `/api/workspace/departments` `{"name"}` | 관리자 | 201. 같은 이름 → 409 `CONFLICT`(DB 유일 인덱스가 막는다) |
+| PATCH | `/api/workspace/departments/{id}` `{"name"}` | 관리자 | |
+| DELETE | `/api/workspace/departments/{id}?moveRolesTo=` | 관리자 | 직급이 남았는데 `moveRolesTo` 없음 → 409 `DEPARTMENT_NOT_EMPTY` |
+| GET | `/api/workspace/roles` | 구성원 | `editable` 포함 |
+| POST | `/api/workspace/roles` `{"name","departmentId"}` | 소유자·관리자 | 권한 없이 시작. `departmentId` 필수(「전사」에는 못 만든다) |
+| PUT | `/api/workspace/roles/{id}` (아래 본문) | 소유자·관리자 | 전체 교체. 화면의 「저장하기」 |
+| DELETE | `/api/workspace/roles/{id}?moveMembersTo=` | 소유자·관리자 | 구성원이 있는데 `moveMembersTo` 없음 → 409 `ROLE_HAS_MEMBERS` |
+
+### PUT 본문
+
+```json
+{
+  "name": "공장장", "departmentId": 5,
+  "admin": false, "canInvite": true, "canManageIntegrations": false,
+  "dataScope": "dept", "showAmounts": false,
+  "tabs": ["items", "stock"]
+}
+```
+
+`tabs` 는 카탈로그(`FeatureCatalog`)에 있으면 저장된다. **회사가 끈 기능의 탭도 저장은 된다** — 권한은 "가졌나" 이고
+실제 접근(`/me` 의 `modules`, introspect)은 회사가 켠 것과의 교집합이다. 화면은 끈 기능의 토글을 잠가 바꾸지 못하게만 한다.
+
+## 실제 호출 결과
+
+```
+owner GET /roles          → [["owner", editable:false, 1명], ["admin", true, 1명], ["member", true, 1명]]
+admin GET /roles          → [["owner", false], ["admin", false(자기 직급)], ["member", false(고정)]]
+member POST /departments  → 403 FORBIDDEN "이 작업은 관리자만 할 수 있습니다"
+owner POST /departments 생산본부         → 201 {"id":5,"name":"생산본부","roleCount":0,"memberCount":0}
+owner POST 같은 이름                      → 409 CONFLICT "이미 존재하는 값입니다"
+owner POST /roles {공장장, 5}            → 201 {"id":7,"tabs":[],"editable":true}
+owner PUT 7 tabs:["monitoring"] (production 꺼짐) → 200 tabs:["monitoring"]   ← 저장은 되고 modules 에는 안 나온다
+owner PUT 7 tabs:["nope"]                → 400 "알 수 없는 탭입니다: nope"
+owner PUT 7 dataScope:"galaxy"           → 400 VALIDATION_FAILED
+owner PUT 1 (소유자)                     → 403 "소유자 직급은 고칠 수 없습니다"
+owner PUT 3 (구성원) admin:true, tabs:["orders"] → 200 admin:false(고정), tabs:["orders"]
+admin PUT 3 (구성원)                     → 403 "고정 직급의 권한은 소유자만 고칠 수 있습니다"
+admin PUT 2 (자기 직급)                  → 403 "자기 직급은 고칠 수 없습니다"
+admin PUT 7 이름만 바꾸기                → 200 (내 권한 안)
+owner PUT 2 관리자 탭 27 → 24 (영업 3개 제외)
+admin GET /me                            → modules:["management","design","inventory"] (sales 사라짐)
+admin PUT 7 tabs:["orders"]              → 403 "내 권한 밖의 권한은 줄 수 없습니다"
+owner DELETE /departments/5 (직급 남음)   → 409 DEPARTMENT_NOT_EMPTY
+owner DELETE /roles/3 (고정)             → 403 "고정 직급은 지울 수 없습니다"
+owner DELETE /roles/7 · /departments/5   → 204 · 204
+introspect(admin) modules == GET /me modules
+```

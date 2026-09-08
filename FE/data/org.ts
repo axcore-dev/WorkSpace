@@ -135,7 +135,7 @@ export const ROLES: RoleDef[] = [
     system: false,
     dept: "생산본부",
     perms: [
-      "ws:members",
+      "ws:settings",
       "monitoring", "workorders", "bottleneck", "reporting",
       "predict", "maintenance",
       "defects", "control",

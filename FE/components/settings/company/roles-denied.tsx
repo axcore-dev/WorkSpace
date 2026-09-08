@@ -15,10 +15,10 @@ export function RolesDenied() {
       <h1 className="text-xl font-bold tracking-tight text-slate-900">권한 관리</h1>
       <div className="mt-8 flex flex-col items-center rounded-xl border border-dashed border-slate-300 px-6 py-14 text-center">
         <IconLock size={26} className="text-slate-400" />
-        <p className="mt-3 text-sm font-semibold text-slate-900">소유자만 볼 수 있는 화면이에요</p>
+        <p className="mt-3 text-sm font-semibold text-slate-900">소유자와 관리자만 볼 수 있는 화면이에요</p>
         <p className="mt-1.5 max-w-sm text-[13.5px] leading-relaxed text-slate-500">
-          직급과 권한을 정하는 자리라 회사를 대표하는 한 사람에게만 열려 있어요.
-          바꿀 게 있으면 소유자에게 알려 주세요.
+          직급과 권한을 정하는 자리라 회사를 대표하는 사람과 관리자에게만 열려 있어요.
+          바꿀 게 있으면 소유자나 관리자에게 알려 주세요.
         </p>
         <Button variant="secondary" size="sm" className="mt-5" href="/settings/company/invites">
           초대 관리로 가기

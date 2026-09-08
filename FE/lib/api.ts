@@ -98,4 +98,5 @@ async function authed<T>(method: Method, path: string, body?: unknown): Promise<
 export const apiGet = <T,>(path: string) => authed<T>("GET", path);
 export const apiPostAuthed = <T,>(path: string, body?: unknown) => authed<T>("POST", path, body);
 export const apiPut = <T,>(path: string, body?: unknown) => authed<T>("PUT", path, body);
+export const apiPatch = <T,>(path: string, body?: unknown) => authed<T>("PATCH", path, body);
 export const apiDelete = <T,>(path: string) => authed<T>("DELETE", path);
