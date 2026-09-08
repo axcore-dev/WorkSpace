@@ -4,9 +4,10 @@ import { useState } from "react";
 import { IconChevronDown, IconDownload } from "@/components/icons";
 import { Modal } from "@/components/modal";
 import { Badge, Button, Card, DataTable, FIELD, SectionHeader } from "@/components/ui";
+import { withJosa } from "@/data/ko";
 import type { Cell } from "@/data/types";
 import { downloadCsv } from "@/lib/download";
-import { ddayLabel, daysBetween, formatWon, nextVoucherNo, payrollTone, weekdayKo } from "@/lib/management-state";
+import { ddayLabel, daysBetween, formatWon, nextVoucherNo, payrollTone, voucherTone, weekdayKo } from "@/lib/management-state";
 import { useManagement } from "./management-provider";
 import { PayrollWizard } from "./payroll-wizard";
 import { Banner, ConfirmModal, EntityHeader, Kv, KvGrid, MasterList, MenuModal, Tiles, Workbench } from "./workbench";
@@ -44,6 +45,11 @@ export function PayrollWorkbench({ onOpenTab }: { onOpenTab: (tabId: string) => 
     select("accounting", voucher.no);
     onOpenTab("accounting");
   }
+  function recalc() {
+    if (!run) return;
+    dispatch({ type: "recalc", runId: run.id });
+    notify(`${withJosa(run.name, "을/를")} 다시 계산해요 · 처리 대기로 돌아갔어요`);
+  }
 
   const primary = !run ? null : (
     run.status === "처리 대기" ? (
@@ -51,7 +57,7 @@ export function PayrollWorkbench({ onOpenTab }: { onOpenTab: (tabId: string) => 
     ) : run.status === "전표 생성" ? (
       <Button onClick={() => setDialog("paid")}>지급 완료 처리하기</Button>
     ) : run.status === "전표 반려" ? (
-      <Button onClick={() => dispatch({ type: "recalc", runId: run.id })}>다시 계산하기</Button>
+      <Button onClick={recalc}>다시 계산하기</Button>
     ) : null
   );
 
@@ -76,7 +82,7 @@ export function PayrollWorkbench({ onOpenTab }: { onOpenTab: (tabId: string) => 
               select("payroll", id);
               close();
             }}
-            footer={`${runs.length}회차 · 처리 대기 ${pending.payroll}건`}
+            footer={`${runs.length}회차 · 처리할 회차 ${pending.payroll}건`}
             emptyText="찾는 회차가 없어요. 다른 이름이나 전표번호로 찾아볼까요?"
           />
         )}
@@ -114,7 +120,11 @@ export function PayrollWorkbench({ onOpenTab }: { onOpenTab: (tabId: string) => 
 
             {run.status === "처리 대기" && (
               <Banner tone="amber">
-                지급 예정일 {Number(run.payDate.slice(5, 7))}월 {Number(run.payDate.slice(8, 10))}일까지 {daysLeft}일 남았어요 · 전표는 아직 만들지 않았어요
+                {daysLeft < 0
+                  ? `지급 예정일이 ${-daysLeft}일 지났어요 · 전표는 아직 만들지 않았어요`
+                  : daysLeft === 0
+                    ? "지급 예정일이 오늘이에요 · 전표는 아직 만들지 않았어요"
+                    : `지급 예정일 ${Number(run.payDate.slice(5, 7))}월 ${Number(run.payDate.slice(8, 10))}일까지 ${daysLeft}일 남았어요 · 전표는 아직 만들지 않았어요`}
               </Banner>
             )}
             {run.status === "전표 생성" && (
@@ -151,7 +161,7 @@ export function PayrollWorkbench({ onOpenTab }: { onOpenTab: (tabId: string) => 
                       {voucher && (
                         <>
                           {" · "}
-                          <Badge tone={voucher.status === "승인" ? "green" : voucher.status === "반려" ? "red" : "amber"}>{voucher.status}</Badge>
+                          <Badge tone={voucherTone(voucher.status)}>{voucher.status}</Badge>
                         </>
                       )}
                     </>
@@ -209,7 +219,7 @@ export function PayrollWorkbench({ onOpenTab }: { onOpenTab: (tabId: string) => 
             open={dialog === "menu"}
             title="회차 처리"
             items={[
-              { label: "다시 계산하기", hint: "전표 반려 회차만", disabled: run.status !== "전표 반려", onClick: () => dispatch({ type: "recalc", runId: run.id }) },
+              { label: "다시 계산하기", hint: "전표 반려 회차만", disabled: run.status !== "전표 반려", onClick: recalc },
               { label: "회차 삭제", hint: "처리 대기 회차만", danger: true, disabled: run.status !== "처리 대기", onClick: () => setDialog("delete") },
             ]}
             onClose={() => setDialog(null)}

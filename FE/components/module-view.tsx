@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import {
   DndContext,
   KeyboardSensor,
@@ -335,7 +335,7 @@ function CreateRecordModal({
   );
 }
 
-export function ModuleView({ mod, page, subtitle }: { mod: ModuleDef; page: ModulePageData; subtitle?: React.ReactNode }) {
+export function ModuleView({ mod, page, subtitle }: { mod: ModuleDef; page: ModulePageData; subtitle?: ReactNode }) {
   const { state } = useModules();
   const modState = state[mod.slug];
   const Icon = ICON_MAP[mod.icon];
@@ -491,26 +491,28 @@ export function ModuleView({ mod, page, subtitle }: { mod: ModuleDef; page: Modu
       )}
 
       {/* 서브기능 탭 + 액션 버튼(동일 뎁스) — 우측 끝 편집 버튼으로 순서 변경 */}
-      <div className="thin-scroll mb-4 flex items-center gap-1 overflow-x-auto border-b border-slate-200 pb-px" role="tablist">
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={tabOrder} strategy={horizontalListSortingStrategy}>
-            {orderedTabs.map((tab, i) => {
-              if (modState.subs[tab.id] === false) return null;
-              return (
-                <SortableTab
-                  key={tab.id}
-                  tab={tab}
-                  index={i}
-                  editing={editingTabs}
-                  isActive={active?.id === tab.id}
-                  onSelect={() => switchTab(tab.id)}
-                />
-              );
-            })}
-          </SortableContext>
-        </DndContext>
+      <div className="mb-4 flex items-center gap-1 border-b border-slate-200">
+        <div className="thin-scroll flex min-w-0 flex-1 items-center gap-1 overflow-x-auto pb-px" role="tablist">
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={tabOrder} strategy={horizontalListSortingStrategy}>
+              {orderedTabs.map((tab, i) => {
+                if (modState.subs[tab.id] === false) return null;
+                return (
+                  <SortableTab
+                    key={tab.id}
+                    tab={tab}
+                    index={i}
+                    editing={editingTabs}
+                    isActive={active?.id === tab.id}
+                    onSelect={() => switchTab(tab.id)}
+                  />
+                );
+              })}
+            </SortableContext>
+          </DndContext>
+        </div>
 
-        <div className="mb-1.5 ml-auto flex shrink-0 items-center gap-2">
+        <div className="mb-1.5 flex shrink-0 items-center gap-2">
           {filterOpen && active?.table && (
             <div className="relative">
               <IconSearch size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />

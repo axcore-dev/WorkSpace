@@ -50,6 +50,8 @@ export const PAGE: ModulePageData = {
             ["ITM-GB-0004", "GUIDE BUSH", "SGBT", "25-25", "EA", "공구실 B-1", "BUSH (SGBT)", { badge: "활성", tone: "green" }],
             ["ITM-SP-0001", "SPRING (D25이상)", "SWF", "12-50", "EA", "공구실 C-1", "SWF", { badge: "활성", tone: "green" }],
             ["ITM-GP-0032", "GUIDE POST", "MYKP", "Φ32-140L", "EA", "공구실 A-3", "—", { badge: "활성", tone: "green" }],
+            ["PRT-BRG-608", "베어링 608ZZ", "NSK", "8×22×7", "EA", "자재창고 R-2", "608ZZ", { badge: "활성", tone: "green" }],
+            ["MAT-AL-6061", "알루미늄 합금 6061", "T6", "20mm", "kg", "자재창고 R-1", "AL6061", { badge: "활성", tone: "green" }],
             ["ITM-ER-0009", "END RETAINER", "DP-AN", "16", "EA", "공구실 D-1", "—", { badge: "단종", tone: "slate" }],
           ],
         },

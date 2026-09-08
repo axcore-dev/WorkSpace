@@ -7,7 +7,7 @@ WorkSpace 데모의 시각 언어와 공용 컴포넌트 규칙. 코드가 단�
 | `app/globals.css` | 디자인 토큰 (색·폰트), 전역 스타일 |
 | `components/ui.tsx` | 공용 컴포넌트 + `FIELD`/`TONE_TEXT` 공유 상수 |
 | `lib/palette.ts` | 차트 시리즈 색상 팔레트 |
-| `components/modal.tsx`, `record-modal.tsx` | 다이얼로그 — `Modal` / `RecordModal`·`MembersModal` |
+| `components/modal.tsx`, `record-modal.tsx` | 다이얼로그 — `Modal` / `RecordModal` |
 | `components/charts.tsx` | 순수 SVG 차트 |
 | `components/icons.tsx`, `brand-icons.tsx`, `logo.tsx` | 인라인 아이콘 + `ICON_MAP` / 외부 서비스 아이콘 / 브랜드 로고 |
 
@@ -162,7 +162,7 @@ WorkSpace 데모의 시각 언어와 공용 컴포넌트 규칙. 코드가 단�
 | `Workbench` 계열 | 경영지원 작업대 골격 | 좌 320 마스터(`MasterList`: 만들기 → 찾기 → 목록/트리 → 개수) \| 우 디테일(`EntityHeader` → `Banner` → `Tiles` → 표 → `KvGrid`/`Kv`). `lg` 미만은 선택 바 + `Modal sm`. `ConfirmModal`(왼쪽 항상 [닫기], 승인은 `primary`+체크·삭제는 `danger`+경고)·`MenuModal`(처리 메뉴). **다른 모듈로 일반화하지 않는다** — 두 번째 모듈이 필요해질 때. `components/management/workbench.tsx` |
 | `Banner` | 조건부 안내 문장 | `amber`(할 일 있음) / `slate`(진행 중). 문장만 — 버튼을 넣지 않는다(블루 예산). 상태 배지가 아니라 문맥 설명이라 옅은 배경을 허용한다 |
 
-보조 — 다이얼로그: `Modal`(sm~xl, ESC 닫기 · `modal.tsx`), `RecordModal`(행 상세)·`MembersModal`(둘 다 `record-modal.tsx`).
+보조 — 다이얼로그: `Modal`(sm~xl, ESC 닫기 · `modal.tsx`), `RecordModal`(행 상세 · `record-modal.tsx`).
 
 인증 화면(`auth-shell.tsx`): `AuthSplit`(로그인·회원가입·개설 대기 공통 분할 레이아웃 — 좌측 브랜드 패널 고정, 우측만 교체), `AuthPrimaryButton`(인증 폼 주 액션 — py-3.5 / 15px · `className` 관통 허용). 워크스페이스 선택은 별도 화면 없이 사이드바 전환기(`app-shell.tsx`)가 담당한다.
 

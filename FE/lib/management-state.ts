@@ -119,7 +119,8 @@ export function reduce(state: ManagementState, action: ManagementAction): Manage
       const template = state.runs.find((r) => r.name.includes("정기급여")) ?? state.runs[0];
       if (!template) return state;
       const base = action.payDate.slice(0, 7);
-      const id = state.runs.some((r) => r.id === base) ? `${base}-${state.runs.length + 1}` : base;
+      let id = base;
+      for (let n = 2; state.runs.some((r) => r.id === id); n++) id = `${base}-${n}`;
       const run: PayrollRun = {
         ...template,
         id,

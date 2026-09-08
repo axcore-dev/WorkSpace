@@ -126,10 +126,10 @@ export function AccountingWorkbench({ onOpenTab }: { onOpenTab: (tabId: string) 
 
         {voucher.status === "검토중" && (
           <Banner tone="amber">
-            검토 요청 후 {pendingDays}일 지났어요 · 승인하면 {Number(voucher.date.slice(5, 7))}월 {voucher.kind} 원장에 바로 올라가요
+            {pendingDays === 0 ? "오늘 검토 요청이 올라왔어요" : `검토 요청 후 ${pendingDays}일 지났어요`} · 승인하면 {Number(voucher.date.slice(5, 7))}월 {voucher.kind} 원장에 바로 올라가요
           </Banner>
         )}
-        {voucher.status === "반려" && <Banner tone="slate">반려한 전표예요{voucher.rejectReason ? ` · 사유: ${voucher.rejectReason}` : ""}</Banner>}
+        {voucher.status === "반려" && <Banner tone="amber">반려한 전표예요{voucher.rejectReason ? ` · 사유: ${voucher.rejectReason}` : ""}</Banner>}
 
         <Tiles
           items={[

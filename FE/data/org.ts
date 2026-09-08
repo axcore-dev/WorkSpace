@@ -171,7 +171,7 @@ export const ROLES: RoleDef[] = [
     name: "구매 담당",
     system: false,
     dept: "구매자재팀",
-    perms: ["purchasing", "items", "stock", "safety", "movements", "materials", "accounting"],
+    perms: ["purchasing", "items", "stock", "safety", "movements", "accounting"],
     scope: "dept",
     showAmounts: true,
     canDelegateInvite: false,

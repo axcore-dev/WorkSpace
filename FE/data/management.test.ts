@@ -106,6 +106,23 @@ test("회차 삭제는 처리 대기만, 회차 만들기는 최근 정기급여
   assert.equal(s1.selection.payroll, "2026-08");
 });
 
+test("회차 만들기 id 중복 방지 — 같은 달에 여러 번 만들고 지운 뒤 다시 만들어도 겹치지 않는다", () => {
+  const s0 = initial();
+  const s1 = reduce(s0, { type: "createRun", name: "임시 A", payDate: "2026-07-01" });
+  const idA = s1.runs[0].id;
+  const s2 = reduce(s1, { type: "createRun", name: "임시 B", payDate: "2026-07-02" });
+  const idB = s2.runs[0].id;
+  assert.notEqual(idA, idB, "같은 달에 만든 두 회차는 id가 달라야 한다");
+  assert.notEqual(idA, "2026-07");
+  assert.notEqual(idB, "2026-07");
+
+  const s3 = reduce(s2, { type: "deleteRun", runId: idA });
+  const s4 = reduce(s3, { type: "createRun", name: "임시 C", payDate: "2026-07-03" });
+  const idC = s4.runs[0].id;
+  assert.notEqual(idC, idB, "삭제 뒤 다시 만들어도 남아있는 id와 겹치면 안 된다");
+  assert.equal(s4.runs.filter((r) => r.id === idC).length, 1);
+});
+
 test("기본 선택: 대기 회차 · 검토중 전표 · 인사총무팀", () => {
   assert.deepEqual(defaultSelection(initial()), { payroll: "2026-07", accounting: "V-2607-001", hr: HR_DEFAULT_TEAM });
   const approved = reduce(initial(), { type: "approve", no: "V-2607-001" });
