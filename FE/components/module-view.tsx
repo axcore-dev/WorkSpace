@@ -33,6 +33,7 @@ import {
   IconSearch,
 } from "@/components/icons";
 import { Modal } from "@/components/modal";
+import { AccountingWorkbench } from "@/components/management/accounting-workbench";
 import { PayrollWorkbench } from "@/components/management/payroll-workbench";
 import { useModules } from "@/components/module-provider";
 import { RecordModal } from "@/components/record-modal";
@@ -578,6 +579,10 @@ export function ModuleView({ mod, page, subtitle }: { mod: ModuleDef; page: Modu
       ) : active?.custom === "payroll-workbench" ? (
         <div role="tabpanel">
           <PayrollWorkbench onOpenTab={switchTab} />
+        </div>
+      ) : active?.custom === "accounting-workbench" ? (
+        <div role="tabpanel">
+          <AccountingWorkbench onOpenTab={switchTab} />
         </div>
       ) : active ? (
         <div role="tabpanel" className="space-y-4">
