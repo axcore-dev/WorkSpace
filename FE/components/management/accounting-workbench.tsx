@@ -187,6 +187,7 @@ export function AccountingWorkbench({ onOpenTab }: { onOpenTab: (tabId: string) 
         variant="primary"
         icon="check"
         onConfirm={() => {
+          select("accounting", voucher.no);
           dispatch({ type: "approve", no: voucher.no });
           notify(`${voucher.no} 전표를 승인했어요`);
           setDialog(null);
@@ -200,6 +201,7 @@ export function AccountingWorkbench({ onOpenTab }: { onOpenTab: (tabId: string) 
         voucher={voucher}
         onClose={() => setDialog(null)}
         onReject={(reason) => {
+          select("accounting", voucher.no);
           dispatch({ type: "reject", no: voucher.no, reason });
           notify(`${voucher.no} 전표를 반려했어요`);
         }}
