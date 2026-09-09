@@ -12,16 +12,13 @@ import {
   updateConversation,
 } from "@/lib/ai/server/conversations";
 import { withTenant } from "@/lib/ai/server/db";
-import { handle, HttpError } from "@/lib/ai/server/http";
+import { handle, HttpError, requireUuid } from "@/lib/ai/server/http";
 
 type Ctx = { params: Promise<{ id: string }> };
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 export async function conversationId(ctx: Ctx): Promise<string> {
   const { id } = await ctx.params;
-  if (!UUID_RE.test(id)) throw new HttpError(404, "NOT_FOUND", "대화를 찾을 수 없어요");
-  return id;
+  return requireUuid(id, "대화를 찾을 수 없어요");
 }
 
 const patchSchema = z
