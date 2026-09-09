@@ -105,11 +105,10 @@ function ConnectorDetailModal({
 }
 
 /**
- * 커넥터 팝업 — 분류별(메신저·협업 / 문서·데이터 / 메일·일정 / ERP·회계) 앱 카드.
+ * 커넥터 팝업 — 분류별(메신저·협업 / 문서·데이터 / 메일·일정) 앱 카드.
  *
- * 연결 상태는 **부모가 갖는다** — 입력창의 앱 스택·토글이 같은 값을 봐야 하기 때문이다.
- * 여기서 따로 들고 있으면 여기서 연결한 앱이 입력창에 나타나지 않는다.
- * 데모: Google Calendar는 즉시 연결 처리되고, 나머지 앱은 해당 앱 로그인 페이지로 보내는 목업이다.
+ * 연결 상태는 **부모가 갖는다**(`useConnectors` 스토어) — 입력창의 앱 칩과 설정 화면이 같은 값을 봐야 하기 때문이다.
+ * 「연결됨」은 등록 기준이다(꺼 둔 앱도 연결된 앱). 연결하기는 부모가 OAuth 로 보내고, 해제는 여기서 한 번 되묻고 넘긴다.
  */
 export function ConnectorModal({
   open,
@@ -127,6 +126,8 @@ export function ConnectorModal({
 }) {
   const [q, setQ] = useState("");
   const [detail, setDetail] = useState<Connector | null>(null);
+  /** 해제를 누른 앱. 바로 끊지 않고 한 번 되묻는다 — 목록에서 사라지고 마지막 앱이면 제공자 토큰까지 회수되는 동작이다 */
+  const [pendingDisconnect, setPendingDisconnect] = useState<Connector | null>(null);
 
   const needle = q.trim().toLowerCase();
   const list = CONNECTOR_LIB.filter(
@@ -145,17 +146,21 @@ export function ConnectorModal({
     return connected.includes(c.slug);
   }
 
-  /** 연결 — 데모: 즉시 연결 처리. OAuth 등 실연동은 BE 이관 후 BE API를 거친다 */
+  /** 연결 — 부모가 제공자 동의 화면으로 보낸다(OAuth). 돌아오면 서버가 연결 상태를 준다 */
   function connect(c: Connector) {
-    if (c.slug === "googlecalendar") {
-      onConnect(c.slug);
-      return;
-    }
-    if (c.loginUrl) window.open(c.loginUrl, "_blank", "noopener,noreferrer");
+    onConnect(c.slug);
   }
 
+  /** 카드의 해제 버튼과 상세 팝업의 해제 버튼이 둘 다 여기로 온다. 확인 모달을 띄울 뿐, 실제 해제는 confirmDisconnect 다 */
   function disconnect(c: Connector) {
-    onDisconnect(c.slug);
+    setPendingDisconnect(c);
+  }
+
+  function confirmDisconnect() {
+    if (!pendingDisconnect) return;
+    onDisconnect(pendingDisconnect.slug);
+    setPendingDisconnect(null);
+    setDetail(null);
   }
 
   if (!open) return null;
@@ -253,11 +258,32 @@ export function ConnectorModal({
           connected={isConnected(detail)}
           onClose={() => setDetail(null)}
           onConnect={connect}
-          onDisconnect={(c) => {
-            disconnect(c);
-            setDetail(null);
-          }}
+          onDisconnect={disconnect}
         />
+      )}
+
+      {/* 해제 확인. 되돌리려면 다시 인증해야 하는 동작이라 한 번 되묻는다. 위험 동작은 danger 버튼 하나만 */}
+      {pendingDisconnect && (
+        <Modal open onClose={() => setPendingDisconnect(null)} size="sm" title="연결을 해제할까요?">
+          <div className="p-5">
+            <p className="flex items-center gap-2.5 text-sm text-slate-700">
+              <BrandIcon slug={pendingDisconnect.slug} size={18} />
+              <span className="font-semibold text-slate-900">{pendingDisconnect.name}</span>
+            </p>
+            <p className="mt-3 text-[13.5px] leading-relaxed text-slate-500">
+              연결을 해제하면 목록에서 사라지고 AI 대화에서 이 앱을 쓸 수 없어요. 다시 쓰려면 새로 연결해야 해요.
+              같은 계정을 쓰는 다른 앱이 없으면 계정 연결 자체도 끊겨요.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <Button variant="secondary" size="sm" onClick={() => setPendingDisconnect(null)}>
+                취소
+              </Button>
+              <Button variant="danger" size="sm" onClick={confirmDisconnect}>
+                해제
+              </Button>
+            </div>
+          </div>
+        </Modal>
       )}
     </>
   );

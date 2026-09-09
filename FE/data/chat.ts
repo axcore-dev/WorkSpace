@@ -113,68 +113,31 @@ export interface ChatMessage {
 }
 
 /**
- * 커넥터 목록 — 한국 제조 현장이 실제로 쓰는 협업·문서·ERP 앱. 브랜드 마크는 `public/brands/`.
- * loginUrl: 연결 클릭 시 여는 로그인 페이지 (Google Calendar는 데모 즉시 연결이라 없음). url: 상세 팝업의 '웹사이트'.
+ * 커넥터 목록 — AI 대화가 부를 수 있는 외부 앱. 브랜드 마크는 `public/brands/`.
+ *
+ * **BE 의 `ConnectorCatalog` 와 같은 순서·같은 slug 여야 한다.** 연결 상태는 여기 없다 — 서버가 준다
+ * (`GET /api/workspace/connectors`). 예전의 `connected` 플래그와 `loginUrl` 은 데모라 뺐다.
+ *
+ * 2026-09-08 에 14개에서 6개로 줄였다. 카카오워크 · 네이버웍스 · 잔디 · Teams · Excel · Outlook · 이카운트 · 더존은
+ * 파트너 승인이나 API 계약이 앞에 있어 1차에서 뺐다. 구글 넷은 계정 하나에 스코프만 다르다.
  */
-export type ConnectorCategory =
-  "메신저·협업" | "문서·데이터" | "메일·일정" | "ERP·회계";
+export type ConnectorCategory = "메신저·협업" | "문서·데이터" | "메일·일정";
 
-export const CONNECTOR_CATEGORIES: ConnectorCategory[] = [
-  "메신저·협업",
-  "문서·데이터",
-  "메일·일정",
-  "ERP·회계",
-];
+export const CONNECTOR_CATEGORIES: ConnectorCategory[] = ["메신저·협업", "문서·데이터", "메일·일정"];
 
 export const CONNECTOR_LIB: {
   slug: string;
   name: string;
   desc: string;
   category: ConnectorCategory;
-  connected?: boolean;
   url: string;
-  loginUrl?: string;
 }[] = [
   {
     slug: "slack",
     name: "Slack",
     desc: "이상 감지·작업 지시 알림을 보내고 스레드를 요약해요.",
     category: "메신저·협업",
-    connected: true,
     url: "https://slack.com",
-    loginUrl: "https://slack.com/signin",
-  },
-  {
-    slug: "kakaowork",
-    name: "카카오워크",
-    desc: "현장 알림을 채팅방으로 보내고 결재 요청을 전달해요.",
-    category: "메신저·협업",
-    url: "https://www.kakaowork.com",
-    loginUrl: "https://www.kakaowork.com/login",
-  },
-  {
-    slug: "naverworks",
-    name: "네이버웍스",
-    desc: "메시지·게시판·드라이브를 연결해 공지와 문서를 찾아요.",
-    category: "메신저·협업",
-    url: "https://naver.worksmobile.com",
-    loginUrl: "https://auth.worksmobile.com/login",
-  },
-  {
-    slug: "jandi",
-    name: "잔디",
-    desc: "토픽에 생산·품질 알림을 올리고 대화를 요약해요.",
-    category: "메신저·협업",
-    url: "https://www.jandi.com",
-    loginUrl: "https://www.jandi.com/landing/kr/login",
-  },
-  {
-    slug: "teams",
-    name: "Microsoft Teams",
-    desc: "팀 채널에 리포트를 공유하고 회의록을 정리해요.",
-    category: "메신저·협업",
-    url: "https://www.microsoft.com/microsoft-teams",
-    loginUrl: "https://teams.microsoft.com",
   },
   {
     slug: "googledrive",
@@ -182,7 +145,6 @@ export const CONNECTOR_LIB: {
     desc: "도면·시방서 파일에 바로 접근하고 정리해요.",
     category: "문서·데이터",
     url: "https://drive.google.com",
-    loginUrl: "https://accounts.google.com/ServiceLogin?service=wise",
   },
   {
     slug: "googlesheets",
@@ -190,15 +152,6 @@ export const CONNECTOR_LIB: {
     desc: "수율·원가 데이터를 표로 정리하고 계산해요.",
     category: "문서·데이터",
     url: "https://docs.google.com/spreadsheets",
-    loginUrl: "https://accounts.google.com/ServiceLogin?service=wise",
-  },
-  {
-    slug: "excel",
-    name: "Microsoft Excel",
-    desc: "생산 실적·재고 시트를 읽고 집계표를 만들어요.",
-    category: "문서·데이터",
-    url: "https://www.microsoft.com/microsoft-365/excel",
-    loginUrl: "https://www.office.com/launch/excel",
   },
   {
     slug: "notion",
@@ -206,16 +159,13 @@ export const CONNECTOR_LIB: {
     desc: "이슈·조치 내역을 기록하고 워크플로를 자동화해요.",
     category: "문서·데이터",
     url: "https://www.notion.so",
-    loginUrl: "https://www.notion.so/login",
   },
   {
     slug: "gmail",
     name: "Gmail",
     desc: "분석 결과 리포트를 작성·검색하고 메일을 요약해요.",
     category: "메일·일정",
-    connected: true,
     url: "https://mail.google.com",
-    loginUrl: "https://accounts.google.com/ServiceLogin?service=mail",
   },
   {
     slug: "googlecalendar",
@@ -223,30 +173,6 @@ export const CONNECTOR_LIB: {
     desc: "정비 일정을 등록하고 일정을 최적화해요.",
     category: "메일·일정",
     url: "https://calendar.google.com",
-  },
-  {
-    slug: "outlook",
-    name: "Microsoft Outlook",
-    desc: "협력사 메일을 요약하고 회의 일정을 잡아요.",
-    category: "메일·일정",
-    url: "https://outlook.office.com",
-    loginUrl: "https://outlook.office.com",
-  },
-  {
-    slug: "ecount",
-    name: "이카운트 ERP",
-    desc: "매입·매출·재고 전표를 조회하고 발주를 등록해요.",
-    category: "ERP·회계",
-    url: "https://www.ecount.com",
-    loginUrl: "https://login.ecount.com",
-  },
-  {
-    slug: "douzone",
-    name: "더존 ERP",
-    desc: "회계·인사·생산 데이터를 조회하고 전표를 만들어요.",
-    category: "ERP·회계",
-    url: "https://www.douzone.com",
-    loginUrl: "https://www.douzone.com",
   },
 ];
 

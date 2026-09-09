@@ -336,3 +336,134 @@ admin  GET /connectors            → editable true · PUT services/teams → 20
 - **외부 시스템을 등록할 화면이 없다.** 표와 조회만 만들었고 행은 운영이 직접 넣는다. 운영자 콘솔(`/admin`)에 붙이는 것이 다음 자리다.
 - 커넥터 OAuth 는 없다. 지금 「연결」은 "이 회사가 쓰기로 했다" 는 표시일 뿐 실제 계정 인증이 아니다.
 - 기존 회사에 표를 만들려면 `TENANT_MIGRATE_ON_BOOT=true` 로 한 번 띄운다 (부팅 후 전 스키마 순회).
+
+---
+
+# 5단계 — 커넥터 1차: 구글 연결 + Google Calendar 도구 (2026-09-09)
+
+「연결」이 깃발에서 진짜 토큰이 됐다. 카탈로그는 14개에서 6개(Slack · Google Drive · Sheets · Notion · Gmail · Calendar)로
+줄였고, 이번에 실제로 붙은 것은 **구글**이다. Slack · Notion 은 같은 세 단계에 제공자 클래스만 더한다.
+
+## 구조
+
+- 토큰은 **제공자 단위**(`connector_accounts`, tenant V12), 켜기/끄기는 **앱 단위**(`connected_services`). 구글 앱 넷은 계정 하나에
+  스코프만 쌓는다(incremental authorization). 앱이 "연결됨" = 깃발 ∧ 계정 있음 ∧ 재연결 표시 없음 ∧ 스코프가 앱을 덮음.
+- 토큰은 AES-GCM 으로 잠가 저장한다. 키는 `CONNECTOR_TOKEN_KEY`(base64 32바이트). 없으면 연결 시도만 503.
+- 콜백은 소셜 로그인과 **같은 구글 콜백 주소**를 쓴다. state 가 `cn.<slug>.<payload>.<sig>` 로 시작하면 커넥터 흐름이다 —
+  구글 콘솔에 주소를 더 등록하지 않아도 된다. state 는 서버가 서명하고(회사 · 사용자 · 앱 · 10분), 콜백을 부른 사람과 대조한다.
+- 제공자 호출은 전부 BE 가 한다. AI 서버의 도구는 `/api/internal/connectors/...` 를 사용자 토큰 + `X-Internal-Token` 두 겹으로 부른다.
+
+## 컬렉션
+
+| Method | Path | 권한 | 비고 |
+|---|---|---|---|
+| GET | `/api/workspace/connectors` | 구성원 | `services` 는 실제로 쓸 수 있는 앱만. `accounts` 에 제공자 계정(이메일 · 재연결 필요) |
+| POST | `/api/workspace/connectors/services/{slug}/authorize` | 연동 관리 | `{url}` — 구글 동의 화면. 브라우저를 이 주소로 보낸다 |
+| POST | `/api/workspace/connectors/services/{slug}/callback` `{"code","state"}` | 연동 관리 | 토큰 저장 + 깃발. 바뀐 전체 응답 |
+| DELETE | `/api/workspace/connectors/services/{slug}` | 연동 관리 | 깃발 내림. 같은 제공자의 마지막 앱이면 구글 토큰 회수 + 계정 삭제 |
+| POST | `/api/internal/connectors/googlecalendar/list-events` `{from?,to?,max?}` | 내부 | AI 도구. 미연결이면 409 CONNECTOR_NOT_CONNECTED |
+| POST | `/api/internal/connectors/googlecalendar/create-event` `{summary,start,end,description?}` | 내부 | AI 도구(승인 게이트 뒤) |
+
+## 실제 호출 결과
+
+```
+admin  GET /connectors                          → 200 services [] · accounts [] · editable true
+admin  POST googlecalendar/authorize            → 200 url: accounts.google.com · scope calendar.events+email · access_type offline · prompt consent · state cn.googlecalendar.…
+member POST googlecalendar/authorize            → 403
+admin  POST dropbox/authorize                   → 400 VALIDATION_FAILED
+admin  POST slack/authorize                     → 503 "slack 연결은 아직 준비 중입니다"
+admin  POST callback 위조 state                  → 400 VALIDATION_FAILED
+member POST callback (남이 만든 state)            → 403 (권한 검사가 먼저)
+admin  POST callback 가짜 code                   → 502 CONNECTOR_PROVIDER_FAILED
+admin  DELETE googlecalendar (연결 안 된 상태)     → 200 [] (멱등)
+내부   list-events, X-Internal-Token 없이         → 403
+내부   list-events, 내부 토큰 있고 미연결           → 409 CONNECTOR_NOT_CONNECTED
+내부   list-events, 사용자 토큰 없이               → 401
+```
+
+**구글 동의 화면을 실제로 통과하는 것은 브라우저에서만 된다.** 그 뒤 일정 조회·등록이 되려면 구글 클라우드 프로젝트에서
+**Google Calendar API 가 켜져 있어야** 한다(403 → 문구에 힌트가 있다).
+
+## 로컬에서 쓰려면
+
+```
+# BE/.env
+CONNECTOR_TOKEN_KEY=   # openssl rand -base64 32
+```
+compose 배포는 `INFRA/.env` 의 같은 이름을 `app` 컨테이너로 넘긴다. 구글 자격증명은 소셜 로그인 것을 그대로 쓴다.
+
+## 남긴 것
+
+- Slack · Notion 제공자 구현(다음 PR 둘). `ConnectorOAuthService.requireGoogle` 이 그 자리다.
+- 구글 나머지 앱(Drive · Sheets · Gmail)의 도구. 연결(스코프)은 이미 카탈로그에 있고, 내부 경로와 도구만 더한다.
+- 개인 단위 연결. 지금은 회사 단위 하나다.
+
+## 5단계 보강 — 구글 나머지 도구 (2026-09-09)
+
+Gmail · Drive · Sheets 의 내부 경로와 AI 도구를 더했다. 연결(OAuth)은 그대로고, 앱마다 토큰을 꺼낼 때
+"이 앱을 켰는가 · 이 앱의 스코프를 받았는가" 를 본다. 모든 구글 호출은 `GoogleApi` 하나를 거쳐 실패를 같은
+규칙으로 바꾼다(401 → 다시 연결, 403 → 해당 API 활성화 힌트, 404 → id·범위 확인, 그 외 502).
+
+| Method | Path | 도구 | 승인 |
+|---|---|---|---|
+| POST | `/api/internal/connectors/gmail/list-messages` `{query?,newerThanDays?,max?}` | `gmail_list_messages` | 없음 |
+| POST | `/api/internal/connectors/gmail/read-message` `{id}` | `gmail_read_message` | 없음 |
+| POST | `/api/internal/connectors/googledrive/search-files` `{keyword,mimeType?,max?}` | `googledrive_search_files` | 없음 |
+| POST | `/api/internal/connectors/googledrive/read-file` `{fileId}` | `googledrive_read_file` | 없음 |
+| POST | `/api/internal/connectors/googlesheets/read-range` `{spreadsheet,range}` | `googlesheets_read_range` | 없음 |
+| POST | `/api/internal/connectors/googlesheets/append-rows` `{spreadsheet,range,rows}` | `googlesheets_append_rows` | **필요** |
+
+- Gmail 은 `messages.list` 뒤 메시지마다 `messages.get`(metadata) 을 불러 보낸 사람·제목·날짜·미리보기를 만든다. 한 번에 20통 상한.
+  본문은 text/plain 우선, 없으면 HTML 태그를 벗긴다. 12,000자에서 자른다.
+- **Drive 스코프를 `drive.file` → `drive.readonly` 로 바꿨다.** `drive.file` 은 "이 앱이 만든 파일" 만 보여서 검색이 빈다.
+  민감 스코프라 운영 배포 전 구글 앱 검증이 필요하다. 이미 연결한 회사는 Drive 「연결하기」를 다시 눌러 새 스코프에 동의해야 한다.
+- Drive 본문은 구글 문서(text/plain export) · 구글 시트(CSV export) · 텍스트/CSV 파일만 읽는다. PDF·오피스는 메타데이터와 안내만.
+- Sheets 는 주소(URL)나 id 를 받는다. 덧붙이기는 표 아래에 행을 붙이는 것만(`INSERT_ROWS`, `RAW`) — 기존 셀을 덮는 도구는 두지 않았다.
+- 구글 클라우드 프로젝트에서 **Gmail API · Drive API · Sheets API** 를 켜야 한다. 안 켜면 403 문구에 힌트가 나온다.
+
+```
+8081(다른 키로 띄운 검증용) 에서:
+gmail/list-messages   연결 O · 키 불일치            → 409 CONNECTOR_NOT_CONNECTED "저장된 연결 정보를 읽을 수 없습니다"
+gmail/read-message    빈 id                         → 400 VALIDATION_FAILED
+googledrive/search    미연결                        → 409 CONNECTOR_NOT_CONNECTED
+googledrive/read-file X-Internal-Token 없이          → 403
+googlesheets/read     미연결                        → 409
+googlesheets/append   rows 빈 배열                  → 400
+googlecalendar/create end < start                  → 400
+사용자 토큰 없이                                     → 401
+```
+
+## 5단계 보강 — 등록 · 켜짐 · 해제를 가른다 (2026-09-09)
+
+토글을 끄면 앱이 목록에서 사라지던 것을 바꿨다. 이제 세 상태다.
+
+| 상태 | 뜻 | 바꾸는 경로 |
+|---|---|---|
+| 등록(registered) | 한 번 연결한 앱. `connected_services` 에 행이 있고 제공자 토큰이 그 앱의 스코프를 덮는다 | OAuth 콜백(등록+켜짐) / DELETE(해제) |
+| 켜짐(enabled) | AI 대화가 지금 쓸 수 있다. `connected_services.connected` | `PUT /api/workspace/connectors/services/{slug}` `{"enabled": true|false}` |
+| 해제 | 목록에서 빠진다. 같은 제공자의 마지막 앱이면 토큰 회수 + 계정 삭제 | `DELETE /api/workspace/connectors/services/{slug}` |
+
+- 응답에 `registered: [{slug, enabled}]` 가 늘었다. `services` 는 그중 켜진 것만(AI 칩용)이다.
+- 켤 때 제공자 계정이 스코프를 덮지 않으면 409 CONNECTOR_NOT_CONNECTED — 화면은 등록 안 된 앱이면 바로 OAuth 로 간다.
+- **연결 결과는 모달로.** 구글에서 돌아온 콜백 화면은 아무것도 그리지 않고 연동 화면으로 돌아오며, 스토어에 남긴 알림을
+  연동 화면이 모달로 보인다(「연결이 완료되었습니다」 / 실패 사유). 쿼리스트링이나 `useSearchParams` 를 쓰지 않는다 —
+  클라이언트 이동이라 모듈 스토어가 살아 있다.
+
+```
+8081 에서(사용자의 실제 연결 상태는 건드리지 않음):
+GET  /connectors                  → registered [{gmail,true},{googlecalendar,true}] · services [gmail, googlecalendar]
+PUT  googlesheets enabled=true    → 409 CONNECTOR_NOT_CONNECTED (등록 안 됨 → 화면은 OAuth 로)
+PUT  googlesheets {}              → 400 · PUT dropbox → 400
+DELETE googledrive (행 없음)       → 200, 다른 구글 앱이 남아 계정 유지
+member PUT gmail                  → 403
+```
+
+### 콜백은 연동 화면 자체다 (2026-09-09 확정)
+
+구글은 `/settings/workspace/integrations` 로 바로 돌려보낸다. 그 화면(`integration-settings.tsx`)이 주소의 `code`·`state` 를 서버에
+넘겨 마무리하고 주소를 지우고 결과 모달을 띄운다 — 중간 페이지가 없다. 소셜 로그인 콜백 페이지의 커넥터 분기는 지웠다.
+
+- 기본값: `${MAIL_BASE_URL}/settings/workspace/integrations` (로컬 http://localhost:8000/…). 다르게 쓰려면 `GOOGLE_CONNECTOR_REDIRECT_URI`.
+- **구글 클라우드 콘솔 › OAuth 클라이언트 › 승인된 리디렉션 URI 에 같은 주소가 있어야 한다.** 운영은 `https://<도메인>/settings/workspace/integrations`.
+  글자 하나라도 다르면 구글이 `redirect_uri_mismatch` 로 막는다.
+- state 는 서버가 서명하고 콜백 요청의 회사·사용자와 대조한다. 화면은 검증하지 않고 넘기기만 한다.

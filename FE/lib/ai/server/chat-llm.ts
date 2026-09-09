@@ -42,6 +42,8 @@ import { withTenant } from "./db";
 import { chatModel, providerOptions } from "./models";
 import { retrieve } from "./retrieval";
 import { decideApproval, hasTools, MAX_TOOL_STEPS, toolSetFor, type ApprovalRequest } from "./tools";
+// 외부 앱 도구를 레지스트리에 올린다. import 자체가 등록이다
+import "./connector-tools";
 
 export interface Turn {
   question: string;
@@ -49,6 +51,10 @@ export interface Turn {
   sources: string[];
   /** 적용할 스킬 id */
   skills: string[];
+  /** 이 턴에 쓸 외부 앱 slug. 이 목록에 있는 앱의 도구만 모델에 보인다 */
+  apps: string[];
+  /** 사용자 access 토큰 원문. 도구가 BE 내부 경로를 부를 때 그대로 전달한다. 저장하지 않는다 */
+  accessToken: string;
   /** 편집·다시 시도 — 이 순번 이상을 지우고 새로 답한다 */
   replaceFromSeq?: number;
   action?:
@@ -297,7 +303,7 @@ export function streamAnswer(
       // ── 도구 · 승인 ──
       const approvals: ToolApproval[] = [];
       const tools = hasTools()
-        ? toolSetFor({ principal, conversationId: conv.id }, (a: ApprovalRequest) => {
+        ? toolSetFor({ principal, conversationId: conv.id, accessToken: turn.accessToken, apps: turn.apps }, (a: ApprovalRequest) => {
             approvals.push(a);
             writer.write({ type: "data-approval", data: a });
           })
@@ -405,6 +411,7 @@ export function runApprovalTurn(
   principal: AiPrincipal,
   conv: ConversationRow,
   action: { approvalId: string; approved: boolean },
+  accessToken: string,
   signal: AbortSignal,
 ): Response {
   const model = chatModel();
@@ -421,7 +428,8 @@ export function runApprovalTurn(
       writer.write({ type: "start-step" });
       writer.write({ type: "data-label", data: { text: action.approved ? "승인된 도구를 실행하고 있어요" : "거절을 반영하고 있어요" } });
 
-      const decision = await decideApproval({ principal, conversationId: conv.id }, action.approvalId, action.approved);
+      // 승인 실행은 앱 목록을 보지 않는다 — 제안 시점에 이미 보였던 도구고, 실행 여부는 사용자가 정했다
+      const decision = await decideApproval({ principal, conversationId: conv.id, accessToken, apps: [] }, action.approvalId, action.approved);
       if (decision.kind === "not_found") {
         throw new Error("승인 요청을 찾을 수 없어요. 이미 처리됐거나 만료됐을 수 있어요");
       }

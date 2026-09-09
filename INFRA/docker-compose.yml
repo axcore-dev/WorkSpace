@@ -75,6 +75,13 @@ services:
       NCP_ACCESS_KEY: ${NCP_ACCESS_KEY}
       NCP_SECRET_KEY: ${NCP_SECRET_KEY}
 
+      # --- 외부 서비스 연동(커넥터) ---
+      # 제공자 토큰을 DB 에 두기 전에 잠그는 키. base64 32바이트 (openssl rand -base64 32). 바꾸면 모든 회사가 다시 연결해야 한다.
+      # 비어 있으면 부팅은 되고 연결 시도만 503 이다.
+      CONNECTOR_TOKEN_KEY: ${CONNECTOR_TOKEN_KEY:-}
+      # 구글이 연동 화면으로 바로 돌아온다(중간 화면 없음). 구글 콘솔의 승인된 리디렉션 URI 에 이 값이 그대로 있어야 한다.
+      GOOGLE_CONNECTOR_REDIRECT_URI: ${GOOGLE_CONNECTOR_REDIRECT_URI:-${PUBLIC_URL}/settings/workspace/integrations}
+
       # --- 소셜 로그인 (비어 있으면 그 제공자만 비활성) ---
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}

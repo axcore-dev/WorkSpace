@@ -57,9 +57,10 @@ echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
 값은 리포에 넣지 않는다. 서버에서 파일을 만들고, 같은 내용을 Jenkins 크리덴셜(Secret file)로도 등록한다.
 파이프라인은 크리덴셜 쪽을 매번 `INFRA/.env` 로 복사해 쓰고 끝나면 지운다.
 
-**compose 파일에는 기본값이 없다.** 아래 32개 키가 전부 `.env` 에 있어야 한다. 빠진 키는 빈 값으로
-들어가고(`POSTGRES_PASSWORD` · `JWT_SECRET` 만 compose 가 막는다), 포트 키가 비면 `up` 자체가 실패한다.
-compose 가 읽는 키와 `.env` 의 키는 1:1 이다 — `.env` 에 다른 키를 두지 않는다.
+아래 키가 `.env` 에 있어야 한다. 표시가 없는 키는 빠지면 빈 값으로 들어가고, **필수**로 적은 키는 compose 가 부팅을 막는다
+(`JWT_SECRET` · `AUTH_INTERNAL_TOKEN` · `AI_DB_PASSWORD`). 포트 키가 비면 `up` 자체가 실패한다. 「기본값」이 있는 키는
+compose 가 채우므로 바꿀 때만 적는다. compose 가 읽는 키와 `.env` 의 키는 1:1 이다 — `.env` 에 다른 키를 두지 않는다.
+(2026-09-09 기준. BE 가 읽는 환경변수 전부가 compose 의 `app` 서비스에 전달되는지는 `application.properties` 의 `${…}` 와 대조해 확인했다.)
 
 | 키 | 용도 | 서버 값 |
 | --- | --- | --- |
@@ -78,6 +79,14 @@ compose 가 읽는 키와 `.env` 의 키는 1:1 이다 — `.env` 에 다른 키
 | `MAIL_MODE` `MAIL_FROM` | 메일 발송 방식 · 보내는 주소 | `smtp` / 발송 계정 주소. `log` 면 보내지 않고 BE 로그에 찍는다(확인 링크가 로그에 남는다, 개발 전용) |
 | `MAIL_HOST` `MAIL_PORT` `MAIL_USERNAME` `MAIL_PASSWORD` | SMTP 접속 (mode=smtp 일 때만 쓰임) | Google Workspace: `smtp.gmail.com` / `587` / 발송 계정 / **앱 비밀번호 16자**. 아래 「Google Workspace SMTP」 참고. log 모드에서는 비워 둔다 |
 | `LOG_REQUESTS` `LOG_APP_LEVEL` | BE 로그 | `false` / `INFO` |
+| `AUTH_INTERNAL_TOKEN` | **필수**. FE 안의 AI 서버 ↔ BE 서비스 간 비밀(introspect · 커넥터 내부 경로) | 32자 이상 랜덤. `JWT_SECRET` 과 달라야 한다. app · frontend 둘에 같은 값이 들어간다 |
+| `AI_DB_PASSWORD` `AI_DB_USER` | **필수**(비밀번호). AI 서버 전용 DB 역할 | 16자 이상 랜덤 / 기본값 `axcore_ai` |
+| `TENANT_MIGRATE_ON_BOOT` | 부팅 뒤 기존 회사 스키마에 테넌트 마이그레이션 자동 적용 | 기본값 `true`(서버 한 대). 인스턴스를 늘리면 `false` |
+| `NCP_OBJECT_STORAGE_BUCKET` `NCP_ACCESS_KEY` `NCP_SECRET_KEY` | 네이버 클라우드 Object Storage — AI 문서(frontend) · 프로필 사진(app) | 버킷 이름 / API 키. 비면 사진 업로드만 503 |
+| `NCP_OBJECT_STORAGE_ENDPOINT` `NCP_OBJECT_STORAGE_REGION` | 위 스토리지 접속점 | 기본값 `https://kr.object.ncloudstorage.com` / `kr-standard` |
+| `CONNECTOR_TOKEN_KEY` | 외부 서비스(구글 등) 토큰을 DB 에 두기 전에 잠그는 키 | `openssl rand -base64 32`. 비면 커넥터 연결만 503. **바꾸면 모든 회사가 다시 연결해야 한다** |
+| `GOOGLE_CONNECTOR_REDIRECT_URI` | 커넥터 OAuth 콜백 = 연동 화면 주소 | 기본값 `${PUBLIC_URL}/settings/workspace/integrations`. **구글 콘솔의 승인된 리디렉션 URI 에 같은 값이 있어야 한다** |
+| `OPENAI_API_KEY` `ANTHROPIC_API_KEY` `AI_CHAT_PROVIDER` `AI_CHAT_MODEL` `AI_EMBEDDING_MODEL` | AI 서버 모델 | 대화 키 하나는 있어야 답이 나온다(없으면 대본). 기본값 `openai` / `gpt-5.6-luna` / `text-embedding-3-small` |
 | `JENKINS_PORT` `JENKINS_HEAP` `DOCKER_GID` | Jenkins compose | `8081` / `1g` / `stat -c %g /var/run/docker.sock` 결과 |
 
 ### Google Workspace SMTP

@@ -7,6 +7,9 @@ import com.axcore.workspace.oauth.exception.SocialLinkBlockedException;
 import com.axcore.workspace.user.service.DuplicateEmailException;
 import com.axcore.workspace.user.service.EmailAlreadyVerifiedException;
 import com.axcore.workspace.user.service.MfaStateException;
+import com.axcore.workspace.connector.ConnectorNotConnectedException;
+import com.axcore.workspace.connector.ConnectorProviderException;
+import com.axcore.workspace.connector.ConnectorUnavailableException;
 import com.axcore.workspace.storage.StorageUnavailableException;
 import com.axcore.workspace.user.service.PasswordNotSetException;
 import com.axcore.workspace.user.service.ProfilePhotoService;
@@ -248,6 +251,29 @@ public class GlobalExceptionHandler {
         log.warn("파일 저장소 오류", e);
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                 .body(ErrorResponse.of("STORAGE_UNAVAILABLE", e.getMessage()));
+    }
+
+    /** 연동 토큰 키나 제공자 자격증명이 없다. 배포 설정 문제라 503 이다. */
+    @ExceptionHandler(ConnectorUnavailableException.class)
+    public ResponseEntity<ErrorResponse> handleConnectorUnavailable(ConnectorUnavailableException e) {
+        log.error("연동 설정 누락: {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(ErrorResponse.of("CONNECTOR_UNAVAILABLE", e.getMessage()));
+    }
+
+    /** 앱이 연결돼 있지 않거나 토큰을 잃었다. 화면과 AI 도구가 「연결해 주세요」 로 안내한다. */
+    @ExceptionHandler(ConnectorNotConnectedException.class)
+    public ResponseEntity<ErrorResponse> handleConnectorNotConnected(ConnectorNotConnectedException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ErrorResponse.of("CONNECTOR_NOT_CONNECTED", e.getMessage()));
+    }
+
+    /** 제공자가 실패를 돌려줬다. 원인은 로그에만 — 응답으로 흘리면 제공자 응답을 탐색하는 통로가 된다. */
+    @ExceptionHandler(ConnectorProviderException.class)
+    public ResponseEntity<ErrorResponse> handleConnectorProvider(ConnectorProviderException e) {
+        log.warn("제공자 호출 실패", e);
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                .body(ErrorResponse.of("CONNECTOR_PROVIDER_FAILED", e.getMessage()));
     }
 
     /** 설정 값이 카탈로그·규칙에 맞지 않는다. {@code @Valid} 실패와 같은 코드다. */

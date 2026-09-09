@@ -32,7 +32,6 @@ import {
 import { createChatTransport, type TurnContext } from "@/lib/ai/transport";
 import { toChatMessage, turnOf, type AxpUIMessage } from "@/lib/ai/ui-messages";
 import { useConnectors } from "@/components/connector-provider";
-import { CONNECTOR_LIB } from "@/data/chat";
 import type {
   ChatMessage,
   Note,
@@ -127,18 +126,19 @@ export default function AiChatPage() {
   /** 이 턴에 물린 스킬 id — 전송하면 비운다 */
   const [skills, setSkills] = useState<string[]>([]);
   /**
-   * 켜 둔 앱 slug — 연결된 앱 중 이 대화에서 쓸 것들. 처음엔 연결된 앱 전부가 켜져 있다.
-   * '연결됨'(계정 연동)은 `CONNECTOR_LIB.connected`가 갖는 별개의 사실이고, 끄는 것과 연결을 끊는 것은 다르다.
-   * 지금은 화면 안에만 있다 — 커넥터 OAuth 가 붙으면 서버 조회로 옮긴다.
+   * 이 대화에서 **꺼 둔** 앱 slug. 연결된 앱은 기본으로 켜져 있고, 칩을 끄면 여기 들어온다.
+   * 켜진 목록이 아니라 끈 목록을 드는 이유: 연결 상태는 서버에서 비동기로 오고 설정 화면에서도 바뀐다.
+   * 켜진 목록을 들면 새로 연결된 앱이 켜지지 않고, 끊긴 앱이 남는다. 끈 목록은 그 두 경우에 저절로 맞다.
+   * 연결(계정 연동)과 켜기(이번 대화에서 쓸까)는 다른 사실이다.
    */
-  const [enabledApps, setEnabledApps] = useState<string[]>(() =>
-    CONNECTOR_LIB.filter((c) => c.connected).map((c) => c.slug),
-  );
+  const [mutedApps, setMutedApps] = useState<string[]>([]);
   /**
    * 연결된 앱 slug — 커넥터 팝업·입력창, 그리고 **설정 › 워크스페이스 › 연동**이 같은 값을
    * 본다. 화면 state로 두면 설정에서 끊은 앱이 여기 그대로 남는다 (수정요청 v12).
    */
-  const { connected: linkedApps, connect, disconnect } = useConnectors();
+  const { connected: linkedApps, registered, connect, disconnect } = useConnectors();
+  /** 이번 대화에서 쓸 앱 = 연결된 앱 − 끈 앱. 서버에 apps 로 보낸다 */
+  const enabledApps = linkedApps.filter((slug) => !mutedApps.includes(slug));
   /** 첫 대화 생성 전(시작 화면)의 소스 — 첫 대화가 이 상태를 승계한다 */
   const [draftSrc, setDraftSrc] = useState<SourceState>(EMPTY_SRC);
   /** 서버에서 대화 목록·문서 목록을 받아왔는지. 그 전에는 스켈레톤을 그린다 */
@@ -494,6 +494,7 @@ export default function AiChatPage() {
       conversationId: nid,
       sources: turn.sources,
       skills: turn.skills,
+      apps: turn.apps,
       replaceFromSeq: turn.replaceFromSeq,
       action: turn.action,
     };
@@ -519,7 +520,7 @@ export default function AiChatPage() {
       }
     }
     appendMessage(nid, { role: "user", text: q });
-    respond(nid, { message: q, sources: selectedSources, skills });
+    respond(nid, { message: q, sources: selectedSources, skills, apps: enabledApps });
     setSkills([]);
   }
 
@@ -529,7 +530,7 @@ export default function AiChatPage() {
     if (!old || pending) return;
     truncate(noteId, idx);
     appendMessage(noteId, { role: "user", text });
-    respond(noteId, { message: text, sources: selectedSources, skills, replaceFromSeq: old.seq });
+    respond(noteId, { message: text, sources: selectedSources, skills, apps: enabledApps, replaceFromSeq: old.seq });
   }
 
   /** 답변 다시 시도 — 바로 앞 사용자 메시지로 다시 답한다 */
@@ -538,7 +539,7 @@ export default function AiChatPage() {
     if (!u || u.role !== "user" || pending) return;
     truncate(noteId, aiIdx - 1);
     appendMessage(noteId, { role: "user", text: u.text });
-    respond(noteId, { message: u.text, sources: selectedSources, skills, replaceFromSeq: u.seq });
+    respond(noteId, { message: u.text, sources: selectedSources, skills, apps: enabledApps, replaceFromSeq: u.seq });
   }
 
   /** 응답 평가 — 같은 걸 다시 누르면 해제. 서버에 남겨 답변 품질 지표로 쓴다 */
@@ -636,7 +637,7 @@ export default function AiChatPage() {
     // 성공 뒤 카드를 닫는 일을 respond에 맡긴다 — 실패 후 '다시 시도'로 성공했을 때도 같이 닫히게
     respond(
       noteId,
-      { message: "", sources: selectedSources, skills, action: { type: "approve-proposal", proposal } },
+      { message: "", sources: selectedSources, skills, apps: enabledApps, action: { type: "approve-proposal", proposal } },
       resolve,
     );
   }
@@ -697,7 +698,7 @@ export default function AiChatPage() {
       linkedApps={linkedApps}
       enabledApps={enabledApps}
       onToggleApp={(slug) =>
-        setEnabledApps((prev) =>
+        setMutedApps((prev) =>
           prev.includes(slug) ? prev.filter((x) => x !== slug) : [...prev, slug],
         )
       }
@@ -912,16 +913,14 @@ export default function AiChatPage() {
       <ConnectorModal
         open={connectorOpen}
         onClose={() => setConnectorOpen(false)}
-        connected={linkedApps}
+        // 팝업의 「연결됨」은 등록 기준이다 — 꺼 둔 앱도 연결된 앱이다. 켜기/끄기는 입력창의 칩이 한다
+        connected={registered.map((r) => r.slug)}
         onConnect={(slug) => {
-          // 저장이 거절되면 스토어가 되돌린다 — 칩은 연결된 앱만 그리므로 함께 사라진다
+          // 제공자 동의 화면으로 떠난다. 돌아오면 연결된 앱은 기본으로 켜져 있다
           void connect(slug).catch(() => {});
-          // 새로 연결한 앱은 켜진 상태로 시작한다
-          setEnabledApps((prev) => [...prev, slug]);
         }}
         onDisconnect={(slug) => {
           void disconnect(slug).catch(() => {});
-          setEnabledApps((prev) => prev.filter((x) => x !== slug));
         }}
       />
       <SkillModal

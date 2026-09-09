@@ -1,6 +1,6 @@
 package com.axcore.workspace.user.introspection;
 
-import com.axcore.workspace.security.AuthProperties;
+import com.axcore.workspace.security.InternalCallerGuard;
 import com.axcore.workspace.security.JwtPrincipal;
 import com.axcore.workspace.user.entity.User;
 import com.axcore.workspace.user.entity.UserSession;
@@ -12,8 +12,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.List;
 
@@ -31,19 +29,19 @@ import java.util.List;
 @Service
 public class TokenIntrospectionService {
 
-    private final AuthProperties properties;
+    private final InternalCallerGuard callerGuard;
     private final AuthService authService;
     private final UserSessionService sessionService;
     private final TenantAccess tenantAccess;
     private final ModuleAccessReader moduleAccess;
 
     public TokenIntrospectionService(
-            AuthProperties properties,
+            InternalCallerGuard callerGuard,
             AuthService authService,
             UserSessionService sessionService,
             TenantAccess tenantAccess,
             ModuleAccessReader moduleAccess) {
-        this.properties = properties;
+        this.callerGuard = callerGuard;
         this.authService = authService;
         this.sessionService = sessionService;
         this.tenantAccess = tenantAccess;
@@ -57,7 +55,7 @@ public class TokenIntrospectionService {
     @Transactional(readOnly = true)
     public IntrospectionResponse introspect(
             String internalToken, JwtPrincipal principal, Instant tokenExpiresAt, Instant now) {
-        requireServiceCaller(internalToken);
+        callerGuard.require(internalToken);
 
         User user = authService.requireUser(principal.userId());
         // 폐기된 세션(로그아웃 · 다른 기기에서 끊음)은 여기서 바로 막힌다.
@@ -94,26 +92,4 @@ public class TokenIntrospectionService {
                 tokenExpiresAt);
     }
 
-    /**
-     * 서비스 간 비밀을 대조한다.
-     *
-     * <p>비밀이 비어 있으면 <b>전부 거부</b>한다. 열어 두는 기본값은 설정을 잊은 배포에서 introspect 가
-     * 익명에게 스키마 이름을 알려 주는 구멍이 된다. 길이가 달라도 {@link MessageDigest#isEqual} 로
-     * 비교한다 — 문자열 {@code equals} 는 앞에서부터 다른 자리를 찾는 순간 끝나 시간이 새어 나간다.
-     */
-    private void requireServiceCaller(String internalToken) {
-        String expected = properties.internalToken();
-        if (expected == null || expected.isBlank()) {
-            throw new IntrospectionRejectedException(
-                    HttpStatus.SERVICE_UNAVAILABLE,
-                    "INTROSPECTION_DISABLED",
-                    "토큰 검증이 비활성화되어 있습니다. AUTH_INTERNAL_TOKEN 을 확인하세요");
-        }
-        byte[] given =
-                internalToken == null ? new byte[0] : internalToken.getBytes(StandardCharsets.UTF_8);
-        if (!MessageDigest.isEqual(expected.getBytes(StandardCharsets.UTF_8), given)) {
-            throw new IntrospectionRejectedException(
-                    HttpStatus.FORBIDDEN, "FORBIDDEN", "권한이 없습니다");
-        }
-    }
 }

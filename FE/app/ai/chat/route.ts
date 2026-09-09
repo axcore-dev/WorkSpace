@@ -38,6 +38,7 @@ const bodySchema = z.object({
   conversationId: z.string().uuid(),
   sources: z.array(z.string().max(200)).max(50).default([]),
   skills: z.array(z.string().max(50)).max(20).default([]),
+  apps: z.array(z.string().regex(/^[a-z]{1,30}$/)).max(20).default([]),
   replaceFromSeq: z.number().int().positive().optional(),
   action: z
     .discriminatedUnion("type", [
@@ -87,10 +88,15 @@ export async function POST(req: Request) {
     );
     if (!conv) throw new HttpError(404, "NOT_FOUND", "대화를 찾을 수 없어요");
 
+    // 도구가 BE 를 부를 때 그대로 전달한다 — introspect 처럼 사용자 토큰 + 내부 토큰 두 겹이다
+    const accessToken = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
+
     const turn: Turn = {
       question,
       sources: body.sources,
       skills: body.skills,
+      apps: body.apps,
+      accessToken,
       replaceFromSeq: body.replaceFromSeq,
       action: body.action,
     };
@@ -103,7 +109,7 @@ export async function POST(req: Request) {
       );
     }
     if (body.action?.type === "tool-approval") {
-      return runApprovalTurn(principal, conv, body.action, req.signal);
+      return runApprovalTurn(principal, conv, body.action, accessToken, req.signal);
     }
     return streamAnswer(principal, conv, turn, req.signal);
   });
