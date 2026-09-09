@@ -2,7 +2,7 @@
  * 대화·옮겨 적기에 쓰는 언어 모델 선택. **모델을 만드는 곳은 여기 하나다.**
  *
  * 프로바이더는 `AI_CHAT_PROVIDER`(openai | anthropic) 로 고른다. 비어 있으면 키가 있는 쪽을 쓰고, 둘 다
- * 있으면 anthropic 이다. 키가 하나도 없으면 `null` — 그때 대화 라우트는 대본(chat-mock)으로 내려간다.
+ * 있으면 anthropic 이다. 키가 하나도 없으면 `null` — 그때 대화 라우트는 503 으로 거절한다.
  *
  * 프로바이더별 옵션(추론 강도)은 이름이 달라 `providerOptions()` 로 함께 묶는다. 호출부가 프로바이더를
  * 분기하지 않게 하려는 것이다.
@@ -35,7 +35,7 @@ export function chatModel(): LanguageModel | null {
   if (cached === undefined) {
     cached = build();
     if (cached) console.info(`[ai-model] ${cached.provider} / ${cached.id}`);
-    else console.warn("[ai-model] 대화 모델 키가 없어 대본 응답으로 답합니다");
+    else console.warn("[ai-model] 대화 모델 키가 없습니다. 대화 요청은 503 으로 거절됩니다");
   }
   return cached?.model ?? null;
 }

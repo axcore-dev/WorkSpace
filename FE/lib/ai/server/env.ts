@@ -56,7 +56,7 @@ export type ChatProvider = "openai" | "anthropic";
 
 /**
  * 대화 모델 프로바이더. `AI_CHAT_PROVIDER` 가 비어 있으면 키가 있는 쪽, 둘 다 있으면 anthropic.
- * 키가 하나도 없으면 undefined — 대본(mock) 응답으로 내려간다(`app/ai/chat/route.ts`).
+ * 키가 하나도 없으면 undefined — 대화 요청이 503 으로 거절된다(`app/ai/chat/route.ts`).
  */
 export function chatProvider(): ChatProvider | undefined {
   const v = process.env.AI_CHAT_PROVIDER?.trim().toLowerCase();

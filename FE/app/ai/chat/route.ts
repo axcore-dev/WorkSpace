@@ -8,8 +8,8 @@
  * ── 순서 ────────────────────────────────────────────────────────────────────
  * 1. `authenticate` — 모든 요청이 BE 판정을 거친다. 실패하면 스트림을 열지 않고 JSON 오류로 답한다.
  * 2. 본문 검증(zod). `conversationId` 는 화면이 `POST /ai/conversations` 로 먼저 만든 값이고, 본인 것이어야 한다.
- * 3. 대화 모델 키가 있으면 실제 모델(`chat-llm`, 프로바이더는 `models.ts`), 없으면 대본(`chat-mock`).
- *    `action: tool-approval` 은 승인 턴(`runApprovalTurn`)으로 간다.
+ * 3. 모델(`chat-llm`, 프로바이더는 `models.ts`)로 답한다. `action: tool-approval` 은 승인 턴
+ *    (`runApprovalTurn`)으로 간다. 모델 키가 없으면 답할 방법이 없으므로 503 이다.
  *
  * ── 응답 헤더 (`createUIMessageStreamResponse` 가 붙여 준다) ──────────────────
  *   Content-Type: text/event-stream / Cache-Control: no-cache / Connection: keep-alive
@@ -22,7 +22,6 @@
 import { z } from "zod";
 import { authenticate } from "@/lib/ai/server/auth";
 import { runApprovalTurn, streamAnswer, type Turn } from "@/lib/ai/server/chat-llm";
-import { streamScripted } from "@/lib/ai/server/chat-mock";
 import { findConversation } from "@/lib/ai/server/conversations";
 import { withTenant } from "@/lib/ai/server/db";
 import { handle, HttpError } from "@/lib/ai/server/http";
@@ -101,12 +100,9 @@ export async function POST(req: Request) {
       action: body.action,
     };
 
-    // 대화 모델 키가 없으면 대본. 저장은 하지 않는다 — 대본은 화면 확인용이다
+    // 키가 없으면 스트림을 열지 않고 이유를 알린다. 500 으로 뭉개면 화면이 "답변을 받지 못했어요" 만 보여준다
     if (!hasChatModel()) {
-      return streamScripted(
-        { question, sources: turn.sources, skills: turn.skills, approving: body.action?.type === "approve-proposal" },
-        req.signal,
-      );
+      throw new HttpError(503, "MODEL_UNAVAILABLE", "대화 모델이 설정되지 않았어요. 관리자에게 문의해 주세요");
     }
     if (body.action?.type === "tool-approval") {
       return runApprovalTurn(principal, conv, body.action, accessToken, req.signal);
