@@ -227,20 +227,58 @@ export type ExternalSystemDto = {
   status: "ok" | "delayed" | "down";
 };
 
+/** 연결된 제공자 계정. 토큰은 절대 오지 않는다 — 이름과 상태만 */
+export type ConnectorAccountDto = {
+  provider: "google" | "slack" | "notion";
+  /** 구글은 이메일, 슬랙은 팀 이름. 못 받았으면 null */
+  externalAccount: string | null;
+  /** 토큰 갱신이 거절됐다. 다시 연결해야 한다 */
+  needsReconnect: boolean;
+  connectedAt: string;
+};
+
+/** 한 번 연결해 둔 앱. 꺼도 목록에 남는다 — 다시 켤 때 재인증이 없다 */
+export type ConnectorRegisteredDto = { slug: string; enabled: boolean };
+
 export type ConnectorsDto = {
   systems: ExternalSystemDto[];
-  /** 연결한 외부 서비스 slug — 카탈로그(`data/chat.ts` CONNECTOR_LIB) 순서 */
+  /** 지금 켜져 있어 쓸 수 있는 외부 서비스 slug. AI 대화의 앱 칩이 본다. 카탈로그 순서 */
   services: string[];
+  /** 등록된 앱 전부와 켜짐 여부. 연동 화면의 목록이 본다 */
+  registered: ConnectorRegisteredDto[];
+  accounts: ConnectorAccountDto[];
   /** 내가 연결·해제할 수 있는가 (`can_manage_integrations`) */
   editable: boolean;
 };
 
 export const getConnectors = async () => must(await apiGet<ConnectorsDto>(`${BASE}/connectors`));
 
-/** 외부 서비스 하나를 연결·해제하고 바뀐 전체를 받는다. 권한이 없으면 403 */
-export const putConnectorService = async (slug: string, connected: boolean) =>
+/**
+ * 연결 1단계 — 제공자 동의 화면 주소. 브라우저를 이 주소로 보낸다. 돌아오는 곳은 소셜 로그인과 같은 콜백이고
+ * state 의 `cn.` 접두어로 갈린다(`app/(auth)/oauth/callback/[provider]`).
+ */
+export const startConnectorAuth = async (slug: string) =>
   must(
-    await apiPut<ConnectorsDto>(`${BASE}/connectors/services/${encodeURIComponent(slug)}`, {
-      connected,
-    }),
+    await apiPostAuthed<{ url: string }>(
+      `${BASE}/connectors/services/${encodeURIComponent(slug)}/authorize`,
+    ),
   );
+
+/** 연결 2단계 — 제공자가 돌려준 code·state 를 서버에 넘긴다. 바뀐 전체가 돌아온다 */
+export const completeConnectorAuth = async (slug: string, code: string, state: string) =>
+  must(
+    await apiPostAuthed<ConnectorsDto>(
+      `${BASE}/connectors/services/${encodeURIComponent(slug)}/callback`,
+      { code, state },
+    ),
+  );
+
+/** 켜기/끄기 — 등록은 그대로, 깃발만. 켤 수 없으면(계정 없음 · 권한 부족) 409 라 화면이 OAuth 로 넘어간다 */
+export const setConnectorEnabled = async (slug: string, enabled: boolean) =>
+  must(
+    await apiPut<ConnectorsDto>(`${BASE}/connectors/services/${encodeURIComponent(slug)}`, { enabled }),
+  );
+
+/** 연결 해제 — 목록에서 지운다. 같은 계정을 쓰는 앱이 하나도 남지 않으면 제공자 쪽 토큰도 회수된다 */
+export const disconnectConnector = async (slug: string) =>
+  must(await apiDelete<ConnectorsDto>(`${BASE}/connectors/services/${encodeURIComponent(slug)}`));

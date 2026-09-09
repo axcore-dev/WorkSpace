@@ -34,6 +34,10 @@ const AUDIT_PREVIEW_CHARS = 500;
 export interface AiToolContext {
   principal: AiPrincipal;
   conversationId: string;
+  /** 사용자 access 토큰 원문. 외부 앱 도구가 BE 내부 경로를 부를 때 그대로 전달한다 */
+  accessToken: string;
+  /** 이 턴에 켜진 외부 앱 slug. `connector` 가 여기 없는 도구는 모델에 보이지 않는다 */
+  apps: string[];
 }
 
 export interface AiToolSpec<I> {
@@ -44,6 +48,8 @@ export interface AiToolSpec<I> {
   inputSchema: z.ZodType<I>;
   /** 되돌리기 어려운 동작이면 true. 모델은 제안만 하고 사용자가 결정한다 */
   needsApproval: boolean;
+  /** 외부 앱 도구면 그 앱의 slug. 사용자가 이번 대화에서 그 앱을 켰을 때만 모델에 보인다 */
+  connector?: string;
   timeoutMs?: number;
   execute: (input: I, ctx: AiToolContext) => Promise<unknown>;
 }
@@ -198,6 +204,8 @@ export async function runTool(
 export function toolSetFor(ctx: AiToolContext, onApproval: (a: ApprovalRequest) => void): ToolSet {
   const set: ToolSet = {};
   for (const spec of registry.values()) {
+    // 외부 앱 도구는 사용자가 이번 대화에서 켠 앱만. 연결됐는지는 BE 가 실행할 때 다시 본다
+    if (spec.connector && !ctx.apps.includes(spec.connector)) continue;
     set[spec.name] = tool({
       description: spec.description,
       inputSchema: spec.inputSchema,
