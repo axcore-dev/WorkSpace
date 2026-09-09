@@ -12,7 +12,7 @@
  *
  * ── 파트 구성 ───────────────────────────────────────────────────────────────
  *   text            본문. text-start/delta/end 3종 세트 (이전 `delta`)
- *   tool-<name>     도구 호출. 상태 전이를 SDK 가 관리한다 (BE 연동 뒤에 실제로 흐른다)
+ *   tool-<name>     도구 호출. 상태 전이를 SDK 가 관리한다
  *   data-label      헤더에 흐르는 추론 문구. 여러 번 (이전 `label`)
  *   data-trace      도구 행 하나. 여러 번 (이전 `trace`)
  *   data-answer     본문 외 부가 정보. 턴당 한 번 (이전 `message` 스냅샷의 나머지)
@@ -149,7 +149,6 @@ export function toChatMessage(m: AxpUIMessage): ChatMessage {
   const process: ChatProcess | undefined = hasProcess
     ? {
         sources: answer.consulted ?? [],
-        steps: [],
         tools: answer.tools ?? [],
         trace,
         summary: answer.summary,

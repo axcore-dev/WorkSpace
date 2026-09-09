@@ -1,7 +1,7 @@
 /**
  * ⚠️ AI-MOCK — 모델 키가 없을 때의 대본 ⚠️
  *
- * `ANTHROPIC_API_KEY` 가 설정되지 않은 환경(로컬 개발 · 데모)에서 `lib/ai/server/chat-mock.ts` 가
+ * 모델 키(`ANTHROPIC_API_KEY` · `OPENAI_API_KEY`)가 없는 환경(로컬 개발 · 데모)에서 `lib/ai/server/chat-mock.ts` 가
  * 이 대본을 흘린다. 키가 있으면 `chat-llm.ts` 가 실제 모델로 답하고 이 파일은 쓰이지 않는다.
  * 커밋 `72709db`에서 화면 코드(`data/chat.ts`)에서 걷어낸 데모 응답을 서버 쪽으로 옮겨 놓은
  * 것이다 — 화면 코드에는 더미가 없다.
@@ -34,12 +34,6 @@ export const SCRIPTED_REPLIES: ChatMessage[] = [
     ],
     process: {
       sources: ["품질검사 모듈 데이터", "장비관리 센서 데이터", "RAG 지식 2건"],
-      steps: [
-        "질문 의도 분석 (불량률 조회 + 원인 탐색)",
-        "기간·라인 조건으로 품질 데이터 집계",
-        "설비 이상 신호와 상관관계 분석",
-        "RAG 문서에서 근거 인용",
-      ],
       tools: ["데이터 조회", "상관 분석", "RAG 검색"],
       summary: "3개의 도구 사용됨, 품질 데이터 조회됨, 문서 검색됨",
       trace: [
@@ -90,12 +84,6 @@ export const SCRIPTED_REPLIES: ChatMessage[] = [
     },
     process: {
       sources: ["업로드 문서 1건 (OCR)"],
-      steps: [
-        "문서 유형 분류 (발주서)",
-        "OCR 텍스트 추출 및 구조화",
-        "품목 코드 매칭 (MAT-BR-C36)",
-        "구매 관리 등록 제안 생성",
-      ],
       tools: ["OCR", "엔터티 추출", "모듈 액션 제안"],
       summary: "3개의 도구 사용됨, 문서 판독됨, 구매 관리 확인됨",
       trace: [
@@ -125,11 +113,6 @@ export const SCRIPTED_REPLIES: ChatMessage[] = [
     cta: { label: "구매 관리에서 확인", href: "/modules/management" },
     process: {
       sources: ["경영지원 모듈 (구매 관리)"],
-      steps: [
-        "사용자 승인 확인",
-        "구매 요청 레코드 생성",
-        "승인 워크플로 라우팅",
-      ],
       tools: ["모듈 액션 실행", "알림 전송"],
       summary: "2개의 도구 사용됨, 구매 요청 생성됨, 알림 전송됨",
       trace: [
@@ -170,11 +153,6 @@ export const SCRIPTED_REPLIES: ChatMessage[] = [
     ],
     process: {
       sources: ["재고·물류 모듈", "영업관리 수요 예측(AI)", "RAG 지식 1건"],
-      steps: [
-        "안전 재고 기준 대비 현황 집계",
-        "수요 예측 결과와 결합",
-        "최적 주문량(EOQ) 산출",
-      ],
       tools: ["데이터 조회", "수요 예측 모델", "RAG 검색"],
       summary: "3개의 도구 사용됨, 재고 데이터 조회됨, 예측 모델 사용됨",
       trace: [
@@ -207,11 +185,6 @@ export const SCRIPTED_REPLIES: ChatMessage[] = [
     cta: { label: "장비관리에서 확인", href: "/modules/equipment" },
     process: {
       sources: ["장비관리 모듈 (정비 예측 AI)", "Google Calendar"],
-      steps: [
-        "센서 이상 신호 집계 (진동·유온·전력)",
-        "고장 확률 상위 설비 선별",
-        "정비 가능 시간대 탐색 및 일정 등록",
-      ],
       tools: ["데이터 조회", "예측 모델", "Google Calendar"],
       summary: "3개의 도구 사용됨, 센서 데이터 조회됨, Google Calendar 사용됨",
       trace: [
@@ -250,11 +223,6 @@ export const SCRIPTED_REPLIES: ChatMessage[] = [
     cta: { label: "영업관리에서 확인", href: "/modules/sales" },
     process: {
       sources: ["영업관리 모듈 (수주)", "생산관리 모듈 (작업지시)"],
-      steps: [
-        "고객사 조건으로 수주 조회",
-        "작업지시 진척률 결합",
-        "납기 리스크 판정",
-      ],
       tools: ["데이터 조회", "리스크 분석"],
       summary: "2개의 도구 사용됨, 수주 데이터 조회됨, 리스크 분석됨",
       trace: [
@@ -291,11 +259,6 @@ export const SCRIPTED_REPLIES: ChatMessage[] = [
     ],
     process: {
       sources: ["작업표준·FAQ 문서 2건", "장비관리 센서 데이터"],
-      steps: [
-        "질문 의도 분석 (작업표준 조회)",
-        "작업표준·FAQ 문서 검색",
-        "관련 조항 인용 및 현재 설비 상태 결합",
-      ],
       tools: ["RAG 검색", "데이터 조회"],
       summary: "2개의 도구 사용됨, 작업표준 검색됨, 조항 인용됨",
       trace: [
@@ -340,11 +303,6 @@ export const SCRIPTED_REPLIES: ChatMessage[] = [
     ],
     process: {
       sources: ["작업표준·FAQ 문서 1건", "품질경영 매뉴얼"],
-      steps: [
-        "질문 의도 분석 (절차 조회)",
-        "FAQ·규정 문서 검색",
-        "절차 단계 정리",
-      ],
       tools: ["RAG 검색"],
       summary: "1개의 도구 사용됨, FAQ·규정 검색됨, 절차 정리됨",
       trace: [
@@ -378,11 +336,6 @@ export const SCRIPTED_CALENDAR_REPLY: ChatMessage = {
   ],
   process: {
     sources: ["Google Calendar", "워크스페이스 소스 2건"],
-    steps: [
-      "Google Calendar 일정 실시간 조회",
-      "소스 문서 대조",
-      "일정 요약 정리",
-    ],
     tools: ["Google Calendar", "RAG 검색"],
     summary: "2개의 도구 사용됨, Google Calendar 조회됨, 소스 문서 참조됨",
     trace: [

@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { BrandIcon } from "@/components/brand-icons";
-import { Markdown } from "@/components/chat/markdown";
 import {
   IconChevronDown,
   IconSparkles,
@@ -96,32 +95,6 @@ function Collapse({
       <div className="min-h-0 overflow-hidden">{children}</div>
     </div>
   );
-}
-
-/** 새 답변 1회 타자 효과 — 18ms마다 2글자. 복원된 메시지엔 쓰지 않는다 */
-export function StreamingText({
-  text,
-  onDone,
-}: {
-  text: string;
-  onDone?: () => void;
-}) {
-  const [n, setN] = useState(() =>
-    typeof window !== "undefined" &&
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches
-      ? text.length
-      : 0,
-  );
-  useEffect(() => {
-    if (n >= text.length) {
-      onDone?.();
-      return;
-    }
-    const t = setTimeout(() => setN((v) => Math.min(text.length, v + 2)), 18);
-    return () => clearTimeout(t);
-  }, [n, text, onDone]);
-  // 잘린 마크다운도 그대로 렌더한다 — 파서가 관대해서 닫히지 않은 구문은 잠시 평문으로 보일 뿐이다
-  return <Markdown text={text.slice(0, n)} />;
 }
 
 function sec(ms?: number) {

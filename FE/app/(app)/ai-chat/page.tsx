@@ -108,8 +108,6 @@ export default function AiChatPage() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [error, setError] = useState<Failure | null>(null);
-  /** 타자 효과를 재생할 대화 id — 답변이 delta 없이 한 번에 도착했을 때만 */
-  const [streaming, setStreaming] = useState<string | null>(null);
   /**
    * 방금 답변이 붙은 대화 id — 그 답변의 트레이스가 펼친 상태로 마운트해 접히는 전환을 재생한다.
    * 작업 중 트레이스는 답변이 붙는 순간 언마운트되므로 이 신호 없이는 행이 그냥 사라진다.
@@ -165,8 +163,8 @@ export default function AiChatPage() {
    */
   const [pendingNoteId, setPendingNoteId] = useState<string | null>(null);
   /**
-   * 전송 계층은 마운트 때 한 번만 만든다. 매 렌더 새로 만들면 `useChat` 이 전송 도중에 이걸
-   * 교체해 스트림이 끊긴다. 턴마다 달라지는 값은 `sendMessage` 의 `body` 로 넘긴다.
+   * 전송 계층은 마운트 때 한 번만 만든다. `useChat` 이 지연 참조해서 끊기진 않지만 매 렌더 새로 만들 이유가
+   * 없다. 턴마다 달라지는 값은 `sendMessage` 의 `body` 로 넘긴다.
    */
   const [transport] = useState(createChatTransport);
 
@@ -197,8 +195,6 @@ export default function AiChatPage() {
           };
         }),
       );
-      // 본문이 조각으로 흘러왔으므로 타자 효과를 다시 틀지 않는다
-      setStreaming(null);
       setJustArrived(t.nid);
       // 접히는 전환(300ms)이 끝나면 신호를 내린다 — 대화를 다시 열 때 또 접히지 않게
       setTimeout(() => setJustArrived((n) => (n === t.nid ? null : n)), 400);
@@ -362,7 +358,7 @@ export default function AiChatPage() {
     });
   }, [active?.messages, pending?.noteId]);
 
-  // 타자 효과·트레이스 펼침·본문 조각으로 본문이 자라는 동안 바닥에 붙어 따라간다 — 위로 올려 읽는 중이면 두지 않는다
+  // 트레이스 펼침·본문 조각으로 본문이 자라는 동안 바닥에 붙어 따라간다 — 위로 올려 읽는 중이면 두지 않는다
   useEffect(() => {
     const el = scrollRef.current;
     const inner = innerRef.current;
@@ -376,12 +372,11 @@ export default function AiChatPage() {
   }, [restored]);
 
   /**
-   * 보는 대화를 바꾼다 — 타자 효과·출처 패널·실패 문구는 대화에 묶여 있으니 함께 접는다.
+   * 보는 대화를 바꾼다 — 출처 패널·실패 문구는 대화에 묶여 있으니 함께 접는다.
    * 메시지를 아직 안 받은 대화면 서버에서 받아 채운다.
    */
   function showNote(id: string | null) {
     setActiveId(id);
-    setStreaming(null);
     setDrawer(null);
     setError(null);
     const n = id ? notes.find((x) => x.id === id) : null;
@@ -423,7 +418,6 @@ export default function AiChatPage() {
     const created = await createConversation({ title, selectedSources: s.selected });
     setNotes((prev) => [{ id: created.id, title: created.title, messages: [], loaded: true, src: s }, ...prev]);
     setActiveId(created.id);
-    setStreaming(null);
     setDrawer(null);
     setError(null);
     return created.id;
@@ -673,7 +667,6 @@ export default function AiChatPage() {
     );
   }
 
-  const stopStreaming = useCallback(() => setStreaming(null), []);
   const closeDrawer = useCallback(
     () => setDrawer((d) => (d ? { ...d, open: false } : d)),
     [],
@@ -802,11 +795,9 @@ export default function AiChatPage() {
                       key={msg.seq ?? `a${i}`}
                       msg={msg}
                       last={i === active.messages.length - 1}
-                      streaming={streaming === active.id && i === active.messages.length - 1}
                       disabled={!!pending}
                       sourcesOpen={!!drawer?.open && drawer.noteId === active.id && drawer.idx === i}
                       justArrived={justArrived === active.id && i === active.messages.length - 1}
-                      onStreamDone={stopStreaming}
                       onRetry={() => retry(active.id, i)}
                       onRate={(r) => rate(active.id, i, r)}
                       onOpenSources={() => toggleDrawer(active.id, i)}

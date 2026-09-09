@@ -50,8 +50,7 @@ export function SourceDrawer({
     return () => document.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  const trace: TraceStep[] =
-    msg.process?.trace ?? msg.process?.steps.map((text) => ({ text })) ?? [];
+  const trace: TraceStep[] = msg.process?.trace ?? [];
   const cited = msg.sources ?? [];
   // 조회는 했지만 본문에 인용하진 않은 소스 — 같은 목록에 스니펫 없이 이어 붙인다
   const consulted = (msg.process?.sources ?? []).filter(

@@ -8,8 +8,8 @@
  * 분기하지 않게 하려는 것이다.
  */
 import "server-only";
-import { createAnthropic } from "@ai-sdk/anthropic";
-import { createOpenAI } from "@ai-sdk/openai";
+import { createAnthropic, type AnthropicProviderOptions } from "@ai-sdk/anthropic";
+import { createOpenAI, type OpenAIResponsesProviderOptions } from "@ai-sdk/openai";
 import type { LanguageModel, streamText } from "ai";
 import { anthropicApiKey, chatModelId, chatProvider, openaiApiKey } from "./env";
 
@@ -44,8 +44,8 @@ export function hasChatModel(): boolean {
   return chatModel() !== null;
 }
 
-/** 추론 강도를 프로바이더가 아는 이름으로. 검색 문맥이 있는 짧은 답에는 medium, 옮겨 적기에는 low */
+/** 추론 강도를 프로바이더가 아는 이름으로. 검색 문맥이 있는 짧은 답에는 medium, 옮겨 적기에는 low. 키 이름은 프로바이더 타입이 검사한다 */
 export function providerOptions(effort: Effort): ProviderOptions {
-  if (cached?.provider === "anthropic") return { anthropic: { effort } };
-  return { openai: { reasoningEffort: effort } };
+  if (cached?.provider === "anthropic") return { anthropic: { effort } satisfies AnthropicProviderOptions };
+  return { openai: { reasoningEffort: effort } satisfies OpenAIResponsesProviderOptions };
 }

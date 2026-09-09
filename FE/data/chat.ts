@@ -75,9 +75,8 @@ export interface TraceStep {
 
 export interface ChatProcess {
   sources: string[];
-  steps: string[];
   tools: string[];
-  /** 아이콘·결과가 붙은 상세 추론 단계 — 없으면 steps로 폴백 */
+  /** 아이콘·결과가 붙은 상세 추론 단계 */
   trace?: TraceStep[];
   /** 접힘 상태 한 줄 요약 — 없으면 tools에서 자동 생성 */
   summary?: string;
