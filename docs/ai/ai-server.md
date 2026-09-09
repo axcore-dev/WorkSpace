@@ -109,12 +109,14 @@ POST /ai/sources (multipart files[])
 
 ## 대화 — `POST /ai/chat`
 
-- 요청 본문·응답 파트는 이전 목업과 같다(`lib/ai/ui-messages.ts`). 화면은 바뀌지 않았다.
-- 대화 모델 키가 있으면 `chat-llm.ts`(모델은 `models.ts` 가 `AI_CHAT_PROVIDER` 로 고른다. 2026-09-07 결정: OpenAI
-  `gpt-5.6-luna`), 없으면 `chat-mock.ts`(대본). 둘 다 인증을 먼저 거친다. 스캔 PDF·이미지 옮겨 적기도 같은 모델을 쓴다.
+- 요청 본문·응답 파트는 `lib/ai/ui-messages.ts` 가 정한다.
+- 답은 `chat-llm.ts` 가 만든다(모델은 `models.ts` 가 `AI_CHAT_PROVIDER` 로 고른다. 2026-09-07 결정: OpenAI
+  `gpt-5.6-luna`). 스캔 PDF·이미지 옮겨 적기도 같은 모델을 쓴다. 모델 키가 없으면 인증을 거친 뒤
+  `503 MODEL_UNAVAILABLE` 로 거절한다 — 대본(mock)으로 내려가던 경로는 2026-09-09 에 없앴다.
 - 파트 순서: `data-label`(의도 파악 → 문서 검색 → 정리) → `data-trace`(검색 결과 · 스킬) → 본문 → `data-answer` → `finish`.
 - 히스토리: 서버 저장본에서 최근 12턴 · 1만 6천 자 예산 안의 메시지를 모델에 넣는다(`historyForModel`). 화면은 마지막 질문 하나만 보낸다.
-- 아직 없는 것: 제안 승인(`approve-proposal`) 의 실제 반영, 사내 데이터 도구, 커넥터(MCP) 도구, 긴 히스토리 요약.
+- 아직 없는 것: 제안 승인(`approve-proposal`) 의 실제 반영, 사내 데이터 도구, 긴 히스토리 요약. 외부 앱 도구는
+  2026-09-09 에 붙었다(구글 캘린더 · Gmail · Drive · Sheets, `lib/ai/server/connector-tools.ts`).
 
 ---
 

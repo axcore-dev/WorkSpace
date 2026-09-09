@@ -6,18 +6,15 @@
  */
 import { authenticate } from "@/lib/ai/server/auth";
 import { withTenant } from "@/lib/ai/server/db";
-import { handle, HttpError } from "@/lib/ai/server/http";
+import { handle, HttpError, requireUuid } from "@/lib/ai/server/http";
 import { deleteDoc, findDoc } from "@/lib/ai/server/sources";
 import { deleteObject, presignViewUrl } from "@/lib/ai/server/storage";
 
 type Ctx = { params: Promise<{ id: string }> };
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 async function docId(ctx: Ctx): Promise<string> {
   const { id } = await ctx.params;
-  if (!UUID_RE.test(id)) throw new HttpError(404, "NOT_FOUND", "문서를 찾을 수 없어요");
-  return id;
+  return requireUuid(id, "문서를 찾을 수 없어요");
 }
 
 export async function GET(req: Request, ctx: Ctx) {

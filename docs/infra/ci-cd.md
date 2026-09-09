@@ -86,7 +86,7 @@ compose 가 채우므로 바꿀 때만 적는다. compose 가 읽는 키와 `.en
 | `NCP_OBJECT_STORAGE_ENDPOINT` `NCP_OBJECT_STORAGE_REGION` | 위 스토리지 접속점 | 기본값 `https://kr.object.ncloudstorage.com` / `kr-standard` |
 | `CONNECTOR_TOKEN_KEY` | 외부 서비스(구글 등) 토큰을 DB 에 두기 전에 잠그는 키 | `openssl rand -base64 32`. 비면 커넥터 연결만 503. **바꾸면 모든 회사가 다시 연결해야 한다** |
 | `GOOGLE_CONNECTOR_REDIRECT_URI` | 커넥터 OAuth 콜백 = 연동 화면 주소 | 기본값 `${PUBLIC_URL}/settings/workspace/integrations`. **구글 콘솔의 승인된 리디렉션 URI 에 같은 값이 있어야 한다** |
-| `OPENAI_API_KEY` `ANTHROPIC_API_KEY` `AI_CHAT_PROVIDER` `AI_CHAT_MODEL` `AI_EMBEDDING_MODEL` | AI 서버 모델 | 대화 키 하나는 있어야 답이 나온다(없으면 대본). 기본값 `openai` / `gpt-5.6-luna` / `text-embedding-3-small` |
+| `OPENAI_API_KEY` `ANTHROPIC_API_KEY` `AI_CHAT_PROVIDER` `AI_CHAT_MODEL` `AI_EMBEDDING_MODEL` | AI 서버 모델 | 대화 키 하나는 **반드시** 있어야 한다. 없으면 `/ai/chat` 이 503 이다. 기본값 `openai` / `gpt-5.6-luna` / `text-embedding-3-small` |
 | `JENKINS_PORT` `JENKINS_HEAP` `DOCKER_GID` | Jenkins compose | `8081` / `1g` / `stat -c %g /var/run/docker.sock` 결과 |
 
 ### Google Workspace SMTP
