@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { ManagementModule } from "@/components/management/management-module";
 import { ModuleView } from "@/components/module-view";
 import { MODULE_BY_SLUG, MODULES } from "@/data/modules";
 import { MODULE_PAGES } from "@/data/module-pages";
@@ -18,5 +19,6 @@ export default async function ModulePage({
   if (!mod || !page) notFound();
 
   // 모듈 전환 시 탭 순서·편집 모드 등 내부 상태를 초기화하기 위해 slug로 리마운트
+  if (slug === "management") return <ManagementModule key={slug} mod={mod} page={page} />;
   return <ModuleView key={slug} mod={mod} page={page} />;
 }

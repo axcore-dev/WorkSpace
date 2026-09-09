@@ -7,7 +7,7 @@ WorkSpace 데모의 시각 언어와 공용 컴포넌트 규칙. 코드가 단�
 | `app/globals.css` | 디자인 토큰 (색·폰트), 전역 스타일 |
 | `components/ui.tsx` | 공용 컴포넌트 + `FIELD`/`TONE_TEXT` 공유 상수 |
 | `lib/palette.ts` | 차트 시리즈 색상 팔레트 |
-| `components/modal.tsx`, `record-modal.tsx` | 다이얼로그 — `Modal` / `RecordModal`·`MembersModal` |
+| `components/modal.tsx`, `record-modal.tsx` | 다이얼로그 — `Modal` / `RecordModal` |
 | `components/charts.tsx` | 순수 SVG 차트 |
 | `components/icons.tsx`, `brand-icons.tsx`, `logo.tsx` | 인라인 아이콘 + `ICON_MAP` / 외부 서비스 아이콘 / 브랜드 로고 |
 
@@ -159,8 +159,10 @@ WorkSpace 데모의 시각 언어와 공용 컴포넌트 규칙. 코드가 단�
 | `FIELD_SM` / `FIELD_SM_INLINE` (상수) | 작은 입력 변형 | 표 위 필터 줄·표 셀처럼 `Button size="sm"`과 나란히 놓을 때. **높이를 `h-8`로 못 박는다** — 패딩으로 맞추면 글자 크기가 다른 요소끼리 1~2px씩 어긋난다. `_INLINE`은 폭 자동 + `pr-2`(select 화살표가 글자에서 떨어져 보이지 않게) |
 | `FIELD_INLINE` (상수) | 폭 자동 변형 | 필터 드롭다운처럼 한 줄에 여러 개 놓을 때. `FIELD`에 `w-auto`를 덧붙이는 걸로는 안 된다 — 클래스 문자열 순서가 CSS 우선순위를 정하지 않는다 |
 | `isPersonalEmail` (유틸) | 개인 메일 도메인 판별 | 업무용 메일 지향 안내 (로그인·회원가입) |
+| `Workbench` 계열 | 경영지원 작업대 골격 | 좌 320 마스터(`MasterList`: 만들기 → 찾기 → 목록/트리 → 개수) \| 우 디테일(`EntityHeader` → `Banner` → `Tiles` → 표 → `KvGrid`/`Kv`). `lg` 미만은 선택 바 + `Modal sm`. `ConfirmModal`(왼쪽 항상 [닫기], 승인은 `primary`+체크·삭제는 `danger`+경고)·`MenuModal`(처리 메뉴). **다른 모듈로 일반화하지 않는다** — 두 번째 모듈이 필요해질 때. `components/management/workbench.tsx` |
+| `Banner` | 조건부 안내 문장 | `amber`(할 일 있음) / `slate`(진행 중). 문장만 — 버튼을 넣지 않는다(블루 예산). 상태 배지가 아니라 문맥 설명이라 옅은 배경을 허용한다 |
 
-보조 — 다이얼로그: `Modal`(sm~xl, ESC 닫기 · `modal.tsx`), `RecordModal`(행 상세)·`MembersModal`(둘 다 `record-modal.tsx`).
+보조 — 다이얼로그: `Modal`(sm~xl, ESC 닫기 · `modal.tsx`), `RecordModal`(행 상세 · `record-modal.tsx`).
 
 인증 화면(`auth-shell.tsx`): `AuthSplit`(로그인·회원가입·개설 대기 공통 분할 레이아웃 — 좌측 브랜드 패널 고정, 우측만 교체), `AuthPrimaryButton`(인증 폼 주 액션 — py-3.5 / 15px · `className` 관통 허용). 워크스페이스 선택은 별도 화면 없이 사이드바 전환기(`app-shell.tsx`)가 담당한다.
 
@@ -310,6 +312,8 @@ AI 표현(전역 CSS, `globals.css`): `.shimmer-text`·`.agent-fade`·`.pixel-do
 - 폼 입력은 `FIELD`, 차트 색은 `CHART`를 import한다.
 - 카피는 UX 라이팅 절을 따른다 — 해요체, 버튼은 일어날 일을 직접 말한다.
 - 컴포넌트가 요구를 못 채우면 **우회하지 말고 `ui.tsx`에 변형을 추가**하고 이 문서에 한 줄 등록한다.
+- primary 버튼은 화면의 **'다음 할 일' 하나**다 — 다음 할 일이 없는 화면(인사 팀, 승인된 전표, 지급 완료 회차)은 primary 0개. 만들기·내보내기·처리 메뉴는 `secondary`.
+- 차트 시리즈 색(`CHART.primary`)은 화면 accent 예산에 세지 않는다 — 데이터 팔레트다.
 
 **Don't**
 

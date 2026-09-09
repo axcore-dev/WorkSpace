@@ -78,7 +78,14 @@ export interface SubfunctionTab {
   chart?: ChartSpec;
   tree?: TreeNode[];
   /** 데이터 기반 렌더링 대신 전용 인터랙티브 컴포넌트로 그리는 탭 */
-  custom?: "report-automation" | "purchase-order" | "drawing-manager" | "receiving-inspection";
+  custom?:
+    | "report-automation"
+    | "purchase-order"
+    | "drawing-manager"
+    | "receiving-inspection"
+    | "hr-workbench"
+    | "payroll-workbench"
+    | "accounting-workbench";
 }
 
 /** 8대 핵심 모듈 정의 */
@@ -93,8 +100,11 @@ export interface ModuleDef {
 
 /** 모듈 상세 페이지 콘텐츠 */
 export interface ModulePageData {
+  /** 비어 있으면 KPI 행을 그리지 않는다 (경영지원 작업대) */
   stats: StatData[];
   tabs: SubfunctionTab[];
+  /** 첫 진입 탭 — 없거나 꺼져 있으면 첫 탭 */
+  defaultTabId?: string;
 }
 
 /** 행 클릭 시 뜨는 상세 팝업 (실무 필수 항목만) */
