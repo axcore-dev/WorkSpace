@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { AgentTrace, StreamingText } from "@/components/chat/agent-trace";
+import { AgentTrace } from "@/components/chat/agent-trace";
 import { Markdown } from "@/components/chat/markdown";
 import {
   IconArrowRight,
@@ -174,9 +174,7 @@ export function sourceCount(msg: ChatMessage) {
 export function AiMessage({
   msg,
   last,
-  streaming,
   disabled,
-  onStreamDone,
   onRetry,
   onRate,
   sourcesOpen,
@@ -186,13 +184,10 @@ export function AiMessage({
 }: {
   msg: ChatMessage;
   last: boolean;
-  /** 새로 도착한 답변 — 타자 효과로 흐른다 */
-  streaming: boolean;
   /** 방금 도착한 답변 — 트레이스가 펼친 상태에서 접히는 전환을 재생한다 */
   justArrived?: boolean;
   /** 다른 답변 생성 중에는 다시 시도를 막는다 */
   disabled: boolean;
-  onStreamDone: () => void;
   onRetry: () => void;
   onRate: (r: "up" | "down") => void;
   /** 이 답변의 출처 패널이 열려 있는지 — 버튼이 눌린 상태로 보이고 다시 누르면 닫힌다 */
@@ -201,8 +196,7 @@ export function AiMessage({
   /** 본문 뒤에 붙는 카드(발주서 제안 등) */
   children?: React.ReactNode;
 }) {
-  const trace =
-    msg.process?.trace ?? msg.process?.steps.map((text) => ({ text })) ?? [];
+  const trace = msg.process?.trace ?? [];
   const srcN = sourceCount(msg);
   const rateCls = (r: "up" | "down") =>
     `${ICON_BTN} ${msg.rating === r ? "bg-slate-100 text-slate-900" : ""}`;
@@ -219,14 +213,10 @@ export function AiMessage({
       )}
       {/* 본문은 마크다운이다 — 줄바꿈·목록·표는 렌더러가 처리하므로 whitespace-pre-line 을 두지 않는다 */}
       <div className="text-base leading-relaxed text-slate-700">
-        {streaming ? (
-          <StreamingText text={msg.text} onDone={onStreamDone} />
-        ) : (
-          <Markdown text={msg.text} />
-        )}
-        {!streaming && children}
+        <Markdown text={msg.text} />
+        {children}
       </div>
-      {!streaming && msg.cta && (
+      {msg.cta && (
         <Link
           href={msg.cta.href}
           className="agent-fade mt-2 inline-flex items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-slate-700"
@@ -234,62 +224,60 @@ export function AiMessage({
           {msg.cta.label} <IconArrowRight size={13} />
         </Link>
       )}
-      {!streaming && (
-        <div
-          role="group"
-          aria-label="답변 동작"
-          className={`agent-fade mt-1.5 -ml-1.5 flex items-center gap-0.5 ${
-            last
-              ? ""
-              : "opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100"
-          }`}
+      <div
+        role="group"
+        aria-label="답변 동작"
+        className={`agent-fade mt-1.5 -ml-1.5 flex items-center gap-0.5 ${
+          last
+            ? ""
+            : "opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100"
+        }`}
+      >
+        <CopyButton text={msg.text} />
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={onRetry}
+          aria-label="다시 시도"
+          title="다시 시도"
+          className={ICON_BTN}
         >
-          <CopyButton text={msg.text} />
+          <IconRefresh size={14} />
+        </button>
+        <button
+          type="button"
+          onClick={() => onRate("up")}
+          aria-pressed={msg.rating === "up"}
+          aria-label="좋은 답변"
+          title="좋은 답변"
+          className={rateCls("up")}
+        >
+          <IconThumbsUp size={14} />
+        </button>
+        <button
+          type="button"
+          onClick={() => onRate("down")}
+          aria-pressed={msg.rating === "down"}
+          aria-label="아쉬운 답변"
+          title="아쉬운 답변"
+          className={rateCls("down")}
+        >
+          <IconThumbsDown size={14} />
+        </button>
+        {srcN > 0 && (
           <button
             type="button"
-            disabled={disabled}
-            onClick={onRetry}
-            aria-label="다시 시도"
-            title="다시 시도"
-            className={ICON_BTN}
+            onClick={onOpenSources}
+            aria-expanded={sourcesOpen}
+            className={`ml-1 flex h-7 cursor-pointer items-center gap-1 rounded-lg px-2 text-[13px] font-medium transition-colors hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400 ${
+              sourcesOpen ? "bg-slate-100 text-slate-900" : "text-slate-500"
+            }`}
           >
-            <IconRefresh size={14} />
+            <IconFile size={13} />
+            출처 {srcN}
           </button>
-          <button
-            type="button"
-            onClick={() => onRate("up")}
-            aria-pressed={msg.rating === "up"}
-            aria-label="좋은 답변"
-            title="좋은 답변"
-            className={rateCls("up")}
-          >
-            <IconThumbsUp size={14} />
-          </button>
-          <button
-            type="button"
-            onClick={() => onRate("down")}
-            aria-pressed={msg.rating === "down"}
-            aria-label="아쉬운 답변"
-            title="아쉬운 답변"
-            className={rateCls("down")}
-          >
-            <IconThumbsDown size={14} />
-          </button>
-          {srcN > 0 && (
-            <button
-              type="button"
-              onClick={onOpenSources}
-              aria-expanded={sourcesOpen}
-              className={`ml-1 flex h-7 cursor-pointer items-center gap-1 rounded-lg px-2 text-[13px] font-medium transition-colors hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400 ${
-                sourcesOpen ? "bg-slate-100 text-slate-900" : "text-slate-500"
-              }`}
-            >
-              <IconFile size={13} />
-              출처 {srcN}
-            </button>
-          )}
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

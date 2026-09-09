@@ -32,7 +32,7 @@ export async function classifyModule(name: string, chunks: Chunk[]): Promise<str
   try {
     const { text } = await generateText({
       model,
-      system:
+      instructions:
         "당신은 제조 기업의 문서를 업무 분야로 분류합니다. 아래 slug 중 하나만, 다른 글자 없이 소문자로 출력합니다. " +
         "여러 분야에 걸치거나 판단이 어려우면 general 을 출력합니다.",
       prompt: `분야 목록: ${menu}, general: 분류 불가\n\n파일명: ${name}\n\n본문 앞부분:\n${sample}\n\nslug:`,

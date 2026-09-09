@@ -12,6 +12,7 @@
  * 채로 운영에서만 깨지는 종류라 경로를 아예 분리했다.
  */
 import { DefaultChatTransport } from "ai";
+import { apiRequestError } from "@/lib/api";
 import { ensureAccessToken } from "@/lib/session";
 import type { OcrProposal } from "@/data/chat";
 import type { AxpUIMessage } from "./ui-messages";
@@ -29,7 +30,7 @@ export const CONVERSATIONS_ENDPOINT = `${AI_PREFIX}/conversations`;
  * 한 턴에 함께 보내는 화면 상태.
  *
  * transport 에 미리 심어 두지 않고 `sendMessage(msg, { body })` 로 턴마다 넘긴다 — transport 는
- * 마운트 때 한 번 만들어 두어야 하는데(렌더마다 새로 만들면 전송 도중 교체돼 스트림이 끊긴다),
+ * 마운트 때 한 번 만들어 두는데(`useChat` 이 지연 참조하므로 끊기진 않지만, 렌더마다 새로 만들 이유가 없다),
  * 그러면 첫 렌더의 대화 id 가 갇혀 두 번째 턴부터 엉뚱한 대화로 나간다.
  */
 export interface TurnContext {
@@ -71,19 +72,25 @@ export function createChatTransport() {
       const token = await ensureAccessToken();
       return token ? { Authorization: `Bearer ${token}` } : {};
     },
+    /**
+     * HTTP 오류를 `lib/api.ts` 와 같은 `ApiRequestError` 로 던진다. SDK 기본은 본문을 plain `Error` 로
+     * 감싸서, 서버가 `{code, message}` 로 만든 문구(401 「인증이 필요합니다」 등)가 화면에 닿지 않는다.
+     */
+    fetch: async (input, init) => {
+      const res = await fetch(input, init);
+      if (res.ok) return res;
+      throw apiRequestError(res.status, await res.json().catch(() => null));
+    },
 
     /**
      * **마지막 사용자 메시지만 보낸다.**
      *
      * 기본 동작은 messages 배열 전체를 보내는 것인데, 그러면 클라이언트가 이전 턴의 assistant
      * 응답과 도구 결과를 위조해서 보낼 수 있다. 온톨로지 조회 결과를 가짜로 끼워 넣어 모델을
-     * 유도하는 경로가 열린다 — 히스토리는 서버가 자기 저장본에서 읽어야 한다.
+     * 유도하는 경로가 열린다 — 히스토리는 서버가 자기 저장본(`ai_messages`)에서 읽는다.
      *
      * 테넌트 격리 자체는 이걸로 안 뚫린다(도구가 세션에서 스키마를 다시 꺼내므로). 뚫리는 것은
      * "모델이 거짓 사실을 근거로 답한다" 쪽이다.
-     *
-     * 그래서 BE 연동 시 대화 영속화가 선택이 아니라 선행 조건이다. 지금은 BE 가 없어
-     * 히스토리가 localStorage 에만 있고, 서버(대본 라우트)는 히스토리를 안 쓴다.
      */
     prepareSendMessagesRequest: ({ messages, body, id }) => ({
       // body 는 sendMessage 가 넘긴 TurnContext 다

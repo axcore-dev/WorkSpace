@@ -9,24 +9,32 @@
  * 저장본에서 최근 히스토리를 읽어 모델에 넣고, 답이 끝나면 AI 메시지를 저장한다. 화면이 보낸 것은 마지막
  * 사용자 문장 하나뿐이라 이전 턴을 위조할 길이 없다.
  *
+ * ── 저장본 = 화면 ───────────────────────────────────────────────────────────
+ * 저장은 `onEnd`(SDK persistence mode) 한 곳이다. SDK 가 흘린 파트를 모아 준 메시지를 화면과 **같은
+ * 함수**(`toChatMessage`)로 접어 넣으므로, 파트가 늘어도 고치는 곳이 `ui-messages.ts` 하나다.
+ * 실패한 턴은 저장하지 않고(빈 assistant 행이 다음 턴 히스토리에 들어간다), 중단한 턴은 그때까지 받은
+ * 본문을 저장한다. 질문 턴과 승인 턴이 같은 규칙이다.
+ *
  * ── 도구 ────────────────────────────────────────────────────────────────────
  * `tools.ts` 의 레지스트리를 넘긴다. 승인이 필요한 도구는 실행되지 않고 `data-approval` 카드로 나가며, 사용자의
- * 결정은 다음 요청의 `action: tool-approval` 로 돌아와 `runApprovalTurn` 이 처리한다. 도구 파트는 SDK 의
- * `toUIMessageStream` 으로 그대로 옮겨 화면이 트레이스 행으로 그린다.
+ * 결정은 다음 요청의 `action: tool-approval` 로 돌아와 `runApprovalTurn` 이 처리한다.
  */
 import "server-only";
 import {
   createUIMessageStream,
   createUIMessageStreamResponse,
-  stepCountIs,
+  isStepCount,
   streamText,
   toUIMessageStream,
   type ModelMessage,
+  type TextStreamPart,
   type ToolSet,
+  type UIMessageStreamOnEndCallback,
+  type UIMessageStreamWriter,
 } from "ai";
-import { SKILL_LIB, type ChatMessage, type ToolApproval, type TraceStep } from "@/data/chat";
+import { SKILL_LIB, type ToolApproval, type TraceStep } from "@/data/chat";
 import { MODULES } from "@/data/modules";
-import type { AnswerMeta, AxpUIMessage } from "@/lib/ai/ui-messages";
+import { toChatMessage, type AnswerMeta, type AxpUIMessage } from "@/lib/ai/ui-messages";
 import type { AiPrincipal } from "./auth";
 import {
   appendMessage,
@@ -41,7 +49,7 @@ import {
 import { withTenant } from "./db";
 import { chatModel, providerOptions } from "./models";
 import { retrieve } from "./retrieval";
-import { decideApproval, hasTools, MAX_TOOL_STEPS, toolSetFor, type ApprovalRequest } from "./tools";
+import { decideApproval, hasTools, MAX_TOOL_STEPS, toolSetFor } from "./tools";
 // 외부 앱 도구를 레지스트리에 올린다. import 자체가 등록이다
 import "./connector-tools";
 
@@ -133,72 +141,58 @@ function systemPrompt(principal: AiPrincipal, hasContext: boolean, skills: strin
   );
 }
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+/**
+ * 답변을 저장한다. SDK 가 흘린 파트를 모아 `responseMessage` 로 준다 — 화면이 `useChat` 으로 받는 것과 같은
+ * 모양이라 접는 함수도 화면과 같다. 실패한 턴은 건너뛴다(빈 행이 남지 않게). `text` 만 열로 빼고 나머지는
+ * meta 로 둔다 — `toChatMessageRow` 가 role·seq 를 행 값으로 덮어 다시 펼친다.
+ */
+function persist(principal: AiPrincipal, conv: ConversationRow): UIMessageStreamOnEndCallback<AxpUIMessage> {
+  return async ({ responseMessage, outcome }) => {
+    if (outcome.status === "failed") return;
+    const { text, ...meta } = toChatMessage(responseMessage);
+    await withTenant(principal.schemaName, (db) =>
+      appendMessage(db, conv.id, { role: "assistant", text, meta }),
+    );
+  };
+}
+
+/** 턴을 닫는 파트. 이 뒤에 `onEnd` 가 저장한다 */
+function finish(writer: UIMessageStreamWriter<AxpUIMessage>, startedAt: number) {
+  writer.write({ type: "finish-step" });
+  writer.write({ type: "finish", messageMetadata: { durationMs: Date.now() - startedAt } });
+}
 
 /**
- * 저장용 부가 정보 — `ChatMessage` 에서 role·text·rating·seq 를 뺀 모양이다. 대화를 다시 열 때 화면이
- * 추론 과정(문구·도구 행·요약)과 출처를 그대로 그릴 수 있어야 한다. `toChatMessageRow` 가 이 객체를 펼친다.
+ * 모델 스트림을 화면으로 옮긴다. 도구 파트·본문 조각은 그대로, start/finish 는 바깥에서 한 번만 낸다.
+ * `error` 청크는 던진다 — 스트림의 출구가 `createUIMessageStream.onError` 하나가 되게.
+ *
+ * 중단은 던지지 않고 루프를 빠져나온다. 그래야 바깥이 이어서 finish 를 내고 `onEnd` 가 그때까지의 본문을
+ * 저장한다 — 던지면 실패로 취급돼 사용자가 본 답이 사라진다.
+ *
+ * @returns 모델이 부른 도구 이름 (접힌 요약 한 줄에 쓴다)
  */
-function assistantMeta(a: {
-  answer: AnswerMeta;
-  reasoning: string[];
-  trace: TraceStep[];
-  approvals: ToolApproval[];
-  durationMs: number;
-}): Record<string, unknown> {
-  const hasProcess = a.trace.length > 0 || (a.answer.consulted?.length ?? 0) > 0 || (a.answer.tools?.length ?? 0) > 0;
-  const meta: Partial<ChatMessage> = {
-    sources: a.answer.sources,
-    process: hasProcess
-      ? {
-          sources: a.answer.consulted ?? [],
-          steps: [],
-          tools: a.answer.tools ?? [],
-          trace: a.trace,
-          summary: a.answer.summary,
-        }
-      : undefined,
-    ocrProposal: a.answer.ocrProposal,
-    cta: a.answer.cta,
-    attachment: a.answer.attachment,
-    reasoning: a.reasoning.length ? a.reasoning : undefined,
-    approvals: a.approvals.length ? a.approvals : undefined,
-    durationMs: a.durationMs,
-  };
-  // undefined 는 JSON 에 남지 않지만, 명시적으로 걷어 저장본을 깔끔히 둔다
-  return Object.fromEntries(Object.entries(meta).filter(([, v]) => v !== undefined));
-}
-
-/** 도구 파트를 화면의 트레이스 행으로 접는다 — `lib/ai/ui-messages.ts` 의 `traceFromToolPart` 와 같은 모양 */
-class ToolTraceCollector {
-  private pending = new Map<string, { name: string; input: unknown }>();
-  readonly rows: TraceStep[] = [];
-  see(chunk: { type: string } & Record<string, unknown>) {
-    const json = (v: unknown) => (v === undefined ? undefined : JSON.stringify(v, null, 2));
-    if (chunk.type === "tool-input-available") {
-      this.pending.set(String(chunk.toolCallId), { name: String(chunk.toolName), input: chunk.input });
-    } else if (chunk.type === "tool-output-available") {
-      const p = this.pending.get(String(chunk.toolCallId));
-      if (p) this.rows.push({ icon: "model", text: p.name, input: json(p.input), output: json(chunk.output) });
-    } else if (chunk.type === "tool-output-error") {
-      const p = this.pending.get(String(chunk.toolCallId));
-      if (p) this.rows.push({ icon: "model", text: `${p.name} 실패`, result: String(chunk.errorText ?? "") });
-    }
+async function relay(
+  result: { fullStream: ReadableStream<TextStreamPart<ToolSet>> },
+  writer: UIMessageStreamWriter<AxpUIMessage>,
+  signal: AbortSignal,
+): Promise<string[]> {
+  const ui = toUIMessageStream<ToolSet, AxpUIMessage>({
+    stream: result.fullStream,
+    sendStart: false,
+    sendFinish: false,
+    sendReasoning: false,
+    // 문구는 서버 로그용이다. 화면에 나가는 문구는 onError 가 따로 정한다
+    onError: (e) => (e instanceof Error ? e.message : String(e)),
+  });
+  const used = new Set<string>();
+  for await (const chunk of ui) {
+    if (signal.aborted) break;
+    if (chunk.type === "error") throw new Error(chunk.errorText);
+    if (chunk.type === "start-step" || chunk.type === "finish-step") continue;
+    if (chunk.type === "tool-input-available") used.add(chunk.toolName);
+    writer.write(chunk);
   }
-}
-
-/** ReadableStream 을 async iterator 로. Node 는 지원하지만 TS 의 DOM 타입에는 없어 직접 돈다 */
-async function* iterate<T>(stream: ReadableStream<T>): AsyncGenerator<T> {
-  const reader = stream.getReader();
-  try {
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) return;
-      yield value;
-    }
-  } finally {
-    reader.releaseLock();
-  }
+  return [...used];
 }
 
 /**
@@ -219,6 +213,7 @@ export function streamAnswer(
       console.error("[ai-chat] 스트림 오류", e);
       return "답변을 받지 못했어요";
     },
+    onEnd: persist(principal, conv),
     async execute({ writer }) {
       writer.write({ type: "start" });
       writer.write({ type: "start-step" });
@@ -247,36 +242,22 @@ export function streamAnswer(
         );
         return;
       }
-
-      // 저장을 위해 우리가 낸 문구·행을 함께 모아 둔다 — 화면이 파트에서 접는 것과 같은 결과가 저장본에 남아야 한다
-      const reasoning: string[] = [];
-      const trace: TraceStep[] = [];
-      const label = (text: string) => {
-        reasoning.push(text);
-        writer.write({ type: "data-label", data: { text } });
-      };
-      const traceRow = (row: TraceStep) => {
-        trace.push(row);
-        writer.write({ type: "data-trace", data: row });
-      };
-
       // 권한 있는 분야가 하나도 없으면 모델을 부르지 않는다 — 답할 범위가 없다
       if (principal.modules.length === 0) {
         await finishWithText(outOfScopeMessage(principal));
         return;
       }
 
+      const label = (text: string) => writer.write({ type: "data-label", data: { text } });
       label("질문의 의도를 파악하고 있어요");
 
       // ── 검색 — 선택한 문서가 있으면 그 안에서, 없으면 내 문서 전체에서. 어느 쪽이든 권한 분야만 ──
-      let context = "";
-      let answer: AnswerMeta = {};
-      {
-        label(turn.sources.length ? "선택한 문서에서 근거를 찾고 있어요" : "등록된 자료에서 근거를 찾고 있어요");
-        const r = await retrieve(principal, turn.sources, turn.question);
-        context = r.context;
-        const consulted = turn.sources.length ? turn.sources : [...new Set(r.hits.map((h) => h.doc_name))];
-        traceRow({
+      label(turn.sources.length ? "선택한 문서에서 근거를 찾고 있어요" : "등록된 자료에서 근거를 찾고 있어요");
+      const r = await retrieve(principal, turn.sources, turn.question);
+      const context = r.context;
+      writer.write({
+        type: "data-trace",
+        data: {
           icon: "doc",
           text: turn.sources.length ? `소스 문서 검색 — ${turn.sources.length}개 문서` : "등록된 자료 전체 검색",
           result: r.hits.length ? `관련 조각 ${r.hits.length}개` : "일치 없음",
@@ -285,26 +266,25 @@ export function streamAnswer(
             .slice(0, 3)
             .map((h) => `${h.doc_name}${h.page ? ` ${h.page}쪽` : ""}: ${h.content.slice(0, 80)}…`)
             .join("\n"),
-        });
-        answer = {
-          sources: r.sources,
-          consulted,
-          tools: ["RAG 검색"],
-          summary: `${turn.sources.length ? `문서 ${turn.sources.length}개` : "등록 자료 전체"} 검색됨, 근거 조각 ${r.hits.length}개 인용됨`,
-        };
-      }
+        },
+      });
+      const answer: AnswerMeta = {
+        sources: r.sources,
+        consulted: turn.sources.length ? turn.sources : [...new Set(r.hits.map((h) => h.doc_name))],
+        tools: ["RAG 검색"],
+        summary: `${turn.sources.length ? `문서 ${turn.sources.length}개` : "등록 자료 전체"} 검색됨, 근거 조각 ${r.hits.length}개 인용됨`,
+      };
       if (turn.skills.length) {
         const names = SKILL_LIB.filter((s) => turn.skills.includes(s.id)).map((s) => s.name);
-        traceRow({ icon: "model", text: `스킬 적용 — ${names.join(", ")}` });
+        writer.write({ type: "data-trace", data: { icon: "model", text: `스킬 적용 — ${names.join(", ")}` } });
       }
       label("답변을 정리하고 있어요");
-      await sleep(300);
 
       // ── 도구 · 승인 ──
-      const approvals: ToolApproval[] = [];
+      let approvals = 0;
       const tools = hasTools()
-        ? toolSetFor({ principal, conversationId: conv.id, accessToken: turn.accessToken, apps: turn.apps }, (a: ApprovalRequest) => {
-            approvals.push(a);
+        ? toolSetFor({ principal, conversationId: conv.id, accessToken: turn.accessToken, apps: turn.apps }, (a) => {
+            approvals++;
             writer.write({ type: "data-approval", data: a });
           })
         : undefined;
@@ -317,85 +297,30 @@ export function streamAnswer(
           content: context ? `## 참고 문서\n${context}\n\n## 질문\n${turn.question}` : turn.question,
         },
       ];
-      const toolTrace = new ToolTraceCollector();
-      const text = await generate(messages, tools, toolTrace);
+      const result = streamText({
+        model,
+        instructions: systemPrompt(principal, context.length > 0, turn.skills, !!tools),
+        messages,
+        tools,
+        stopWhen: isStepCount(MAX_TOOL_STEPS),
+        maxOutputTokens: 8_000,
+        abortSignal: signal,
+        timeout: { totalMs: TURN_TIMEOUT_MS },
+        providerOptions: providerOptions("medium"),
+      });
+      const used = await relay(result, writer, signal);
 
-      // 도구 행은 화면이 tool-* 파트로 이미 그렸다. 저장본에는 접은 행으로 남긴다
-      if (toolTrace.rows.length) {
-        const used = [...new Set(toolTrace.rows.map((r) => r.text.replace(/ 실패$/, "")))];
-        answer = { ...answer, tools: [...(answer.tools ?? []), ...used] };
-      }
-      if (approvals.length) {
-        answer = { ...answer, tools: [...(answer.tools ?? []), "도구 승인 요청"] };
-      }
+      // 도구 행은 tool-* 파트가 이미 그렸다. 접힌 요약 한 줄에 쓰는 이름만 덧붙인다
+      answer.tools = [...answer.tools!, ...used, ...(approvals ? ["도구 승인 요청"] : [])];
       writer.write({ type: "data-answer", data: answer });
-      await saveAssistant(
-        text,
-        assistantMeta({
-          answer,
-          reasoning,
-          trace: [...trace, ...toolTrace.rows],
-          approvals,
-          durationMs: Date.now() - startedAt,
-        }),
-      );
-      writer.write({ type: "finish-step" });
-      writer.write({ type: "finish", messageMetadata: { durationMs: Date.now() - startedAt } });
-
-      /* ── 안쪽 도우미 ── */
-
-      /** 모델을 돌리고 파트를 그대로 옮긴다. 본문 전체를 돌려준다(저장용) */
-      async function generate(
-        messages: ModelMessage[],
-        tools: ReturnType<typeof toolSetFor> | undefined,
-        collector: ToolTraceCollector,
-      ) {
-        const result = streamText({
-          model: model!,
-          system: systemPrompt(principal, context.length > 0, turn.skills, !!tools),
-          messages,
-          tools,
-          stopWhen: stepCountIs(MAX_TOOL_STEPS),
-          maxOutputTokens: 8_000,
-          abortSignal: signal,
-          timeout: { totalMs: TURN_TIMEOUT_MS },
-          providerOptions: providerOptions("medium"),
-        });
-        let text = "";
-        const ui = toUIMessageStream<ToolSet, AxpUIMessage>({
-          stream: result.fullStream,
-          sendStart: false,
-          sendFinish: false,
-          sendReasoning: false,
-          onError: (e) => {
-            throw e instanceof Error ? e : new Error(String(e));
-          },
-        });
-        for await (const chunk of iterate(ui)) {
-          if (signal.aborted) return text;
-          if (chunk.type === "text-delta") text += chunk.delta;
-          collector.see(chunk as { type: string } & Record<string, unknown>);
-          // start-step/finish-step 은 우리가 바깥에서 한 번만 낸다
-          if (chunk.type === "start-step" || chunk.type === "finish-step") continue;
-          writer.write(chunk);
-        }
-        return text;
-      }
+      finish(writer, startedAt);
 
       async function finishWithText(msg: string) {
         const id = "t0";
         writer.write({ type: "text-start", id });
         writer.write({ type: "text-delta", id, delta: msg });
         writer.write({ type: "text-end", id });
-        await saveAssistant(msg, { durationMs: Date.now() - startedAt });
-        writer.write({ type: "finish-step" });
-        writer.write({ type: "finish", messageMetadata: { durationMs: Date.now() - startedAt } });
-      }
-
-      async function saveAssistant(text: string, meta: Record<string, unknown>) {
-        await withTenant(principal.schemaName, (db) =>
-          appendMessage(db, conv.id, { role: "assistant", text, meta }),
-        );
+        finish(writer, startedAt);
       }
     },
   });
@@ -423,10 +348,14 @@ export function runApprovalTurn(
       console.error("[ai-chat] 승인 턴 오류", e);
       return "답변을 받지 못했어요";
     },
+    onEnd: persist(principal, conv),
     async execute({ writer }) {
       writer.write({ type: "start" });
       writer.write({ type: "start-step" });
-      writer.write({ type: "data-label", data: { text: action.approved ? "승인된 도구를 실행하고 있어요" : "거절을 반영하고 있어요" } });
+      writer.write({
+        type: "data-label",
+        data: { text: action.approved ? "승인된 도구를 실행하고 있어요" : "거절을 반영하고 있어요" },
+      });
 
       // 승인 실행은 앱 목록을 보지 않는다 — 제안 시점에 이미 보였던 도구고, 실행 여부는 사용자가 정했다
       const decision = await decideApproval({ principal, conversationId: conv.id, accessToken, apps: [] }, action.approvalId, action.approved);
@@ -485,39 +414,17 @@ export function runApprovalTurn(
 
       const result = streamText({
         model,
-        system: systemPrompt(principal, false, [], false),
+        instructions: systemPrompt(principal, false, [], false),
         messages: [...history, { role: "user", content: followUp }],
         maxOutputTokens: 4_000,
         abortSignal: signal,
         timeout: { totalMs: TURN_TIMEOUT_MS },
         providerOptions: providerOptions("low"),
       });
-      let text = "";
-      const ui = toUIMessageStream<ToolSet, AxpUIMessage>({ stream: result.fullStream, sendStart: false, sendFinish: false, sendReasoning: false });
-      for await (const chunk of iterate(ui)) {
-        if (signal.aborted) return;
-        if (chunk.type === "text-delta") text += chunk.delta;
-        if (chunk.type === "start-step" || chunk.type === "finish-step") continue;
-        writer.write(chunk);
-      }
+      await relay(result, writer, signal);
 
-      const answer: AnswerMeta = { tools: [decision.label], summary: traceText };
-      writer.write({ type: "data-answer", data: answer });
-      await withTenant(principal.schemaName, (db) =>
-        appendMessage(db, conv.id, {
-          role: "assistant",
-          text,
-          meta: assistantMeta({
-            answer,
-            reasoning: [action.approved ? "승인된 도구를 실행하고 있어요" : "거절을 반영하고 있어요"],
-            trace: [row],
-            approvals: [],
-            durationMs: Date.now() - startedAt,
-          }),
-        }),
-      );
-      writer.write({ type: "finish-step" });
-      writer.write({ type: "finish", messageMetadata: { durationMs: Date.now() - startedAt } });
+      writer.write({ type: "data-answer", data: { tools: [decision.label], summary: traceText } });
+      finish(writer, startedAt);
     },
   });
 

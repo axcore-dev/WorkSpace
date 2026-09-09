@@ -28,6 +28,13 @@ export class ApiRequestError extends Error {
   }
 }
 
+/** 오류 응답을 감싼다. 오류 형태가 아닌 본문(프록시가 만든 HTML 등)도 같은 타입으로 만들어 화면이 분기할 수 있게 한다 */
+export function apiRequestError(status: number, parsed: unknown): ApiRequestError {
+  const fallback: ApiError = { code: "UNKNOWN", message: "요청을 처리할 수 없습니다" };
+  const body = parsed && typeof parsed === "object" && "message" in parsed ? (parsed as ApiError) : fallback;
+  return new ApiRequestError(status, body);
+}
+
 /**
  * JSON POST 한 번.
  *
@@ -48,11 +55,7 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T | null
   const text = await res.text();
   const parsed = text ? (JSON.parse(text) as unknown) : null;
 
-  if (!res.ok) {
-    // 오류 형태가 아닌 응답(프록시가 만든 HTML 등)도 같은 타입으로 감싸 화면이 분기할 수 있게 한다.
-    const fallback: ApiError = { code: "UNKNOWN", message: "요청을 처리할 수 없습니다" };
-    throw new ApiRequestError(res.status, (parsed as ApiError | null) ?? fallback);
-  }
+  if (!res.ok) throw apiRequestError(res.status, parsed);
   return parsed as T | null;
 }
 
@@ -93,10 +96,7 @@ async function authed<T>(method: Method, path: string, body?: unknown): Promise<
   const text = await res.text();
   const parsed = text ? (JSON.parse(text) as unknown) : null;
 
-  if (!res.ok) {
-    const fallback: ApiError = { code: "UNKNOWN", message: "요청을 처리할 수 없습니다" };
-    throw new ApiRequestError(res.status, (parsed as ApiError | null) ?? fallback);
-  }
+  if (!res.ok) throw apiRequestError(res.status, parsed);
   return parsed as T | null;
 }
 
