@@ -27,7 +27,8 @@ const NONE = "";
  * 두면 「생산본부 · 품질 관리자」처럼 없는 조합이 화면에 남는다.
  *
  * 저장 전에는 `draft`에만 쓴다. 취소하면 버린다. 저장은 `PATCH /api/workspace/members/{id}` —
- * **소유자만** 바꿀 수 있고 소유자 자신의 소속은 못 바꾼다. 화면은 「수정」 버튼을 그 규칙대로 잠글 뿐이고, 진짜 문은 서버다.
+ * **소유자만** 바꿀 수 있고 소유자 자신의 소속은 못 바꾼다. 화면은 그 규칙에 맞지 않는 「수정」·「초대하기」 버튼을
+ * 아예 그리지 않는다 — 눌러도 안 되는 버튼이 있으면 고장으로 보인다. 진짜 문은 서버다.
  *
  * **검색과 필터를 표 위에 둔다.** 지금은 몇 명이라 없어도 되지만, 60명이 되면 스크롤로 사람을
  * 찾게 된다. 셋 다 화면 안에서만 거른다 — 목록이 커지면 BE 쿼리로 올린다.
@@ -48,7 +49,7 @@ export function MemberTable({
   onChanged: () => Promise<void>;
 }) {
   const { members, depts, roles } = data;
-  // 소유자만 바꾼다 — 「수정」·「초대하기」 버튼이 소유자에게만 살아 있다
+  // 소유자만 바꾼다 — 「수정」·「초대하기」 버튼이 소유자에게만 보인다
   const canManage = !!me?.member.owner;
 
   const [q, setQ] = useState("");
@@ -160,10 +161,12 @@ export function MemberTable({
           ))}
         </select>
 
-        <Button size="sm" className="h-8" disabled={!canManage} onClick={onInvite}>
-          <IconPlus size={14} />
-          초대하기
-        </Button>
+        {canManage && (
+          <Button size="sm" className="h-8" onClick={onInvite}>
+            <IconPlus size={14} />
+            초대하기
+          </Button>
+        )}
       </div>
 
       <DataTable
@@ -253,17 +256,11 @@ export function MemberTable({
                     취소
                   </Button>
                 </span>
-              ) : (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="h-8"
-                  disabled={!editable(u)}
-                  onClick={() => startEdit(u)}
-                >
+              ) : editable(u) ? (
+                <Button variant="secondary" size="sm" className="h-8" onClick={() => startEdit(u)}>
                   수정
                 </Button>
-              ),
+              ) : null,
           },
         ]}
       />
