@@ -53,6 +53,22 @@ const PROVIDERS: Record<SocialProvider, ProviderConfig> = {
 const stateKey = (provider: SocialProvider) => `axpoint-oauth-state:${provider}`;
 
 /**
+ * 이 왕복이 무엇을 위한 것인가 — 로그인인가, 로그인한 계정에 제공자를 붙이는 것인가.
+ *
+ * 제공자는 둘을 구분하지 않고 같은 콜백 주소로 돌려보내므로, 시작할 때 목적을 적어 두고 콜백이 읽는다.
+ * state 와 같은 저장소·수명이다. 기본은 로그인 — 기록이 없으면 로그인으로 본다.
+ */
+export type OAuthPurpose = "login" | "link";
+const purposeKey = (provider: SocialProvider) => `axpoint-oauth-purpose:${provider}`;
+
+/** 돌아온 왕복의 목적을 읽고 지운다. `consumeState` 와 함께 콜백이 한 번만 부른다. */
+export function consumeOAuthPurpose(provider: SocialProvider): OAuthPurpose {
+  const value = sessionStorage.getItem(purposeKey(provider));
+  sessionStorage.removeItem(purposeKey(provider));
+  return value === "link" ? "link" : "login";
+}
+
+/**
  * 제공자 콘솔에 등록해야 하는 값과 같아야 한다.
  *
  * 현재 주소에서 만든다. 환경변수로 또 받으면 배포마다 두 곳(제공자 콘솔, FE 환경변수)이 아니라
@@ -101,13 +117,16 @@ export class SocialLoginNotConfiguredError extends Error {
 /**
  * 제공자의 인증 화면으로 이동한다. 이 함수는 돌아오지 않는다.
  *
+ * @param purpose `link` 면 로그인한 계정에 이 제공자를 붙이는 왕복이다(계정 설정 › 로그인 방법 관리).
+ *                콜백이 `consumeOAuthPurpose` 로 읽어 로그인이 아니라 `POST /api/auth/identities/{provider}` 를 부른다.
  * @throws SocialLoginNotConfiguredError 클라이언트 ID 환경변수가 없을 때
  */
-export function startSocialLogin(provider: SocialProvider): void {
+export function startSocialLogin(provider: SocialProvider, purpose: OAuthPurpose = "login"): void {
   const config = PROVIDERS[provider];
   if (!config.clientId) {
     throw new SocialLoginNotConfiguredError(provider);
   }
+  sessionStorage.setItem(purposeKey(provider), purpose);
 
   const params = new URLSearchParams({
     client_id: config.clientId,

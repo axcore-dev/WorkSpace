@@ -7,7 +7,7 @@
  * 화면이 쓰는 값 중 일부는 회사 쪽에 있다(부서 · 직책). 그건 `useWorkspaceMe()` 가 준다.
  *
  * **여기 없는 것**: 이메일 주소 변경 · 보조 이메일 · 전화번호 · 사번 · 기본 사업장 ·
- * 패스키 · SMS/인증앱 OTP · 로그인 상태에서의 소셜 신규 연동. 서버에 경로가 없다. 화면도 그 자리를 비웠다.
+ * 패스키 · SMS/인증앱 OTP. 서버에 경로가 없다. 화면도 그 자리를 비웠다.
  * 이메일은 없는 게 아니라 **바꾸지 않기로 정한 값**이다 — 로그인 아이디이고, 회사 초대와 담당자
  * 규칙이 그 주소로 사람을 찾는다.
  */
@@ -71,6 +71,16 @@ export const getSocialIdentities = async () =>
  */
 export const unlinkSocialIdentity = (provider: SocialIdentityDto["provider"]) =>
   apiDelete<void>(`${BASE}/identities/${provider}`);
+
+/**
+ * 소셜 연동 추가 — 로그인한 계정에 제공자를 붙인다. 제공자 동의 화면에서 돌아온 code · state 를 그대로 넘긴다.
+ * 그 제공자 계정이 다른 사용자에게 이미 붙어 있으면 409 와 그 사실을 담은 문구가 온다.
+ */
+export const linkSocialIdentity = async (
+  provider: SocialIdentityDto["provider"],
+  code: string,
+  state: string | null,
+) => must(await apiPostAuthed<SocialIdentityDto>(`${BASE}/identities/${provider}`, { code, state }));
 
 /* ─────────────────────────────── 세션 ─────────────────────────────── */
 

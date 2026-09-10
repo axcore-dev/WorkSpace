@@ -5,8 +5,9 @@ import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { AuthSplit } from "@/components/auth-shell";
 import { MfaCodeStep } from "@/components/auth/mfa-code-step";
+import { linkSocialIdentity } from "@/lib/account-api";
 import { ApiRequestError, apiGet, apiPost } from "@/lib/api";
-import { PROVIDER_LABELS, SocialProvider, consumeState } from "@/lib/auth";
+import { PROVIDER_LABELS, SocialProvider, consumeOAuthPurpose, consumeState } from "@/lib/auth";
 import { inviteHref, readInvite } from "@/lib/pending-invite";
 import { DEMO_USER } from "@/data/org";
 
@@ -22,10 +23,12 @@ type LoginResponse = {
 };
 
 type State =
-  | { kind: "working" }
+  | { kind: "working"; purpose: "login" | "link" }
   | { kind: "mfa"; mfaToken: string }
   | { kind: "verifyEmail"; email: string }
-  | { kind: "failed"; message: string };
+  /** 계정 설정에서 시작한 연동 추가가 끝났다 */
+  | { kind: "linked"; provider: SocialProvider }
+  | { kind: "failed"; message: string; purpose: "login" | "link" };
 
 const isSupported = (value: string): value is SocialProvider =>
   value === "google" || value === "naver";
@@ -48,7 +51,7 @@ function OAuthCallbackContent() {
   const params = useSearchParams();
   const routeProvider = String(useParams().provider ?? "");
 
-  const [state, setState] = useState<State>({ kind: "working" });
+  const [state, setState] = useState<State>({ kind: "working", purpose: "login" });
 
   // 제공자의 code 는 한 번만 교환할 수 있다. StrictMode 가 effect 를 두 번 실행하므로
   // 막지 않으면 두 번째 호출이 401 을 받고 화면이 성공에서 실패로 뒤집힌다.
@@ -107,20 +110,27 @@ function OAuthCallbackContent() {
       await Promise.resolve();
 
       if (!isSupported(routeProvider)) {
-        setState({ kind: "failed", message: "지원하지 않는 로그인 방식입니다" });
+        setState({ kind: "failed", message: "지원하지 않는 로그인 방식입니다", purpose: "login" });
         return;
       }
       const provider = routeProvider;
+      // 이 왕복이 로그인인지, 로그인한 계정에 제공자를 붙이는 것인지. 시작한 쪽(startSocialLogin)이 적어 뒀다.
+      const purpose = consumeOAuthPurpose(provider);
+      const label = PROVIDER_LABELS[provider];
+      setState({ kind: "working", purpose });
 
       // 사용자가 동의 화면에서 취소하면 code 대신 error 가 온다.
       const providerError = params.get("error");
       if (providerError) {
         setState({
           kind: "failed",
+          purpose,
           message:
             providerError === "access_denied"
-              ? "로그인을 취소했습니다"
-              : `${PROVIDER_LABELS[provider]} 로그인이 완료되지 않았습니다`,
+              ? purpose === "link"
+                ? "연동을 취소했습니다"
+                : "로그인을 취소했습니다"
+              : `${label} ${purpose === "link" ? "연동" : "로그인"}이 완료되지 않았습니다`,
         });
         return;
       }
@@ -128,16 +138,35 @@ function OAuthCallbackContent() {
       const code = params.get("code");
       const returnedState = params.get("state");
       // state 검증은 code 를 보내기 전에 한다. 통과하지 못한 code 를 서버로 넘기면 공격자 계정으로
-      // 로그인되는 것을 막을 수 없다.
+      // 로그인되는(또는 공격자의 제공자 계정이 내 계정에 붙는) 것을 막을 수 없다.
       if (!consumeState(provider, returnedState)) {
         setState({
           kind: "failed",
-          message: "로그인 요청을 확인할 수 없습니다. 로그인 화면에서 다시 시도해 주세요",
+          purpose,
+          message: "요청을 확인할 수 없습니다. 처음 화면에서 다시 시도해 주세요",
         });
         return;
       }
       if (!code) {
-        setState({ kind: "failed", message: "인증 코드를 받지 못했습니다" });
+        setState({ kind: "failed", message: "인증 코드를 받지 못했습니다", purpose });
+        return;
+      }
+
+      // 연동 추가 — 로그인이 아니다. 세션은 이미 있고(refresh 쿠키), 현재 계정에 제공자를 붙이기만 한다.
+      // 그 제공자 계정이 다른 사용자에게 붙어 있으면 서버가 409 로 막고 그 문구가 그대로 화면에 온다.
+      if (purpose === "link") {
+        linkSocialIdentity(provider, code, returnedState)
+          .then(() => setState({ kind: "linked", provider }))
+          .catch((e: unknown) => {
+            setState({
+              kind: "failed",
+              purpose,
+              message:
+                e instanceof ApiRequestError
+                  ? e.message
+                  : "서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요",
+            });
+          });
         return;
       }
 
@@ -146,7 +175,7 @@ function OAuthCallbackContent() {
       apiPost<LoginResponse>(`/api/auth/oauth/${provider}`, { code, state: returnedState })
         .then((result) => {
           if (!result) {
-            setState({ kind: "failed", message: "서버 응답이 비어 있습니다" });
+            setState({ kind: "failed", message: "서버 응답이 비어 있습니다", purpose: "login" });
             return;
           }
           if (result.next === "MFA_REQUIRED" && result.mfaToken) {
@@ -158,6 +187,7 @@ function OAuthCallbackContent() {
         .catch((e: unknown) => {
           setState({
             kind: "failed",
+            purpose: "login",
             message:
               e instanceof ApiRequestError
                 ? e.message
@@ -167,16 +197,19 @@ function OAuthCallbackContent() {
     })();
   }, [finishLogin, params, routeProvider, router]);
 
-  const label =isSupported(routeProvider) ? PROVIDER_LABELS[routeProvider] : "소셜";
+  const label = isSupported(routeProvider) ? PROVIDER_LABELS[routeProvider] : "소셜";
+  const linking = (state.kind === "working" || state.kind === "failed") && state.purpose === "link";
 
   return (
     <AuthSplit>
-      <p className="text-xs font-semibold text-primary-600">{label} 로그인</p>
+      <p className="text-xs font-semibold text-primary-600">
+        {label} {linking || state.kind === "linked" ? "연동" : "로그인"}
+      </p>
 
       {state.kind === "working" && (
         <>
           <h2 className="mt-2.5 text-[31px] font-bold leading-[1.25] tracking-tight text-slate-900">
-            로그인하고 있습니다
+            {linking ? "계정을 연결하고 있습니다" : "로그인하고 있습니다"}
           </h2>
           <div
             className="mt-8 flex items-center gap-3.5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4"
@@ -216,17 +249,34 @@ function OAuthCallbackContent() {
         </>
       )}
 
+      {state.kind === "linked" && (
+        <>
+          <h2 className="mt-2.5 text-[31px] font-bold leading-[1.25] tracking-tight text-slate-900">
+            {PROVIDER_LABELS[state.provider]} 계정을 연결했습니다
+          </h2>
+          <p className="mt-3 text-[15px] leading-[1.65] text-slate-500">
+            다음부터 {PROVIDER_LABELS[state.provider]} 계정으로도 로그인할 수 있습니다.
+          </p>
+          <Link
+            href="/settings/account"
+            className="mt-8 block w-full rounded-lg bg-primary-600 py-3.5 text-center text-[15px] font-semibold text-white transition-colors hover:bg-primary-700"
+          >
+            계정 설정으로 돌아가기
+          </Link>
+        </>
+      )}
+
       {state.kind === "failed" && (
         <>
           <h2 className="mt-2.5 text-[31px] font-bold leading-[1.25] tracking-tight text-slate-900">
-            로그인하지 못했습니다
+            {state.purpose === "link" ? "계정을 연결하지 못했습니다" : "로그인하지 못했습니다"}
           </h2>
           <p className="mt-3 text-[15px] leading-[1.65] text-slate-500">{state.message}</p>
           <Link
-            href="/login"
+            href={state.purpose === "link" ? "/settings/account" : "/login"}
             className="mt-8 block w-full rounded-lg bg-primary-600 py-3.5 text-center text-[15px] font-semibold text-white transition-colors hover:bg-primary-700"
           >
-            다시 시도
+            {state.purpose === "link" ? "계정 설정으로 돌아가기" : "다시 시도"}
           </Link>
         </>
       )}
