@@ -9,13 +9,14 @@ import java.util.UUID;
  * 권한 검사는 여기 메서드로 한다 — 컨트롤러가 {@code isAdmin} 을 직접 비교하기 시작하면 빠뜨린 자리가
  * 조용히 열린다. 예외는 {@link SettingsForbiddenException} 하나로 403 이 된다.
  *
- * @param memberId    테넌트 {@code members.id}. 서버 운영자는 구성원이 아니라 null 이다
- * @param roleId      {@code roles.id}. 서버 운영자는 null
- * @param roleCode    {@code roles.code}. 서버 운영자는 {@code internal_admin}
- * @param admin       회사 설정(기능 관리)을 다룰 수 있는가 ({@code roles.is_admin}). 서버 운영자는 true
+ * @param memberId    테넌트 {@code members.id}. 소속 없이 들어온 서버 운영자는 null 이다
+ * @param roleId      {@code roles.id}. 소속 없는 서버 운영자는 null
+ * @param roleCode    {@code roles.code}. 소속 없는 서버 운영자는 {@code internal_admin}
+ * @param admin       회사 설정(기능 관리)을 다룰 수 있는가 ({@code roles.is_admin}). 소속 없는 서버 운영자는 true
  * @param owner       회사에 한 명인 소유자({@code roles.code = 'owner'})인가. 부서 · 직급 · 구성원 · 초대는 이 사람만
  * @param canInvite   {@code roles.can_invite}. 화면 표시용으로 남긴다 — 지금 초대는 소유자만이다
- * @param internalAdmin 서버 운영자(shared.users.is_internal_admin). 소속 없이 들어온다
+ * @param internalAdmin 서버 운영자(shared.users.is_internal_admin). 구성원이면 그 회사의 직급이 우선이고 이 표시만 함께 붙는다.
+ *                      소속이 없으면 위 합성 값으로 들어온다
  */
 public record TenantContext(
         UUID userId,
