@@ -6,7 +6,7 @@ import { IconArrowLeft, IconLogOut } from "@/components/icons";
 import { SettingsNav } from "@/components/settings/settings-nav";
 import { useLogout } from "@/components/use-logout";
 import { useAccountMe } from "@/lib/account-me";
-import { DEFAULT_WORKSPACE_ID, DEMO_USER, WORKSPACES } from "@/data/org";
+import { useWorkspaceMe } from "@/lib/workspace-me";
 import { activeSettings } from "@/data/settings-nav";
 
 /**
@@ -26,15 +26,16 @@ export function SettingsShell({ children }: { children: React.ReactNode }) {
   const logout = useLogout();
   // 사이드바와 같은 값을 본다 — 계정 화면에서 사진을 바꾸면 여기도 함께 바뀐다
   const { me: account } = useAccountMe();
-  const displayName = account?.name ?? DEMO_USER.name;
+  // 회사 이름·직급은 `GET /api/workspace/me` 가 준다 — 프로필 섹션이 부서·직책을 읽는 것과 같은 값이다.
+  // 받기 전에는 빈 줄(높이만 유지)을, 회사를 고르지 않아 못 받으면 「회사를 골라 주세요」를 둔다.
+  const { me: ws, status: wsStatus } = useWorkspaceMe();
+  const displayName = account?.name ?? " ";
+  const workspaceName = ws?.workspaceName ?? (wsStatus === "error" ? "회사를 골라 주세요" : " ");
+  const roleName = ws?.member.roleName ?? " ";
 
   const leaf = activeSettings(pathname)?.leaf;
   const wide = leaf?.wide ?? false;
   const fill = leaf?.fill ?? false;
-
-  // **BE 연동 seam**: `GET /api/auth/workspaces`가 이미 있다. 세션의 현재 워크스페이스로
-  // 바꾸면 된다 — 지금은 더미 기본값을 읽는다.
-  const workspace = WORKSPACES.find((w) => w.id === DEFAULT_WORKSPACE_ID) ?? WORKSPACES[0];
 
   /**
    * 워크스페이스로 나간다.
@@ -81,14 +82,14 @@ export function SettingsShell({ children }: { children: React.ReactNode }) {
 
         {/* 하단 — 워크스페이스 이름 + 프로필 + 로그아웃 */}
         <div className="hidden border-t border-slate-200 p-4 lg:block">
-          <p className="px-1 pb-2 text-xs font-semibold text-slate-600">{workspace.name}</p>
+          <p className="px-1 pb-2 text-xs font-semibold text-slate-600">{workspaceName}</p>
           <div className="flex items-center gap-2.5 p-1">
-            <Avatar name={displayName} src={account?.avatarUrl ?? null} size={36} />
+            <Avatar name={account?.name ?? ""} src={account?.avatarUrl ?? null} size={36} />
             <span className="min-w-0">
               <span className="block truncate text-sm font-semibold text-slate-900">
                 {displayName}
               </span>
-              <span className="block truncate text-xs text-slate-500">{DEMO_USER.role}</span>
+              <span className="block truncate text-xs text-slate-500">{roleName}</span>
             </span>
           </div>
           <button
@@ -118,7 +119,7 @@ export function SettingsShell({ children }: { children: React.ReactNode }) {
 
       {/* lg 미만 — 사이드바 하단이 숨으므로 워크스페이스·로그아웃을 본문 아래에 둔다 */}
       <div className="border-t border-slate-200 px-6 py-5 lg:hidden">
-        <p className="text-xs font-semibold text-slate-600">{workspace.name}</p>
+        <p className="text-xs font-semibold text-slate-600">{workspaceName}</p>
         <button
           type="button"
           onClick={() => void logout()}
