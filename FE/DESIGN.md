@@ -76,7 +76,7 @@ WorkSpace 데모의 시각 언어와 공용 컴포넌트 규칙. 코드가 단�
 ## 타이포그래피
 
 - 폰트: **Pretendard Variable** (CDN), `--font-sans`으로 등록.
-- 페이지 제목 `text-2xl font-bold tracking-tight`, 섹션 제목 `text-[15px] font-semibold`(`SectionHeader`), 본문 `text-sm`, 보조 `text-xs`.
+- 페이지 제목 `text-xl font-bold tracking-tight`, 섹션 제목 `text-[15px] font-semibold`(`SectionHeader`), 본문 `text-sm`, 보조 `text-xs`.
 - **AI대화(`/ai-chat`)는 읽는 화면이라 한 단 위 사다리를 쓴다** — 본문(답변·말풍선·입력창) `text-base`(16),
   트레이스 행·목록 항목·패널 제목 `text-[15px]`, 보조(결과 수·시간·캡션·배지·도구 입출력) `text-[13px]`.
   세 단이 전부이고 그 아래로 내려가지 않는다 — 10·11·12px를 새로 만들지 않는다.

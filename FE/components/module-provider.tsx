@@ -134,8 +134,3 @@ export function useModules() {
   }, []);
   return { state, setModule, setSub };
 }
-
-/** 향후 컨텍스트 기반 상태로 교체할 수 있도록 경계만 유지 */
-export function ModuleProvider({ children }: { children: React.ReactNode }) {
-  return <>{children}</>;
-}
