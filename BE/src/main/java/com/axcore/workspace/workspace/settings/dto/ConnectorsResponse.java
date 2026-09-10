@@ -13,7 +13,8 @@ import java.util.List;
  *                   비활성으로 남는다. 다시 켤 때 재인증이 필요 없다(제공자 토큰이 그 앱의 스코프를 이미 덮는다)
  * @param accounts 연결된 제공자 계정. 화면이 「구글 · someone@gmail.com」 처럼 보이고, 재연결 필요를 알린다.
  *                 토큰은 절대 여기 실리지 않는다
- * @param editable 내가 연결·해제할 수 있는가 ({@code roles.can_manage_integrations}). 화면 잠금용이다
+ * @param editable 내가 연결·해제할 수 있는가. 연결이 사용자 단위가 된 뒤(tenant V13)로는 늘 참이다 — 자기 것만 만진다.
+ *                 화면 호환을 위해 필드를 남긴다
  */
 public record ConnectorsResponse(
         List<ExternalSystemResponse> systems,

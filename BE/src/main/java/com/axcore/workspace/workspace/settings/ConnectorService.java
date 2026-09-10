@@ -22,28 +22,26 @@ import java.util.stream.Collectors;
  * ({@code connector_accounts})이 있고 재연결 표시가 없고, 그 계정의 스코프가 앱을 덮는다. 도구가 토큰을
  * 꺼낼 때({@code ConnectorTokenProvider})와 같은 판정이다 — 화면과 도구가 다른 답을 하면 안 된다.
  *
- * <p>목록은 회사 구성원 누구나 본다. AI 대화 입력창이 같은 사실을 쓰기 때문에 권한을 걸면 대화 화면이 빈다.
+ * <p><b>연결은 사용자 단위다</b>(tenant V13). 이 응답은 요청한 사람이 연결한 것만 담는다 — AI 대화 입력창의 앱 칩과
+ * 연동 화면이 같은 값을 보고, 그 사람의 도구가 쓰는 토큰({@code ConnectorTokenProvider})과 같은 사람 기준이다.
+ * 자기 것만 만지므로 별도 권한이 없다 — {@code editable} 은 늘 참이다.
  */
 @Service
 public class ConnectorService {
 
     private final TenantAccess access;
-    private final RolePermissionReader permissions;
     private final ConnectorAccountStore accounts;
     private final JdbcTemplate jdbc;
 
-    public ConnectorService(
-            TenantAccess access, RolePermissionReader permissions, ConnectorAccountStore accounts, JdbcTemplate jdbc) {
+    public ConnectorService(TenantAccess access, ConnectorAccountStore accounts, JdbcTemplate jdbc) {
         this.access = access;
-        this.permissions = permissions;
         this.accounts = accounts;
         this.jdbc = jdbc;
     }
 
     @Transactional(readOnly = true)
     public ConnectorsResponse list(JwtPrincipal principal) {
-        TenantContext ctx = access.open(principal);
-        return snapshot(permissions.forContext(ctx).canManageIntegrations());
+        return snapshot(access.open(principal));
     }
 
     /** 연결·해제 뒤 바뀐 전체를 돌려줄 때도 쓴다. 이미 열린 트랜잭션 안에서 부른다. */
@@ -52,13 +50,14 @@ public class ConnectorService {
         return list(principal);
     }
 
-    private ConnectorsResponse snapshot(boolean editable) {
+    private ConnectorsResponse snapshot(TenantContext ctx) {
         Map<String, ConnectorAccountStore.Account> byProvider =
-                accounts.findAll().stream().collect(Collectors.toMap(ConnectorAccountStore.Account::provider, Function.identity()));
-        List<ConnectorsResponse.RegisteredResponse> registered = registered(byProvider);
+                accounts.findAll(ctx.userId()).stream()
+                        .collect(Collectors.toMap(ConnectorAccountStore.Account::provider, Function.identity()));
+        List<ConnectorsResponse.RegisteredResponse> registered = registered(ctx, byProvider);
         List<String> services = registered.stream().filter(ConnectorsResponse.RegisteredResponse::enabled)
                 .map(ConnectorsResponse.RegisteredResponse::slug).toList();
-        return new ConnectorsResponse(systems(), services, registered, accountsOf(byProvider), editable);
+        return new ConnectorsResponse(systems(), services, registered, accountsOf(byProvider), true);
     }
 
     private List<ConnectorsResponse.ExternalSystemResponse> systems() {
@@ -73,9 +72,13 @@ public class ConnectorService {
      * 등록된 앱 — {@code connected_services} 에 행이 있고(켜졌든 꺼졌든) 제공자 계정이 그 앱의 스코프를 덮는 것. 카탈로그 순서.
      * 행이 있는데 계정이 없거나 스코프가 모자라면 등록으로 치지 않는다 — 화면에 켤 수 없는 토글이 남지 않게.
      */
-    private List<ConnectorsResponse.RegisteredResponse> registered(Map<String, ConnectorAccountStore.Account> byProvider) {
+    private List<ConnectorsResponse.RegisteredResponse> registered(
+            TenantContext ctx, Map<String, ConnectorAccountStore.Account> byProvider) {
         Map<String, Boolean> rows = new java.util.HashMap<>();
-        jdbc.query("select slug, connected from connected_services", rs -> { rows.put(rs.getString(1), rs.getBoolean(2)); });
+        jdbc.query(
+                "select slug, connected from connected_services where user_id = ?",
+                rs -> { rows.put(rs.getString(1), rs.getBoolean(2)); },
+                ctx.userId());
         List<ConnectorsResponse.RegisteredResponse> out = new ArrayList<>();
         for (String slug : ConnectorCatalog.slugs()) {
             Boolean enabled = rows.get(slug);
