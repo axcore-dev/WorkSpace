@@ -31,7 +31,9 @@ export function Workbench({
   const close = () => setPickerOpen(false);
   return (
     <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
-      <div className="hidden lg:block">{renderMaster(close)}</div>
+      {/* 칸을 늘리지 않고(`self-start`) 스크롤을 따라온다 — 늘리면 카드 아래가 그대로 빈 공백이 되고
+          (급여 탭에서 320×351px), 디테일을 내려 읽는 동안 목록이 화면 밖으로 사라진다 */}
+      <div className="hidden lg:sticky lg:top-6 lg:block lg:self-start">{renderMaster(close)}</div>
       <button
         type="button"
         aria-haspopup="dialog"
