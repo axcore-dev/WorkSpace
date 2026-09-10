@@ -14,7 +14,9 @@ import {
   IconChevronRight,
   IconDashboard,
   IconLogOut,
+  IconMenu,
   IconSettings,
+  IconX,
 } from "@/components/icons";
 import { Avatar } from "@/components/avatar";
 import { Logo } from "@/components/logo";
@@ -67,6 +69,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [orgId, setOrgId] = useState(DEFAULT_WORKSPACE_ID);
   const [profileOpen, setProfileOpen] = useState(false);
   const [collapsed, toggleCollapsed] = useSidebarCollapsed("axpoint-app-nav-collapsed");
+  // lg 미만에서 사이드바는 화면 밖에 있다가 밀려 들어온다 (본문 폭을 밀지 않는다 — 「AI 대화 docked 패널」과 같은 규칙)
+  const [navOpen, setNavOpen] = useState(false);
 
   const orgRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
@@ -77,6 +81,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     setProfileOpen(false);
     toggleCollapsed();
   }
+
+  // 라우트가 바뀌면 드로어를 닫는다 — 항목을 누르면 그 화면이 보여야지 내비가 덮고 있으면 안 된다
+  useEffect(() => {
+    setNavOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setNavOpen(false);
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
 
   useEffect(() => {
     function onClick(e: MouseEvent) {
@@ -102,9 +119,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-screen">
       {/* ── 좌측 패널 ── */}
       <aside
-        className={`fixed inset-y-0 left-0 z-30 flex flex-col border-r border-slate-200 bg-slate-100 transition-[width] duration-300 ${
-          collapsed ? "w-20" : "w-60"
-        }`}
+        id="app-nav"
+        className={`fixed inset-y-0 left-0 z-40 flex w-60 flex-col border-r border-slate-200 bg-slate-100 transition-transform duration-300 lg:z-30 lg:translate-x-0 lg:transition-[width] ${
+          navOpen ? "translate-x-0" : "-translate-x-full"
+        } ${collapsed ? "lg:w-20" : "lg:w-60"}`}
       >
         {/* 상단 로고 + 접기 토글 */}
         <div className={`flex items-center gap-2 px-5 py-4 ${collapsed ? "justify-center" : ""}`}>
@@ -121,11 +139,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             aria-expanded={!collapsed}
             aria-label={collapsed ? "사이드바 펼치기" : "사이드바 접기"}
             onClick={handleToggleCollapse}
-            className={`flex shrink-0 cursor-pointer items-center justify-center rounded-md p-1.5 text-slate-400 transition-colors duration-150 hover:bg-slate-200/60 hover:text-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400 ${
+            className={`hidden shrink-0 cursor-pointer items-center justify-center rounded-md p-1.5 text-slate-400 transition-colors duration-150 hover:bg-slate-200/60 hover:text-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400 lg:flex ${
               collapsed ? "" : "ml-auto"
             }`}
           >
             {collapsed ? <IconChevronRight size={16} /> : <IconChevronLeft size={16} />}
+          </button>
+          {/* lg 미만 — 접기가 아니라 닫기다 (드로어라서 80px 레일이 의미가 없다) */}
+          <button
+            type="button"
+            aria-label="메뉴 닫기"
+            onClick={() => setNavOpen(false)}
+            className="ml-auto flex shrink-0 cursor-pointer items-center justify-center rounded-md p-1.5 text-slate-400 transition-colors duration-150 hover:bg-slate-200/60 hover:text-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400 lg:hidden"
+          >
+            <IconX size={16} />
           </button>
         </div>
 
@@ -352,8 +379,40 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
+      {/* 드로어 뒤 가림막 — 바깥을 누르면 닫힌다 */}
+      {navOpen && (
+        <div
+          aria-hidden
+          onClick={() => setNavOpen(false)}
+          className="fixed inset-0 z-30 bg-slate-900/40 lg:hidden"
+        />
+      )}
+
       {/* ── 콘텐츠 ── */}
-      <main className={`min-w-0 flex-1 transition-[padding] duration-300 ${collapsed ? "pl-20" : "pl-60"}`}>
+      <main
+        className={`min-w-0 flex-1 transition-[padding] duration-300 ${
+          collapsed ? "lg:pl-20" : "lg:pl-60"
+        }`}
+      >
+        {/* lg 미만 — 사이드바가 화면 밖이므로 여는 버튼과 브랜드를 상단 바에 둔다 */}
+        <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-3 lg:hidden">
+          <button
+            type="button"
+            aria-expanded={navOpen}
+            aria-controls="app-nav"
+            aria-label="메뉴 열기"
+            onClick={() => {
+              if (collapsed) toggleCollapsed();
+              setNavOpen(true);
+            }}
+            className="-ml-1.5 flex cursor-pointer items-center justify-center rounded-md p-1.5 text-slate-500 transition-colors duration-150 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400"
+          >
+            <IconMenu size={20} />
+          </button>
+          <Link href="/dashboard" className="flex items-center gap-2" aria-label="WorkSpace 홈">
+            <Logo height={16} />
+          </Link>
+        </header>
         {children}
       </main>
     </div>

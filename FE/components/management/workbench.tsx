@@ -38,7 +38,7 @@ export function Workbench({
         onClick={() => setPickerOpen(true)}
         className="flex h-11 w-full cursor-pointer items-center justify-between gap-3 rounded-lg border border-slate-300 bg-white px-3 text-left text-sm font-medium text-slate-900 transition-colors duration-150 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400 lg:hidden"
       >
-        <span className="truncate">{pickerLabel}</span>
+        <span className="min-w-0 truncate">{pickerLabel}</span>
         <span className="flex shrink-0 items-center gap-1.5 text-slate-500">
           {pickerBadge}
           <IconChevronDown size={14} />
