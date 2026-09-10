@@ -16,6 +16,14 @@ export type SettingsLeaf = {
   href: string;
   label: string;
   /**
+   * 본문 폭 제한(`max-w-3xl`)을 풀고 화면을 꽉 채운다.
+   *
+   * 기본이 좁은 이유: 설정은 대부분 「이름 — 값 — 버튼」 한 줄이라 넓히면 이름과 버튼이
+   * 화면 양 끝으로 벌어져 눈이 가로로 멀리 이동한다. 열이 여럿인 표는 반대다 — 좁으면
+   * 가로 스크롤이 생긴다. 그래서 페이지별로 고른다.
+   */
+  wide?: boolean;
+  /**
    * 화면 높이를 꽉 채운다. 문서가 아니라 **작업대**인 화면에 준다.
    *
    * 기본은 내용 높이다 — 대부분의 설정 화면은 위에서 아래로 읽는 문서라 남는 공간이
@@ -39,8 +47,8 @@ export const SETTINGS_NAV: SettingsSection[] = [
     label: "회사",
     href: "/settings/company",
     children: [
-      { href: "/settings/company/invites", label: "초대 관리" },
-      { href: "/settings/company/roles", label: "권한 관리", fill: true },
+      { href: "/settings/company/invites", label: "초대 관리", wide: true },
+      { href: "/settings/company/roles", label: "권한 관리", wide: true, fill: true },
     ],
   },
   {

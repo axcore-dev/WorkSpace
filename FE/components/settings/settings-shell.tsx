@@ -34,6 +34,7 @@ export function SettingsShell({ children }: { children: React.ReactNode }) {
   const roleName = ws?.member.roleName ?? " ";
 
   const leaf = activeSettings(pathname)?.leaf;
+  const wide = leaf?.wide ?? false;
   const fill = leaf?.fill ?? false;
 
   /**
@@ -102,14 +103,13 @@ export function SettingsShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      {/* 폭은 다섯 화면이 같다 — 라우트마다 768/무제한으로 갈려 제목 왼쪽 x가 272↔488로 튀었다.
-          높이만 라우트가 정한다 (`data/settings-nav.ts`의 `fill`).
+      {/* 폭과 높이는 라우트가 정한다 (`data/settings-nav.ts`의 `wide`·`fill`).
           `fill`이면 본문이 화면 높이를 꽉 채우고 **스스로 스크롤한다** — 문서가 스크롤하지
           않으므로 자식이 `flex-1 min-h-0`으로 남은 높이를 가져갈 수 있다.
           (`min-h-0`이 없으면 flex 아이템의 최소 높이가 내용 높이라 넘쳐도 안 줄어든다.) */}
       <main className={`min-w-0 flex-1 bg-white ${fill ? "lg:h-screen lg:overflow-hidden" : ""}`}>
         <div
-          className={`px-6 py-6 lg:px-8 ${
+          className={`px-6 py-7 lg:px-8 ${wide ? "" : "mx-auto max-w-3xl"} ${
             fill ? "flex h-full min-h-0 flex-col" : ""
           }`}
         >

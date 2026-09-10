@@ -18,13 +18,13 @@ export default function Page() {
   const { me, status } = useWorkspaceMe();
 
   if (status === "idle" || status === "loading") {
-    return <h1 className="text-2xl font-bold tracking-tight text-slate-900">권한 관리</h1>;
+    return <h1 className="text-xl font-bold tracking-tight text-slate-900">권한 관리</h1>;
   }
   if (status === "error") {
     // 자격을 못 받은 것과 자격이 없는 것은 다르다 — 로그인이 끊겼거나 회사를 고르지 않은 경우가 대부분이다
     return (
       <>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">권한 관리</h1>
+        <h1 className="text-xl font-bold tracking-tight text-slate-900">권한 관리</h1>
         <p className="mt-6 text-sm text-slate-500">
           내 자격을 확인하지 못했어요. 로그인이 끊겼거나 회사를 아직 고르지 않았을 수 있어요. 새로고침해 주세요.
         </p>
@@ -35,7 +35,7 @@ export default function Page() {
 
   return (
     <>
-      <h1 className="text-2xl font-bold tracking-tight text-slate-900">권한 관리</h1>
+      <h1 className="text-xl font-bold tracking-tight text-slate-900">권한 관리</h1>
       <RoleEditor />
     </>
   );
