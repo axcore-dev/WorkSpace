@@ -185,7 +185,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {!collapsed && (
             <Link href="/dashboard" className="flex min-w-0 items-center gap-2" aria-label="WorkSpace 홈">
               <Logo height={18} />
-              <span className="truncate text-[11px] font-semibold uppercase tracking-wider text-slate-300">
+              <span className="truncate text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                 WorkSpace
               </span>
             </Link>

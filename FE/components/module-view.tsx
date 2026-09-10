@@ -475,7 +475,7 @@ export function ModuleView({ mod, page }: { mod: ModuleDef; page: ModulePageData
     <div className="px-6 py-6 lg:px-8">
       {/* 헤더 — 실용성 위주: 아이콘 없이 타이틀만 */}
       <div className="mb-6 flex flex-wrap items-baseline gap-2.5">
-        <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-slate-900">
+        <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight text-slate-900">
           {mod.name}
           {mod.subfunctions.some((s) => s.ai) && <AiBadge />}
         </h1>
