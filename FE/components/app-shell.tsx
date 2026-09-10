@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   ICON_MAP,
   IconActivity,
@@ -22,9 +22,25 @@ import { useModules } from "@/components/module-provider";
 import { useLogout } from "@/components/use-logout";
 import { useSidebarCollapsed } from "@/components/use-sidebar-collapsed";
 import { useAccountMe } from "@/lib/account-me";
+import { ApiRequestError, apiGet, apiPostAuthed } from "@/lib/api";
+import { setAccessToken } from "@/lib/session";
 import { useWorkspaceMe } from "@/lib/workspace-me";
 import { MODULES } from "@/data/modules";
-import { DEFAULT_WORKSPACE_ID, EXTERNAL_SYSTEMS, WORKSPACES } from "@/data/org";
+import { EXTERNAL_SYSTEMS } from "@/data/org";
+
+/** `GET /api/auth/workspaces` 한 줄 — 회사 선택 화면(`app/(auth)/workspace`)과 같은 모양이다 */
+type Membership = {
+  id: number;
+  name: string;
+  plan: string;
+  /** 소속과 회사가 둘 다 살아 있을 때만 true */
+  enterable: boolean;
+};
+
+type SelectResult = {
+  accessToken?: string | null;
+  accessTokenExpiresAt?: string | null;
+};
 
 function NavLink({
   href,
@@ -61,10 +77,10 @@ function NavLink({
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { state } = useModules();
 
   const [orgOpen, setOrgOpen] = useState(false);
-  const [orgId, setOrgId] = useState(DEFAULT_WORKSPACE_ID);
   const [profileOpen, setProfileOpen] = useState(false);
   const [collapsed, toggleCollapsed] = useSidebarCollapsed("axpoint-app-nav-collapsed");
 
@@ -89,12 +105,57 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const logout = useLogout();
 
-  const currentOrg = WORKSPACES.find((w) => w.id === orgId) ?? WORKSPACES[0];
-
-  // 이름·사진은 계정(`/api/auth/me`), 직급은 지금 회사(`/api/workspace/me`)가 준다. 받기 전에는
+  // 이름·사진은 계정(`/api/auth/me`), 직급·회사 이름은 지금 회사(`/api/workspace/me`)가 준다. 받기 전에는
   // 빈 줄(공백 문자)로 높이만 지킨다 — 빈 문자열이면 줄이 사라져 사이드바가 들썩인다.
   const { me: account } = useAccountMe();
   const { me: ws } = useWorkspaceMe();
+
+  /**
+   * 회사 선택기 — 내 소속 목록(`GET /api/auth/workspaces`)과 지금 회사.
+   *
+   * 지금 회사의 이름은 `/api/workspace/me` 가 주고, 요금제는 소속 목록의 같은 id 에서 읽는다. 서버 운영자는 소속 없이
+   * 들어오므로 목록이 비어 요금제 줄이 빈다 — 그대로 둔다. 전환은 회사 선택 화면과 같은 API 로 새 토큰을 받고
+   * 대시보드로 간다. 토큰이 바뀌면 각 스토어가 SESSION_CHANGED 로 스스로 다시 받는다.
+   */
+  const [memberships, setMemberships] = useState<Membership[]>([]);
+  const [switching, setSwitching] = useState<number | null>(null);
+  const [switchError, setSwitchError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    apiGet<Membership[]>("/api/auth/workspaces")
+      .then((rows) => {
+        if (alive) setMemberships(rows ?? []);
+      })
+      .catch(() => {
+        // 목록을 못 받아도 지금 회사 이름은 /api/workspace/me 가 따로 준다. 전환 목록만 비어 있게 둔다
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const currentName = ws?.workspaceName ?? " ";
+  const currentPlan = memberships.find((m) => m.id === ws?.workspaceId)?.plan ?? " ";
+
+  async function switchTo(m: Membership) {
+    if (m.id === ws?.workspaceId) {
+      setOrgOpen(false);
+      return;
+    }
+    setSwitchError(null);
+    setSwitching(m.id);
+    try {
+      const result = await apiPostAuthed<SelectResult>(`/api/auth/workspaces/${m.id}/select`);
+      setAccessToken(result?.accessToken ?? null, result?.accessTokenExpiresAt ?? null);
+      setOrgOpen(false);
+      router.push("/dashboard");
+    } catch (e: unknown) {
+      setSwitchError(e instanceof ApiRequestError ? e.body.message : "회사를 바꾸지 못했어요");
+    } finally {
+      setSwitching(null);
+    }
+  }
   const displayName = account?.name ?? " ";
   const roleName = ws?.member.roleName ?? " ";
 
@@ -135,7 +196,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             type="button"
             aria-expanded={orgOpen && !collapsed}
             aria-haspopup="listbox"
-            title={collapsed ? currentOrg.name : undefined}
+            title={collapsed ? currentName : undefined}
             onClick={() => !collapsed && setOrgOpen((v) => !v)}
             className={`flex w-full cursor-pointer items-center gap-2.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left transition-colors hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400 ${
               collapsed ? "justify-center" : ""
@@ -147,8 +208,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             {!collapsed && (
               <>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold text-slate-900">{currentOrg.name}</span>
-                  <span className="block truncate text-[11px] text-slate-400">{currentOrg.plan}</span>
+                  <span className="block truncate text-sm font-semibold text-slate-900">{currentName}</span>
+                  <span className="block truncate text-[11px] text-slate-400">{currentPlan}</span>
                 </span>
                 <IconChevronDown size={15} className="shrink-0 text-slate-400" />
               </>
@@ -163,28 +224,37 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <p className="border-b border-slate-100 px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                 워크스페이스 전환
               </p>
-              {WORKSPACES.map((ws) => {
-                const active = ws.id === orgId;
+              {memberships.length === 0 && (
+                <p className="px-3 py-3 text-[13px] text-slate-400">전환할 수 있는 다른 회사가 없어요.</p>
+              )}
+              {memberships.map((m) => {
+                const active = m.id === ws?.workspaceId;
+                const busy = switching === m.id;
                 return (
                   <button
-                    key={ws.id}
+                    key={m.id}
                     type="button"
                     role="option"
                     aria-selected={active}
-                    onClick={() => {
-                      setOrgId(ws.id);
-                      setOrgOpen(false);
-                    }}
-                    className="flex w-full cursor-pointer items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-slate-50"
+                    disabled={!m.enterable || switching !== null}
+                    onClick={() => void switchTo(m)}
+                    className="flex w-full cursor-pointer items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium text-slate-800">{ws.name}</span>
-                      <span className="block truncate text-[11px] text-slate-400">{ws.role}</span>
+                      <span className="block truncate text-sm font-medium text-slate-800">{m.name}</span>
+                      <span className="block truncate text-[11px] text-slate-400">
+                        {busy ? "들어가는 중…" : m.enterable ? m.plan : "지금은 들어갈 수 없어요"}
+                      </span>
                     </span>
                     {active && <IconCheck size={15} className="shrink-0 text-slate-700" />}
                   </button>
                 );
               })}
+              {switchError && (
+                <p className="border-t border-slate-100 px-3 py-2 text-xs text-red-600" role="alert">
+                  {switchError}
+                </p>
+              )}
             </div>
           )}
         </div>
