@@ -290,7 +290,7 @@ export function DataTable({
  */
 export function WizardSteps({ steps, current }: { steps: string[]; current: number }) {
   return (
-    <ol className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-5 py-3.5">
+    <ol className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-5 py-3">
       {steps.map((label, i) => {
         const n = i + 1;
         const done = current > n;
