@@ -82,11 +82,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     toggleCollapsed();
   }
 
-  // 라우트가 바뀌면 드로어를 닫는다 — 항목을 누르면 그 화면이 보여야지 내비가 덮고 있으면 안 된다
-  useEffect(() => {
-    setNavOpen(false);
-  }, [pathname]);
-
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") setNavOpen(false);
@@ -216,7 +211,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           )}
         </div>
 
-        <nav className="thin-scroll flex-1 space-y-6 overflow-y-auto px-3 py-2" aria-label="주 메뉴">
+        <nav
+          // 항목을 누르면 드로어를 닫는다 — 누른 화면이 보여야지 내비가 덮고 있으면 안 된다 (lg 이상은 무해)
+          onClick={() => setNavOpen(false)}
+          className="thin-scroll flex-1 space-y-6 overflow-y-auto px-3 py-2" aria-label="주 메뉴">
           <div className="space-y-1">
             <NavLink
               href="/dashboard"

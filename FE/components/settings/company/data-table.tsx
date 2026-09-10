@@ -1,5 +1,7 @@
 "use client";
 
+import { EmptyState } from "@/components/ui";
+
 /**
  * 회사 화면의 표 — 초대 관리 세 탭이 같은 모양을 쓴다.
  *
@@ -14,7 +16,7 @@ export function DataTable<T>({
   columns,
   rows,
   rowKey,
-  empty = "데이터가 없습니다",
+  empty = "아직 아무것도 없어요",
   minWidth = 620,
 }: {
   columns: {
@@ -38,7 +40,7 @@ export function DataTable<T>({
   minWidth?: number;
 }) {
   if (rows.length === 0) {
-    return <p className="py-12 text-center text-[13.5px] text-slate-400">{empty}</p>;
+    return <EmptyState title={empty} />;
   }
 
   // 너비를 정한 열이 있으면 `table-fixed`로 고정한다 — 안 그러면 브라우저가 내용에 맞춰
