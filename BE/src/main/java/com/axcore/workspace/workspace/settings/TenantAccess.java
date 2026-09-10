@@ -68,27 +68,7 @@ public class TenantAccess {
         // 여기부터 이 트랜잭션은 그 회사를 본다. shared 조회는 위에서 끝났다.
         searchPath.bind(workspace.getSchemaName());
 
-        if (user.isInternalAdmin()) {
-            // 서버 운영자는 구성원이 아니다. 지원·장애 대응을 위해 관리자와 같은 것을 볼 수 있지만,
-            // 소유자는 아니다 — 회사의 직급 체계를 바깥 사람이 바꾸면 안 된다.
-            return new TenantContext(
-                    user.getId(),
-                    workspace.getId(),
-                    workspace.getName(),
-                    workspace.getSchemaName(),
-                    null,
-                    null,
-                    "internal_admin",
-                    "서버 운영자",
-                    true,
-                    false,
-                    true,
-                    null,
-                    null,
-                    null,
-                    true);
-        }
-
+        boolean internalAdmin = user.isInternalAdmin();
         List<TenantContext> rows =
                 jdbc.query(
                         """
@@ -116,16 +96,38 @@ public class TenantAccess {
                                     rs.getObject(6, Long.class),
                                     rs.getString(7),
                                     rs.getString(8),
-                                    false);
+                                    internalAdmin);
                         },
                         user.getId());
 
-        if (rows.isEmpty()) {
-            // shared 의 라우팅 인덱스에는 있는데 회사 스키마에 구성원 행이 없다. 초대 수락이 반쪽만 끝난
-            // 상태다. 로그인은 되지만 회사 안에서는 아무것도 아닌 사람이라 설정에도 닿을 수 없다.
-            throw new WorkspaceAccessDeniedException("이 회사의 구성원 정보가 없습니다. 관리자에게 문의해 주세요");
+        if (!rows.isEmpty()) {
+            // 서버 운영자도 초대를 받아 정식 구성원(소유자 포함)이 될 수 있다. 그때는 그 회사가 준 직급이
+            // 우선이다 — 운영자라는 이유로 소유자 자격을 빼앗으면 자기 회사의 직급 체계를 못 만진다.
+            return rows.get(0);
         }
-        return rows.get(0);
+        if (internalAdmin) {
+            // 소속 없이 들어온 서버 운영자. 지원·장애 대응을 위해 관리자와 같은 것을 볼 수 있지만,
+            // 소유자는 아니다 — 회사의 직급 체계를 바깥 사람이 바꾸면 안 된다.
+            return new TenantContext(
+                    user.getId(),
+                    workspace.getId(),
+                    workspace.getName(),
+                    workspace.getSchemaName(),
+                    null,
+                    null,
+                    "internal_admin",
+                    "서버 운영자",
+                    true,
+                    false,
+                    true,
+                    null,
+                    null,
+                    null,
+                    true);
+        }
+        // shared 의 라우팅 인덱스에는 있는데 회사 스키마에 구성원 행이 없다. 초대 수락이 반쪽만 끝난
+        // 상태다. 로그인은 되지만 회사 안에서는 아무것도 아닌 사람이라 설정에도 닿을 수 없다.
+        throw new WorkspaceAccessDeniedException("이 회사의 구성원 정보가 없습니다. 관리자에게 문의해 주세요");
     }
 
     /**
