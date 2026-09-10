@@ -207,6 +207,20 @@ Google 은 `email_verified` 를 실제로 주므로 한 번 더 확인하는 셈
 | `user_workspace_memberships` | `fk_uwm_user` |
 | `user_identities` | `fk_user_identities_user` (V5 에서 이미 적용) |
 
+V6 뒤에 생긴 표는 두 갈래다. 그 사람의 것이라 함께 사라져야 하는 행은 CASCADE, 「누가 했는가」 만 적는
+감사·이력 행은 **SET NULL** 이다 — 계정이 사라져도 행은 남고 행위자만 비운다.
+
+| 테이블 | 제약 | 규칙 |
+| --- | --- | --- |
+| `admin_audit_logs.actor_id` | `fk_aal_actor` | SET NULL |
+| `workspace_invite_links.created_by` | `fk_wil_created_by` | SET NULL |
+| `workspace_invitations.invited_by` · `accepted_by` | `fk_wi_invited_by` · `fk_wi_accepted_by` | SET NULL (**V20** — V12 가 규칙을 빠뜨려 초대를 발급·수락한 계정을 지울 수 없었다) |
+| 테넌트 `members.user_id` · `connector_accounts` · `connected_services` · `ai_*` | 각 표의 FK | CASCADE |
+| 테넌트 `enabled_features.updated_by` | `fk_enabled_features_updated_by` | SET NULL |
+
+**`users` 를 참조하는 표를 새로 만들 때 이 둘 중 하나를 반드시 정한다.** 규칙 없이 두면(NO ACTION) 그 표에
+행이 하나라도 있는 계정은 지울 수 없고, 밀어내기가 500 으로 끝난다.
+
 애플리케이션에서 자식 행을 순서대로 지우지 않는다. `users` 를 참조하는 테이블이 늘어날 때마다
 지우는 코드를 함께 고쳐야 하고, 한 곳을 빠뜨리면 삭제가 실패한다.
 
@@ -218,7 +232,7 @@ Google 은 `email_verified` 를 실제로 주므로 한 번 더 확인하는 셈
 
 ```sql
 SELECT c.conname,
-       CASE c.confdeltype WHEN 'c' THEN 'CASCADE' ELSE 'NO ACTION' END AS on_delete
+       CASE c.confdeltype WHEN 'c' THEN 'CASCADE' WHEN 'n' THEN 'SET NULL' ELSE 'NO ACTION' END AS on_delete
 FROM pg_constraint c
 JOIN pg_class t     ON t.oid = c.confrelid
 JOIN pg_namespace n ON n.oid = t.relnamespace
@@ -226,4 +240,4 @@ WHERE c.contype = 'f' AND n.nspname = 'shared' AND t.relname = 'users'
 ORDER BY 1;
 ```
 
-여섯 개가 모두 `CASCADE` 여야 한다.
+V6 의 여섯 개는 `CASCADE`, 그 뒤의 감사·이력 표는 `SET NULL` 이어야 한다. `NO ACTION` 이 하나라도 나오면 그 표가 계정 삭제를 막는다.
