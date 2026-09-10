@@ -6,8 +6,9 @@
  * **BE에 실제로 있는 것과 없는 것**
  * - 있음: `POST /api/auth/password`(현재 비밀번호를 묻는다) · `mfa/methods` · `mfa/email` ·
  *   `mfa/email/confirm` · `DELETE mfa/email`(비밀번호를 다시 묻는다) · `email/verify-request` ·
- *   `GET /api/auth/identities` · `DELETE /api/auth/identities/{provider}`(마지막 로그인 수단이면 409)
- * - 없음: 보조 이메일 추가·삭제·대표 변경 · SMS OTP · 인증 앱 TOTP · 패스키 · 로그인 상태에서의 소셜 신규 연동
+ *   `GET /api/auth/identities` · `DELETE /api/auth/identities/{provider}`(마지막 로그인 수단이면 409) ·
+ *   `POST /api/auth/identities/{provider}`(연동 추가 — 다른 사용자에게 붙은 계정이면 409)
+ * - 없음: 보조 이메일 추가·삭제·대표 변경 · SMS OTP · 인증 앱 TOTP · 패스키
  *
  * 없는 것은 **화면에서 뺐거나 버튼을 비활성**으로 둔다. 눌러도 아무 일이 없거나 화면에서만
  * 바뀌는 자리를 남기지 않는다 — 저장된 줄 알았는데 새로고침하면 되돌아가는 게 가장 나쁘다.
@@ -35,7 +36,7 @@ import {
 } from "@/components/icons";
 import { Badge, Button, FIELD, FIELD_ERROR } from "@/components/ui";
 import { endSession } from "@/components/use-logout";
-import { PROVIDER_LABELS } from "@/lib/auth";
+import { PROVIDER_LABELS, SocialLoginNotConfiguredError, startSocialLogin } from "@/lib/auth";
 import {
   changePassword,
   confirmEmailMfa,
@@ -772,7 +773,9 @@ export function TfaModal({
  * 해제는 **두 번 눌러야** 된다 — 첫 클릭에 그 줄이 「해제할까요?」로 바뀌고, 다시 「해제」를 눌러야 요청이 간다.
  * 되돌리려면 그 제공자로 다시 로그인해 연결해야 해서, 한 번에 지우지 않는다.
  *
- * **로그인 상태에서 새로 연동하는 API 는 아직 없다.** 「연동하기」는 비활성으로 둔다.
+ * **연동 추가는 제공자 동의 화면을 거친다.** 「연동하기」는 `startSocialLogin(provider, "link")` 로 나가고,
+ * 콜백 화면(`/oauth/callback/<provider>`)이 `POST /api/auth/identities/{provider}` 로 현재 계정에 붙인 뒤 결과를 보인다.
+ * 그 제공자 계정이 다른 사용자에게 이미 붙어 있으면 서버가 409 로 막고 그 문구를 콜백 화면이 보인다.
  * 브랜드 로고도 쓰지 않는다 — `BrandIcon`은 `public/brands/<slug>`를 그리는데 `google`·`naver` 마크가 없다.
  */
 export function SocialModal({
@@ -794,6 +797,8 @@ export function SocialModal({
   const [confirming, setConfirming] = useState<SocialIdentityDto["provider"] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  /** 연동 시작이 실패한 경우(클라이언트 ID 미설정 등). 해제 오류와 자리가 달라 따로 둔다 */
+  const [linkError, setLinkError] = useState("");
 
   // 이 연동을 풀면 로그인 수단이 하나도 남지 않는가
   const lastMethod = !hasPassword && identities.length <= 1;
@@ -801,7 +806,23 @@ export function SocialModal({
   function close() {
     setConfirming(null);
     setError("");
+    setLinkError("");
     onClose();
+  }
+
+  /**
+   * 연동 추가 — 제공자 동의 화면으로 나간다. 돌아오는 곳은 `/oauth/callback/<provider>` 이고, 그 화면이
+   * `POST /api/auth/identities/{provider}` 로 현재 계정에 붙인 뒤 결과를 보인다. 이 모달은 여기서 끝난다.
+   * 그 제공자 계정이 다른 사용자에게 이미 붙어 있으면 서버가 막고 콜백 화면이 그 문구를 보인다.
+   */
+  function link(provider: SocialIdentityDto["provider"]) {
+    setError("");
+    setConfirming(null);
+    try {
+      startSocialLogin(provider, "link");
+    } catch (e: unknown) {
+      setLinkError(e instanceof SocialLoginNotConfiguredError ? `${PROVIDER_LABELS[provider]} 로그인이 아직 설정되지 않았어요` : message(e, "연동을 시작하지 못했어요"));
+    }
   }
 
   async function unlink(provider: SocialIdentityDto["provider"]) {
@@ -838,7 +859,7 @@ export function SocialModal({
                 </div>
                 {linked && <Badge tone="green">연동됨</Badge>}
                 {!linked ? (
-                  <Button variant="ghost" size="sm" disabled title="로그인 상태에서 새로 연결하는 기능은 준비 중이에요">
+                  <Button variant="ghost" size="sm" disabled={busy} onClick={() => link(provider)}>
                     연동하기
                   </Button>
                 ) : asking ? (
@@ -880,6 +901,11 @@ export function SocialModal({
           );
         })}
       </ul>
+      {linkError && (
+        <p className="px-5 pb-5 text-xs text-red-600" role="alert">
+          {linkError}
+        </p>
+      )}
     </Modal>
   );
 }
