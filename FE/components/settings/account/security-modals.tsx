@@ -6,8 +6,8 @@
  * **BE에 실제로 있는 것과 없는 것**
  * - 있음: `POST /api/auth/password`(현재 비밀번호를 묻는다) · `mfa/methods` · `mfa/email` ·
  *   `mfa/email/confirm` · `DELETE mfa/email`(비밀번호를 다시 묻는다) · `email/verify-request` ·
- *   `GET /api/auth/identities`
- * - 없음: 보조 이메일 추가·삭제·대표 변경 · SMS OTP · 인증 앱 TOTP · 패스키 · 소셜 연동 해제
+ *   `GET /api/auth/identities` · `DELETE /api/auth/identities/{provider}`(마지막 로그인 수단이면 409)
+ * - 없음: 보조 이메일 추가·삭제·대표 변경 · SMS OTP · 인증 앱 TOTP · 패스키 · 로그인 상태에서의 소셜 신규 연동
  *
  * 없는 것은 **화면에서 뺐거나 버튼을 비활성**으로 둔다. 눌러도 아무 일이 없거나 화면에서만
  * 바뀌는 자리를 남기지 않는다 — 저장된 줄 알았는데 새로고침하면 되돌아가는 게 가장 나쁘다.
@@ -43,6 +43,7 @@ import {
   requestPasswordSetup,
   resendVerificationEmail,
   startEmailMfa,
+  unlinkSocialIdentity,
   type SocialIdentityDto,
 } from "@/lib/account-api";
 
@@ -760,46 +761,121 @@ export function TfaModal({
 }
 
 /**
- * 계정 › 로그인 방법 관리 — 소셜 연동 상태 (`GET /api/auth/identities`).
+ * 계정 › 로그인 방법 관리 — 소셜 연동 상태 (`GET /api/auth/identities`) 와 해제 (`DELETE /api/auth/identities/{provider}`).
  *
  * **제공자는 `lib/auth.ts`의 `SocialProvider`가 단일 소스다** — Google·네이버 둘뿐이다.
  *
- * **연동·해제 API가 BE에 없다.** 상태만 보이고 버튼은 비활성으로 둔다. 해제를 열려면
- * 마지막 로그인 수단(비밀번호도 없고 남은 연동도 없는 상태)을 지우는 것을 먼저 막아야 한다.
- * 브랜드 로고도 쓰지 않는다 — `BrandIcon`은 `public/brands/<slug>`를 그리는데
- * `google`·`naver` 마크가 없다.
+ * **마지막 로그인 수단은 해제할 수 없다.** 비밀번호가 없고 남은 연동이 이것 하나면 「해제」를 잠그고 이유를
+ * 적는다 — 풀면 다시 로그인할 길이 없다. 같은 판정을 서버가 다시 하고 어긋나면 409 를 돌려준다. 화면은 안내일 뿐
+ * 진짜 문은 서버다.
+ *
+ * 해제는 **두 번 눌러야** 된다 — 첫 클릭에 그 줄이 「해제할까요?」로 바뀌고, 다시 「해제」를 눌러야 요청이 간다.
+ * 되돌리려면 그 제공자로 다시 로그인해 연결해야 해서, 한 번에 지우지 않는다.
+ *
+ * **로그인 상태에서 새로 연동하는 API 는 아직 없다.** 「연동하기」는 비활성으로 둔다.
+ * 브랜드 로고도 쓰지 않는다 — `BrandIcon`은 `public/brands/<slug>`를 그리는데 `google`·`naver` 마크가 없다.
  */
 export function SocialModal({
   open,
   identities,
+  hasPassword,
   onClose,
+  onUnlinked,
 }: {
   open: boolean;
   identities: SocialIdentityDto[];
+  /** 비밀번호가 있으면 소셜을 전부 끊어도 로그인할 수 있다 */
+  hasPassword: boolean;
   onClose: () => void;
+  /** 해제가 끝났다. 부른 쪽이 목록을 다시 받는다 */
+  onUnlinked: (message: string) => void;
 }) {
   const providers: SocialIdentityDto["provider"][] = ["google", "naver"];
+  const [confirming, setConfirming] = useState<SocialIdentityDto["provider"] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  // 이 연동을 풀면 로그인 수단이 하나도 남지 않는가
+  const lastMethod = !hasPassword && identities.length <= 1;
+
+  function close() {
+    setConfirming(null);
+    setError("");
+    onClose();
+  }
+
+  async function unlink(provider: SocialIdentityDto["provider"]) {
+    setBusy(true);
+    setError("");
+    try {
+      await unlinkSocialIdentity(provider);
+      setConfirming(null);
+      onUnlinked(`${PROVIDER_LABELS[provider]} 연동을 해제했어요`);
+    } catch (e: unknown) {
+      setError(message(e, "연동을 해제하지 못했어요"));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
-    <Modal open={open} onClose={onClose} size="md" title="로그인 방법 관리">
+    <Modal open={open} onClose={close} size="md" title="로그인 방법 관리">
       <ul className="divide-y divide-slate-100 p-5">
         {providers.map((provider) => {
           const linked = identities.find((i) => i.provider === provider);
+          const asking = confirming === provider;
           return (
-            <li key={provider} className="flex items-center gap-3 py-3.5 first:pt-0 last:pb-0">
-              <IconLock size={16} className="shrink-0 text-slate-400" />
-              <div className="min-w-0 flex-1">
-                <p className="text-[13.5px] font-semibold text-slate-900">
-                  {PROVIDER_LABELS[provider]}
-                </p>
-                {linked?.email && (
-                  <p className="mt-0.5 truncate text-xs text-slate-400">{linked.email}</p>
+            <li key={provider} className="py-3.5 first:pt-0 last:pb-0">
+              <div className="flex items-center gap-3">
+                <IconLock size={16} className="shrink-0 text-slate-400" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13.5px] font-semibold text-slate-900">
+                    {PROVIDER_LABELS[provider]}
+                  </p>
+                  {linked?.email && (
+                    <p className="mt-0.5 truncate text-xs text-slate-400">{linked.email}</p>
+                  )}
+                </div>
+                {linked && <Badge tone="green">연동됨</Badge>}
+                {!linked ? (
+                  <Button variant="ghost" size="sm" disabled title="로그인 상태에서 새로 연결하는 기능은 준비 중이에요">
+                    연동하기
+                  </Button>
+                ) : asking ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="text-xs text-slate-500">해제할까요?</span>
+                    <Button variant="danger" size="sm" disabled={busy} onClick={() => void unlink(provider)}>
+                      {busy ? "해제 중…" : "해제"}
+                    </Button>
+                    <Button variant="ghost" size="sm" disabled={busy} onClick={() => setConfirming(null)}>
+                      취소
+                    </Button>
+                  </span>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={lastMethod}
+                    title={lastMethod ? "마지막 로그인 수단이라 해제할 수 없어요" : undefined}
+                    onClick={() => {
+                      setError("");
+                      setConfirming(provider);
+                    }}
+                  >
+                    해제
+                  </Button>
                 )}
               </div>
-              {linked && <Badge tone="green">연동됨</Badge>}
-              <Button variant="ghost" size="sm" disabled>
-                {linked ? "해제" : "연동하기"}
-              </Button>
+              {linked && lastMethod && (
+                <p className="mt-2 pl-7 text-xs text-amber-700">
+                  이 계정의 유일한 로그인 방법이에요. 해제하려면 비밀번호를 먼저 설정해 주세요.
+                </p>
+              )}
+              {asking && error && (
+                <p className="mt-2 pl-7 text-xs text-red-600" role="alert">
+                  {error}
+                </p>
+              )}
             </li>
           );
         })}

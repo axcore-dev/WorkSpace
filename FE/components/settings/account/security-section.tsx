@@ -286,7 +286,12 @@ export function SecuritySection({
       <SocialModal
         open={open === "social"}
         identities={identities}
+        hasPassword={hasPassword}
         onClose={() => setOpen(null)}
+        onUnlinked={(msg) => {
+          onSaved(msg);
+          void reloadSocial();
+        }}
       />
     </SettingsSection>
   );
