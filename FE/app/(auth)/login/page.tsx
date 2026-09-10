@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { AuthPrimaryButton, AuthSplit, SocialAuthButtons } from "@/components/auth-shell";
 import { MfaCodeStep, type MfaLoginResult } from "@/components/auth/mfa-code-step";
 import { FIELD_LG, isPersonalEmail } from "@/components/ui";
-import { DEMO_USER, INTERNAL_ADMIN_EMAILS, WORKSPACES } from "@/data/org";
+import { DEMO_USER, INTERNAL_ADMIN_EMAILS } from "@/data/org";
 import {
   PROVIDER_LABELS,
   SocialLoginNotConfiguredError,
@@ -71,7 +71,7 @@ export default function LoginPage() {
       router.push("/admin");
       return;
     }
-    router.push(WORKSPACES.length > 0 ? "/dashboard" : "/workspace");
+    router.push("/dashboard");
   }
 
   /** 실제 로그인. 비밀번호가 맞으면 바로 들어가거나(`afterLogin`) 2단계 화면으로 넘어간다. */

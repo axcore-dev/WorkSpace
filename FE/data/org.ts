@@ -55,15 +55,6 @@ export const INTERNAL_ADMIN_EMAILS = [DEMO_ADMIN.email];
 /** 개설 대기 화면에서 안내하는 문의처 (데모 값) */
 export const SUPPORT_EMAIL = "support@axcore.ai.kr";
 
-/** 사이드바 조직(워크스페이스) 선택기 — 기본값은 데모컴퍼니 */
-export const WORKSPACES: { id: string; name: string; role: string; plan: string }[] = [
-  { id: "democompany", name: "(주)데모컴퍼니", role: "관리자", plan: "AX 엔터프라이즈" },
-  { id: "demo-jeonggong", name: "데모정공 (주)", role: "구성원", plan: "AX 스탠다드" },
-  { id: "demo-tech", name: "데모테크놀로지", role: "구성원", plan: "AX 스탠다드" },
-];
-
-export const DEFAULT_WORKSPACE_ID = "democompany";
-
 /** 관리 > 사용자 및 직급 (RBAC) */
 export const USERS_ROLES: {
   name: string;
