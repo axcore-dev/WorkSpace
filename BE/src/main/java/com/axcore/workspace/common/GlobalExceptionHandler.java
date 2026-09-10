@@ -15,7 +15,9 @@ import com.axcore.workspace.user.service.PasswordNotSetException;
 import com.axcore.workspace.user.service.ProfilePhotoService;
 import com.axcore.workspace.user.service.SamePasswordException;
 import com.axcore.workspace.user.introspection.IntrospectionRejectedException;
+import com.axcore.workspace.user.service.LastLoginMethodException;
 import com.axcore.workspace.user.service.SessionNotFoundException;
+import com.axcore.workspace.user.service.SocialIdentityNotFoundException;
 import com.axcore.workspace.workspace.admin.exception.DuplicateBizNumberException;
 import com.axcore.workspace.workspace.admin.exception.InternalAdminRequiredException;
 import com.axcore.workspace.workspace.admin.exception.InvitationNotFoundException;
@@ -99,6 +101,7 @@ public class GlobalExceptionHandler {
         EmailAlreadyVerifiedException.class,
         SamePasswordException.class,
         PasswordNotSetException.class,
+        LastLoginMethodException.class,
         SocialLinkBlockedException.class
     })
     public ResponseEntity<ErrorResponse> handleAccountStateConflict(RuntimeException e) {
@@ -329,6 +332,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleSessionNotFound(SessionNotFoundException e) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ErrorResponse.of("SESSION_NOT_FOUND", e.getMessage()));
+    }
+
+    /** 내 계정에 그 제공자 연동이 없다(모르는 제공자 이름 포함). 404 다. */
+    @ExceptionHandler(SocialIdentityNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleSocialIdentityNotFound(SocialIdentityNotFoundException e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ErrorResponse.of("SOCIAL_IDENTITY_NOT_FOUND", e.getMessage()));
     }
 
     /**
