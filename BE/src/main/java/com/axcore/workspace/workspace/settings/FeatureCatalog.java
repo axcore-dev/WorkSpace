@@ -23,7 +23,9 @@ public final class FeatureCatalog {
 
     private static final List<Module> MODULES =
             List.of(
-                    new Module("management", "경영지원", List.of("hr", "payroll", "materials", "accounting")),
+                    // materials 탭은 화면(FE/data/modules.ts · pages/management.ts)에 없어 뺐다(2026-09-10). 남아 있으면
+                    // 화면이 세 탭을 다 꺼도 이 탭이 기본 ON 으로 살아 모듈이 켜진 것으로 계산됐다.
+                    new Module("management", "경영지원", List.of("hr", "payroll", "accounting")),
                     new Module("design", "제품설계", List.of("drawings", "specs", "bom")),
                     new Module("production", "생산관리", List.of("monitoring", "workorders", "bottleneck", "reporting")),
                     new Module("equipment", "장비관리", List.of("predict", "maintenance")),

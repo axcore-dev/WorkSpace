@@ -8,6 +8,7 @@ import {
 } from "@/lib/module-state";
 import { SESSION_CHANGED } from "@/lib/session";
 import { getFeatures, putModuleFeatures } from "@/lib/workspace-api";
+import { MODULE_BY_SLUG } from "@/data/modules";
 
 /**
  * 모듈 ON/OFF 상태의 외부 스토어 — **서버가 원본**이다 (`/api/workspace/features`).
@@ -87,7 +88,11 @@ async function apply(slug: string, tabs: Record<string, boolean>): Promise<void>
   });
   try {
     const saved = await putModuleFeatures(slug, tabs);
-    const merged = { ...cache[slug].subs, ...saved.tabs };
+    // 화면이 아는 탭만 받아들인다 — 첫 로드(moduleStateFromServer)와 같은 규칙. 서버 카탈로그에만 있는 탭이
+    // 섞여 오면 화면에 보이지 않는 탭 하나가 켜져 있어 모듈이 「켜짐」으로 남는다(경영지원 materials 가 그랬다).
+    const known = new Set((MODULE_BY_SLUG[slug]?.subfunctions ?? []).map((s) => s.id));
+    const accepted = Object.fromEntries(Object.entries(saved.tabs).filter(([id]) => known.has(id)));
+    const merged = { ...cache[slug].subs, ...accepted };
     commit({
       ...cache,
       [slug]: { enabled: Object.values(merged).some(Boolean), subs: merged },
