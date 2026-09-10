@@ -25,7 +25,7 @@ export function SettingsSection({
   className?: string;
 }) {
   return (
-    <section className={`mt-5 ${className}`}>
+    <section className={`mt-[30px] first:mt-6 ${className}`}>
       <div className="flex items-baseline justify-between gap-3 border-b border-slate-200 pb-2.5">
         <h2 className="text-[15px] font-semibold text-slate-900">{title}</h2>
         {aside}
@@ -43,9 +43,7 @@ export function SettingsRows({
   /** 값만 나열하는 행 — 패딩을 한 단계 줄인다 */
   tight?: boolean;
 }) {
-  // 행은 「이름 — 값 — 버튼」이라 넓히면 이름과 버튼이 화면 양 끝으로 벌어져 눈이 가로로 멀리 이동한다.
-  // 페이지 폭은 다섯 화면이 같은 값을 쓰고(`settings-shell`), 폭 제한은 그게 필요한 행이 진다.
-  return <ul className={`max-w-3xl ${tight ? "[&>li]:py-2.5" : "[&>li]:py-3.5"}`}>{children}</ul>;
+  return <ul className={tight ? "[&>li]:py-2.5" : "[&>li]:py-3.5"}>{children}</ul>;
 }
 
 export function SettingsRow({ children }: { children: React.ReactNode }) {

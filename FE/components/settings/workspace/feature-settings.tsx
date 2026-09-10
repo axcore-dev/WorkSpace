@@ -57,11 +57,9 @@ export function FeatureSettings() {
           </span>
         }
       >
-        {/* 기능 한 줄 = 한 행. 2열 격자였을 때는 한 행의 두 칸이 큰 쪽 높이로 늘어나서, 하위 탭이
-            2개인 기능 아래에 104px 빈칸이 생겼다 (하위 탭 수가 2~6개로 다르다). 행으로 세우고
-            하위 탭을 열로 묶으면 각 행이 제 내용만큼만 높다. 구분은 1px 실선이 진다
-            (DESIGN.md 「카드에 그림자 금지」). */}
-        <div className="mt-3 divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200">
+        {/* 2열 격자 — 한 줄에 하나씩 쌓으면 하위 탭이 가로로 흘러서 어디까지가 한 기능인지
+            눈으로 세어야 한다. 카드가 아니라 1px 구분선 격자다 (DESIGN.md 「카드에 그림자 금지」). */}
+        <div className="mt-3 grid gap-px overflow-hidden rounded-xl border border-slate-200 bg-slate-200 sm:grid-cols-2">
           {MODULES.map((mod) => {
             const Icon = ICON_MAP[mod.icon];
             const st = state[mod.slug];
@@ -71,7 +69,7 @@ export function FeatureSettings() {
             return (
               <div
                 key={mod.slug}
-                className={`bg-white p-4 ${st.enabled ? "" : "opacity-55"}`}
+                className={`bg-white p-3.5 ${st.enabled ? "" : "opacity-55"}`}
               >
                 <div className="flex items-center justify-between gap-3">
                   <span className="flex min-w-0 items-center gap-2.5">
@@ -101,7 +99,7 @@ export function FeatureSettings() {
 
                 {/* 하위 탭은 토글로 남긴다 — 칩으로 바꾸면 켜고 끄는 것인지 고르는 것인지
                     구분이 안 되고, 위 기능 토글과 같은 동작이 두 모양이 된다 */}
-                <div className="mt-3 grid gap-x-6 gap-y-1.5 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="mt-2.5 flex flex-col gap-1.5">
                   {mod.subfunctions.map((sub) => (
                     <span key={sub.id} className="inline-flex items-center gap-2">
                       <Toggle
