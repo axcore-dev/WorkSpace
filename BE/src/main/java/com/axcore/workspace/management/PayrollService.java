@@ -65,15 +65,17 @@ public class PayrollService {
     @Transactional
     public PayrollRunResponse create(JwtPrincipal principal, PayrollRunCreateRequest request) {
         TenantContext ctx = access.open(principal, TAB);
-        List<String> templateIds =
-                jdbc.queryForList(
+        // 본이 될 회차 — 최근 정기급여, 없으면 최근 회차. 항목은 아래에서 SQL 로 복사하니 여기선 id · 인원만 읽는다.
+        record Template(String id, int headcount) {}
+        List<Template> templates =
+                jdbc.query(
                         """
-                        select id from payroll_runs
+                        select id, headcount from payroll_runs
                          order by (name like '%정기급여%') desc, pay_date desc, created_at desc
                          limit 1
                         """,
-                        String.class);
-        PayrollRunResponse template = templateIds.isEmpty() ? null : rows(templateIds.get(0)).get(0);
+                        (rs, i) -> new Template(rs.getString(1), rs.getInt(2)));
+        Template template = templates.isEmpty() ? null : templates.get(0);
 
         String base = request.payDate().toString().substring(0, 7);
         String id = base;

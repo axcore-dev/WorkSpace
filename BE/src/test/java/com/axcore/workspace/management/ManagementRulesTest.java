@@ -12,10 +12,13 @@ class ManagementRulesTest {
 
     @Test
     void 전표_번호는_그_달_최대에_하나를_더한다() {
-        List<String> existing = List.of("V-2607-001", "V-2607-003", "V-2606-089", "V-2607-abc");
-        assertEquals("V-2607-004", AccountingService.nextNo(existing, LocalDate.of(2026, 7, 6)));
-        assertEquals("V-2608-001", AccountingService.nextNo(existing, LocalDate.of(2026, 8, 1)));
-        assertEquals("V-2601-001", AccountingService.nextNo(List.of(), LocalDate.of(2026, 1, 31)));
+        String july = AccountingService.noPrefix(LocalDate.of(2026, 7, 6));
+        assertEquals("V-2607-", july);
+        assertEquals("V-2607-004", AccountingService.nextNo(july, "V-2607-003"));
+        assertEquals("V-2607-010", AccountingService.nextNo(july, "V-2607-009"));
+        // 그 달 전표가 없으면 빈 문자열이 온다(coalesce)
+        assertEquals("V-2607-001", AccountingService.nextNo(july, ""));
+        assertEquals("V-2601-001", AccountingService.nextNo(AccountingService.noPrefix(LocalDate.of(2026, 1, 31)), ""));
     }
 
     @Test

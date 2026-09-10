@@ -32,6 +32,9 @@ public class AccountingService {
     static final String TAB = "accounting";
     static final String STATE_CONFLICT = "VOUCHER_STATE";
 
+    /** 전표 종류 — DB 코드 → 화면 표기. 저장되는 값은 표의 CHECK 제약이 지킨다. */
+    private static final Map<String, String> KIND_LABEL = Map.of("purchase", "매입", "sales", "매출", "payroll", "급여");
+
     private final ManagementAccess access;
     private final JdbcTemplate jdbc;
 
@@ -40,19 +43,14 @@ public class AccountingService {
         this.jdbc = jdbc;
     }
 
-    /** {@code V-YYMM-}로 시작하는 기존 번호들 중 최대 + 1. */
-    public static String nextNo(List<String> existing, LocalDate date) {
-        String prefix = String.format("V-%02d%02d-", date.getYear() % 100, date.getMonthValue());
-        int max = 0;
-        for (String no : existing) {
-            if (no.startsWith(prefix)) {
-                try {
-                    max = Math.max(max, Integer.parseInt(no.substring(prefix.length())));
-                } catch (NumberFormatException ignored) {
-                    // 규칙 밖 번호(수동 입력)는 건너뛴다
-                }
-            }
-        }
+    /** 그 달 전표 번호의 앞부분 — {@code V-YYMM-}. */
+    static String noPrefix(LocalDate date) {
+        return String.format("V-%02d%02d-", date.getYear() % 100, date.getMonthValue());
+    }
+
+    /** 같은 달 최댓값({@code maxNo}, 없으면 빈 문자열) 다음 번호. */
+    static String nextNo(String prefix, String maxNo) {
+        int max = maxNo.startsWith(prefix) ? Integer.parseInt(maxNo.substring(prefix.length())) : 0;
         return prefix + String.format("%03d", max + 1);
     }
 
@@ -98,14 +96,21 @@ public class AccountingService {
      * 분개: 급여(차) = 총액 · 예수금(대) = 공제 · 보통예금(대) = 실지급.
      */
     String createPayrollVoucher(TenantContext ctx, PayrollRunResponse run, LocalDate date) {
-        String no = nextNo(jdbc.queryForList("select no from vouchers", String.class), date);
+        String prefix = noPrefix(date);
+        String no =
+                nextNo(
+                        prefix,
+                        jdbc.queryForObject(
+                                "select coalesce(max(no), '') from vouchers where no like ? and no ~ '^V-[0-9]{4}-[0-9]{3}$'",
+                                String.class,
+                                prefix + "%"));
         String owner = jdbc.queryForObject("select name from shared.users where id = ?", String.class, ctx.userId());
         jdbc.update(
                 """
                 insert into vouchers (no, voucher_date, kind, counterparty, summary, amount, account, owner_name, status, run_id, created_by)
-                values (?, ?, ?, '임직원', ?, ?, '급여', ?, ?, ?, ?)
+                values (?, ?, 'payroll', '임직원', ?, ?, '급여', ?, ?, ?, ?)
                 """,
-                no, date, VoucherKind.PAYROLL.dbValue(), run.name() + " (" + run.headcount() + "명)", run.gross(), owner,
+                no, date, run.name() + " (" + run.headcount() + "명)", run.gross(), owner,
                 VoucherStatus.REVIEW.dbValue(), run.id(), ctx.userId());
         jdbc.update(
                 """
@@ -163,7 +168,7 @@ public class AccountingService {
                     return new VoucherResponse(
                             rs.getString(1),
                             rs.getObject(2, LocalDate.class),
-                            VoucherKind.fromDb(rs.getString(3)),
+                            KIND_LABEL.get(rs.getString(3)),
                             rs.getString(4),
                             rs.getString(5),
                             rs.getLong(6),
