@@ -13,10 +13,11 @@ import java.time.Instant;
  *
  * @param connectedAt 연결한 시각
  */
-public record SocialIdentityResponse(AuthProvider provider, String email, Instant connectedAt) {
+public record SocialIdentityResponse(String provider, String email, Instant connectedAt) {
 
+    /** {@code provider} 는 형제 DTO(MfaMethodResponse 등)와 같이 소문자 {@code dbValue()} 로 낸다. enum 을 그대로 실으면 Jackson 이 {@code name()}(대문자)을 써서 화면이 못 알아본다. */
     public static SocialIdentityResponse from(UserIdentity identity) {
         return new SocialIdentityResponse(
-                identity.getProvider(), identity.getEmail(), identity.getCreatedAt());
+                identity.getProvider().dbValue(), identity.getEmail(), identity.getCreatedAt());
     }
 }
