@@ -1,6 +1,7 @@
 package com.axcore.workspace.user.controller;
 
 import com.axcore.workspace.security.JwtPrincipal;
+import com.axcore.workspace.user.dto.OAuthLoginRequest;
 import com.axcore.workspace.user.dto.ProfileUpdateRequest;
 import com.axcore.workspace.user.dto.SocialIdentityResponse;
 import com.axcore.workspace.user.dto.UserResponse;
@@ -8,6 +9,7 @@ import com.axcore.workspace.user.entity.AuthProvider;
 import com.axcore.workspace.user.service.ProfilePhotoService;
 import com.axcore.workspace.user.service.ProfileService;
 import com.axcore.workspace.user.service.SocialIdentityNotFoundException;
+import com.axcore.workspace.user.service.SocialLoginService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -43,10 +45,12 @@ public class ProfileController {
 
     private final ProfileService profiles;
     private final ProfilePhotoService photos;
+    private final SocialLoginService socialLogin;
 
-    public ProfileController(ProfileService profiles, ProfilePhotoService photos) {
+    public ProfileController(ProfileService profiles, ProfilePhotoService photos, SocialLoginService socialLogin) {
         this.profiles = profiles;
         this.photos = photos;
+        this.socialLogin = socialLogin;
     }
 
     /** 이름 변경. 바뀐 계정 전체를 돌려준다 — 화면이 헤더까지 한 번에 맞춘다. */
@@ -60,6 +64,24 @@ public class ProfileController {
     @GetMapping("/identities")
     public List<SocialIdentityResponse> identities(@AuthenticationPrincipal Jwt jwt) {
         return profiles.socialIdentities(JwtPrincipal.of(jwt).userId());
+    }
+
+    /**
+     * 소셜 연동 추가 — 로그인한 상태에서. 화면이 제공자 동의 화면을 거쳐 받은 code 를 넘긴다.
+     * 로그인용 {@code POST /api/auth/oauth/{provider}} 와 본문은 같지만 여기서는 세션을 만들지 않고 <b>현재 계정</b>에 붙인다.
+     *
+     * <p>그 제공자 계정이 다른 사용자에게 이미 연결돼 있으면 409({@code ACCOUNT_STATE_CONFLICT}) 로 막고 그렇다고 알려 준다.
+     * 판정은 {@link com.axcore.workspace.user.service.SocialAccountLinker#linkToCurrent} 가 한다.
+     */
+    @PostMapping("/identities/{provider}")
+    @ResponseStatus(HttpStatus.CREATED)
+    public SocialIdentityResponse linkIdentity(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable String provider,
+            @Valid @RequestBody OAuthLoginRequest request) {
+        AuthProvider parsed = AuthProvider.from(provider).orElseThrow(SocialIdentityNotFoundException::new);
+        return SocialIdentityResponse.from(
+                socialLogin.link(JwtPrincipal.of(jwt).userId(), parsed, request.code(), request.state()));
     }
 
     /**

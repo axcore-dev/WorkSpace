@@ -18,6 +18,7 @@ import com.axcore.workspace.user.introspection.IntrospectionRejectedException;
 import com.axcore.workspace.user.service.LastLoginMethodException;
 import com.axcore.workspace.user.service.SessionNotFoundException;
 import com.axcore.workspace.user.service.SocialIdentityNotFoundException;
+import com.axcore.workspace.user.service.SocialLinkConflictException;
 import com.axcore.workspace.workspace.admin.exception.DuplicateBizNumberException;
 import com.axcore.workspace.workspace.admin.exception.InternalAdminRequiredException;
 import com.axcore.workspace.workspace.admin.exception.InvitationNotFoundException;
@@ -102,6 +103,7 @@ public class GlobalExceptionHandler {
         SamePasswordException.class,
         PasswordNotSetException.class,
         LastLoginMethodException.class,
+        SocialLinkConflictException.class,
         SocialLinkBlockedException.class
     })
     public ResponseEntity<ErrorResponse> handleAccountStateConflict(RuntimeException e) {

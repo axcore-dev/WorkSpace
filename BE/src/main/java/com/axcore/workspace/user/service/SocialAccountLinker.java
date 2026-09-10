@@ -4,6 +4,7 @@ import com.axcore.workspace.oauth.OAuthUserInfo;
 import com.axcore.workspace.oauth.exception.SocialEmailUnavailableException;
 import com.axcore.workspace.oauth.exception.SocialLinkBlockedException;
 import com.axcore.workspace.oauth.client.OAuthClient;
+import com.axcore.workspace.user.entity.AuthProvider;
 import com.axcore.workspace.user.entity.TokenPurpose;
 import com.axcore.workspace.user.entity.User;
 import com.axcore.workspace.user.entity.UserIdentity;
@@ -16,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * 제공자에서 받은 정보를 우리 계정과 잇는다. 소셜 로그인의 보안 판단이 모두 여기에 있다.
@@ -223,6 +225,60 @@ public class SocialAccountLinker {
                 user.getId(),
                 info.emailVerified());
         return user;
+    }
+
+    /**
+     * <b>로그인한 사용자가 계정 설정에서 직접 붙이는 연결.</b> {@link #resolve} 와 다른 갈래다.
+     *
+     * <p>본인 증명은 이미 끝났다 — 인증된 세션이 그 증거다. 그래서 {@link #resolve} 가 보는 두 값(주소를 쥔 계정이
+     * 확인됐는가 · 제공자가 이메일 소유를 확인해 줬는가)을 <b>보지 않는다</b>. 제공자 쪽 이메일이 내 계정 주소와
+     * 달라도 붙인다. 이메일은 연결 당시의 기록으로만 남는다.
+     *
+     * <p>막는 것은 둘이다.
+     * <ol>
+     *   <li>그 제공자 계정이 <b>이미 다른 사용자에게</b> 연결돼 있다 — 한 제공자 계정은 한 사용자에게만. 이 경우
+     *       그렇다고 알려 주고 막는다(결정 2026-09-10). 남의 연결을 가져오는 경로는 두지 않는다 — 그건 상대 계정에서
+     *       해제한 뒤 다시 붙이는 것이 맞다.
+     *   <li>내 계정에 같은 제공자가 <b>다른 식별자로</b> 이미 연결돼 있다 — 계정당 제공자 하나다.
+     * </ol>
+     * 같은 식별자가 이미 내 계정에 붙어 있으면 아무 일도 하지 않고 그 연결을 돌려준다 — 두 번 눌러도 같은 결과다.
+     */
+    @Transactional
+    public UserIdentity linkToCurrent(UUID userId, OAuthUserInfo info) {
+        User user =
+                userRepository.findById(userId).orElseThrow(() -> new IllegalStateException("로그인한 사용자를 찾을 수 없다"));
+        String label = providerLabel(info.provider());
+
+        Optional<UserIdentity> existing =
+                identityRepository.findByProviderAndSubject(info.provider(), info.providerUserId());
+        if (existing.isPresent()) {
+            UserIdentity found = existing.get();
+            if (found.getUser().getId().equals(userId)) {
+                return found;
+            }
+            log.warn(
+                    "사용자 {} 가 다른 사용자 {} 에게 연결된 {} 계정을 붙이려 했다",
+                    userId,
+                    found.getUser().getId(),
+                    info.provider().dbValue());
+            throw SocialLinkConflictException.takenByAnotherUser(label);
+        }
+        if (identityRepository.findByUserIdAndProvider(userId, info.provider()).isPresent()) {
+            throw SocialLinkConflictException.providerAlreadyLinked(label);
+        }
+
+        UserIdentity identity =
+                identityRepository.save(
+                        UserIdentity.link(user, info.provider(), info.providerUserId(), info.email()));
+        log.info("사용자 {} 가 계정 설정에서 {} 를 연결했다", userId, info.provider().dbValue());
+        return identity;
+    }
+
+    private static String providerLabel(AuthProvider provider) {
+        return switch (provider) {
+            case GOOGLE -> "Google";
+            case NAVER -> "네이버";
+        };
     }
 
     /** 로그에 주소 전체를 남기지 않는다. */

@@ -7,9 +7,11 @@ import com.axcore.workspace.oauth.OAuthUserInfo;
 import com.axcore.workspace.user.dto.LoginResponse;
 import com.axcore.workspace.user.entity.AuthProvider;
 import com.axcore.workspace.user.entity.User;
+import com.axcore.workspace.user.entity.UserIdentity;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.UUID;
 
 /**
  * 소셜 로그인. 이메일 로그인의 {@link AuthService#login} 과 같은 자리에 있다.
@@ -68,5 +70,17 @@ public class SocialLoginService {
             return AuthResult.pending(LoginResponse.mfaRequired(challengeToken));
         }
         return sessionIssuer.issueNewSession(user, rememberMe, userAgent, ip, now);
+    }
+
+    /**
+     * 로그인한 사용자가 계정 설정에서 소셜 계정을 붙인다. 세션을 새로 만들지 않는다 — 이미 로그인돼 있다.
+     *
+     * <p>제공자 왕복(네트워크)은 여기서, 연결 판단과 저장은 {@link SocialAccountLinker#linkToCurrent} 의 트랜잭션에서.
+     */
+    public UserIdentity link(UUID userId, AuthProvider provider, String code, String state) {
+        OAuthClient client =
+                clients.find(provider).orElseThrow(() -> new OAuthNotConfiguredException(provider));
+        OAuthUserInfo info = client.fetchUserInfo(code, state);
+        return linker.linkToCurrent(userId, info);
     }
 }
