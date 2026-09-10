@@ -43,6 +43,7 @@ next-env.d.ts
 # 작업 기록(docs/update)은 로컬 전용, 그 외 docs 문서는 추적한다
 docs/*
 !docs/be/
+!docs/fe/
 !docs/branch/
 !docs/commit/
 !docs/db/

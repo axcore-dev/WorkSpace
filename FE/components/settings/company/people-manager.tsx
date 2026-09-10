@@ -94,7 +94,7 @@ export function PeopleManager() {
       <div
         role="tablist"
         aria-label="초대 관리"
-        className="mt-4 flex flex-wrap gap-1 border-b border-slate-200"
+        className="thin-scroll mt-6 flex gap-1 overflow-x-auto border-b border-slate-200"
       >
         {TABS.map((t) => {
           const on = t.id === tab;

@@ -3,7 +3,7 @@ import { IntegrationSettings } from "@/components/settings/workspace/integration
 export default function Page() {
   return (
     <>
-      <h1 className="text-xl font-bold tracking-tight text-slate-900">연동</h1>
+      <h1 className="text-2xl font-bold tracking-tight text-slate-900">연동</h1>
       <IntegrationSettings />
     </>
   );

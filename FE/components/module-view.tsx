@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type ReactNode } from "react";
+import { useRef, useState } from "react";
 import {
   DndContext,
   KeyboardSensor,
@@ -335,7 +335,7 @@ function CreateRecordModal({
   );
 }
 
-export function ModuleView({ mod, page, subtitle }: { mod: ModuleDef; page: ModulePageData; subtitle?: ReactNode }) {
+export function ModuleView({ mod, page }: { mod: ModuleDef; page: ModulePageData }) {
   const { state } = useModules();
   const modState = state[mod.slug];
   const Icon = ICON_MAP[mod.icon];
@@ -456,7 +456,7 @@ export function ModuleView({ mod, page, subtitle }: { mod: ModuleDef; page: Modu
 
   if (!modState?.enabled) {
     return (
-      <div className="mx-auto max-w-7xl px-6 py-6 lg:px-8">
+      <div className="px-6 py-6 lg:px-8">
         <EmptyState
           icon={<Icon size={32} />}
           title={`${mod.name} 기능이 꺼져 있어요`}
@@ -472,14 +472,13 @@ export function ModuleView({ mod, page, subtitle }: { mod: ModuleDef; page: Modu
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-6 py-6 lg:px-8">
-      {/* 헤더 — 실용성 위주: 아이콘 없이 타이틀만. 부제는 모듈이 주면 그린다(경영지원 「처리를 기다리는 일 N건」) */}
+    <div className="px-6 py-6 lg:px-8">
+      {/* 헤더 — 실용성 위주: 아이콘 없이 타이틀만 */}
       <div className="mb-6 flex flex-wrap items-baseline gap-2.5">
-        <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight text-slate-900">
+        <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-slate-900">
           {mod.name}
           {mod.subfunctions.some((s) => s.ai) && <AiBadge />}
         </h1>
-        {subtitle}
       </div>
 
       {page.stats.length > 0 && (

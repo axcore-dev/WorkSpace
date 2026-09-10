@@ -31,14 +31,16 @@ export function Workbench({
   const close = () => setPickerOpen(false);
   return (
     <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
-      <div className="hidden lg:block">{renderMaster(close)}</div>
+      {/* 칸을 늘리지 않고(`self-start`) 스크롤을 따라온다 — 늘리면 카드 아래가 그대로 빈 공백이 되고
+          (급여 탭에서 320×351px), 디테일을 내려 읽는 동안 목록이 화면 밖으로 사라진다 */}
+      <div className="hidden lg:sticky lg:top-6 lg:flex lg:max-h-[calc(100vh-3rem)] lg:self-start">{renderMaster(close)}</div>
       <button
         type="button"
         aria-haspopup="dialog"
         onClick={() => setPickerOpen(true)}
         className="flex h-11 w-full cursor-pointer items-center justify-between gap-3 rounded-lg border border-slate-300 bg-white px-3 text-left text-sm font-medium text-slate-900 transition-colors duration-150 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400 lg:hidden"
       >
-        <span className="truncate">{pickerLabel}</span>
+        <span className="min-w-0 truncate">{pickerLabel}</span>
         <span className="flex shrink-0 items-center gap-1.5 text-slate-500">
           {pickerBadge}
           <IconChevronDown size={14} />
@@ -47,7 +49,7 @@ export function Workbench({
       <Modal open={pickerOpen} onClose={close} size="sm" title={pickerTitle}>
         {renderMaster(close)}
       </Modal>
-      <section className="min-w-0 space-y-4">{children}</section>
+      <section className="min-w-0 space-y-5">{children}</section>
     </div>
   );
 }
@@ -90,8 +92,8 @@ export function MasterList({
 }) {
   const empty = groups.every((g) => g.items.length === 0);
   return (
-    <Card padding={false} className="flex flex-col">
-      <div className="space-y-3 border-b border-slate-100 p-4">
+    <Card padding={false} className="flex w-full flex-col">
+      <div className="space-y-3 border-b border-slate-100 p-5">
         {create && (
           <Button variant="secondary" size="sm" className="h-8 w-full" onClick={create.onClick}>
             {create.label}
@@ -108,7 +110,7 @@ export function MasterList({
           />
         </div>
       </div>
-      <div className="thin-scroll max-h-[560px] overflow-y-auto p-2">
+      <div className="thin-scroll min-h-0 flex-1 overflow-y-auto p-2">
         {empty ? (
           <p className="px-3 py-8 text-center text-sm text-slate-500">{emptyText}</p>
         ) : (
@@ -153,7 +155,7 @@ export function MasterList({
           ))
         )}
       </div>
-      <p className="border-t border-slate-100 px-4 py-3 text-xs text-slate-400">{footer}</p>
+      <p className="border-t border-slate-100 px-5 py-3 text-xs text-slate-400">{footer}</p>
     </Card>
   );
 }
@@ -198,7 +200,7 @@ export function Banner({ tone, children }: { tone: "amber" | "slate"; children: 
       : "border-slate-200 bg-slate-50 text-slate-700";
   const Icon = tone === "amber" ? IconAlertTriangle : IconCheckCircle;
   return (
-    <p className={`flex items-center gap-2.5 rounded-lg border px-4 py-2.5 text-sm ${cls}`}>
+    <p className={`flex items-center gap-2.5 rounded-lg border px-5 py-3 text-sm ${cls}`}>
       <Icon size={16} className={`shrink-0 ${tone === "amber" ? "text-amber-600" : "text-slate-500"}`} />
       <span>{children}</span>
     </p>
@@ -216,9 +218,9 @@ export function Tiles({ items }: { items: { label: string; value: string; sub?: 
     blue: "text-slate-900",
   };
   return (
-    <div className="grid gap-3 sm:grid-cols-3">
+    <div className="grid gap-4 sm:grid-cols-3">
       {items.map((t) => (
-        <div key={t.label} className="min-w-0 rounded-lg border border-slate-200 p-4">
+        <div key={t.label} className="min-w-0 rounded-lg border border-slate-200 p-5">
           <p className="text-xs text-slate-500">{t.label}</p>
           <p className={`mt-1 truncate text-xl font-bold tracking-tight ${toneCls[t.tone ?? "slate"]}`}>{t.value}</p>
           {t.sub && <p className="mt-1 truncate text-xs text-slate-400">{t.sub}</p>}
@@ -230,13 +232,15 @@ export function Tiles({ items }: { items: { label: string; value: string; sub?: 
 
 /** 연결 Card 안의 dl 2열 */
 export function KvGrid({ children }: { children: ReactNode }) {
-  return <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">{children}</dl>;
+  return <dl className="grid grid-cols-1 gap-x-12 gap-y-3 sm:grid-cols-2">{children}</dl>;
 }
 export function Kv({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex items-baseline justify-between gap-3 border-b border-slate-100 pb-2">
-      <dt className="text-sm text-slate-500">{label}</dt>
-      <dd className="text-right text-sm font-medium text-slate-900">{children}</dd>
+    // 값을 오른쪽 끝으로 밀지 않는다 — 밀면 값이 자기 라벨에서 240px, 옆 쌍 라벨에서 48px
+    // 떨어져 근접성이 뒤집힌다(눈이 「값 + 옆 쌍 라벨」을 한 덩어리로 읽는다). 라벨 옆에 붙인다.
+    <div className="flex items-baseline gap-2.5 border-b border-slate-100 pb-2">
+      <dt className="shrink-0 text-sm text-slate-500">{label}</dt>
+      <dd className="min-w-0 text-sm font-medium text-slate-900">{children}</dd>
     </div>
   );
 }

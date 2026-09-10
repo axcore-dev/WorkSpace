@@ -123,6 +123,13 @@ export const IconChevronRight = (p: IconProps) => base(p, <path d="m9 18 6-6-6-6
 export const IconChevronLeft = (p: IconProps) => base(p, <path d="m15 18-6-6 6-6" />);
 export const IconCheck = (p: IconProps) => base(p, <path d="M20 6 9 17l-5-5" />);
 
+export const IconMenu = (p: IconProps) =>
+  base(p, <>
+    <path d="M4 6h16" />
+    <path d="M4 12h16" />
+    <path d="M4 18h16" />
+  </>);
+
 export const IconX = (p: IconProps) =>
   base(p, <>
     <path d="M18 6 6 18" />

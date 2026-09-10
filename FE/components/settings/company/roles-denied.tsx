@@ -12,7 +12,7 @@ import { Button } from "@/components/ui";
 export function RolesDenied() {
   return (
     <>
-      <h1 className="text-xl font-bold tracking-tight text-slate-900">권한 관리</h1>
+      <h1 className="text-2xl font-bold tracking-tight text-slate-900">권한 관리</h1>
       <div className="mt-8 flex flex-col items-center rounded-xl border border-dashed border-slate-300 px-6 py-14 text-center">
         <IconLock size={26} className="text-slate-400" />
         <p className="mt-3 text-sm font-semibold text-slate-900">소유자만 볼 수 있는 화면이에요</p>

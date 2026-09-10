@@ -173,7 +173,7 @@ export function MemberTable({
         rows={shown}
         rowKey={(u) => String(u.id)}
         // 거른 결과가 빈 것과 애초에 아무도 없는 것은 다음에 할 일이 다르다
-        empty={filtered ? "찾는 구성원이 없어요" : "데이터가 없습니다"}
+        empty={filtered ? "찾는 구성원이 없어요" : "아직 구성원이 없어요"}
         columns={[
           // 열 너비를 못 박는다 — 셀이 값에서 드롭다운으로 바뀔 때 열이 다시 계산되면
           // 누른 「수정」 버튼이 옆으로 밀린다

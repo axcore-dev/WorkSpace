@@ -88,7 +88,7 @@ export default function AiDiagnosisPage() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-6 py-6 lg:px-8">
+    <div className="px-6 py-6 lg:px-8">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3.5">
           <IconActivity size={24} className="text-slate-700" />

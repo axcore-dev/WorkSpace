@@ -87,6 +87,9 @@ export function PayrollWizard({
       ) : (
         <>
           <WizardSteps steps={STEPS} current={step} />
+          {/* 세 단계가 같은 높이를 쓴다 — 내용에 맞춰 다이얼로그가 커졌다 작아지면(673→480→414px)
+              [다음] 버튼 자리가 매번 바뀌어 연속으로 누를 수 없다. 넘치는 단계는 이 안에서 스크롤한다. */}
+          <div className="thin-scroll h-[58vh] overflow-y-auto">
           {step === 1 && (
             <div className="space-y-3 p-5">
               <p className="text-sm text-slate-500">재직 명단 기준 대상이에요. 이번 달 입사자는 일할 계산으로 들어가요.</p>
@@ -112,6 +115,7 @@ export function PayrollWizard({
               <DataTable dense data={{ columns: ["계정과목", "차변", "대변", "적요"], rows: lines }} colAlign={["left", "right", "right", "left"]} />
             </div>
           )}
+          </div>
         </>
       )}
     </Modal>

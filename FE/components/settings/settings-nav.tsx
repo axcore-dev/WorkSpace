@@ -16,7 +16,7 @@ const LEAF_ICON: Record<string, typeof IconUser> = {
 };
 
 const ITEM =
-  "flex min-h-10 items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400";
+  "flex min-h-10 items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400";
 const ITEM_ON = "bg-white font-semibold text-slate-900 ring-1 ring-slate-200";
 const ITEM_OFF = "font-medium text-slate-600 hover:bg-slate-200/60 hover:text-slate-900";
 
