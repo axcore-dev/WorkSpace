@@ -4,6 +4,7 @@ import com.axcore.workspace.security.InternalCallerGuard;
 import com.axcore.workspace.security.JwtPrincipal;
 import com.axcore.workspace.workspace.settings.SettingsValidationException;
 import com.axcore.workspace.workspace.settings.TenantAccess;
+import com.axcore.workspace.workspace.settings.TenantContext;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -66,11 +67,11 @@ public class InternalConnectorController {
         this.sheets = sheets;
     }
 
-    /** 두 겹 인증 뒤 그 앱의 토큰. 모든 경로가 이 한 줄로 시작한다 */
+    /** 두 겹 인증 뒤 <b>그 사람의</b> 그 앱 토큰. 연결은 사용자 단위라 남이 연결한 것은 쓰지 않는다. 모든 경로가 이 한 줄로 시작한다 */
     private String open(Jwt jwt, String internalToken, String slug) {
         callerGuard.require(internalToken);
-        access.open(JwtPrincipal.of(jwt));
-        return tokens.accessTokenFor(slug, Instant.now());
+        TenantContext ctx = access.open(JwtPrincipal.of(jwt));
+        return tokens.accessTokenFor(ctx.userId(), slug, Instant.now());
     }
 
     // ---------------------------------------------------------------- Google Calendar

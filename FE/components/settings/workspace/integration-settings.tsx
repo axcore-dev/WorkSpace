@@ -37,7 +37,8 @@ import type { Tone } from "@/data/types";
  * **연결 결과는 모달로 알린다.** 제공자 동의 화면에서 돌아오면 콜백 화면은 아무것도 그리지 않고 여기로 오고,
  * 스토어에 남은 알림을 모달로 보인다 — 성공이면 「연결이 완료되었습니다」, 실패면 사유.
  *
- * 연결·해제·토글은 **연동 관리 권한**이 있어야 한다. 없으면 잠긴다 — 서버도 같은 규칙으로 거절한다(403).
+ * **연결은 내 계정 단위다.** 구성원 누구나 자기 구글 계정을 연결하고, AI 는 그 사람의 연결만 쓴다. 남이 연결한 것은
+ * 내 목록에 보이지 않는다. 그래서 별도 권한이 없고 서버의 `editable` 은 늘 참이다.
  */
 
 /** 서버의 status → 화면 배지. 문구·색을 화면이 정한다 (DB 에는 ok · delayed · down 만 있다) */
@@ -235,7 +236,7 @@ function ConnectorNoticeModal({ notice, onClose }: { notice: ConnectorNotice | n
           {notice.ok ? "연결이 완료되었습니다" : "연결하지 못했습니다"}
         </p>
         <p className="mt-1.5 max-w-sm text-sm leading-relaxed text-slate-500">
-          {notice.ok ? `${name}을(를) 회사에 연결했어요. AI 대화에서 바로 쓸 수 있어요.` : notice.message}
+          {notice.ok ? `${name}을(를) 내 계정에 연결했어요. AI 대화에서 바로 쓸 수 있어요.` : notice.message}
         </p>
         <Button className="mt-6" onClick={onClose}>
           확인
