@@ -135,8 +135,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const currentName = ws?.workspaceName ?? " ";
-  const currentPlan = memberships.find((m) => m.id === ws?.workspaceId)?.plan ?? " ";
+  const currentName = ws?.workspaceName ?? " ";
+  const currentPlan = memberships.find((m) => m.id === ws?.workspaceId)?.plan ?? " ";
 
   async function switchTo(m: Membership) {
     if (m.id === ws?.workspaceId) {
