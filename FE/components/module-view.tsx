@@ -456,7 +456,7 @@ export function ModuleView({ mod, page, subtitle }: { mod: ModuleDef; page: Modu
 
   if (!modState?.enabled) {
     return (
-      <div className="mx-auto max-w-7xl px-6 py-6 lg:px-8">
+      <div className="px-6 py-6 lg:px-8">
         <EmptyState
           icon={<Icon size={32} />}
           title={`${mod.name} 기능이 꺼져 있어요`}
@@ -472,7 +472,7 @@ export function ModuleView({ mod, page, subtitle }: { mod: ModuleDef; page: Modu
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-6 py-6 lg:px-8">
+    <div className="px-6 py-6 lg:px-8">
       {/* 헤더 — 실용성 위주: 아이콘 없이 타이틀만. 부제는 모듈이 주면 그린다(경영지원 「처리를 기다리는 일 N건」) */}
       <div className="mb-6 flex flex-wrap items-baseline gap-2.5">
         <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-slate-900">

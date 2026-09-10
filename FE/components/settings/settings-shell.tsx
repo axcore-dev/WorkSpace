@@ -109,7 +109,7 @@ export function SettingsShell({ children }: { children: React.ReactNode }) {
           (`min-h-0`이 없으면 flex 아이템의 최소 높이가 내용 높이라 넘쳐도 안 줄어든다.) */}
       <main className={`min-w-0 flex-1 bg-white ${fill ? "lg:h-screen lg:overflow-hidden" : ""}`}>
         <div
-          className={`mx-auto max-w-7xl px-6 py-6 lg:px-8 ${
+          className={`px-6 py-6 lg:px-8 ${
             fill ? "flex h-full min-h-0 flex-col" : ""
           }`}
         >
