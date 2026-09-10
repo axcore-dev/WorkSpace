@@ -9,7 +9,7 @@ export function ExternalSystemView({ system }: { system: ExternalSystem }) {
     system.embed.kind === "iframe" ? system.embed.src : system.embed.kind === "login" ? system.embed.href : null;
 
   return (
-    <div className="flex h-screen flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       <header className="flex items-center justify-between gap-4 border-b border-slate-200 bg-white px-6 py-4">
         <div className="min-w-0">
           <h1 className="truncate text-2xl font-bold tracking-tight text-slate-900">{system.name}</h1>

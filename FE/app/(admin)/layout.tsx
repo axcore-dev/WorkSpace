@@ -21,7 +21,9 @@ import { IconChevronLeft, IconChevronRight, IconLogOut } from "@/components/icon
  * 사이드바에 실제 로그인한 사람을 표시하는 것이 목적이다.
  *
  * 사이드바 접기(240 ↔ 80)는 `lg` 이상에서만 동작한다 — `lg` 미만은 내비가 상단으로
- * 접히는 기존 반응형 동작을 그대로 유지한다(DESIGN.md 「사이드바」 절).
+ * 접히는 기존 반응형 동작을 그대로 유지한다(DESIGN.md 「사이드바」 절). `lg` 이상에서는 설정 셸과
+ * 같이 `lg:sticky lg:top-0 lg:h-screen`으로 붙여 둔다 — 개설 폼·감사 로그처럼 긴 화면에서 내비가
+ * 스크롤에 밀려 올라가면 옮겨 다니기 불편하다.
  */
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = useAdminSession();
@@ -51,7 +53,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <div className="min-h-screen bg-slate-50 lg:flex">
       <aside
-        className={`flex flex-col border-b border-slate-200 bg-white transition-[width] duration-300 lg:shrink-0 lg:border-b-0 lg:border-r ${
+        className={`flex flex-col border-b border-slate-200 bg-white transition-[width] duration-300 lg:sticky lg:top-0 lg:h-screen lg:shrink-0 lg:border-b-0 lg:border-r ${
           collapsed ? "lg:w-20" : "lg:w-60"
         }`}
       >
@@ -110,7 +112,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
       </aside>
 
-      <main className="min-w-0 flex-1 px-6 py-7 lg:px-8">{children}</main>
+      <main className="min-w-0 flex-1 px-6 py-6 lg:px-8">{children}</main>
     </div>
   );
 }

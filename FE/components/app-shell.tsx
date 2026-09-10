@@ -172,7 +172,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const roleName = ws?.member.roleName ?? " ";
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-dvh">
       {/* ── 좌측 패널 ── */}
       <aside
         id="app-nav"
@@ -457,8 +457,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       )}
 
       {/* ── 콘텐츠 ── */}
+      {/* flex-col — 풀-하이트 화면(AI대화·외부 시스템)은 `flex-1 min-h-0`으로 남은 높이를 받는다.
+          자식이 `h-dvh`를 직접 재면 lg 미만에서 아래 상단 바(약 57px)만큼 문서가 넘친다 */}
       <main
-        className={`min-w-0 flex-1 transition-[padding] duration-300 ${
+        className={`flex min-w-0 flex-1 flex-col transition-[padding] duration-300 ${
           collapsed ? "lg:pl-20" : "lg:pl-60"
         }`}
       >
