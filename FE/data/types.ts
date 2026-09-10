@@ -124,12 +124,3 @@ export interface DetailRecord {
   tableTitle?: string;
   table?: TableData;
 }
-
-/** 조직도 팀 클릭 시 뜨는 구성원 */
-export interface Member {
-  name: string;
-  rank: string;
-  phone: string;
-  email: string;
-  joined: string;
-}

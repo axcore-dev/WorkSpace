@@ -1,159 +1,109 @@
-import type { Member, Tone } from "../data/types";
-import type { PayrollRun, PayrollStatus, Voucher, VoucherStatus } from "../data/pages/management";
+import type { ChartSpec, Tone } from "../data/types";
+import type { MonthlyPl, Org, PayrollRun, PayrollStatus, Voucher, VoucherLine, VoucherStatus } from "../data/pages/management";
+import { CHART } from "./palette.ts";
 
 /**
- * 경영지원 작업대 공유 상태 — 순수 리듀서.
+ * 경영지원 작업대 공유 상태의 모양과 순수 파생 함수.
  * React 없이 두는 이유: `data/management.test.ts`가 node --test로 검증한다.
- * 부제·목록 배지·헤더 상태·배너·탭 간 연계가 전부 이 한 벌에서 파생된다(상태 두 벌 금지).
+ * 상태 변경(전표 만들기 · 지급 완료 · 승인 …)은 서버가 한다 — 여기엔 리듀서가 없고, 서버 응답을 다시 받아 넣는다.
  */
 
 export type WorkbenchTab = "hr" | "payroll" | "accounting";
 
 export interface ManagementState {
+  org: Org;
   runs: PayrollRun[];
   vouchers: Voucher[];
-  members: Record<string, Member[]>;
+  monthly: MonthlyPl[];
   /** 작업대별 좌측 선택 — 없으면 defaultSelection */
   selection: Partial<Record<WorkbenchTab, string>>;
 }
 
+/** 서버에 보내는 동작. 성공하면 급여 · 회계를 다시 받는다. */
 export type ManagementAction =
-  | { type: "createVoucher"; runId: string; date: string; author: string }
-  | { type: "markPaid"; runId: string; date: string }
+  | { type: "createVoucher"; runId: string }
+  | { type: "markPaid"; runId: string }
   | { type: "recalc"; runId: string }
   | { type: "deleteRun"; runId: string }
   | { type: "createRun"; name: string; payDate: string }
   | { type: "approve"; no: string }
-  | { type: "reject"; no: string; reason?: string }
-  | { type: "addMember"; team: string; member: Member }
-  | { type: "select"; tab: WorkbenchTab; id: string };
+  | { type: "reject"; no: string; reason?: string };
 
 /** 회계 마스터의 요약 항목 id */
 export const SUMMARY_ID = "summary";
-/** 인사 기본 선택 팀 (역할→팀 매핑은 후속) */
-export const HR_DEFAULT_TEAM = "인사총무팀";
+/** 인사 마스터의 회사(맨 위) 항목 id */
+export const HR_COMPANY_ID = "company";
 
-export function nextVoucherNo(vouchers: Voucher[], date: string): string {
-  const prefix = `V-${date.slice(2, 4)}${date.slice(5, 7)}-`;
-  const max = vouchers
-    .filter((v) => v.no.startsWith(prefix))
-    .reduce((m, v) => Math.max(m, Number(v.no.slice(prefix.length))), 0);
-  return `${prefix}${String(max + 1).padStart(3, "0")}`;
+/** 오늘 YYYY-MM-DD — 브라우저 시간대 기준 */
+export function todayIso(now = new Date()): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}`;
 }
 
-export function voucherFromRun(run: PayrollRun, vouchers: Voucher[], date: string, author: string): Voucher {
-  return {
-    no: nextVoucherNo(vouchers, date),
-    date,
-    kind: "급여",
-    counterparty: "임직원",
-    summary: `${run.name} (${run.headcount}명)`,
-    amount: run.gross,
-    account: "급여",
-    owner: author,
-    status: "검토중",
-    runId: run.id,
-    lines: [
-      { account: "급여", debit: run.gross, memo: `${run.headcount}명` },
-      { account: "예수금", credit: run.deduction, memo: "4대보험 · 소득세" },
-      { account: "보통예금", credit: run.net, memo: "실지급" },
-    ],
-  };
+/** 위저드 미리보기 — 서버가 만드는 급여 전표와 같은 분개 3행 */
+export function payrollLines(run: PayrollRun): VoucherLine[] {
+  return [
+    { account: "급여", debit: run.gross, memo: `${run.headcount}명` },
+    { account: "예수금", credit: run.deduction, memo: "4대보험 · 소득세" },
+    { account: "보통예금", credit: run.net, memo: "실지급" },
+  ];
 }
 
-export function pendingCounts(state: ManagementState): { payroll: number; accounting: number } {
+export function pendingCounts(state: Pick<ManagementState, "runs" | "vouchers">): { payroll: number; accounting: number } {
   return {
     payroll: state.runs.filter((r) => r.status !== "지급 완료").length,
     accounting: state.vouchers.filter((v) => v.status === "검토중").length,
   };
 }
 
-export function defaultSelection(state: ManagementState): Record<WorkbenchTab, string> {
+export function defaultSelection(state: Pick<ManagementState, "runs" | "vouchers">): Record<WorkbenchTab, string> {
   const run = state.runs.find((r) => r.status !== "지급 완료") ?? state.runs[0];
   const voucher = state.vouchers.find((v) => v.status === "검토중");
-  return { payroll: run?.id ?? "", accounting: voucher?.no ?? SUMMARY_ID, hr: HR_DEFAULT_TEAM };
+  return { payroll: run?.id ?? "", accounting: voucher?.no ?? SUMMARY_ID, hr: HR_COMPANY_ID };
 }
 
-const patchRun = (runs: PayrollRun[], id: string, patch: (r: PayrollRun) => PayrollRun) =>
-  runs.map((r) => (r.id === id ? patch(r) : r));
-const patchVoucher = (vouchers: Voucher[], no: string, patch: (v: Voucher) => Voucher) =>
-  vouchers.map((v) => (v.no === no ? patch(v) : v));
+/* ── 월별 손익 ── */
 
-export function reduce(state: ManagementState, action: ManagementAction): ManagementState {
-  switch (action.type) {
-    case "createVoucher": {
-      const run = state.runs.find((r) => r.id === action.runId);
-      if (!run || run.status !== "처리 대기") return state;
-      const voucher = voucherFromRun(run, state.vouchers, action.date, action.author);
-      return {
-        ...state,
-        runs: patchRun(state.runs, run.id, (r) => ({ ...r, status: "전표 생성", voucherNo: voucher.no })),
-        vouchers: [voucher, ...state.vouchers],
-      };
-    }
-    case "markPaid":
-      return {
-        ...state,
-        runs: patchRun(state.runs, action.runId, (r) =>
-          r.status === "전표 생성" ? { ...r, status: "지급 완료", paidAt: action.date } : r,
-        ),
-      };
-    case "recalc":
-      return {
-        ...state,
-        runs: patchRun(state.runs, action.runId, (r) =>
-          r.status === "전표 반려" ? { ...r, status: "처리 대기", voucherNo: undefined } : r,
-        ),
-      };
-    case "deleteRun": {
-      const run = state.runs.find((r) => r.id === action.runId);
-      if (!run || run.status !== "처리 대기") return state;
-      const { payroll, ...rest } = state.selection;
-      return {
-        ...state,
-        runs: state.runs.filter((r) => r.id !== action.runId),
-        selection: payroll === action.runId ? rest : state.selection,
-      };
-    }
-    case "createRun": {
-      const template = state.runs.find((r) => r.name.includes("정기급여")) ?? state.runs[0];
-      if (!template) return state;
-      const base = action.payDate.slice(0, 7);
-      let id = base;
-      for (let n = 2; state.runs.some((r) => r.id === id); n++) id = `${base}-${n}`;
-      const run: PayrollRun = {
-        ...template,
-        id,
-        name: action.name,
-        payDate: action.payDate,
-        status: "처리 대기",
-        voucherNo: undefined,
-        paidAt: undefined,
-      };
-      return { ...state, runs: [run, ...state.runs], selection: { ...state.selection, payroll: id } };
-    }
-    case "approve":
-      return {
-        ...state,
-        vouchers: patchVoucher(state.vouchers, action.no, (v) => (v.status === "검토중" ? { ...v, status: "승인" } : v)),
-      };
-    case "reject": {
-      const voucher = state.vouchers.find((v) => v.no === action.no);
-      if (!voucher || voucher.status !== "검토중") return state;
-      return {
-        ...state,
-        vouchers: patchVoucher(state.vouchers, action.no, (v) => ({ ...v, status: "반려", rejectReason: action.reason?.trim() || undefined })),
-        runs: voucher.runId ? patchRun(state.runs, voucher.runId, (r) => ({ ...r, status: "전표 반려" })) : state.runs,
-      };
-    }
-    case "addMember":
-      return {
-        ...state,
-        members: { ...state.members, [action.team]: [...(state.members[action.team] ?? []), action.member] },
-      };
-    case "select":
-      return { ...state, selection: { ...state.selection, [action.tab]: action.id } };
-  }
+export interface PlSummary {
+  /** "2026년 8월" */
+  label: string;
+  /** 억 단위, 소수 1자리 */
+  sales: number;
+  cost: number;
+  profit: number;
+  prevProfit: number;
+}
+
+const eok = (won: number) => Number((won / 100_000_000).toFixed(1));
+
+/** 마지막 달의 손익 요약. 달이 없으면 null */
+export function plSummary(monthly: MonthlyPl[]): PlSummary | null {
+  if (monthly.length === 0) return null;
+  const last = monthly[monthly.length - 1];
+  const prev = monthly[monthly.length - 2];
+  const profit = (m: MonthlyPl) => eok(m.sales - m.cost);
+  return {
+    label: `${last.month.slice(0, 4)}년 ${Number(last.month.slice(5, 7))}월`,
+    sales: eok(last.sales),
+    cost: eok(last.cost),
+    profit: profit(last),
+    prevProfit: prev ? profit(prev) : 0,
+  };
+}
+
+/** 월별 손익 막대 차트 — 억 단위 */
+export function monthlyChart(monthly: MonthlyPl[]): ChartSpec {
+  return {
+    type: "bar",
+    title: "월별 손익 요약",
+    valueUnit: "억",
+    compact: true,
+    labels: monthly.map((m) => `${Number(m.month.slice(5, 7))}월`),
+    series: [
+      { name: "매출", color: CHART.primary, values: monthly.map((m) => eok(m.sales)) },
+      { name: "매입·비용", color: CHART.neutral, values: monthly.map((m) => eok(m.cost)) },
+    ],
+  };
 }
 
 /* ── 표기 헬퍼 ── */
@@ -166,9 +116,9 @@ export function formatWon(n: number): string {
 
 /** 4.2억원 — 요약 행에서만 */
 export function formatEok(n: number): string {
-  const eok = n / 100_000_000;
-  const sign = eok > 0 ? "+" : eok < 0 ? "−" : "";
-  return `${sign}${Math.abs(eok).toFixed(1)}억원`;
+  const e = n / 100_000_000;
+  const sign = e > 0 ? "+" : e < 0 ? "−" : "";
+  return `${sign}${Math.abs(e).toFixed(1)}억원`;
 }
 
 /** to − from 일수 (YYYY-MM-DD, UTC 정오 기준으로 시간대 영향 제거) */

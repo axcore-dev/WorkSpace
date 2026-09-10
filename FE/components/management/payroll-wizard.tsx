@@ -4,9 +4,10 @@ import { useState } from "react";
 import { IconCheckCircle } from "@/components/icons";
 import { Modal } from "@/components/modal";
 import { Button, DataTable, WizardSteps } from "@/components/ui";
-import { ORG, type PayrollRun } from "@/data/pages/management";
-import { formatWon, voucherFromRun } from "@/lib/management-state";
+import type { PayrollRun } from "@/data/pages/management";
+import { formatWon, payrollLines } from "@/lib/management-state";
 import type { Cell } from "@/data/types";
+import { useManagement } from "./management-provider";
 
 const STEPS = ["대상 확정", "산출 확인", "전표 만들기"];
 
@@ -14,35 +15,17 @@ const STEPS = ["대상 확정", "산출 확인", "전표 만들기"];
  * 급여 처리 3단계 — 명세 3.1.2 "원클릭 급상여 처리 → 전표 작성".
  * 금액 편집은 하지 않는다(산출 결과를 확인하는 단계). 마지막 단계에서 onCreate()가 전표를 만들고,
  * 본문은 성공 상태로 바뀐다(발주서 작성과 같은 패턴). 열릴 때마다 key로 리마운트해 1단계부터 시작한다.
+ *
+ * 전표 번호는 보이지 않는다 — 번호는 서버가 정하고, 만들어진 번호는 회계 관리와 회차 화면에 나온다.
  */
-export function PayrollWizard({
-  open,
-  run,
-  voucherNo,
-  author,
-  today,
-  onClose,
-  onCreate,
-}: {
-  open: boolean;
-  run: PayrollRun;
-  /** 만들어질 전표 번호 — 미리보기·성공 문구에 쓴다 */
-  voucherNo: string;
-  author: string;
-  today: string;
-  onClose: () => void;
-  onCreate: () => void;
-}) {
+export function PayrollWizard({ open, run, onClose, onCreate }: { open: boolean; run: PayrollRun; onClose: () => void; onCreate: () => void }) {
   const [step, setStep] = useState(1);
   const [done, setDone] = useState(false);
-  // 마운트 시점에 고정 — onCreate가 부모 state.vouchers를 바꾸면 부모가 매 렌더 다시 계산하는
-  // nextVoucherNo가 밀려서(V-…-004 → 005), 미리보기·성공 문구가 실제로 만들어진 번호와 어긋난다.
-  const [no] = useState(voucherNo);
 
-  const teams = ORG.divisions.flatMap((d) => d.teams.map((t) => [t.name, d.name, `${t.size}명`, t.head] as Cell[]));
+  const { state } = useManagement();
+  const teams = state.org.divisions.flatMap((d) => d.teams.map((t) => [t.name, d.name, `${t.size}명`, t.head] as Cell[]));
   const items: Cell[][] = run.items.map((i) => [i.label, i.amount < 0 ? { badge: formatWon(i.amount), tone: "red" } : formatWon(i.amount), i.note]);
-  const preview = voucherFromRun(run, [], today, author);
-  const lines: Cell[][] = preview.lines.map((l) => [l.account, l.debit ? formatWon(l.debit) : "—", l.credit ? formatWon(l.credit) : "—", l.memo]);
+  const lines: Cell[][] = payrollLines(run).map((l) => [l.account, l.debit ? formatWon(l.debit) : "—", l.credit ? formatWon(l.credit) : "—", l.memo]);
 
   function create() {
     onCreate();
@@ -66,7 +49,7 @@ export function PayrollWizard({
             <span className="text-xs text-slate-400">
               {step === 1 && `대상 ${run.headcount}명 · 기본급 ${formatWon(run.items[0].amount)}`}
               {step === 2 && `실지급액 ${formatWon(run.net)} · 전월 대비 확인했어요`}
-              {step === 3 && `전표 ${no} · 차변 ${formatWon(run.gross)} = 대변 ${formatWon(run.deduction + run.net)}`}
+              {step === 3 && `차변 ${formatWon(run.gross)} = 대변 ${formatWon(run.deduction + run.net)}`}
             </span>
             <div className="flex gap-2">
               <Button variant="secondary" onClick={step > 1 ? () => setStep(step - 1) : onClose}>
@@ -81,7 +64,7 @@ export function PayrollWizard({
       {done ? (
         <div className="flex flex-col items-center justify-center px-6 py-12 text-center">
           <IconCheckCircle size={40} className="text-emerald-600" />
-          <p className="mt-3 text-sm font-semibold text-slate-900">{no} 전표를 만들었어요</p>
+          <p className="mt-3 text-sm font-semibold text-slate-900">전표를 만들었어요</p>
           <p className="mt-1 max-w-md text-sm text-slate-500">회계 관리에서 검토를 기다려요 · {run.payDate} 이체 예정</p>
         </div>
       ) : (
@@ -111,7 +94,7 @@ export function PayrollWizard({
           )}
           {step === 3 && (
             <div className="space-y-3 p-5">
-              <p className="text-sm text-slate-500">아래 분개로 전표 {no}를 만들어요. 만든 전표는 회계 관리에서 검토중으로 올라가요.</p>
+              <p className="text-sm text-slate-500">아래 분개로 전표를 만들어요. 만든 전표는 회계 관리에서 검토중으로 올라가요.</p>
               <DataTable dense data={{ columns: ["계정과목", "차변", "대변", "적요"], rows: lines }} colAlign={["left", "right", "right", "left"]} />
             </div>
           )}
