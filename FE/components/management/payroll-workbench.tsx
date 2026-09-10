@@ -47,8 +47,7 @@ export function PayrollWorkbench({ onOpenTab }: { onOpenTab: (tabId: string) => 
   }
   function recalc() {
     if (!run) return;
-    dispatch({ type: "recalc", runId: run.id });
-    notify(`${withJosa(run.name, "을/를")} 다시 계산해요 · 처리 대기로 돌아갔어요`);
+    void dispatch({ type: "recalc", runId: run.id }).then((ok) => ok && notify(`${withJosa(run.name, "을/를")} 다시 계산해요 · 처리 대기로 돌아갔어요`));
   }
 
   const primary = !run ? null : (
@@ -194,8 +193,7 @@ export function PayrollWorkbench({ onOpenTab }: { onOpenTab: (tabId: string) => 
               today={today}
               onClose={() => setDialog(null)}
               onCreate={() => {
-                dispatch({ type: "createVoucher", runId: run.id, date: today, author: user });
-                notify(`${run.name.replace(/^\d{4}년 /, "")} 전표를 만들었어요`);
+                void dispatch({ type: "createVoucher", runId: run.id }).then((ok) => ok && notify(`${run.name.replace(/^\d{4}년 /, "")} 전표를 만들었어요`));
               }}
             />
           )}
@@ -208,8 +206,7 @@ export function PayrollWorkbench({ onOpenTab }: { onOpenTab: (tabId: string) => 
             variant="primary"
             icon="check"
             onConfirm={() => {
-              dispatch({ type: "markPaid", runId: run.id, date: run.payDate });
-              notify(`${run.name}를 지급 완료로 바꿨어요`);
+              void dispatch({ type: "markPaid", runId: run.id }).then((ok) => ok && notify(`${run.name}를 지급 완료로 바꿨어요`));
               setDialog(null);
             }}
             onClose={() => setDialog(null)}
@@ -233,8 +230,7 @@ export function PayrollWorkbench({ onOpenTab }: { onOpenTab: (tabId: string) => 
             variant="danger"
             icon="warn"
             onConfirm={() => {
-              dispatch({ type: "deleteRun", runId: run.id });
-              notify(`${run.name} 회차를 지웠어요`);
+              void dispatch({ type: "deleteRun", runId: run.id }).then((ok) => ok && notify(`${run.name} 회차를 지웠어요`));
               setDialog(null);
             }}
             onClose={() => setDialog(null)}
@@ -247,17 +243,26 @@ export function PayrollWorkbench({ onOpenTab }: { onOpenTab: (tabId: string) => 
         open={dialog === "create"}
         onClose={() => setDialog(null)}
         onCreate={(name, payDate) => {
-          dispatch({ type: "createRun", name, payDate });
-          notify(`${name} 회차를 만들었어요`);
+          void dispatch({ type: "createRun", name, payDate }).then((ok) => ok && notify(`${name} 회차를 만들었어요`));
         }}
       />
     </>
   );
 }
 
+/** 다음 달 25일 — 새 회차 기본값 */
+function nextMonthDefaults(today: string): { name: string; payDate: string } {
+  const y = Number(today.slice(0, 4));
+  const m = Number(today.slice(5, 7));
+  const ny = m === 12 ? y + 1 : y;
+  const nm = m === 12 ? 1 : m + 1;
+  return { name: `${ny}년 ${nm}월 정기급여`, payDate: `${ny}-${String(nm).padStart(2, "0")}-25` };
+}
+
 function CreateRunModal({ open, onClose, onCreate }: { open: boolean; onClose: () => void; onCreate: (name: string, payDate: string) => void }) {
-  const [name, setName] = useState("2026년 8월 정기급여");
-  const [payDate, setPayDate] = useState("2026-08-25");
+  const { today } = useManagement();
+  const [name, setName] = useState(() => nextMonthDefaults(today).name);
+  const [payDate, setPayDate] = useState(() => nextMonthDefaults(today).payDate);
   const valid = name.trim().length > 0 && /^\d{4}-\d{2}-\d{2}$/.test(payDate);
   return (
     <Modal

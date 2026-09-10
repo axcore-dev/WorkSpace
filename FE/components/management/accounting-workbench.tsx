@@ -6,24 +6,12 @@ import { ChartFromSpec } from "@/components/charts";
 import { IconDownload } from "@/components/icons";
 import { Modal } from "@/components/modal";
 import { Badge, Button, Card, DataTable, FIELD, SectionHeader } from "@/components/ui";
-import { MONTHLY_PL, type Voucher } from "@/data/pages/management";
+import type { Voucher } from "@/data/pages/management";
 import type { Cell } from "@/data/types";
 import { downloadCsv } from "@/lib/download";
-import { SUMMARY_ID, daysBetween, formatEok, formatWon, voucherTone } from "@/lib/management-state";
+import { SUMMARY_ID, daysBetween, formatEok, formatWon, monthlyChart, plSummary, voucherTone } from "@/lib/management-state";
 import { useManagement } from "./management-provider";
 import { Banner, ConfirmModal, EntityHeader, Kv, KvGrid, MasterList, Tiles, Workbench } from "./workbench";
-
-/** 요약 항목 — 회계 마스터 맨 위. 값은 MONTHLY_PL 마지막 달에서 파생 */
-const LAST = MONTHLY_PL.labels!.length - 1;
-const SALES = MONTHLY_PL.series![0].values;
-const COST = MONTHLY_PL.series![1].values;
-const SUMMARY = {
-  month: MONTHLY_PL.labels![LAST],
-  sales: SALES[LAST],
-  cost: COST[LAST],
-  profit: Number((SALES[LAST] - COST[LAST]).toFixed(1)),
-  prevProfit: Number((SALES[LAST - 1] - COST[LAST - 1]).toFixed(1)),
-};
 
 type Dialog = null | "approve" | "reject";
 
@@ -31,6 +19,11 @@ export function AccountingWorkbench({ onOpenTab }: { onOpenTab: (tabId: string) 
   const { state, dispatch, notify, today, pending, select, selected } = useManagement();
   const [query, setQuery] = useState("");
   const [dialog, setDialog] = useState<Dialog>(null);
+
+  /** 요약 항목 — 회계 마스터 맨 위. 값은 월별 손익 마지막 달에서 파생. 달이 없으면 요약 자리엔 안내만 */
+  const summary = plSummary(state.monthly);
+  const chart = monthlyChart(state.monthly);
+  const summaryTitle = summary ? `${summary.label} 손익` : "손익 요약";
 
   const q = query.trim().toLowerCase();
   const byPending = (a: Voucher, b: Voucher) =>
@@ -48,7 +41,15 @@ export function AccountingWorkbench({ onOpenTab }: { onOpenTab: (tabId: string) 
       groups={[
         {
           label: "지난 달",
-          items: q ? [] : [{ id: SUMMARY_ID, name: `2026년 ${SUMMARY.month} 손익`, meta: `${formatEok(SUMMARY.profit * 1e8)} · 매출 ${SUMMARY.sales}억 · 매입·비용 ${SUMMARY.cost}억` }],
+          items: q
+            ? []
+            : [
+                {
+                  id: SUMMARY_ID,
+                  name: summaryTitle,
+                  meta: summary ? `${formatEok(summary.profit * 1e8)} · 매출 ${summary.sales}억 · 매입·비용 ${summary.cost}억` : "월별 손익이 아직 없어요",
+                },
+              ],
         },
         {
           label: "전표 · 검토중 우선",
@@ -69,19 +70,25 @@ export function AccountingWorkbench({ onOpenTab }: { onOpenTab: (tabId: string) 
     const thisMonth = state.vouchers.filter((v) => v.date.startsWith(today.slice(0, 7)));
     const rows: Cell[][] = thisMonth.map((v) => [v.no, v.date, v.kind, v.summary, formatWon(v.amount), { badge: v.status, tone: voucherTone(v.status) }]);
     return (
-      <Workbench pickerTitle="전표 고르기" pickerLabel={`보고 있는 항목 · 2026년 ${SUMMARY.month} 손익`} renderMaster={master}>
-        <EntityHeader title={`2026년 ${SUMMARY.month} 손익`} meta={`매출 ${SUMMARY.sales}억 · 매입·비용 ${SUMMARY.cost}억 · 전월 손익 ${formatEok(SUMMARY.prevProfit * 1e8)}`} />
-        <Tiles
-          items={[
-            { label: "매출", value: `${SUMMARY.sales}억원` },
-            { label: "매입·비용", value: `${SUMMARY.cost}억원` },
-            { label: "손익", value: formatEok(SUMMARY.profit * 1e8), sub: `전월 대비 ${formatEok((SUMMARY.profit - SUMMARY.prevProfit) * 1e8)}`, tone: SUMMARY.profit >= SUMMARY.prevProfit ? "green" : "red" },
-          ]}
-        />
-        <Card>
-          <SectionHeader title={MONTHLY_PL.title} />
-          <ChartFromSpec spec={MONTHLY_PL} />
-        </Card>
+      <Workbench pickerTitle="전표 고르기" pickerLabel={`보고 있는 항목 · ${summaryTitle}`} renderMaster={master}>
+        {summary ? (
+          <>
+            <EntityHeader title={summaryTitle} meta={`매출 ${summary.sales}억 · 매입·비용 ${summary.cost}억 · 전월 손익 ${formatEok(summary.prevProfit * 1e8)}`} />
+            <Tiles
+              items={[
+                { label: "매출", value: `${summary.sales}억원` },
+                { label: "매입·비용", value: `${summary.cost}억원` },
+                { label: "손익", value: formatEok(summary.profit * 1e8), sub: `전월 대비 ${formatEok((summary.profit - summary.prevProfit) * 1e8)}`, tone: summary.profit >= summary.prevProfit ? "green" : "red" },
+              ]}
+            />
+            <Card>
+              <SectionHeader title={chart.title} />
+              <ChartFromSpec spec={chart} />
+            </Card>
+          </>
+        ) : (
+          <EntityHeader title={summaryTitle} meta="월별 손익이 아직 없어요" />
+        )}
         <Card>
           <SectionHeader title={`이번 달 전표 ${thisMonth.length}건`} />
           <DataTable dense data={{ columns: ["전표번호", "일자", "구분", "적요", "금액", "상태"], rows }} colAlign={["left", "left", "left", "left", "right", "left"]} onRowClick={(i) => select("accounting", thisMonth[i].no)} />
@@ -188,8 +195,7 @@ export function AccountingWorkbench({ onOpenTab }: { onOpenTab: (tabId: string) 
         icon="check"
         onConfirm={() => {
           select("accounting", voucher.no);
-          dispatch({ type: "approve", no: voucher.no });
-          notify(`${voucher.no} 전표를 승인했어요`);
+          void dispatch({ type: "approve", no: voucher.no }).then((ok) => ok && notify(`${voucher.no} 전표를 승인했어요`));
           setDialog(null);
         }}
         onClose={() => setDialog(null)}
@@ -202,8 +208,7 @@ export function AccountingWorkbench({ onOpenTab }: { onOpenTab: (tabId: string) 
         onClose={() => setDialog(null)}
         onReject={(reason) => {
           select("accounting", voucher.no);
-          dispatch({ type: "reject", no: voucher.no, reason });
-          notify(`${voucher.no} 전표를 반려했어요`);
+          void dispatch({ type: "reject", no: voucher.no, reason }).then((ok) => ok && notify(`${voucher.no} 전표를 반려했어요`));
         }}
       />
     </>

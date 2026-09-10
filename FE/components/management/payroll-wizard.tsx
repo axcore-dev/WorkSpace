@@ -4,9 +4,10 @@ import { useState } from "react";
 import { IconCheckCircle } from "@/components/icons";
 import { Modal } from "@/components/modal";
 import { Button, DataTable, WizardSteps } from "@/components/ui";
-import { ORG, type PayrollRun } from "@/data/pages/management";
+import type { PayrollRun } from "@/data/pages/management";
 import { formatWon, voucherFromRun } from "@/lib/management-state";
 import type { Cell } from "@/data/types";
+import { useManagement } from "./management-provider";
 
 const STEPS = ["대상 확정", "산출 확인", "전표 만들기"];
 
@@ -39,7 +40,8 @@ export function PayrollWizard({
   // nextVoucherNo가 밀려서(V-…-004 → 005), 미리보기·성공 문구가 실제로 만들어진 번호와 어긋난다.
   const [no] = useState(voucherNo);
 
-  const teams = ORG.divisions.flatMap((d) => d.teams.map((t) => [t.name, d.name, `${t.size}명`, t.head] as Cell[]));
+  const { state } = useManagement();
+  const teams = state.org.divisions.flatMap((d) => d.teams.map((t) => [t.name, d.name, `${t.size}명`, t.head] as Cell[]));
   const items: Cell[][] = run.items.map((i) => [i.label, i.amount < 0 ? { badge: formatWon(i.amount), tone: "red" } : formatWon(i.amount), i.note]);
   const preview = voucherFromRun(run, [], today, author);
   const lines: Cell[][] = preview.lines.map((l) => [l.account, l.debit ? formatWon(l.debit) : "—", l.credit ? formatWon(l.credit) : "—", l.memo]);
