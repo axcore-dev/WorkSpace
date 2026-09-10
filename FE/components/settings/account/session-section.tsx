@@ -28,20 +28,38 @@ export function SessionSection({
 }: {
   onSaved: (message: string, tone?: "ink" | "error") => void;
 }) {
+  /** null 은 「불러오는 중」. 실패는 `failed` 로 따로 둔다 — 빈 목록으로 바꾸면 「끊을 기기가 없다」로 읽혀서
+   *  공용 단말을 정리하러 온 사람이 그대로 나간다. */
   const [sessions, setSessions] = useState<SessionDto[] | null>(null);
+  const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     let alive = true;
     async function load() {
-      const rows = await getSessions().catch(() => [] as SessionDto[]);
-      if (alive) setSessions(rows);
+      try {
+        const rows = await getSessions();
+        if (alive) setSessions(rows);
+      } catch {
+        if (alive) setFailed(true);
+      }
     }
     void load();
     return () => {
       alive = false;
     };
   }, []);
+
+  /** 「다시 시도」 — 버튼 핸들러라 실패 표시를 지우고 로딩으로 되돌린 뒤 다시 받는다 */
+  async function retry() {
+    setFailed(false);
+    setSessions(null);
+    try {
+      setSessions(await getSessions());
+    } catch {
+      setFailed(true);
+    }
+  }
 
   const rows = sessions ?? [];
   const current = rows.find((s) => s.current);
@@ -77,7 +95,11 @@ export function SessionSection({
   return (
     <SettingsSection
       title="기기"
-      aside={<span className="text-xs text-slate-400">다른 기기 {others}대</span>}
+      aside={
+        <span className="text-xs text-slate-400">
+          {failed ? "확인하지 못했어요" : sessions === null ? "" : `다른 기기 ${others}대`}
+        </span>
+      }
     >
       {/* 지금 쓰는 기기를 표 밖으로 뺀다. 그러면 아래 「다른 기기 모두 로그아웃」이 무엇을
           지우고 무엇을 남기는지가 배치로 설명된다 — 문장으로 안 적어도 된다. */}
@@ -96,7 +118,14 @@ export function SessionSection({
         </div>
       )}
 
-      {sessions === null ? (
+      {failed ? (
+        <div className="flex flex-col items-center gap-3 py-8 text-center">
+          <p className="text-[13.5px] text-slate-500">기기 목록을 불러오지 못했어요.</p>
+          <Button variant="secondary" size="sm" onClick={() => void retry()}>
+            다시 시도
+          </Button>
+        </div>
+      ) : sessions === null ? (
         <p className="py-8 text-center text-[13.5px] text-slate-400">불러오는 중이에요…</p>
       ) : rest.length === 0 ? (
         <p className="py-8 text-center text-[13.5px] text-slate-400">

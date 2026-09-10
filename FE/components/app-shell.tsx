@@ -22,8 +22,9 @@ import { useModules } from "@/components/module-provider";
 import { useLogout } from "@/components/use-logout";
 import { useSidebarCollapsed } from "@/components/use-sidebar-collapsed";
 import { useAccountMe } from "@/lib/account-me";
+import { useWorkspaceMe } from "@/lib/workspace-me";
 import { MODULES } from "@/data/modules";
-import { DEFAULT_WORKSPACE_ID, DEMO_USER, EXTERNAL_SYSTEMS, WORKSPACES } from "@/data/org";
+import { DEFAULT_WORKSPACE_ID, EXTERNAL_SYSTEMS, WORKSPACES } from "@/data/org";
 
 function NavLink({
   href,
@@ -90,9 +91,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const currentOrg = WORKSPACES.find((w) => w.id === orgId) ?? WORKSPACES[0];
 
-  // 이름과 사진은 서버가 준다. 받기 전에는 데모 값으로 그린다 — 여기서 빈칸을 보이면 사이드바가 무너진다
+  // 이름·사진은 계정(`/api/auth/me`), 직급은 지금 회사(`/api/workspace/me`)가 준다. 받기 전에는
+  // 빈 줄(공백 문자)로 높이만 지킨다 — 빈 문자열이면 줄이 사라져 사이드바가 들썩인다.
   const { me: account } = useAccountMe();
-  const displayName = account?.name ?? DEMO_USER.name;
+  const { me: ws } = useWorkspaceMe();
+  const displayName = account?.name ?? " ";
+  const roleName = ws?.member.roleName ?? " ";
 
   return (
     <div className="flex min-h-screen">
@@ -298,8 +302,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               className="absolute bottom-full left-4 right-4 mb-2 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg"
             >
               <div className="border-b border-slate-100 px-4 py-3">
-                <p className="text-sm font-semibold text-slate-900">{DEMO_USER.name}</p>
-                <p className="truncate text-xs text-slate-500">{DEMO_USER.email}</p>
+                <p className="text-sm font-semibold text-slate-900">{displayName}</p>
+                <p className="truncate text-xs text-slate-500">{account?.email ?? ""}</p>
               </div>
               <div className="p-1.5">
                 <Link
@@ -334,12 +338,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               collapsed ? "justify-center" : ""
             }`}
           >
-            <Avatar name={displayName} src={account?.avatarUrl ?? null} size={36} />
+            <Avatar name={account?.name ?? ""} src={account?.avatarUrl ?? null} size={36} />
             {!collapsed && (
               <>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-semibold text-slate-900">{displayName}</span>
-                  <span className="block truncate text-xs text-slate-500">{DEMO_USER.role}</span>
+                  <span className="block truncate text-xs text-slate-500">{roleName}</span>
                 </span>
                 <IconChevronDown size={15} className="shrink-0 text-slate-400" />
               </>

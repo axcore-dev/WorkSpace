@@ -20,10 +20,26 @@ import {
   getMfaMethods,
   getSocialIdentities,
   type AccountMeDto,
+  type MfaMethodDto,
   type SocialIdentityDto,
 } from "@/lib/account-api";
 
 type Which = "email" | "password" | "tfa" | "social" | null;
+
+/**
+ * 조회 한 건의 상태. **실패를 빈 목록으로 바꾸지 않는다** — 계정 보안 화면에서 「없음」은 곧 "안전하다"로
+ * 읽히는데, 조회 실패는 그 반대일 수 있다(2단계가 켜져 있는데 「켜기」로 보이는 식). 그래서 오류를 따로 두고
+ * 그 행만 「불러오지 못했어요 · 다시 시도」로 보인다.
+ */
+type Fetched<T> = { status: "loading" } | { status: "ready"; data: T } | { status: "error" };
+
+async function fetched<T>(load: () => Promise<T>): Promise<Fetched<T>> {
+  try {
+    return { status: "ready", data: await load() };
+  } catch {
+    return { status: "error" };
+  }
+}
 
 /**
  * 설정을 마친 항목 앞에 붙는 체크.
@@ -67,24 +83,16 @@ export function SecuritySection({
   onSaved: (message: string, tone?: "ink" | "error") => void;
 }) {
   const [open, setOpen] = useState<Which>(null);
-  const [tfaOn, setTfaOn] = useState(false);
-  const [identities, setIdentities] = useState<SocialIdentityDto[]>([]);
-
-  const reloadTfa = useCallback(async () => {
-    const methods = await getMfaMethods().catch(() => []);
-    setTfaOn(methods.some((m) => m.method === "email" && m.enabled));
-  }, []);
+  const [mfa, setMfa] = useState<Fetched<MfaMethodDto[]>>({ status: "loading" });
+  const [social, setSocial] = useState<Fetched<SocialIdentityDto[]>>({ status: "loading" });
 
   useEffect(() => {
     let alive = true;
     async function load() {
-      const [methods, social] = await Promise.all([
-        getMfaMethods().catch(() => []),
-        getSocialIdentities().catch(() => []),
-      ]);
+      const [m, s] = await Promise.all([fetched(getMfaMethods), fetched(getSocialIdentities)]);
       if (!alive) return;
-      setTfaOn(methods.some((m) => m.method === "email" && m.enabled));
-      setIdentities(social);
+      setMfa(m);
+      setSocial(s);
     }
     void load();
     return () => {
@@ -92,18 +100,39 @@ export function SecuritySection({
     };
   }, []);
 
+  /** 2단계 켜기·끄기 뒤와 「다시 시도」. 버튼 핸들러라 여기서는 loading 으로 되돌려도 된다 */
+  const reloadMfa = useCallback(async () => {
+    setMfa({ status: "loading" });
+    setMfa(await fetched(getMfaMethods));
+  }, []);
+  const reloadSocial = useCallback(async () => {
+    setSocial({ status: "loading" });
+    setSocial(await fetched(getSocialIdentities));
+  }, []);
+
   const { hasPassword, passwordChangedAt, email, emailVerified } = me;
+  // 받기 전·실패는 둘 다 "모른다"다 — 켜졌다고도 꺼졌다고도 말하지 않는다
+  const tfaOn = mfa.status === "ready" && mfa.data.some((m) => m.method === "email" && m.enabled);
+  const identities = social.status === "ready" ? social.data : [];
   const socialValue =
-    identities.length === 0
-      ? "연동한 계정이 없어요"
-      : `${identities.map((s) => PROVIDER_LABELS[s.provider]).join(" · ")} 연동됨`;
+    social.status === "error"
+      ? "불러오지 못했어요"
+      : social.status === "loading"
+        ? "확인하는 중이에요…"
+        : identities.length === 0
+          ? "연동한 계정이 없어요"
+          : `${identities.map((s) => PROVIDER_LABELS[s.provider]).join(" · ")} 연동됨`;
 
   const done = [emailVerified, hasPassword, tfaOn].filter(Boolean).length;
 
   return (
     <SettingsSection
       title="계정 보안"
-      aside={<span className="text-xs text-slate-400">3가지 중 {done}가지 설정됨</span>}
+      aside={
+        <span className="text-xs text-slate-400">
+          {mfa.status === "ready" ? `3가지 중 ${done}가지 설정됨` : "일부를 확인하지 못했어요"}
+        </span>
+      }
     >
       <SettingsRows>
         <SettingsRow>
@@ -158,27 +187,37 @@ export function SecuritySection({
               <span className="flex items-center gap-1.5">
                 <Done on={tfaOn} label="2단계 인증" />
                 2단계 인증
-                {hasPassword && !tfaOn && <Badge tone="amber">권장</Badge>}
+                {mfa.status === "ready" && hasPassword && !tfaOn && <Badge tone="amber">권장</Badge>}
               </span>
             }
             value={
               <span className="pl-[22px]">
-                {!hasPassword
-                  ? "비밀번호를 먼저 설정해 주세요"
-                  : tfaOn
-                    ? "로그인할 때 이메일 코드를 한 번 더 받아요"
-                    : "비밀번호가 새어도 로그인은 막을 수 있어요"}
+                {mfa.status === "error"
+                  ? "불러오지 못했어요"
+                  : mfa.status === "loading"
+                    ? "확인하는 중이에요…"
+                    : !hasPassword
+                      ? "비밀번호를 먼저 설정해 주세요"
+                      : tfaOn
+                        ? "로그인할 때 이메일 코드를 한 번 더 받아요"
+                        : "비밀번호가 새어도 로그인은 막을 수 있어요"}
               </span>
             }
           >
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={!hasPassword}
-              onClick={() => setOpen("tfa")}
-            >
-              {tfaOn ? "관리" : "켜기"}
-            </Button>
+            {mfa.status === "error" ? (
+              <Button variant="ghost" size="sm" onClick={() => void reloadMfa()}>
+                다시 시도
+              </Button>
+            ) : (
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={!hasPassword || mfa.status !== "ready"}
+                onClick={() => setOpen("tfa")}
+              >
+                {tfaOn ? "관리" : "켜기"}
+              </Button>
+            )}
           </ActionRow>
         </SettingsRow>
 
@@ -209,9 +248,15 @@ export function SecuritySection({
             }
             value={<span className="pl-[22px]">{socialValue}</span>}
           >
-            <Button variant="ghost" size="sm" onClick={() => setOpen("social")}>
-              관리
-            </Button>
+            {social.status === "error" ? (
+              <Button variant="ghost" size="sm" onClick={() => void reloadSocial()}>
+                다시 시도
+              </Button>
+            ) : (
+              <Button variant="ghost" size="sm" disabled={social.status !== "ready"} onClick={() => setOpen("social")}>
+                관리
+              </Button>
+            )}
           </ActionRow>
         </SettingsRow>
       </SettingsRows>
@@ -235,7 +280,7 @@ export function SecuritySection({
         email={email}
         enabled={tfaOn}
         onClose={() => setOpen(null)}
-        onChanged={() => void reloadTfa()}
+        onChanged={() => void reloadMfa()}
         onDone={onSaved}
       />
       <SocialModal
