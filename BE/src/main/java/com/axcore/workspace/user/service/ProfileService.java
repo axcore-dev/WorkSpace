@@ -3,7 +3,9 @@ package com.axcore.workspace.user.service;
 import com.axcore.workspace.user.dto.ProfileUpdateRequest;
 import com.axcore.workspace.user.dto.SocialIdentityResponse;
 import com.axcore.workspace.user.dto.UserResponse;
+import com.axcore.workspace.user.entity.AuthProvider;
 import com.axcore.workspace.user.entity.User;
+import com.axcore.workspace.user.entity.UserIdentity;
 import com.axcore.workspace.user.repository.UserIdentityRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,5 +57,34 @@ public class ProfileService {
     @Transactional(readOnly = true)
     public List<SocialIdentityResponse> socialIdentities(UUID userId) {
         return identities.findByUserId(userId).stream().map(SocialIdentityResponse::from).toList();
+    }
+
+    /**
+     * 소셜 연동 해제.
+     *
+     * <p><b>마지막 로그인 수단은 지우지 않는다.</b> 남는 수단이 하나도 없으면 — 비밀번호가 없고 이 연동이 유일한 소셜
+     * 연동이면 — 다시 로그인할 길이 없어진다. 그 경우 409 로 막고 문구로 나갈 길을 알려 준다. 비밀번호가 있으면
+     * 소셜을 전부 끊어도 이메일·비밀번호로 들어올 수 있으니 막지 않는다.
+     *
+     * <p>판정은 이 트랜잭션 안의 계정 상태로 한다. 같은 계정에서 두 제공자 해제를 동시에 보내면 둘 다 "하나 남았다"
+     * 를 보고 통과할 수 있는데, 자기 계정에서 자기 손으로만 낼 수 있는 요청이라 잠그지 않는다. 그렇게 되어도
+     * 비밀번호 재설정 링크가 이메일로 가므로 계정을 되찾을 수 있다.
+     *
+     * <p>세션은 끊지 않는다. 비밀번호 변경·2단계 해제와 달리 방어를 걷어내는 조작이 아니라 로그인 수단을 하나 빼는
+     * 것이라, 지금 이 세션이 유출된 세션이라고 볼 근거가 없다.
+     */
+    @Transactional
+    public void unlinkSocial(UUID userId, AuthProvider provider) {
+        User user = auth.requireUser(userId);
+        UserIdentity identity =
+                identities.findByUserIdAndProvider(userId, provider).orElseThrow(SocialIdentityNotFoundException::new);
+
+        boolean lastMethod = !user.hasPassword() && identities.findByUserId(userId).size() <= 1;
+        if (lastMethod) {
+            throw new LastLoginMethodException();
+        }
+
+        identities.delete(identity);
+        log.info("사용자 {} 가 {} 연동을 해제했다", userId, provider.dbValue());
     }
 }

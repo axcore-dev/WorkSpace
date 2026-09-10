@@ -4,19 +4,24 @@ import com.axcore.workspace.security.JwtPrincipal;
 import com.axcore.workspace.user.dto.ProfileUpdateRequest;
 import com.axcore.workspace.user.dto.SocialIdentityResponse;
 import com.axcore.workspace.user.dto.UserResponse;
+import com.axcore.workspace.user.entity.AuthProvider;
 import com.axcore.workspace.user.service.ProfilePhotoService;
 import com.axcore.workspace.user.service.ProfileService;
+import com.axcore.workspace.user.service.SocialIdentityNotFoundException;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -51,10 +56,23 @@ public class ProfileController {
         return profiles.updateProfile(JwtPrincipal.of(jwt).userId(), request);
     }
 
-    /** 이 계정에 연결된 소셜 제공자. 해제 경로는 아직 없다 — 마지막 로그인 수단을 지우는 것을 먼저 막아야 한다. */
+    /** 이 계정에 연결된 소셜 제공자. */
     @GetMapping("/identities")
     public List<SocialIdentityResponse> identities(@AuthenticationPrincipal Jwt jwt) {
         return profiles.socialIdentities(JwtPrincipal.of(jwt).userId());
+    }
+
+    /**
+     * 소셜 연동 해제. 경로의 제공자는 {@code google} · {@code naver} 같은 소문자 값이다.
+     *
+     * <p>마지막 로그인 수단이면 409({@code ACCOUNT_STATE_CONFLICT}), 그 제공자 연동이 없거나 모르는 이름이면 404.
+     * 판정은 {@link ProfileService#unlinkSocial} 이 한다.
+     */
+    @DeleteMapping("/identities/{provider}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void unlinkIdentity(@AuthenticationPrincipal Jwt jwt, @PathVariable String provider) {
+        AuthProvider parsed = AuthProvider.from(provider).orElseThrow(SocialIdentityNotFoundException::new);
+        profiles.unlinkSocial(JwtPrincipal.of(jwt).userId(), parsed);
     }
 
     /**
