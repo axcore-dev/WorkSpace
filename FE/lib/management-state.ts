@@ -1,5 +1,5 @@
 import type { ChartSpec, Tone } from "../data/types";
-import type { MonthlyPl, Org, PayrollRun, PayrollStatus, Voucher, VoucherStatus } from "../data/pages/management";
+import type { MonthlyPl, Org, PayrollRun, PayrollStatus, Voucher, VoucherLine, VoucherStatus } from "../data/pages/management";
 import { CHART } from "./palette.ts";
 
 /**
@@ -40,34 +40,13 @@ export function todayIso(now = new Date()): string {
   return `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}`;
 }
 
-/** 서버와 같은 규칙(V-YYMM-NNN, 달마다 001 부터)의 미리보기 번호. 실제 번호는 서버가 정한다. */
-export function nextVoucherNo(vouchers: Voucher[], date: string): string {
-  const prefix = `V-${date.slice(2, 4)}${date.slice(5, 7)}-`;
-  const max = vouchers
-    .filter((v) => v.no.startsWith(prefix))
-    .reduce((m, v) => Math.max(m, Number(v.no.slice(prefix.length)) || 0), 0);
-  return `${prefix}${String(max + 1).padStart(3, "0")}`;
-}
-
-/** 위저드 미리보기 — 서버가 만드는 급여 전표와 같은 분개 */
-export function voucherFromRun(run: PayrollRun, vouchers: Voucher[], date: string, author: string): Voucher {
-  return {
-    no: nextVoucherNo(vouchers, date),
-    date,
-    kind: "급여",
-    counterparty: "임직원",
-    summary: `${run.name} (${run.headcount}명)`,
-    amount: run.gross,
-    account: "급여",
-    owner: author,
-    status: "검토중",
-    runId: run.id,
-    lines: [
-      { account: "급여", debit: run.gross, memo: `${run.headcount}명` },
-      { account: "예수금", credit: run.deduction, memo: "4대보험 · 소득세" },
-      { account: "보통예금", credit: run.net, memo: "실지급" },
-    ],
-  };
+/** 위저드 미리보기 — 서버가 만드는 급여 전표와 같은 분개 3행 */
+export function payrollLines(run: PayrollRun): VoucherLine[] {
+  return [
+    { account: "급여", debit: run.gross, memo: `${run.headcount}명` },
+    { account: "예수금", credit: run.deduction, memo: "4대보험 · 소득세" },
+    { account: "보통예금", credit: run.net, memo: "실지급" },
+  ];
 }
 
 export function pendingCounts(state: Pick<ManagementState, "runs" | "vouchers">): { payroll: number; accounting: number } {

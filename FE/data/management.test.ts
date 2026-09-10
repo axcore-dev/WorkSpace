@@ -13,11 +13,10 @@ import {
   defaultSelection,
   formatWon,
   monthlyChart,
-  nextVoucherNo,
+  payrollLines,
   pendingCounts,
   plSummary,
   todayIso,
-  voucherFromRun,
   weekdayKo,
 } from "../lib/management-state.ts";
 
@@ -46,22 +45,11 @@ const voucher = (no: string, status: Voucher["status"], runId?: string): Voucher
   runId,
 });
 
-test("전표 번호 — 그 달 최대 + 1, 달이 바뀌면 001", () => {
-  const vs = [voucher("V-2609-001", "승인"), voucher("V-2609-003", "승인"), voucher("V-2608-089", "승인")];
-  assert.equal(nextVoucherNo(vs, "2026-09-10"), "V-2609-004");
-  assert.equal(nextVoucherNo(vs, "2026-10-01"), "V-2610-001");
-  assert.equal(nextVoucherNo([], "2026-08-01"), "V-2608-001");
-});
-
-test("급여 전표 미리보기 — 차변 합 = 대변 합 = 총액", () => {
-  const v = voucherFromRun(run("2026-09", "처리 대기"), [], "2026-09-10", "김한결");
-  assert.equal(v.kind, "급여");
-  assert.equal(v.status, "검토중");
-  assert.equal(v.runId, "2026-09");
-  const debit = v.lines.reduce((s, l) => s + (l.debit ?? 0), 0);
-  const credit = v.lines.reduce((s, l) => s + (l.credit ?? 0), 0);
-  assert.equal(debit, 19_800_000);
-  assert.equal(credit, 19_800_000);
+test("급여 분개 미리보기 — 차변 합 = 대변 합 = 총액", () => {
+  const lines = payrollLines(run("2026-09", "처리 대기"));
+  assert.deepEqual(lines.map((l) => l.account), ["급여", "예수금", "보통예금"]);
+  assert.equal(lines.reduce((s, l) => s + (l.debit ?? 0), 0), 19_800_000);
+  assert.equal(lines.reduce((s, l) => s + (l.credit ?? 0), 0), 19_800_000);
 });
 
 test("대기 건수와 기본 선택", () => {

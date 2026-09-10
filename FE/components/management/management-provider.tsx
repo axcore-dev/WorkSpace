@@ -3,8 +3,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Toast } from "@/components/ui";
 import { useToast } from "@/components/use-toast";
-import { EMPTY_ORG, type MonthlyPl, type Org, type PayrollRun, type Voucher } from "@/data/pages/management";
-import { useAccountMe } from "@/lib/account-me";
 import { ApiRequestError } from "@/lib/api";
 import * as api from "@/lib/management-api";
 import {
@@ -25,13 +23,8 @@ import {
  */
 type Status = "loading" | "ready" | "error";
 
-interface Data {
-  org: Org;
-  runs: PayrollRun[];
-  vouchers: Voucher[];
-  monthly: MonthlyPl[];
-}
-const EMPTY: Data = { org: EMPTY_ORG, runs: [], vouchers: [], monthly: [] };
+type Data = Omit<ManagementState, "selection">;
+const EMPTY: Data = { org: { company: "", divisions: [], members: {} }, runs: [], vouchers: [], monthly: [] };
 
 interface ManagementContextValue {
   state: ManagementState;
@@ -43,8 +36,6 @@ interface ManagementContextValue {
   /** 저장 피드백 토스트 */
   notify: (message: string) => void;
   today: string;
-  /** 로그인 사용자 이름 — 전표 작성자 미리보기 */
-  user: string;
   pending: { payroll: number; accounting: number };
   select: (tab: WorkbenchTab, id: string) => void;
   /** 작업대별 현재 선택 — 없으면 기본값 */
@@ -61,7 +52,6 @@ export function ManagementProvider({ children }: { children: ReactNode }) {
   const [attempt, setAttempt] = useState(0);
   const [selection, setSelection] = useState<Partial<Record<WorkbenchTab, string>>>({});
   const [toast, show] = useToast();
-  const { me } = useAccountMe();
 
   useEffect(() => {
     let alive = true;
@@ -137,12 +127,11 @@ export function ManagementProvider({ children }: { children: ReactNode }) {
       dispatch,
       notify: show,
       today: todayIso(),
-      user: me?.name ?? "",
       pending: pendingCounts(state),
       select,
       selected: (tab) => selection[tab] ?? defaults[tab],
     };
-  }, [data, selection, status, reload, dispatch, show, me?.name, select]);
+  }, [data, selection, status, reload, dispatch, show, select]);
 
   return (
     <ManagementContext.Provider value={value}>

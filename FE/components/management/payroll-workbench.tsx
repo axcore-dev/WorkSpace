@@ -7,7 +7,7 @@ import { Badge, Button, Card, DataTable, FIELD, SectionHeader } from "@/componen
 import { withJosa } from "@/data/ko";
 import type { Cell } from "@/data/types";
 import { downloadCsv } from "@/lib/download";
-import { ddayLabel, daysBetween, formatWon, nextVoucherNo, payrollTone, voucherTone, weekdayKo } from "@/lib/management-state";
+import { ddayLabel, daysBetween, formatWon, payrollTone, voucherTone, weekdayKo } from "@/lib/management-state";
 import { useManagement } from "./management-provider";
 import { PayrollWizard } from "./payroll-wizard";
 import { Banner, ConfirmModal, EntityHeader, Kv, KvGrid, MasterList, MenuModal, Tiles, Workbench } from "./workbench";
@@ -15,7 +15,7 @@ import { Banner, ConfirmModal, EntityHeader, Kv, KvGrid, MasterList, MenuModal, 
 type Dialog = null | "wizard" | "paid" | "menu" | "delete" | "create";
 
 export function PayrollWorkbench({ onOpenTab }: { onOpenTab: (tabId: string) => void }) {
-  const { state, dispatch, notify, today, user, pending, select, selected } = useManagement();
+  const { state, dispatch, notify, today, pending, select, selected } = useManagement();
   const [query, setQuery] = useState("");
   const [dialog, setDialog] = useState<Dialog>(null);
 
@@ -188,9 +188,6 @@ export function PayrollWorkbench({ onOpenTab }: { onOpenTab: (tabId: string) => 
             <PayrollWizard
               open
               run={run}
-              voucherNo={nextVoucherNo(state.vouchers, today)}
-              author={user}
-              today={today}
               onClose={() => setDialog(null)}
               onCreate={() => {
                 void dispatch({ type: "createVoucher", runId: run.id }).then((ok) => ok && notify(`${run.name.replace(/^\d{4}년 /, "")} 전표를 만들었어요`));
@@ -261,8 +258,9 @@ function nextMonthDefaults(today: string): { name: string; payDate: string } {
 
 function CreateRunModal({ open, onClose, onCreate }: { open: boolean; onClose: () => void; onCreate: (name: string, payDate: string) => void }) {
   const { today } = useManagement();
-  const [name, setName] = useState(() => nextMonthDefaults(today).name);
-  const [payDate, setPayDate] = useState(() => nextMonthDefaults(today).payDate);
+  const [defaults] = useState(() => nextMonthDefaults(today));
+  const [name, setName] = useState(defaults.name);
+  const [payDate, setPayDate] = useState(defaults.payDate);
   const valid = name.trim().length > 0 && /^\d{4}-\d{2}-\d{2}$/.test(payDate);
   return (
     <Modal

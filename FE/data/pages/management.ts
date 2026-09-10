@@ -36,7 +36,6 @@ export interface Org {
   /** 팀 이름 → 구성원 */
   members: Record<string, OrgMember[]>;
 }
-export const EMPTY_ORG: Org = { company: "", divisions: [], members: {} };
 
 /* ── 급여 ── */
 
