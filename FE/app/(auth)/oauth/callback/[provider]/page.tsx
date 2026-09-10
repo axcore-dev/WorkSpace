@@ -1,9 +1,10 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { AuthSplit } from "@/components/auth-shell";
+import { MfaCodeStep } from "@/components/auth/mfa-code-step";
 import { ApiRequestError, apiGet, apiPost } from "@/lib/api";
 import { PROVIDER_LABELS, SocialProvider, consumeState } from "@/lib/auth";
 import { inviteHref, readInvite } from "@/lib/pending-invite";
@@ -22,7 +23,7 @@ type LoginResponse = {
 
 type State =
   | { kind: "working" }
-  | { kind: "mfa" }
+  | { kind: "mfa"; mfaToken: string }
   | { kind: "verifyEmail"; email: string }
   | { kind: "failed"; message: string };
 
@@ -52,6 +53,47 @@ function OAuthCallbackContent() {
   // 제공자의 code 는 한 번만 교환할 수 있다. StrictMode 가 effect 를 두 번 실행하므로
   // 막지 않으면 두 번째 호출이 401 을 받고 화면이 성공에서 실패로 뒤집힌다.
   const sent = useRef(false);
+
+  /**
+   * 인증이 끝난 뒤 — 제공자 교환으로 바로 끝났든 2단계까지 거쳤든 여기로 모인다.
+   *
+   * 이메일 확인이 남았으면 그 안내로. 아니면 초대 → 운영자 콘솔 → 회사 선택 순으로 보낸다.
+   */
+  const finishLogin = useCallback(
+    (result: LoginResponse) => {
+      if (result.next === "EMAIL_VERIFICATION_REQUIRED") {
+        setState({ kind: "verifyEmail", email: result.user?.email ?? "" });
+        return;
+      }
+      localStorage.setItem(
+        "axpoint-user",
+        JSON.stringify({ ...DEMO_USER, name: result.user?.name, email: result.user?.email }),
+      );
+
+      // 초대 링크에서 소셜 로그인으로 넘어온 사람은 초대로 돌려보낸다. 여기서 회사 선택
+      // 화면으로 보내면 초대 링크를 다시 찾아 열어야 한다. 이메일 확인 화면이 초대로 돌아가는
+      // 것과 같은 판단이다. 주소가 맞는지는 초대 화면이 /me 로 다시 확인한다.
+      const invite = readInvite();
+      if (invite) {
+        router.replace(inviteHref(invite));
+        return;
+      }
+
+      // 운영자는 운영자 콘솔로. 이메일 로그인(login/page.tsx)과 같은 판정이다 — 소셜 로그인만
+      // 이 확인이 빠져 있어서 운영자가 Google 로 들어오면 회사 선택 화면에 떨어졌다.
+      // 여기 결과는 어느 화면으로 보낼지만 정한다. 실제 인가는 서버가 요청마다 DB 로 본다.
+      // /me 가 실패해도 로그인은 이미 됐으니 일반 경로로 보낸다.
+      return apiGet<{ internalAdmin: boolean }>("/api/auth/me")
+        .then((me) => {
+          router.replace(me?.internalAdmin ? "/admin" : "/workspace");
+        })
+        .catch(() => {
+          // SELECT_WORKSPACE · READY — 회사 선택 화면으로 넘긴다.
+          router.replace("/workspace");
+        });
+    },
+    [router],
+  );
 
   useEffect(() => {
     if (sent.current) return;
@@ -107,40 +149,11 @@ function OAuthCallbackContent() {
             setState({ kind: "failed", message: "서버 응답이 비어 있습니다" });
             return;
           }
-          if (result.next === "MFA_REQUIRED") {
-            setState({ kind: "mfa" });
+          if (result.next === "MFA_REQUIRED" && result.mfaToken) {
+            setState({ kind: "mfa", mfaToken: result.mfaToken });
             return;
           }
-          if (result.next === "EMAIL_VERIFICATION_REQUIRED") {
-            setState({ kind: "verifyEmail", email: result.user?.email ?? "" });
-            return;
-          }
-          localStorage.setItem(
-            "axpoint-user",
-            JSON.stringify({ ...DEMO_USER, name: result.user?.name, email: result.user?.email }),
-          );
-
-          // 초대 링크에서 소셜 로그인으로 넘어온 사람은 초대로 돌려보낸다. 여기서 회사 선택
-          // 화면으로 보내면 초대 링크를 다시 찾아 열어야 한다. 이메일 확인 화면이 초대로 돌아가는
-          // 것과 같은 판단이다. 주소가 맞는지는 초대 화면이 /me 로 다시 확인한다.
-          const invite = readInvite();
-          if (invite) {
-            router.replace(inviteHref(invite));
-            return;
-          }
-
-          // 운영자는 운영자 콘솔로. 이메일 로그인(login/page.tsx)과 같은 판정이다 — 소셜 로그인만
-          // 이 확인이 빠져 있어서 운영자가 Google 로 들어오면 회사 선택 화면에 떨어졌다.
-          // 여기 결과는 어느 화면으로 보낼지만 정한다. 실제 인가는 서버가 요청마다 DB 로 본다.
-          // /me 가 실패해도 로그인은 이미 됐으니 일반 경로로 보낸다.
-          return apiGet<{ internalAdmin: boolean }>("/api/auth/me")
-            .then((me) => {
-              router.replace(me?.internalAdmin ? "/admin" : "/workspace");
-            })
-            .catch(() => {
-              // SELECT_WORKSPACE · READY — 회사 선택 화면으로 넘긴다.
-              router.replace("/workspace");
-            });
+          return finishLogin(result);
         })
         .catch((e: unknown) => {
           setState({
@@ -152,9 +165,9 @@ function OAuthCallbackContent() {
           });
         });
     })();
-  }, [params, routeProvider, router]);
+  }, [finishLogin, params, routeProvider, router]);
 
-  const label = isSupported(routeProvider) ? PROVIDER_LABELS[routeProvider] : "소셜";
+  const label =isSupported(routeProvider) ? PROVIDER_LABELS[routeProvider] : "소셜";
 
   return (
     <AuthSplit>
@@ -177,26 +190,11 @@ function OAuthCallbackContent() {
       )}
 
       {state.kind === "mfa" && (
-        <>
-          <h2 className="mt-2.5 text-[31px] font-bold leading-[1.25] tracking-tight text-slate-900">
-            2단계 인증이 필요합니다
-          </h2>
-          <p className="mt-3 text-[15px] leading-[1.65] text-slate-500">
-            이 계정은 2단계 인증이 켜져 있습니다. 인증 코드를 메일로 보냈습니다.
-          </p>
-          <div className="mt-8 rounded-xl border border-amber-200 bg-amber-50 px-4 py-4">
-            <p className="text-sm leading-[1.7] text-slate-700">
-              코드 입력 화면은 아직 만들지 않았습니다. 지금은 이메일과 비밀번호로 로그인해
-              주세요.
-            </p>
-          </div>
-          <Link
-            href="/login"
-            className="mt-6 block w-full rounded-lg border border-slate-300 bg-white py-3.5 text-center text-sm font-semibold text-slate-800 transition-colors hover:border-slate-400 hover:bg-slate-50"
-          >
-            로그인으로 이동
-          </Link>
-        </>
+        <MfaCodeStep
+          mfaToken={state.mfaToken}
+          onVerified={(result) => finishLogin(result as LoginResponse)}
+          onRestart={() => router.replace("/login")}
+        />
       )}
 
       {state.kind === "verifyEmail" && (

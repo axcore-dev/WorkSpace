@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AuthPrimaryButton, AuthSplit, SocialAuthButtons } from "@/components/auth-shell";
+import { MfaCodeStep, type MfaLoginResult } from "@/components/auth/mfa-code-step";
 import { FIELD_LG, isPersonalEmail } from "@/components/ui";
 import { DEMO_USER, INTERNAL_ADMIN_EMAILS, WORKSPACES } from "@/data/org";
 import {
@@ -19,15 +20,13 @@ import { setAccessToken } from "@/lib/session";
 const DEMO_LINK_CLICK_MS = 5000;
 const LINK_TTL_SEC = 600;
 
-type LoginResult = {
-  next: string;
-  accessToken?: string | null;
-  accessTokenExpiresAt?: string | null;
-};
+type LoginResult = MfaLoginResult & { mfaToken?: string | null };
 
 export default function LoginPage() {
   const router = useRouter();
-  const [step, setStep] = useState<"login" | "await">("login");
+  const [step, setStep] = useState<"login" | "mfa" | "await">("login");
+  /** 2단계 챌린지 토큰. `MFA_REQUIRED` 응답에만 있고, 코드와 함께 내야 통과한다 */
+  const [mfaToken, setMfaToken] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   /** BE 가 없을 때만 켜진다. 데모로 넘어갔다는 사실을 숨기지 않는다 */
@@ -75,13 +74,7 @@ export default function LoginPage() {
     router.push(WORKSPACES.length > 0 ? "/dashboard" : "/workspace");
   }
 
-  /**
-   * 실제 로그인.
-   *
-   * 운영자 여부는 `/api/auth/me` 로 확인한다. 이메일 목록으로 가르지 않는 이유는 그것이
-   * 보안 경계가 아니기 때문이다 — 실제 인가는 서버가 요청마다 DB 로 다시 본다. 여기서는
-   * 어느 화면으로 보낼지만 정한다.
-   */
+  /** 실제 로그인. 비밀번호가 맞으면 바로 들어가거나(`afterLogin`) 2단계 화면으로 넘어간다. */
   async function signIn() {
     setLoginError(null);
     setSubmitting(true);
@@ -92,23 +85,14 @@ export default function LoginPage() {
         rememberMe: true,
       });
 
-      if (result?.next === "MFA_REQUIRED") {
-        // 2단계는 아직 화면이 없다. 무엇을 해야 하는지는 알려 준다.
-        setLoginError("2단계 인증이 켜진 계정이에요. 지금은 이 화면에서 진행할 수 없어요.");
+      if (result?.next === "MFA_REQUIRED" && result.mfaToken) {
+        // 비밀번호는 맞았고 2단계가 남았다. 토큰은 아직 없다 — 코드를 넣어야 나온다.
+        setMfaToken(result.mfaToken);
+        setStep("mfa");
         return;
       }
 
-      setAccessToken(result?.accessToken ?? null, result?.accessTokenExpiresAt ?? null);
-
-      const me = await apiGet<{ internalAdmin: boolean }>("/api/auth/me");
-      if (me?.internalAdmin) {
-        router.push("/admin");
-        return;
-      }
-
-      // 회사를 아직 안 골랐으면 고르는 화면으로. 소속이 하나도 없으면 그 화면이 개설 대기
-      // 안내를 대신 보여 준다 — 어느 쪽인지는 목록을 받아 봐야 알 수 있어서 화면이 정한다.
-      router.push(result?.next === "READY" ? "/dashboard" : "/workspace");
+      await afterLogin(result);
     } catch (e: unknown) {
       if (e instanceof ApiRequestError) {
         setLoginError(e.body.message);
@@ -120,6 +104,35 @@ export default function LoginPage() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  /**
+   * 인증이 끝난 뒤 — 비밀번호만으로 끝났든 2단계까지 거쳤든 여기로 모인다.
+   *
+   * 운영자 여부는 `/api/auth/me` 로 확인한다. 이메일 목록으로 가르지 않는 이유는 그것이
+   * 보안 경계가 아니기 때문이다 — 실제 인가는 서버가 요청마다 DB 로 다시 본다. 여기서는
+   * 어느 화면으로 보낼지만 정한다.
+   */
+  async function afterLogin(result: MfaLoginResult | null) {
+    setAccessToken(result?.accessToken ?? null, result?.accessTokenExpiresAt ?? null);
+
+    const me = await apiGet<{ internalAdmin: boolean }>("/api/auth/me");
+    if (me?.internalAdmin) {
+      router.push("/admin");
+      return;
+    }
+
+    // 회사를 아직 안 골랐으면 고르는 화면으로. 소속이 하나도 없으면 그 화면이 개설 대기
+    // 안내를 대신 보여 준다 — 어느 쪽인지는 목록을 받아 봐야 알 수 있어서 화면이 정한다.
+    router.push(result?.next === "READY" ? "/dashboard" : "/workspace");
+  }
+
+  /** 2단계 화면에서 처음으로. 비밀번호를 다시 넣으면 새 코드가 간다 */
+  function restartLogin() {
+    setMfaToken(null);
+    setPassword("");
+    setLoginError(null);
+    setStep("login");
   }
 
   /** 대기 화면 진입 — 타이머·확인 상태는 여기서 리셋한다 (effect 내 동기 setState 회피) */
@@ -234,6 +247,13 @@ export default function LoginPage() {
             </p>
           )}
         </>
+      ) : step === "mfa" && mfaToken ? (
+        <MfaCodeStep
+          mfaToken={mfaToken}
+          email={email.trim()}
+          onVerified={(result) => afterLogin(result)}
+          onRestart={restartLogin}
+        />
       ) : (
         <>
           {offline && (
