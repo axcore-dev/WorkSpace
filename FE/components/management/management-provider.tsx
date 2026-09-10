@@ -135,6 +135,16 @@ export function ManagementProvider({ children }: { children: ReactNode }) {
 
   return (
     <ManagementContext.Provider value={value}>
+      {/* 받기 상태는 세 작업대가 함께 지므로 여기 한 줄로 둔다 — 작업대는 데이터가 없으면 저마다 빈 안내를 그린다. */}
+      {status === "loading" && <p className="mb-3 text-sm text-slate-400">경영지원 데이터를 불러오는 중이에요</p>}
+      {status === "error" && (
+        <p className="mb-3 text-sm text-red-600">
+          경영지원 데이터를 불러오지 못했어요.{" "}
+          <button type="button" className="font-semibold underline" onClick={reload}>
+            다시 시도
+          </button>
+        </p>
+      )}
       {children}
       <Toast toast={toast} />
     </ManagementContext.Provider>
