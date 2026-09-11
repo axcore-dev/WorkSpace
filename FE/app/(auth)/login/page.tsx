@@ -20,6 +20,17 @@ import { setAccessToken } from "@/lib/session";
 const DEMO_LINK_CLICK_MS = 5000;
 const LINK_TTL_SEC = 600;
 
+/**
+ * 「데모 체험하기」 — 시연용 계정으로 바로 로그인한다. 두 값이 다 있을 때만 버튼이 보인다.
+ *
+ * `NEXT_PUBLIC_` 이라 **번들에 그대로 실리고 누구나 볼 수 있다.** 그래서 이 계정은 시연 전용
+ * 워크스페이스의 소유자여야 하고, 다른 곳에서 쓰는 비밀번호를 두면 안 된다. 코드에 값을 박지
+ * 않는 이유는 계정을 바꿀 때 배포 없이 환경 변수만 갈아끼우기 위해서다.
+ */
+const DEMO_EMAIL = process.env.NEXT_PUBLIC_DEMO_EMAIL ?? "";
+const DEMO_PASSWORD = process.env.NEXT_PUBLIC_DEMO_PASSWORD ?? "";
+const DEMO_ENABLED = DEMO_EMAIL !== "" && DEMO_PASSWORD !== "";
+
 type LoginResult = MfaLoginResult & { mfaToken?: string | null };
 
 export default function LoginPage() {
@@ -74,16 +85,21 @@ export default function LoginPage() {
     router.push("/dashboard");
   }
 
-  /** 실제 로그인. 비밀번호가 맞으면 바로 들어가거나(`afterLogin`) 2단계 화면으로 넘어간다. */
-  async function signIn() {
+  /**
+   * 실제 로그인. 비밀번호가 맞으면 바로 들어가거나(`afterLogin`) 2단계 화면으로 넘어간다.
+   * `demo` 면 시연 계정으로 로그인하고, 회사가 하나뿐이면 고르는 화면을 건너뛴다.
+   */
+  async function signIn(demo = false) {
+    const creds = demo ? { email: DEMO_EMAIL, password: DEMO_PASSWORD } : { email: email.trim(), password };
+    if (demo) {
+      // 어떤 계정으로 들어갔는지 화면에도 남긴다 — 실패 문구가 떠도 어느 계정 얘긴지 알 수 있게
+      setEmail(creds.email);
+      setPassword(creds.password);
+    }
     setLoginError(null);
     setSubmitting(true);
     try {
-      const result = await apiPost<LoginResult>("/api/auth/login", {
-        email: email.trim(),
-        password,
-        rememberMe: true,
-      });
+      const result = await apiPost<LoginResult>("/api/auth/login", { ...creds, rememberMe: true });
 
       if (result?.next === "MFA_REQUIRED" && result.mfaToken) {
         // 비밀번호는 맞았고 2단계가 남았다. 토큰은 아직 없다 — 코드를 넣어야 나온다.
@@ -92,7 +108,7 @@ export default function LoginPage() {
         return;
       }
 
-      await afterLogin(result);
+      await afterLogin(result, demo);
     } catch (e: unknown) {
       if (e instanceof ApiRequestError) {
         setLoginError(e.body.message);
@@ -113,7 +129,7 @@ export default function LoginPage() {
    * 보안 경계가 아니기 때문이다 — 실제 인가는 서버가 요청마다 DB 로 다시 본다. 여기서는
    * 어느 화면으로 보낼지만 정한다.
    */
-  async function afterLogin(result: MfaLoginResult | null) {
+  async function afterLogin(result: MfaLoginResult | null, demo = false) {
     setAccessToken(result?.accessToken ?? null, result?.accessTokenExpiresAt ?? null);
 
     const me = await apiGet<{ internalAdmin: boolean }>("/api/auth/me");
@@ -124,7 +140,9 @@ export default function LoginPage() {
 
     // 회사를 아직 안 골랐으면 고르는 화면으로. 소속이 하나도 없으면 그 화면이 개설 대기
     // 안내를 대신 보여 준다 — 어느 쪽인지는 목록을 받아 봐야 알 수 있어서 화면이 정한다.
-    router.push(result?.next === "READY" ? "/dashboard" : "/workspace");
+    // 데모는 회사가 하나면 그 화면이 바로 들어간다(`?auto=1`).
+    if (result?.next === "READY") router.push("/dashboard");
+    else router.push(demo ? "/workspace?auto=1" : "/workspace");
   }
 
   /** 2단계 화면에서 처음으로. 비밀번호를 다시 넣으면 새 코드가 간다 */
@@ -240,6 +258,17 @@ export default function LoginPage() {
           {/* 버튼 모양과 "또는" 구분선은 SocialAuthButtons 안에 있다. 회원가입 화면과 같은
               컴포넌트를 써야 두 화면이 어긋나지 않는다. */}
           <SocialAuthButtons action="로그인" onSelect={loginWith} />
+
+          {DEMO_ENABLED && (
+            <button
+              type="button"
+              disabled={submitting}
+              onClick={() => void signIn(true)}
+              className="mt-3 w-full cursor-pointer rounded-lg bg-white py-3 text-[15px] font-semibold text-slate-700 ring-1 ring-inset ring-slate-300 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              데모 체험하기
+            </button>
+          )}
 
           {socialError && (
             <p className="mt-3 text-sm text-red-600" role="alert">
