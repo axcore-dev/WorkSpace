@@ -6,6 +6,7 @@ import { ICON_MAP } from "@/components/icons";
 import { useModules } from "@/components/module-provider";
 import { AiBadge, Badge, Toast, Toggle } from "@/components/ui";
 import { useToast } from "@/components/use-toast";
+import { withJosa } from "@/data/ko";
 import { MODULES } from "@/data/modules";
 import { refreshWorkspaceMe, useWorkspaceMe } from "@/lib/workspace-me";
 
@@ -118,7 +119,7 @@ export function FeatureSettings() {
                           size="sm"
                           checked={st.subs[sub.id]}
                           onChange={(v) =>
-                            report(setSub(mod.slug, sub.id, v), `${sub.name}을 ${v ? "켰어요" : "껐어요"}`)
+                            report(setSub(mod.slug, sub.id, v), `${withJosa(sub.name, "을/를")} ${v ? "켰어요" : "껐어요"}`)
                           }
                           label={`${mod.name} > ${sub.name}`}
                           disabled={!granted.has(sub.id)}
