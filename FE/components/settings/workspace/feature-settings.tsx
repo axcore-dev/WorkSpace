@@ -1,5 +1,6 @@
 "use client";
 
+import { Fragment } from "react";
 import { SettingsSection } from "@/components/settings/settings-section";
 import { ICON_MAP } from "@/components/icons";
 import { useModules } from "@/components/module-provider";
@@ -104,26 +105,34 @@ export function FeatureSettings() {
                 {/* 하위 탭은 토글로 남긴다 — 칩으로 바꾸면 켜고 끄는 것인지 고르는 것인지
                     구분이 안 되고, 위 기능 토글과 같은 동작이 두 모양이 된다 */}
                 <div className="mt-2.5 flex flex-col gap-1.5">
-                  {mod.subfunctions.map((sub) => (
-                    <span key={sub.id} className="inline-flex items-center gap-2">
-                      <Toggle
-                        size="sm"
-                        checked={st.subs[sub.id]}
-                        onChange={(v) =>
-                          report(setSub(mod.slug, sub.id, v), `${sub.name}을 ${v ? "켰어요" : "껐어요"}`)
-                        }
-                        label={`${mod.name} > ${sub.name}`}
-                        disabled={!granted.has(sub.id)}
-                      />
-                      <span
-                        className={`flex items-center gap-1 text-[13px] ${
-                          st.subs[sub.id] ? "text-slate-600" : "text-slate-400"
-                        }`}
-                      >
-                        {sub.name}
-                        {sub.ai && <AiBadge />}
+                  {mod.subfunctions.map((sub, k) => (
+                    <Fragment key={sub.id}>
+                      {/* 묶음이 바뀌는 자리(처리 → 설정)에 구분선 + 묶음 이름 — 성격이 다른 탭이 한 목록에 섞이면 어디까지가 매일 쓰는 것인지 안 보인다 */}
+                      {sub.group && sub.group !== mod.subfunctions[k - 1]?.group && (
+                        <span className="flex items-center gap-2 pt-1 text-[11px] text-slate-500 before:h-px before:flex-1 before:bg-slate-200 after:h-px after:flex-1 after:bg-slate-200">
+                          {sub.group}
+                        </span>
+                      )}
+                      <span className="inline-flex items-center gap-2">
+                        <Toggle
+                          size="sm"
+                          checked={st.subs[sub.id]}
+                          onChange={(v) =>
+                            report(setSub(mod.slug, sub.id, v), `${sub.name}을 ${v ? "켰어요" : "껐어요"}`)
+                          }
+                          label={`${mod.name} > ${sub.name}`}
+                          disabled={!granted.has(sub.id)}
+                        />
+                        <span
+                          className={`flex items-center gap-1 text-[13px] ${
+                            st.subs[sub.id] ? "text-slate-600" : "text-slate-400"
+                          }`}
+                        >
+                          {sub.name}
+                          {sub.ai && <AiBadge />}
+                        </span>
                       </span>
-                    </span>
+                    </Fragment>
                   ))}
                 </div>
               </div>
