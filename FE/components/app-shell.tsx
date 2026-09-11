@@ -20,7 +20,6 @@ import {
 } from "@/components/icons";
 import { Avatar } from "@/components/avatar";
 import { Logo } from "@/components/logo";
-import { useModules } from "@/components/module-provider";
 import { useLogout } from "@/components/use-logout";
 import { useSidebarCollapsed } from "@/components/use-sidebar-collapsed";
 import { useAccountMe } from "@/lib/account-me";
@@ -80,7 +79,6 @@ function NavLink({
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { state } = useModules();
 
   const [orgOpen, setOrgOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -121,6 +119,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // 빈 줄(공백 문자)로 높이만 지킨다 — 빈 문자열이면 줄이 사라져 사이드바가 들썩인다.
   const { me: account } = useAccountMe();
   const { me: ws } = useWorkspaceMe();
+
+  /**
+   * 사이드바에 보일 기능 — 서버가 계산한 내 것(`me.modules` = 회사가 켠 기능 ∩ 내 직급 ∩ 내 개별 권한)이다.
+   * 회사가 켠 목록(`useModules`)으로 그리면 권한 없는 사람에게도 보이고, 눌러야 403 을 만난다.
+   * 받기 전에는 비어 있다 — 없는 것을 보여 주는 편이 없는 권한을 보여 주는 것보다 낫다.
+   */
+  const allowedModules = new Set(ws?.modules ?? []);
 
   /**
    * 회사 선택기 — 내 소속 목록(`GET /api/auth/workspaces`)과 지금 회사.
@@ -297,7 +302,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </NavLink>
           </div>
 
-          <div>
+          {/* 볼 수 있는 기능이 하나도 없으면 제목만 남아 빈 칸이 된다 — 묶음째 감춘다 */}
+          <div className={allowedModules.size === 0 ? "hidden" : ""}>
             <p
               className={`mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400 ${
                 collapsed ? "hidden" : ""
@@ -308,9 +314,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="space-y-1">
               {MODULES.map((mod) => {
                 const Icon = ICON_MAP[mod.icon];
-                const enabled = state[mod.slug]?.enabled;
                 const active = pathname === `/modules/${mod.slug}`;
-                if (!enabled) return null;
+                // 회사가 켰는지가 아니라 내가 볼 수 있는지로 그린다 — 서버가 계산한 me.modules 가 기준이다.
+                // 켜져 있어도 내 직급에 없으면 눌러도 403 이라, 아예 보이지 않는 편이 맞다.
+                if (!allowedModules.has(mod.slug)) return null;
                 return (
                   <NavLink
                     key={mod.slug}
