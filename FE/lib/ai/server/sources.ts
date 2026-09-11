@@ -211,8 +211,8 @@ const TRGM_FLOOR = 0.5;
 /**
  * 질문과 가까운 조각을 찾는다. `names` 가 있으면 그 문서 안에서, `null` 이면 본인 문서 전체에서.
  *
- * **분야 제한이 SQL 에 있다.** 문서의 `module_slug` 가 허용 모듈(`allowedModules`) 안에 있거나 NULL(분류 없음)인
- * 것만 잡힌다. 권한 없는 분야의 문서는 조각 단계에서 걸러지므로 프롬프트가 실수해도 모델에 닿지 않는다.
+ * **접근 규칙이 SQL 에 있다.** 내 문서는 분야와 무관하게, 회사 공유 문서는 내 권한 분야만 잡힌다(아래 `scope` 주석).
+ * 권한 밖 문서는 조각 단계에서 걸러지므로 프롬프트가 실수해도 모델에 닿지 않는다.
  *
  * **벡터와 전문 검색을 둘 다 돌려 순위를 합친다(RRF).** 예전에는 벡터가 한 건이라도 나오면 거기서 끝냈고, 벡터는
  * 거의 항상 무언가를 돌려주므로 전문 검색은 사실상 켜지지 않았다. 그런데 품번(`PRT-BRG-608`)·전표번호처럼 글자가
@@ -233,11 +233,27 @@ export async function searchChunks(
   limit: number,
 ): Promise<ChunkHit[]> {
   if (names !== null && names.length === 0) return [];
-  // $2 가 NULL 이면 이름 조건을 건너뛴다 — 내가 볼 수 있는 문서 전체. $5 는 허용 모듈(빈 배열이면 분류 없는 문서만)
-  const scope = `(d.owner_user_id = $1 OR d.scope = 'company')
+  /*
+   * 볼 수 있는 문서의 규칙. 두 갈래이고 <b>서로 다른 잣대를 쓴다.</b>
+   *
+   * 1. <b>내가 올린 문서 — 분야 권한과 무관하게 본다.</b> 내가 올린 내 자료다. 급여 탭이 없다고 내가 올린 급여 파일을
+   *    나에게 숨기는 것은 말이 안 된다. 분류가 비어 있어도 본다.
+   * 2. <b>회사에 공유된 문서 — 분야 권한이 있어야 본다.</b> 남이 올린 자료라 회사의 권한 규칙을 따른다. 분류가 비어
+   *    있으면(`module_slug IS NULL`) 어느 분야인지 알 수 없으므로 <b>보이지 않는다</b> — 모르는 것을 여는 쪽보다
+   *    막는 쪽이 맞다. 공유한 사람이 분야를 정해 주면 그때 열린다.
+   *
+   * 남이 올린 개인 문서는 어느 갈래에도 들지 않는다. 어떤 권한을 가져도 보이지 않는다.
+   *
+   * 이름으로 고른 문서($2)도 <b>내 것만</b> 본다. 문서 이름은 사람마다 따로 유일해서(ux_ai_source_docs_owner_name)
+   * 같은 이름이 둘일 수 있고, 화면의 문서 고르기는 내 문서만 보여 준다 — 남의 같은 이름 문서가 딸려오면 내가 고른
+   * 것과 다른 자료가 근거로 쓰인다.
+   */
+  const scope = `(
+            d.owner_user_id = $1
+            OR (d.scope = 'company' AND d.module_slug = ANY($5::text[]))
+          )
           AND d.status = 'ready'
-          AND ($2::text[] IS NULL OR d.name = ANY($2::text[]))
-          AND (d.module_slug IS NULL OR d.module_slug = ANY($5::text[]))`;
+          AND ($2::text[] IS NULL OR (d.owner_user_id = $1 AND d.name = ANY($2::text[])))`;
 
   const { rows } = await db.query<ChunkHit>(
     `WITH q AS (

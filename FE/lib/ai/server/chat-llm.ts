@@ -51,8 +51,9 @@ import { chatModel, providerOptions } from "./models";
 import { searchQuery } from "./query-rewrite";
 import { retrieve } from "./retrieval";
 import { decideApproval, hasTools, MAX_TOOL_STEPS, toolSetFor } from "./tools";
-// 외부 앱 도구를 레지스트리에 올린다. import 자체가 등록이다
+// 도구를 레지스트리에 올린다. import 자체가 등록이다
 import "./connector-tools";
+import "./data-tools";
 
 export interface Turn {
   question: string;

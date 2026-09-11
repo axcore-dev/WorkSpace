@@ -34,6 +34,11 @@ export interface AiPrincipal {
    * 이 분야 질문에만 답한다. 비어 있으면 어떤 분야도 열리지 않는다.
    */
   modules: string[];
+  /**
+   * 쓸 수 있는 <b>기능 탭</b> id — 모듈보다 한 칸 좁다. 경영지원을 가졌다고 급여 탭까지 가진 것은 아니다.
+   * 업무 데이터 조회(`data-tools.ts`)가 이 값으로 목록을 거른다. 비어 있으면 조회할 수 있는 것이 없다.
+   */
+  tabs: string[];
   /** access 토큰 만료. 캐시 상한 */
   tokenExpiresAt: string;
 }
@@ -111,6 +116,11 @@ async function introspect(token: string): Promise<AiPrincipal> {
   }
   // slug 는 문자열만, 알 수 없는 값은 버린다 — 검색 쿼리의 배열 파라미터로 그대로 들어간다
   p.modules = p.modules.filter((m): m is string => typeof m === "string" && /^[a-z]{1,30}$/.test(m));
+  // 탭은 없으면 빈 목록이다. FE 가 먼저 배포되고 BE 가 아직 옛 버전일 수 있다 — 그때 대화 전체를 502 로 끊는 대신
+  // 업무 데이터 조회만 닫는다. 문서 검색은 modules 로 돌아가므로 답변은 계속 나온다
+  p.tabs = Array.isArray(p.tabs)
+    ? p.tabs.filter((t): t is string => typeof t === "string" && /^[a-z]{1,30}$/.test(t))
+    : [];
   return p;
 }
 

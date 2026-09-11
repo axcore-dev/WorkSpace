@@ -23,5 +23,6 @@ public record IntrospectionResponse(
         String workspaceName,
         String schemaName,
         List<String> modules,
+        List<String> tabs,
         Instant tokenExpiresAt) {
 }

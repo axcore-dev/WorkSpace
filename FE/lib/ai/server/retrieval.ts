@@ -29,9 +29,21 @@ const SNIPPET = 160;
  * 전문 검색·부분 일치에 걸린 조각은 유사도가 낮아도 남긴다. 질의 낱말이 본문에 그대로 있다는 뜻이고, 품번·전표번호가
  * 그 경우다.
  *
- * 0.2 는 시작값이다. `lib/ai/eval` 의 평가 세트로 올리거나 내린다 — 높이면 "못 찾았어요" 가 늘고 낮추면 잡음이 는다.
+ * <b>0.30 은 실제로 재서 정한 값이다.</b> 제조 문서 4건(자재 발주서 · 부품 리스트 · 수입검사 이력대장 2건)에 질문 10개를
+ * 물어 최대 유사도를 뽑았더니 이렇게 갈렸다.
+ *
+ * <pre>
+ * 근거 있는 질문   0.327 0.335 0.438 0.467 0.516 0.594   ← 최저 0.327
+ * 근거 없는 질문   0.156 0.233 0.250 0.282               ← 최고 0.282
+ * </pre>
+ *
+ * 사이가 비어 있어 0.30 이면 열 문항이 모두 갈린다. 처음 시작값이던 0.2 로는 "오늘 점심 뭐 먹지?" 가 0.233 으로
+ * 통과해 관계없는 조각이 문맥에 들어갔다.
+ *
+ * <b>다시 재야 하는 때</b> — 임베딩 모델을 바꾸면(값의 분포가 모델마다 다르다), 자료가 크게 늘면(우연히 가까운 조각이
+ * 생길 수 있다), 또는 "못 찾았어요" 가 너무 잦다는 말이 나오면. 재는 방법은 `lib/ai/eval` 에 있다.
  */
-const MIN_SIMILARITY = 0.2;
+const MIN_SIMILARITY = 0.3;
 
 export interface Retrieval {
   hits: ChunkHit[];
@@ -50,8 +62,10 @@ function block(h: ChunkHit, i: number): string {
 
 /**
  * @param names 선택된 문서 이름. **빈 배열이면 내가 볼 수 있는 문서 전체를 뒤진다** — 답은 항상 이 회사 자료에서만
- *   나와야 하므로, 사용자가 문서를 고르지 않았다고 자료 없이 답하게 두지 않는다.
- *   어느 쪽이든 본인 문서와 회사에 공유된 문서만, 그리고 본인이 권한을 가진 분야(`principal.modules`)만 잡힌다.
+ *   나와야 하므로, 사용자가 문서를 고르지 않았다고 자료 없이 답하게 두지 않는다. 고른 경우에는 내 문서 중에서만 찾는다.
+ *
+ *   볼 수 있는 범위는 두 갈래다. <b>내가 올린 문서는 분야 권한과 무관하게</b>, <b>회사에 공유된 문서는 내 권한
+ *   분야(`principal.modules`)만</b> 잡힌다. 남이 올린 개인 문서는 어느 경우에도 잡히지 않는다(`sources.ts` 의 `scope`).
  */
 export async function retrieve(
   principal: AiPrincipal,
@@ -76,11 +90,12 @@ export async function retrieve(
     ),
   );
 
-  // 검색은 주제가 비슷한 것을 잘 찾는다. 질문에 실제로 답하는 것을 고르는 일은 모델이 한 번 더 본다
-  const ranked = await rerank(question, found, TOP_K);
+  // 문턱이 먼저다. 「근거가 있는가」는 후보 전체를 보고 판정하고, 재랭킹은 살아남은 것의 순서만 정한다.
+  // 순서를 바꾸면(재랭킹 먼저) 모델이 고른 8개가 전부 문턱 아래일 때 근거가 있는데도 없다고 답한다 — 실제로 그랬다
+  const passed = found.filter((h) => h.lexical || (h.similarity !== null && h.similarity >= MIN_SIMILARITY));
 
-  // 문턱을 넘은 것만 남긴다. 하나도 없으면 문맥이 비고, 프롬프트의 "자료에서 찾지 못했어요" 갈래가 켜진다
-  const hits = ranked.filter((h) => h.lexical || (h.similarity !== null && h.similarity >= MIN_SIMILARITY));
+  // 검색은 주제가 비슷한 것을 잘 찾는다. 질문에 실제로 답하는 것을 고르는 일은 모델이 한 번 더 본다
+  const hits = await rerank(question, passed, TOP_K);
 
   const context = hits.map(block).join("\n\n");
 
