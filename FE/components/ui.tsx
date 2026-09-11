@@ -289,6 +289,30 @@ export function DataTable({
   const expandable = !!renderExpanded;
   const fixed = !!colWidths;
   const panelId = useId();
+  /**
+   * 펼침 모션 — 열릴 때 패널이 0fr → 1fr 로 300ms(slow) 자라고, 접힐 때 같은 길이로 줄어든 뒤 언마운트된다.
+   * `grown` 은 한 프레임 뒤에 열린 행을 따라간다(첫 프레임은 0fr 이어야 전환이 생긴다). `closing` 은 방금 닫힌 행을
+   * 300ms 붙잡아 둔다. 바뀐 직후 한 렌더는 `grown` 이 아직 이전 행이라 패널이 끊기지 않고 남는다.
+   * 상태는 rAF · 타이머 안에서만 바꾼다(effect 본문의 동기 setState 는 lint 가 막는다).
+   */
+  const [grown, setGrown] = useState<number | null>(null);
+  const [closing, setClosing] = useState<number | null>(null);
+  const lastOpen = useRef<number | null>(null);
+  useEffect(() => {
+    const prev = lastOpen.current;
+    const next = expandedRow ?? null;
+    lastOpen.current = next;
+    const changed = prev !== null && prev !== next;
+    const raf = requestAnimationFrame(() => {
+      setGrown(next);
+      if (changed) setClosing(prev);
+    });
+    const timer = changed ? setTimeout(() => setClosing(null), 320) : undefined;
+    return () => {
+      cancelAnimationFrame(raf);
+      if (timer) clearTimeout(timer);
+    };
+  }, [expandedRow]);
   const align = (j: number) => CELL_ALIGN[colAlign?.[j] ?? "left"];
   return (
     <div className="thin-scroll -mx-1 overflow-x-auto px-1">
@@ -365,18 +389,30 @@ export function DataTable({
                     <td
                       key={j}
                       title={fixed && typeof cell !== "object" ? String(cell) : undefined}
-                      className={`${fixed ? "truncate" : "whitespace-nowrap"} px-3 ${dense ? "py-2" : "py-3"} ${expandable ? "" : "first:pl-1"} last:pr-1 ${EMPHASIS_CLASS[cellEmphasis(emphasisAt?.(row, i, j) ?? emphasis?.[j], level)]} ${align(j)}`}
+                      // 색 전환 300ms — 저장 뒤 행이 faint 로 내려갈 때 글자색이 서서히 내려간다(정렬 이동은 움직이지 않는다)
+                      className={`${fixed ? "truncate" : "whitespace-nowrap"} px-3 ${dense ? "py-2" : "py-3"} ${expandable ? "" : "first:pl-1"} last:pr-1 transition-colors duration-300 motion-reduce:transition-none ${EMPHASIS_CLASS[cellEmphasis(emphasisAt?.(row, i, j) ?? emphasis?.[j], level)]} ${align(j)}`}
                     >
                       <CellView cell={cell} row={level} />
                     </td>
                   ))}
                 </tr>
-                {open && (
+                {expandable && (open || grown === i || closing === i) && (
                   <tr id={`${panelId}-${i}`} className="bg-slate-50">
                     {/* 펼친 패널 — 행과 같은 표 안에 있어 가로 스크롤을 함께 탄다. 옅은 띠 위에 흰 카드(테두리, 그림자 없음),
-                        첫 데이터 열 아래로 들여 쓴다(38px) — 행에 속한 상세라는 것이 보이게 */}
-                    <td colSpan={row.length + 1} className="pb-4 pl-[38px] pr-2.5 pt-0">
-                      <div className="rounded-lg border border-slate-200 bg-white p-4">{renderExpanded(i)}</div>
+                        첫 데이터 열 아래로 들여 쓴다(38px) — 행에 속한 상세라는 것이 보이게.
+                        높이는 grid-template-rows 0fr ↔ 1fr 전환으로 — 패딩까지 안쪽 상자에 두어 접히면 0 이 된다 */}
+                    <td colSpan={row.length + 1} className="p-0">
+                      <div
+                        className={`grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none ${
+                          open && grown === i ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+                        }`}
+                      >
+                        <div className="min-h-0 overflow-hidden">
+                          <div className="pb-4 pl-[38px] pr-2.5">
+                            <div className="rounded-lg border border-slate-200 bg-white p-4">{renderExpanded?.(i)}</div>
+                          </div>
+                        </div>
+                      </div>
                     </td>
                   </tr>
                 )}
@@ -516,7 +552,7 @@ export function MenuButton({
         <ul
           role="menu"
           aria-label={menuLabel}
-          className={`absolute top-full z-20 mt-1 min-w-44 rounded-lg border border-slate-200 bg-white p-1 shadow-lg ${align === "right" ? "right-0" : "left-0"}`}
+          className={`fade-in absolute top-full z-20 mt-1 min-w-44 rounded-lg border border-slate-200 bg-white p-1 shadow-lg ${align === "right" ? "right-0" : "left-0"}`}
         >
           {items.map((it, i) => (
             <li key={i} role="none">
@@ -553,14 +589,37 @@ export function Segmented<T extends string>({
   label: string;
   disabled?: boolean;
 }) {
+  const rootRef = useRef<HTMLSpanElement>(null);
+  /**
+   * 흰 선택 배경(thumb) — 활성 버튼의 자리를 재서 200ms(base)로 미끄러진다. 측정 전 첫 프레임에는 활성 버튼이 스스로
+   * 배경을 그리므로 깜빡임이 없다. 같은 값이면 같은 객체를 돌려 렌더 루프를 막는다(options 가 매 렌더 새 배열일 수 있다).
+   */
+  const [thumb, setThumb] = useState<{ left: number; width: number } | null>(null);
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => {
+      const el = rootRef.current?.querySelector<HTMLElement>('[aria-pressed="true"]');
+      const next = el ? { left: el.offsetLeft, width: el.offsetWidth } : null;
+      setThumb((prev) => (prev && next && prev.left === next.left && prev.width === next.width ? prev : next));
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [value, options.length]);
+
   return (
     <span
+      ref={rootRef}
       role="group"
       aria-label={label}
-      className={`inline-flex shrink-0 gap-0.5 rounded-lg bg-slate-100 p-0.5 ${
+      className={`relative inline-flex shrink-0 gap-0.5 rounded-lg bg-slate-100 p-0.5 ${
         disabled ? "opacity-40" : ""
       }`}
     >
+      {thumb && (
+        <span
+          aria-hidden
+          className="absolute bottom-0.5 top-0.5 rounded-md bg-white ring-1 ring-slate-200 transition-[left,width] duration-200 ease-out motion-reduce:transition-none"
+          style={{ left: thumb.left, width: thumb.width }}
+        />
+      )}
       {options.map((o) => {
         const on = o.value === value;
         return (
@@ -570,9 +629,9 @@ export function Segmented<T extends string>({
             aria-pressed={on}
             disabled={disabled}
             onClick={() => onChange(o.value)}
-            className={`cursor-pointer whitespace-nowrap rounded-md px-2.5 py-1 text-xs transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400 disabled:cursor-not-allowed ${
+            className={`relative z-[1] cursor-pointer whitespace-nowrap rounded-md px-2.5 py-1 text-xs transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400 disabled:cursor-not-allowed ${
               on
-                ? "bg-white font-semibold text-slate-900 ring-1 ring-slate-200"
+                ? `font-semibold text-slate-900 ${thumb ? "" : "bg-white ring-1 ring-slate-200"}`
                 : "font-medium text-slate-500 hover:text-slate-700"
             }`}
           >

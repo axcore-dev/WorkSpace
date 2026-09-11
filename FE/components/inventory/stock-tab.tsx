@@ -202,7 +202,7 @@ export function StockTab() {
             {adjust && (
               <form
                 noValidate
-                className="flex flex-wrap items-start gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3"
+                className="fade-in flex flex-wrap items-start gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3"
                 onSubmit={(e) => {
                   e.preventDefault();
                   saveAdjust(item, b);
@@ -282,7 +282,7 @@ export function StockTab() {
           <form
             // noValidate — `max` · `min` 은 힌트(달력 범위)로만 두고, 막는 문구는 우리 것으로 통일한다
             noValidate
-            className="grid gap-4 sm:grid-cols-3"
+            className="fade-in grid gap-4 sm:grid-cols-3"
             onSubmit={(e) => {
               e.preventDefault();
               saveStandard(item);
