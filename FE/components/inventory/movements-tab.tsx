@@ -15,6 +15,8 @@ const KIND_TONE: Record<MovementKind, Tone> = { in: "green", out: "slate", adjus
 
 const SIMPLE = ["날짜", "품목", "구분", "수량", "귀속"];
 const DETAIL = ["일시", "품목", "사양", "규격", "구분", "수량", "잔량", "담당자", "발주번호", "검사", "귀속", "메모"];
+/** 상세 12열은 폭을 고정하고 넘치는 글자는 말줄임(`title` 로 전문). 합 1,190px — 좁으면 카드 안에서 가로 스크롤 */
+const DETAIL_WIDTHS = ["104px", "150px", "72px", "104px", "56px", "64px", "64px", "96px", "116px", "64px", "140px", "160px"];
 
 const signed = (n: number) => (n > 0 ? `+${n}` : String(n));
 const dateOf = (at: string) => at.slice(5, 10).replace("-", ".");
@@ -63,6 +65,8 @@ export function MovementsTab() {
       <DataTable
         data={{ columns, rows: cells }}
         dense={density === "detail"}
+        colWidths={density === "detail" ? DETAIL_WIDTHS : undefined}
+        colAlign={density === "detail" ? ["left", "left", "left", "left", "left", "right", "right"] : ["left", "left", "left", "right"]}
         // 조회 화면 — 열 강조 없음. 「—」 · 합격은 내림
         emphasisAt={(row, _, j) => (row[j] === "—" || row[j] === "합격" ? "down" : undefined)}
       />

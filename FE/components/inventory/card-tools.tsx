@@ -9,8 +9,8 @@ import { useInventory, type Density } from "./inventory-provider";
  * 카드 헤더의 도구 자리 — 탭 줄 오른쪽에는 버튼을 두지 않는다(스펙 「공통 골격」).
  *
  * 검색은 아이콘 하나. 누르면 오른쪽으로 입력창이 200ms(모션 사다리 base) 폭·투명도로 펼쳐지고 포커스가
- * 옮겨 간다. ESC 는 접기(검색어도 지운다), × 는 검색어가 있으면 지우기 · 없으면 접기, 빈 채로 포커스가 나가면 접힌다.
- * 검색어는 탭 로컬 상태다 — 탭을 바꾸면 사라진다.
+ * 옮겨 간다. ESC 는 항상 접기(검색어도 지운다). × 는 검색어가 있으면 지우기, 비어 있으면 접기 — 그래서 두 번째 × 가 접는다.
+ * 빈 채로 포커스가 나가면 접힌다. 검색어는 탭 로컬 상태다 — 탭을 바꾸면 사라진다.
  */
 const TOOL_BTN =
   "inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-slate-600 ring-1 ring-inset ring-slate-300 transition-colors duration-200 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400";
@@ -98,16 +98,17 @@ function SearchTool({ value, onChange, placeholder }: { value: string; onChange:
           aria-label={placeholder}
           className={`${FIELD_SM} pr-8`}
         />
-        {value && (
-          <button
-            type="button"
-            onClick={() => onChange("")}
-            aria-label="검색어 지우기"
-            className="absolute right-1.5 top-1/2 -translate-y-1/2 cursor-pointer rounded p-0.5 text-slate-500 transition-colors duration-150 hover:text-slate-700"
-          >
-            <IconX size={14} />
-          </button>
-        )}
+        <button
+          type="button"
+          tabIndex={open ? 0 : -1}
+          // 포커스가 입력에서 이 버튼으로 옮겨 가는 사이 blur 가 접지 않게 — mousedown 을 막는다
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => (value ? onChange("") : close())}
+          aria-label={value ? "검색어 지우기" : "검색 접기"}
+          className="absolute right-1.5 top-1/2 -translate-y-1/2 cursor-pointer rounded p-0.5 text-slate-500 transition-colors duration-150 hover:text-slate-700"
+        >
+          <IconX size={14} />
+        </button>
       </div>
     </div>
   );

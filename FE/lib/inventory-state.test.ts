@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Item, Movement, PurchaseOrder, Vendor } from "../data/inventory";
 import { DEMO_TODAY, DOC_RULES, ITEMS, MOVEMENTS, ORDERS, SAFETY_STANDARD, STANDARDS, VENDORS } from "../data/inventory-demo.ts";
-import { orderSort, orderStatus, reduce, safetyOf, shortage, stockBreakdown, stockOf, type InventoryState } from "./inventory-state.ts";
+import { fromWizardRows, orderSort, orderStatus, reduce, safetyOf, shortage, stockBreakdown, stockOf, type InventoryState } from "./inventory-state.ts";
 
 const state: InventoryState = {
   orders: ORDERS,
@@ -117,6 +117,34 @@ test("발주서 위저드가 만든 발주는 목록 앞에 들어간다", () =>
   const next = reduce(state, { type: "createOrders", orders: [created] }, "2026-07-08T10:00", "구매 담당");
   assert.equal(next.orders[0].poNo, "PO-2607-0099");
   assert.equal(next.orders.length, ORDERS.length + 1);
+});
+
+test("위저드 발주 → 새 모델: 발주처는 이름, 품목은 사양+규격으로 맞추고 못 맞추면 빈 코드", () => {
+  const [o] = fromWizardRows(
+    [
+      {
+        poNo: "PO-2607-0007",
+        orderedOn: "2026-07-08",
+        supplier: "대성정공",
+        projectCode: "26PNQ-S18 OP10",
+        drawing: "26PNQ-S18-10",
+        rev: "Rev.A",
+        requester: "구매 담당",
+        status: "발주",
+        lines: [
+          { itemName: "GUIDE PIN", spec: "SGPH", size: "20-120", qty: 4 },
+          { itemName: "SPRING-LIFT", spec: "SWF", size: "12-50", qty: 2 },
+          { itemName: "UNKNOWN", spec: "??", size: "??", qty: 1 },
+        ],
+      },
+    ],
+    VENDORS,
+    ITEMS,
+  );
+  assert.equal(o.vendorId, "v-daesung");
+  assert.deepEqual(o.lines.map((l) => l.itemCode), ["ITM-GP-0007", "ITM-SP-0001", ""]);
+  assert.equal(o.lines[1].nameAtOrder, "SPRING-LIFT", "발주 시점 표기는 그대로 남는다");
+  assert.equal(o.lines[0].received, 0);
 });
 
 test("마감하면 잔량이 남아도 완료가 된다", () => {

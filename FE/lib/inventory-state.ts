@@ -8,6 +8,7 @@ import type {
   SafetyStandard,
   Vendor,
 } from "../data/inventory";
+import type { PurchaseOrderRow } from "../data/purchasing";
 import { daysBetween } from "./management-state.ts";
 
 /**
@@ -110,6 +111,36 @@ export function revMismatch(order: PurchaseOrder, drawings: { code: string; rev:
 
 export const pendingCount = (state: Pick<InventoryState, "orders" | "vendors" | "today">) =>
   state.orders.filter((o) => orderStatus(o, state.vendors, state.today).kind !== "done").length;
+
+/**
+ * 발주서 위저드(도면·BOM 기반, Phase 5 까지 유지)가 만든 발주 → 새 모델.
+ * 발주처는 이름으로, 품목은 사양+규격 → 이름 순으로 맞춘다. 못 맞추면 빈 코드 — 발주서는 나가지만 재고에는 잡히지 않는다.
+ */
+export function fromWizardRows(rows: PurchaseOrderRow[], vendors: Vendor[], items: Item[]): PurchaseOrder[] {
+  return rows.map((row) => ({
+    poNo: row.poNo,
+    orderedOn: row.orderedOn,
+    vendorId: vendors.find((v) => v.name === row.supplier)?.id ?? "",
+    projectCode: row.projectCode,
+    drawing: row.drawing,
+    rev: row.rev,
+    requester: row.requester,
+    lines: row.lines.map((l, i) => {
+      const item = items.find((it) => it.spec === l.spec && it.size === l.size) ?? items.find((it) => it.name === l.itemName);
+      return {
+        no: String(i + 1).padStart(2, "0"),
+        itemCode: item?.code ?? "",
+        nameAtOrder: l.itemName,
+        specAtOrder: l.spec,
+        sizeAtOrder: l.size,
+        ordered: l.qty,
+        received: 0,
+        judgement: null,
+        note: "",
+      };
+    }),
+  }));
+}
 
 /* ───────────── 재고 ───────────── */
 

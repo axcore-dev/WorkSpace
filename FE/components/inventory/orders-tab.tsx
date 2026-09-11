@@ -10,6 +10,7 @@ import { PO_BOM, PO_DRAWINGS, type PurchaseOrderRow } from "@/data/purchasing";
 import type { Cell } from "@/data/types";
 import { downloadCsv } from "@/lib/download";
 import {
+  fromWizardRows,
   lineRemaining,
   orderOrdered,
   orderReceived,
@@ -179,21 +180,8 @@ export function OrdersTab() {
     void commit();
   }
 
-  /** 위저드가 만든 발주 → 새 모델. 발주처는 이름으로, 품목은 규격(사양+규격) 으로 맞춘다 */
   function registerOrders(created: PurchaseOrderRow[]) {
-    const mapped: PurchaseOrder[] = created.map((row) => ({
-      poNo: row.poNo,
-      orderedOn: row.orderedOn,
-      vendorId: state.vendors.find((v) => v.name === row.supplier)?.id ?? "",
-      projectCode: row.projectCode,
-      drawing: row.drawing,
-      rev: row.rev,
-      requester: row.requester,
-      lines: row.lines.map((l, i) => {
-        const item = state.items.find((it) => it.spec === l.spec && it.size === l.size) ?? state.items.find((it) => it.name === l.itemName);
-        return { no: String(i + 1).padStart(2, "0"), itemCode: item?.code ?? "", nameAtOrder: l.itemName, specAtOrder: l.spec, sizeAtOrder: l.size, ordered: l.qty, received: 0, judgement: null, note: "" };
-      }),
-    }));
+    const mapped = fromWizardRows(created, state.vendors, state.items);
     void dispatch({ type: "createOrders", orders: mapped }).then((ok) => ok && notify(`발주 ${mapped.length}건을 등록했어요`));
   }
 

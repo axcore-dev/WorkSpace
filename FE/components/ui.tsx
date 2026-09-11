@@ -246,6 +246,7 @@ export function DataTable({
   rowEmphasis,
   expandedRow,
   renderExpanded,
+  colWidths,
 }: {
   data: TableData;
   dense?: boolean;
@@ -262,14 +263,28 @@ export function DataTable({
   emphasisAt?: (row: Cell[], rowIndex: number, colIndex: number) => Emphasis | undefined;
   /** 행 단위 내림 — 끝난 행(완료·정상)을 돌려주면 셀 전부 회색, 배지는 중립 톤 */
   rowEmphasis?: (row: Cell[], rowIndex: number) => "down" | undefined;
+  /**
+   * 열 폭 고정(`table-layout: fixed`) — 열이 많은 상세 보기용. 넘치는 글자는 말줄임하고 `title` 로 전문을 보인다.
+   * 폭 합이 카드보다 넓으면 카드 안에서 가로 스크롤. 미지정이면 내용대로(`nowrap` + 최소 560px)
+   */
+  colWidths?: (string | undefined)[];
 }) {
   const clickable = !!onRowClick;
   const expandable = !!renderExpanded;
+  const fixed = !!colWidths;
   const panelId = useId();
   const align = (j: number) => CELL_ALIGN[colAlign?.[j] ?? "left"];
   return (
     <div className="thin-scroll -mx-1 overflow-x-auto px-1">
-      <table className="w-full min-w-[560px] text-left text-sm">
+      <table className={`w-full text-left text-sm ${fixed ? "table-fixed" : "min-w-[560px]"}`}>
+        {fixed && (
+          <colgroup>
+            {expandable && <col className="w-7" />}
+            {data.columns.map((col, j) => (
+              <col key={col} style={{ width: colWidths[j] }} />
+            ))}
+          </colgroup>
+        )}
         <thead>
           <tr className="border-b border-slate-200">
             {expandable && (
@@ -311,7 +326,8 @@ export function DataTable({
                   {row.map((cell, j) => (
                     <td
                       key={j}
-                      className={`whitespace-nowrap px-3 ${dense ? "py-2" : "py-3"} ${expandable ? "" : "first:pl-1"} last:pr-1 ${EMPHASIS_CLASS[cellEmphasis(emphasisAt?.(row, i, j) ?? emphasis?.[j], down)]} ${align(j)}`}
+                      title={fixed && typeof cell !== "object" ? String(cell) : undefined}
+                      className={`${fixed ? "truncate" : "whitespace-nowrap"} px-3 ${dense ? "py-2" : "py-3"} ${expandable ? "" : "first:pl-1"} last:pr-1 ${EMPHASIS_CLASS[cellEmphasis(emphasisAt?.(row, i, j) ?? emphasis?.[j], down)]} ${align(j)}`}
                     >
                       <CellView cell={cell} muted={down} />
                     </td>
