@@ -50,6 +50,8 @@ export default function AiChatPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  // 다음에 올릴 문서의 공유 범위. 올리기 전에 고르고, 기본은 나만 보기다
+  const [shareAll, setShareAll] = useState(false);
   /** 배경 중앙 블룸이 중심을 맞추는 기준 — 입력창은 첫 화면↔대화 전환에 세로로 미끄러진다 */
   const composerRef = useRef<HTMLDivElement>(null);
 
@@ -140,7 +142,7 @@ export default function AiChatPage() {
         aria-hidden
         tabIndex={-1}
         onChange={(e) => {
-          void src.add(Array.from(e.target.files ?? []));
+          void src.add(Array.from(e.target.files ?? []), shareAll ? "company" : "personal");
           e.target.value = "";
         }}
       />
@@ -163,6 +165,8 @@ export default function AiChatPage() {
           )
         }
         onAddSource={() => fileRef.current?.click()}
+        shareAll={shareAll}
+        onToggleShare={() => setShareAll((v) => !v)}
         onRemoveSource={src.remove}
         onOpenSource={(name) => void src.open(name)}
       />

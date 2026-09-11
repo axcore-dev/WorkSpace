@@ -80,8 +80,23 @@ export function chatModelId(provider: ChatProvider): string {
   return optional("AI_CHAT_MODEL", DEFAULT_CHAT_MODEL[provider]);
 }
 
-/** 임베딩 모델(OpenAI). 키가 없으면 임베딩 없이 저장하고 전문 검색(tsv)으로만 찾는다 */
-
+/**
+ * 임베딩 모델(OpenAI). 키가 없으면 임베딩 없이 저장하고 전문 검색·부분 일치로만 찾는다.
+ *
+ * <b>모델을 바꾸면 옛 벡터는 쓸 수 없다.</b> 모델이 다르면 벡터 공간이 달라 코사인 거리가 뜻을 잃는다. 그래서 색인할
+ * 때 어떤 모델로 만들었는지 문서에 적어 두고(`ai_source_docs.embedding_model`, 테넌트 V16), 검색은 지금 이 값과 같은
+ * 문서만 벡터 비교에 넣는다. 바꾼 직후에는 옛 문서가 벡터 검색에서 빠지지만 전문 검색·부분 일치로는 계속 찾히고,
+ * `POST /ai/sources/reindex` 로 다시 만들면 돌아온다. <b>조용한 품질 저하가 없다.</b>
+ *
+ * 올리는 길은 둘이다.
+ * - <b>같은 차원으로 더 좋은 모델</b>: `AI_EMBEDDING_MODEL=text-embedding-3-large`. 아래 `dimensions` 로 1536 을
+ *   그대로 요청하므로 스키마를 건드리지 않는다. 재색인만 하면 된다. 값이 더 비싸다.
+ * - <b>차원을 늘리기</b>: 3072 로 가려면 컬럼을 다시 만들어야 하고, pgvector 의 HNSW 색인은 `vector` 타입에서
+ *   2,000 차원까지만 걸린다. 그 위는 `halfvec` 으로 바꿔야 한다(pgvector 0.7+). 마이그레이션과 전량 재색인이
+ *   함께 필요하므로 평가 세트로 이득을 확인한 뒤에 한다.
+ *
+ * 기본값을 바꾸지 않은 이유: 비용이 오르고 이미 올린 문서를 전부 다시 색인해야 한다. 회사가 결정할 일이다.
+ */
 export function embeddingModelId(): string {
   return optional("AI_EMBEDDING_MODEL", "text-embedding-3-small");
 }
