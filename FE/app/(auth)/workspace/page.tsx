@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AuthSplit } from "@/components/auth-shell";
 import { useLogout } from "@/components/use-logout";
@@ -62,6 +62,26 @@ export default function WorkspaceSelectPage() {
    */
   const [pending, setPending] = useState<PendingInvite | null>(null);
 
+  // 목록을 받은 직후(데모 자동 진입)에도 부르므로 effect 의존성에 들어간다 — 그래서 useCallback, 그리고 effect 보다 앞
+  const enter = useCallback(
+    async (m: Membership) => {
+      setError(null);
+      setEntering(m.id);
+      try {
+        // 고른 회사가 담긴 새 access 토큰을 받는다. 갈아 끼우지 않으면 이후 요청이 여전히
+        // 회사 없는 토큰으로 나간다.
+        const result = await apiPostAuthed<SelectResult>(`/api/auth/workspaces/${m.id}/select`);
+        setAccessToken(result?.accessToken ?? null, result?.accessTokenExpiresAt ?? null);
+        router.push("/dashboard");
+      } catch (e: unknown) {
+        setError(e instanceof ApiRequestError ? e.body.message : "회사에 들어가지 못했어요.");
+      } finally {
+        setEntering(null);
+      }
+    },
+    [router],
+  );
+
   useEffect(() => {
     let alive = true;
     apiGet<Membership[]>("/api/auth/workspaces")
@@ -70,6 +90,10 @@ export default function WorkspaceSelectPage() {
         setList(rows ?? []);
         // localStorage 는 서버 렌더에서 못 읽는다. 응답을 받은 뒤(=브라우저)에 함께 채운다.
         setPending(readInvite());
+        // 데모 체험(`/login` 의 「데모 체험하기」)은 들어갈 수 있는 회사가 하나면 고르는 화면을 건너뛴다.
+        // 둘 이상이거나 하나도 없으면 평소처럼 목록을 보인다 — 어느 회사인지는 사람이 정한다.
+        const enterable = (rows ?? []).filter((m) => m.enterable);
+        if (new URLSearchParams(window.location.search).get("auto") === "1" && enterable.length === 1) void enter(enterable[0]);
       })
       .catch((e: unknown) => {
         if (!alive) return;
@@ -84,23 +108,7 @@ export default function WorkspaceSelectPage() {
     return () => {
       alive = false;
     };
-  }, [router]);
-
-  async function enter(m: Membership) {
-    setError(null);
-    setEntering(m.id);
-    try {
-      // 고른 회사가 담긴 새 access 토큰을 받는다. 갈아 끼우지 않으면 이후 요청이 여전히
-      // 회사 없는 토큰으로 나간다.
-      const result = await apiPostAuthed<SelectResult>(`/api/auth/workspaces/${m.id}/select`);
-      setAccessToken(result?.accessToken ?? null, result?.accessTokenExpiresAt ?? null);
-      router.push("/dashboard");
-    } catch (e: unknown) {
-      setError(e instanceof ApiRequestError ? e.body.message : "회사에 들어가지 못했어요.");
-    } finally {
-      setEntering(null);
-    }
-  }
+  }, [router, enter]);
 
   const logout = useLogout();
 
