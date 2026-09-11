@@ -65,8 +65,9 @@ export function InviteModal({
   const deptList = invitableDepts(me, data.depts);
   const deptLocked = deptList.length <= 1;
 
-  const [deptId, setDeptId] = useState<number | null>(deptList[0]?.id ?? null);
-  const [roleId, setRoleId] = useState<number | null>(grantableRanks(data.roles, deptList[0]?.id ?? null)[0]?.id ?? null);
+  // 소속은 초대하는 사람이 정한다 — 기본값을 두지 않는다. 고를 부서가 하나뿐이면 고를 것이 없으므로 그것을 쓴다
+  const [deptId, setDeptId] = useState<number | null>(deptList.length === 1 ? deptList[0].id : null);
+  const [roleId, setRoleId] = useState<number | null>(null);
   const [rows, setRows] = useState<InviteRow[]>([]);
   const [fileName, setFileName] = useState("");
   const [picked, setPicked] = useState<number | null>(null);
@@ -93,8 +94,8 @@ export function InviteModal({
 
   function changeDept(next: number | null) {
     setDeptId(next);
-    // 부서를 바꾸면 직급도 그 부서 것으로 옮긴다 — 안 하면 없는 조합이 남는다
-    setRoleId(grantableRanks(data.roles, next)[0]?.id ?? null);
+    // 부서를 바꾸면 직급은 비운다 — 없는 조합이 남지 않게 하고, 새 부서의 직급은 다시 고르게 한다
+    setRoleId(null);
   }
 
   /* ── 직접 입력 ── */
@@ -147,10 +148,13 @@ export function InviteModal({
   const canSend = sendable > 0 && (mode === "file" || roleId !== null);
 
   const pickedRow = picked !== null ? rows[picked] : null;
-  const previewRole =
-    mode === "direct"
-      ? (data.roles.find((r) => r.id === roleId) ?? null)
-      : (data.roles.find((r) => r.name === pickedRow?.rank) ?? null);
+  /** CSV 의 직급 이름은 그 줄의 부서 안에서 찾는다 — 이름은 부서마다 겹칠 수 있다 */
+  const roleOfRow = (row: { dept: string | null; rank: string | null } | null) => {
+    if (!row?.rank) return null;
+    const deptId = deptByName(row.dept)?.id ?? null;
+    return grantableRanks(data.roles, deptId).find((r) => r.name === row.rank) ?? null;
+  };
+  const previewRole = mode === "direct" ? (data.roles.find((r) => r.id === roleId) ?? null) : roleOfRow(pickedRow);
 
   /* ── 보내기 ── */
   async function send() {
@@ -174,7 +178,7 @@ export function InviteModal({
             continue;
           }
           const dept = deptByName(r.dept);
-          const role = data.roles.find((x) => x.name === r.rank);
+          const role = roleOfRow(r);
           if (!role) {
             blocked += 1;
             continue;
@@ -511,11 +515,14 @@ export function InviteModal({
                   {rankList.length === 0 ? (
                     <option value="">줄 수 있는 직급이 없어요</option>
                   ) : (
-                    rankList.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.name}
-                      </option>
-                    ))
+                    <>
+                      <option value="">직급을 골라 주세요</option>
+                      {rankList.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.name}
+                        </option>
+                      ))}
+                    </>
                   )}
                 </select>
               </div>

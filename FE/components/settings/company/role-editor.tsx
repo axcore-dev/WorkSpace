@@ -269,8 +269,9 @@ export function RoleEditor() {
     }
   }
 
-  async function doDeleteRank(target: RoleDto, moveToName: string | null) {
-    const moveTo = moveToName ? roles.find((r) => r.name === moveToName)?.id ?? null : null;
+  /** 이름이 부서마다 겹칠 수 있으므로 옮길 직급은 id 로 받는다 */
+  async function doDeleteRank(target: RoleDto, moveTo: number | null) {
+    const moveToName = moveTo ? (roles.find((r) => r.id === moveTo)?.name ?? null) : null;
     try {
       await deleteRole(target.id, moveTo);
       const { r } = await reload();
@@ -585,7 +586,8 @@ export function RoleEditor() {
           label="직급 이름"
           placeholder="예: 생산 계획 담당"
           hint={`${dialog.dept.name} · 권한 없이 시작해요.`}
-          taken={roles.map((r) => r.name)}
+          // 이름은 부서 안에서만 겹치지 않으면 된다 — 다른 부서의 「팀장」과는 상관없다
+          taken={roles.filter((r) => r.departmentId === dialog.dept.id).map((r) => r.name)}
           onClose={() => setDialog(null)}
           onSubmit={(name) => void addRank(dialog.dept, name)}
         />
@@ -595,7 +597,7 @@ export function RoleEditor() {
           title="직급 이름 바꾸기"
           label="직급 이름"
           initial={dialog.role.name}
-          taken={roles.map((r) => r.name)}
+          taken={roles.filter((r) => r.departmentId === dialog.role.departmentId).map((r) => r.name)}
           onClose={() => setDialog(null)}
           onSubmit={(to) => void doRenameRank(dialog.role, to)}
         />
@@ -607,7 +609,7 @@ export function RoleEditor() {
           // 옮길 곳은 내가 줄 수 있는 직급만 — 소유자 직급은 어디로도 옮길 수 없다
           others={roles
             .filter((r) => r.id !== dialog.role.id && r.code !== "owner" && (r.editable || r.system))
-            .map((r) => ({ name: r.name, label: `${r.name} (${deptOf(r.departmentId)})` }))}
+            .map((r) => ({ id: r.id, label: `${r.name} (${deptOf(r.departmentId)})` }))}
           onClose={() => setDialog(null)}
           onDelete={(moveTo) => void doDeleteRank(dialog.role, moveTo)}
         />
