@@ -137,7 +137,10 @@ export function ItemModal({ item, onClose }: { item: Item | null; onClose: () =>
               <Button variant="secondary" onClick={close}>
                 닫기
               </Button>
-              <Button onClick={save}>저장</Button>
+              {/* 바꾼 게 없으면 누를 수 없다 — 수정됐는지 아닌지가 버튼 상태로 보인다 */}
+              <Button onClick={save} disabled={!dirty}>
+                저장
+              </Button>
             </div>
           </div>
         }
@@ -245,9 +248,10 @@ export function ItemModal({ item, onClose }: { item: Item | null; onClose: () =>
 
       <ConfirmModal
         open={confirm?.kind === "discard"}
-        title="바꾼 내용을 버릴까요?"
-        message="저장하지 않은 값이 사라져요."
-        cta="버리기"
+        title="변경 사항을 저장하지 않고 닫으시겠습니까?"
+        message="저장하지 않은 값은 사라집니다."
+        cancel="계속 편집"
+        cta="저장하지 않고 닫기"
         variant="danger"
         icon="warn"
         onConfirm={() => {
@@ -258,8 +262,9 @@ export function ItemModal({ item, onClose }: { item: Item | null; onClose: () =>
       />
       <ConfirmModal
         open={confirm?.kind === "discontinue"}
-        title={confirm?.kind === "discontinue" ? `재고 ${confirm.count} ${draft.unit}가 남아 있어요. 단종할까요?` : ""}
-        message="신규 발주에서 사라지고, 진행 중 발주 · 재고 · 이력은 그대로 남아요."
+        title={confirm?.kind === "discontinue" ? `재고 ${confirm.count} ${draft.unit}가 남아 있습니다. 단종하시겠습니까?` : ""}
+        message="신규 발주에서 사라지고, 진행 중 발주 · 재고 · 이력은 그대로 남습니다."
+        cancel="유지"
         cta="단종"
         variant="primary"
         icon="warn"
@@ -272,8 +277,9 @@ export function ItemModal({ item, onClose }: { item: Item | null; onClose: () =>
       />
       <ConfirmModal
         open={confirm?.kind === "rename"}
-        title={confirm?.kind === "rename" ? `진행 중 발주 ${confirm.count}건은 예전 표기로 남아요` : ""}
-        message="발주서와 발주 라인은 발주 시점 표기 그대로고, 재고 · 이력은 새 표기로 보여요."
+        title={confirm?.kind === "rename" ? `진행 중 발주 ${confirm.count}건은 예전 표기로 남습니다. 저장하시겠습니까?` : ""}
+        message="발주서와 발주 라인은 발주 시점 표기 그대로이고, 재고 · 이력은 새 표기로 보입니다."
+        cancel="돌아가기"
         cta="저장"
         variant="primary"
         icon="check"

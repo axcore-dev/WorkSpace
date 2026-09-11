@@ -35,12 +35,17 @@ function pick(word: string, withFinal: string, plain: string): string {
  * `${dept}${josa(dept, "을/를")} 지울까요?`  // 생산본부를 · 공장장을
  * ```
  *
- * 쓰는 짝만 둔다. `이/가`·`은/는`·`와/과`가 필요해지면 그때 `pick`으로 한 줄씩 늘린다.
+ * 쓰는 짝만 둔다. `이/가`·`와/과`가 필요해지면 그때 `pick`으로 한 줄씩 늘린다.
  */
-export function josa(word: string, pair: "을/를" | "로/으로"): string {
+export type JosaPair = "을/를" | "은/는" | "로/으로";
+
+export function josa(word: string, pair: JosaPair): string {
   switch (pair) {
     case "을/를":
       return pick(word, "을", "를");
+    case "은/는":
+      // 발주서 편집기 「단위는 이 서식의 문서에 안 찍혀요」 — 열 이름이 데이터라 조사를 고정할 수 없다
+      return pick(word, "은", "는");
     case "로/으로": {
       // ㄹ 받침은 「로」를 쓴다 — 「서울로」지 「서울으로」가 아니다
       const f = finalConsonant(word);
@@ -51,6 +56,6 @@ export function josa(word: string, pair: "을/를" | "로/으로"): string {
 }
 
 /** 이름과 조사를 붙인 문자열 — 부르는 쪽이 짧아진다 */
-export function withJosa(word: string, pair: "을/를" | "로/으로"): string {
+export function withJosa(word: string, pair: JosaPair): string {
   return word + josa(word, pair);
 }

@@ -216,9 +216,9 @@ export function OrdersTab() {
         const overs = active.filter((e) => e.d.judgement === "pass" && e.qty > e.rem).map((e) => `${e.line.nameAtOrder} 초과 +${e.qty - e.rem}`);
         const detail = [
           `취소로 남는 잔량: ${left.map((x) => `${x.name} ${x.rem} EA`).join(" · ")}.`,
-          active.length === 0 ? "이번 입고 없이 마감해요." : "",
-          overs.length > 0 ? `${overs.join(" · ")}는 이력 메모에 남아요.` : "",
-          "이 발주는 입고 완료가 돼요.",
+          active.length === 0 ? "이번 입고 없이 마감합니다." : "",
+          overs.length > 0 ? `${overs.join(" · ")}는 이력 메모에 남습니다.` : "",
+          "이 발주는 입고 완료로 처리됩니다.",
         ]
           .filter(Boolean)
           .join(" ");
@@ -471,8 +471,9 @@ export function OrdersTab() {
 
       <ConfirmModal
         open={confirm?.kind === "close"}
-        title="잔량을 남긴 채 마감할까요?"
+        title="잔량을 남긴 채 마감하시겠습니까?"
         message={confirm?.kind === "close" ? confirm.detail : ""}
+        cancel="계속 입력"
         cta="마감"
         variant="primary"
         icon="warn"
@@ -485,9 +486,10 @@ export function OrdersTab() {
       />
       <ConfirmModal
         open={confirm?.kind === "discard"}
-        title="바꾼 내용을 버릴까요?"
-        message="적어 둔 입고 수량과 조치사항이 사라져요."
-        cta="버리기"
+        title="입력한 내용을 저장하지 않고 나가시겠습니까?"
+        message="적어 둔 입고 수량과 조치사항은 사라집니다."
+        cancel="계속 입력"
+        cta="저장하지 않고 나가기"
         variant="danger"
         icon="warn"
         onConfirm={() => {

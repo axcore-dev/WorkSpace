@@ -106,7 +106,7 @@ export function StockTab() {
     const qty = Math.trunc(Number(adjust.qty));
     const next: Record<string, string> = {};
     if (!adjust.qty.trim() || !Number.isFinite(qty) || qty === 0) next.qty = "0이 아닌 수량을 적어 주세요";
-    else if (b.stock + qty < 0) next.qty = `재고가 ${b.stock} ${item.unit}뿐이에요`;
+    else if (b.stock + qty < 0) next.qty = `재고 ${b.stock} ${item.unit}보다 많이 뺄 수 없어요`;
     if (!adjust.note.trim()) next.note = "사유를 적어 주세요";
     setErrors(next);
     if (Object.keys(next).length > 0) return;
