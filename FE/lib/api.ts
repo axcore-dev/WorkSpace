@@ -8,7 +8,7 @@
  * 베이스 URL을 환경변수로 빼는 이유: 배포하면 BE가 같은 오리진 뒤에 붙을 수도, 별도 도메인일
  * 수도 있다. 코드에 localhost를 박아 두면 그때 전부 고쳐야 한다.
  */
-import { ensureAccessToken, forceRefresh } from "./session";
+import { ensureAccessToken, forceRefresh } from "./session.ts";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 
@@ -20,11 +20,31 @@ export type ApiError = {
 };
 
 export class ApiRequestError extends Error {
-  constructor(
-    readonly status: number,
-    readonly body: ApiError,
-  ) {
+  readonly status: number;
+  readonly body: ApiError;
+
+  constructor(status: number, body: ApiError) {
     super(body.message);
+    this.status = status;
+    this.body = body;
+  }
+}
+
+/**
+ * 응답 본문을 읽는다. **오류 본문은 JSON 이 아닐 수 있다** — nginx 가 만든 502 페이지, 매핑이 없는 경로에
+ * Spring 이 돌려주는 오류 페이지는 HTML 이다. 그대로 `JSON.parse` 하면 여기서 터지면서 상태 코드가 통째로
+ * 사라지고, 화면은 「404 라 아직 없는 API」와 「서버가 죽었다」를 구분하지 못한 채 같은 오류만 띄운다.
+ *
+ * 성공 응답이 JSON 이 아니면 그건 감출 일이 아니라 진짜 이상한 것이므로 그대로 터뜨린다.
+ */
+export async function readBody(res: Response): Promise<unknown> {
+  const text = await res.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text) as unknown;
+  } catch (e) {
+    if (res.ok) throw e;
+    return null;
   }
 }
 
@@ -52,9 +72,7 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T | null
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 
-  const text = await res.text();
-  const parsed = text ? (JSON.parse(text) as unknown) : null;
-
+  const parsed = await readBody(res);
   if (!res.ok) throw apiRequestError(res.status, parsed);
   return parsed as T | null;
 }
@@ -93,9 +111,7 @@ async function authed<T>(method: Method, path: string, body?: unknown): Promise<
     res = await send(await forceRefresh());
   }
 
-  const text = await res.text();
-  const parsed = text ? (JSON.parse(text) as unknown) : null;
-
+  const parsed = await readBody(res);
   if (!res.ok) throw apiRequestError(res.status, parsed);
   return parsed as T | null;
 }
