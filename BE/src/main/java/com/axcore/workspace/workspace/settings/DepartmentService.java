@@ -85,6 +85,24 @@ public class DepartmentService {
                 throw new SettingsValidationException("지우는 부서로는 옮길 수 없습니다");
             }
             requireExists(moveRolesTo);
+            // 직급 이름은 부서 안에서 하나다(tenant V15). 옮길 부서에 같은 이름이 이미 있으면 통째 옮기기가 제약에 걸린다 —
+            // DB 가 뱉는 "이미 존재하는 값입니다" 대신 어느 이름이 걸렸는지 알려 준다.
+            List<String> clashes =
+                    jdbc.queryForList(
+                            """
+                            select r.name from roles r
+                             where r.department_id = ?
+                               and exists (select 1 from roles t where t.department_id = ? and t.name = r.name)
+                             order by r.name
+                            """,
+                            String.class,
+                            id,
+                            moveRolesTo);
+            if (!clashes.isEmpty()) {
+                throw new SettingsConflictException(
+                        "ROLE_NAME_CLASH",
+                        "옮길 부서에 같은 이름의 직급이 있어요: " + String.join(" · ", clashes) + ". 이름을 먼저 바꿔 주세요");
+            }
             jdbc.update(
                     "update roles set department_id = ?, updated_at = now() where department_id = ?", moveRolesTo, id);
         }
