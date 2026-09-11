@@ -103,6 +103,22 @@ test("입고 등록 — 합격분만 잔량에서 빠지고 이력 행이 생긴
   assert.equal(state.movements.length, MOVEMENTS.length, "원본은 그대로");
 });
 
+test("초과 입고는 막지 않는다 — 잔량 0, 초과분은 이력 메모에 남는다", () => {
+  // PO-2607-0024 GAUGE 잔량 3 에 5 를 받는다
+  const next = reduce(state, { type: "receive", poNo: "PO-2607-0024", lines: [{ no: "13", received: 5, judgement: "pass", note: "업체가 여분 동봉" }], complete: false }, "2026-07-08T10:00", "검사 담당");
+  const line = next.orders.find((x) => x.poNo === "PO-2607-0024")!.lines[0];
+  assert.equal(Math.max(0, line.ordered - line.received), 0);
+  assert.equal(next.movements[0].note, "업체가 여분 동봉 · 초과 +2");
+  assert.equal(next.movements[0].qty, 5, "실제 받은 수량이 재고에 들어간다");
+});
+
+test("발주서 위저드가 만든 발주는 목록 앞에 들어간다", () => {
+  const created: PurchaseOrder = { ...order("PO-2607-0023"), poNo: "PO-2607-0099" };
+  const next = reduce(state, { type: "createOrders", orders: [created] }, "2026-07-08T10:00", "구매 담당");
+  assert.equal(next.orders[0].poNo, "PO-2607-0099");
+  assert.equal(next.orders.length, ORDERS.length + 1);
+});
+
 test("마감하면 잔량이 남아도 완료가 된다", () => {
   const next = reduce(state, { type: "receive", poNo: "PO-2607-0024", lines: [], complete: true }, "2026-07-08T10:00", "테스터");
   assert.equal(orderStatus(next.orders.find((x) => x.poNo === "PO-2607-0024")!, VENDORS, DEMO_TODAY).kind, "done");

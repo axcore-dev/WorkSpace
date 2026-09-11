@@ -44,6 +44,8 @@ export type InventoryAction =
     }
   | { type: "adjust"; itemCode: string; qty: number; note: string }
   | { type: "setBaseline"; itemCode: string; baseline: number; asOf: string; safety: number | null }
+  /** 발주서 위저드가 발주처별로 나눈 발주들. 번호는 서버가 정한다(폴백에서는 위저드 값 그대로) */
+  | { type: "createOrders"; orders: PurchaseOrder[] }
   | { type: "upsertItem"; item: Item }
   | { type: "discontinueItem"; itemCode: string; discontinued: boolean }
   | { type: "upsertVendor"; vendor: Vendor }
@@ -230,6 +232,9 @@ export function reduce(state: InventoryState, action: InventoryAction, at: strin
       const lines = order.lines.map((l) => {
         const r = action.lines.find((x) => x.no === l.no);
         if (!r || r.received <= 0) return l;
+        // 초과 입고는 막지 않는다 — 잔량은 0 이 되고 초과분은 이력 메모에 남는다
+        const over = r.judgement === "pass" ? Math.max(0, r.received - lineRemaining(l)) : 0;
+        const note = [r.note ?? "", over > 0 ? `초과 +${over}` : ""].filter(Boolean).join(" · ");
         movements.unshift({
           id: nextId("m", movements),
           at,
@@ -238,7 +243,7 @@ export function reduce(state: InventoryState, action: InventoryAction, at: strin
           qty: r.received,
           actor,
           ref: order.projectCode,
-          note: r.note ?? "",
+          note,
           poNo: order.poNo,
           judgement: r.judgement,
         });
@@ -269,6 +274,8 @@ export function reduce(state: InventoryState, action: InventoryAction, at: strin
         ],
       };
     }
+    case "createOrders":
+      return { ...state, orders: [...action.orders, ...state.orders] };
     case "upsertItem": {
       const has = state.items.some((i) => i.code === action.item.code);
       return { ...state, items: has ? state.items.map((i) => (i.code === action.item.code ? action.item : i)) : [action.item, ...state.items] };

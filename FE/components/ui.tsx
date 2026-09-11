@@ -1,7 +1,8 @@
 import Link from "next/link";
+import { Fragment, useId } from "react";
 import type { Cell, StatData, TableData, Tone } from "@/data/types";
 import { EMPHASIS_CLASS, cellEmphasis, type Emphasis } from "@/lib/emphasis";
-import { IconAlertCircle, IconArrowDownRight, IconArrowUpRight, IconCheck } from "@/components/icons";
+import { IconAlertCircle, IconArrowDownRight, IconArrowUpRight, IconCheck, IconChevronRight } from "@/components/icons";
 
 /**
  * 색상 정책 (사용자 지침):
@@ -36,6 +37,8 @@ export const FIELD_INLINE = `${FIELD_FORM} ${FIELD_LINE} px-3.5 py-2.5 text-sm`;
  * 우선순위를 정하지 않아 원래 `py-2.5`가 이긴다.
  */
 export const FIELD_SM = `${FIELD_BASE} h-8 px-3 text-[13px]`;
+/** `FIELD_SM` 의 에러 변형 — 표 안 입력의 필드 에러. 헬퍼는 `mt-1 text-xs text-red-600` */
+export const FIELD_SM_ERROR = `${FIELD_SHAPE} ${FIELD_LINE_ERROR} h-8 px-3 text-[13px]`;
 /**
  * `FIELD_SM`의 폭 자동 변형 — 필터 드롭다운처럼 한 줄에 여러 개 놓을 때.
  *
@@ -241,11 +244,16 @@ export function DataTable({
   emphasis,
   emphasisAt,
   rowEmphasis,
+  expandedRow,
+  renderExpanded,
 }: {
   data: TableData;
   dense?: boolean;
-  /** 지정 시 행 클릭 가능 (상세 팝업 등) */
+  /** 지정 시 행 클릭 가능 (상세 팝업 · 펼침 토글 등) */
   onRowClick?: (rowIndex: number) => void;
+  /** 행 펼침 — `renderExpanded` 를 주면 첫 열에 ▸ 가 생기고, `expandedRow` 행 아래에 패널이 열린다(모달 아님). 토글은 `onRowClick` 이 한다 */
+  expandedRow?: number | null;
+  renderExpanded?: (rowIndex: number) => React.ReactNode;
   /** 컬럼별 정렬 (예: 재무제표 숫자 열 가운데 정렬) — 미지정 컬럼은 왼쪽 */
   colAlign?: (keyof typeof CELL_ALIGN)[];
   /** 열별 위계 — 미지정 열은 기본. 첫 열 자동 강조는 없다: 위치가 아니라 의미가 정한다 (DESIGN.md 「위계」) */
@@ -256,12 +264,19 @@ export function DataTable({
   rowEmphasis?: (row: Cell[], rowIndex: number) => "down" | undefined;
 }) {
   const clickable = !!onRowClick;
+  const expandable = !!renderExpanded;
+  const panelId = useId();
   const align = (j: number) => CELL_ALIGN[colAlign?.[j] ?? "left"];
   return (
     <div className="thin-scroll -mx-1 overflow-x-auto px-1">
       <table className="w-full min-w-[560px] text-left text-sm">
         <thead>
           <tr className="border-b border-slate-200">
+            {expandable && (
+              <th scope="col" className="w-7 px-1 py-2.5">
+                <span className="sr-only">펼침</span>
+              </th>
+            )}
             {data.columns.map((col, j) => (
               <th
                 key={col}
@@ -276,21 +291,41 @@ export function DataTable({
         <tbody className="divide-y divide-slate-100">
           {data.rows.map((row, i) => {
             const down = rowEmphasis?.(row, i) === "down";
+            const open = expandable && expandedRow === i;
             return (
-              <tr
-                key={i}
-                onClick={clickable ? () => onRowClick(i) : undefined}
-                className={`transition-colors hover:bg-slate-50/70 ${clickable ? "cursor-pointer" : ""}`}
-              >
-                {row.map((cell, j) => (
-                  <td
-                    key={j}
-                    className={`whitespace-nowrap px-3 ${dense ? "py-2" : "py-3"} first:pl-1 last:pr-1 ${EMPHASIS_CLASS[cellEmphasis(emphasisAt?.(row, i, j) ?? emphasis?.[j], down)]} ${align(j)}`}
-                  >
-                    <CellView cell={cell} muted={down} />
-                  </td>
-                ))}
-              </tr>
+              <Fragment key={i}>
+                <tr
+                  onClick={clickable ? () => onRowClick(i) : undefined}
+                  aria-expanded={expandable ? open : undefined}
+                  aria-controls={open ? `${panelId}-${i}` : undefined}
+                  className={`transition-colors hover:bg-slate-50/70 ${clickable ? "cursor-pointer" : ""}`}
+                >
+                  {expandable && (
+                    <td className={`px-1 ${dense ? "py-2" : "py-3"}`}>
+                      <IconChevronRight
+                        size={14}
+                        className={`text-slate-500 transition-transform duration-200 motion-reduce:transition-none ${open ? "rotate-90" : ""}`}
+                      />
+                    </td>
+                  )}
+                  {row.map((cell, j) => (
+                    <td
+                      key={j}
+                      className={`whitespace-nowrap px-3 ${dense ? "py-2" : "py-3"} ${expandable ? "" : "first:pl-1"} last:pr-1 ${EMPHASIS_CLASS[cellEmphasis(emphasisAt?.(row, i, j) ?? emphasis?.[j], down)]} ${align(j)}`}
+                    >
+                      <CellView cell={cell} muted={down} />
+                    </td>
+                  ))}
+                </tr>
+                {open && (
+                  <tr id={`${panelId}-${i}`}>
+                    {/* 펼친 패널 — 행과 같은 표 안에 있어 가로 스크롤을 함께 탄다 */}
+                    <td colSpan={row.length + 1} className="px-1 pb-4 pt-1">
+                      <div className="rounded-lg bg-slate-50 px-4 py-4">{renderExpanded(i)}</div>
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
             );
           })}
         </tbody>

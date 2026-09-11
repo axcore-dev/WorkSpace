@@ -21,7 +21,6 @@ import { useModules } from "@/components/module-provider";
 import { RecordModal } from "@/components/record-modal";
 import { DrawingManager } from "@/components/drawing-manager";
 import { PurchaseOrder } from "@/components/purchase-order";
-import { ReceivingInspection } from "@/components/receiving-inspection";
 import { ReportAutomation } from "@/components/report-automation";
 import { AiBadge, Badge, Button, Card, DataTable, EmptyState, FIELD, SectionHeader, Stat , WizardSteps } from "@/components/ui";
 import { ROW_DETAILS } from "@/data/module-details";
@@ -485,10 +484,6 @@ export function ModuleView({ mod, page }: { mod: ModuleDef; page: ModulePageData
       ) : active?.custom === "drawing-manager" ? (
         <div role="tabpanel">
           <DrawingManager />
-        </div>
-      ) : active?.custom === "receiving-inspection" ? (
-        <div role="tabpanel">
-          <ReceivingInspection query={filterQuery} />
         </div>
       ) : active?.custom === "payroll-workbench" ? (
         <div role="tabpanel">

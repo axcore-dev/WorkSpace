@@ -43,6 +43,9 @@ export async function send(action: InventoryAction): Promise<void> {
     case "setBaseline":
       await apiPut(`${BASE}/items/${seg(action.itemCode)}/standard`, { baseline: action.baseline, asOf: action.asOf, safety: action.safety });
       return;
+    case "createOrders":
+      await apiPostAuthed(`${BASE}/orders`, { orders: action.orders });
+      return;
     case "upsertItem":
       await apiPut(`${BASE}/items/${seg(action.item.code)}`, action.item);
       return;

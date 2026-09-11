@@ -138,6 +138,15 @@ export const PO_DRAWINGS: PoDrawing[] = [
     vehicle: "미창 PNQ 88512-XA010",
     unmapped: 0,
   },
+  // 소요는 확정됐는데 발주가 없는 작업 — 발주·입고 탭 아래 「발주 전」 줄에 뜬다
+  {
+    code: "26PNQ-S18-10",
+    name: "S18 OP10 조립도",
+    rev: "Rev.A",
+    projectCode: "26PNQ-S18 OP10",
+    vehicle: "미창 PNQ 88512-XA020",
+    unmapped: 0,
+  },
 ];
 
 export const PO_BOM: Record<string, PoNeed[]> = {
@@ -157,5 +166,10 @@ export const PO_BOM: Record<string, PoNeed[]> = {
     { itemName: "GUIDE PIN", spec: "SGPH", size: "20-120", need: 16, stock: 12, supplier: "대성정공" },
     { itemName: "WEAR PLATE", spec: "STW", size: "38-100", need: 14, stock: 11, supplier: "대성정공" },
     { itemName: "GAS SPRING", spec: "PX", size: "1500-80-MH", need: 4, stock: 1, supplier: "한국가스스프링" },
+  ],
+  "26PNQ-S18-10": [
+    { itemName: "GUIDE PIN", spec: "SGPH", size: "20-120", need: 16, stock: 12, supplier: "대성정공" },
+    { itemName: "WEAR PLATE", spec: "STW", size: "28-100", need: 20, stock: 15, supplier: "대성정공" },
+    { itemName: "GAS SPRING", spec: "MH", size: "1500", need: 30, stock: 27, supplier: "한국가스스프링" },
   ],
 };

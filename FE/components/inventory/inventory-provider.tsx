@@ -57,7 +57,12 @@ function demoFallback(e: unknown): boolean {
   return !(e instanceof ApiRequestError) || e.status === 404;
 }
 
-const stamp = () => new Date().toISOString().slice(0, 16);
+/** 폴백 리듀서용 시각 — 날짜는 고정 「오늘」, 시각은 지금(로컬). UTC 로 찍으면 화면 날짜와 어긋난다 */
+function stamp(today: string) {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${today}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
 
 function readDensity(): Density {
   if (typeof window === "undefined") return "simple";
@@ -116,7 +121,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   const dispatch = useCallback<InventoryContextValue["dispatch"]>(
     async (action) => {
       if (mode === "demo") {
-        setData((d) => reduce({ ...d, today }, action, stamp(), actor));
+        setData((d) => reduce({ ...d, today }, action, stamp(today), actor));
         return true;
       }
       try {

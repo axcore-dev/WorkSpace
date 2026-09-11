@@ -82,7 +82,6 @@ export interface SubfunctionTab {
     | "report-automation"
     | "purchase-order"
     | "drawing-manager"
-    | "receiving-inspection"
     | "hr-workbench"
     | "payroll-workbench"
     | "accounting-workbench";
