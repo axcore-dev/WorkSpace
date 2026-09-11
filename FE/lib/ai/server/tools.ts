@@ -50,6 +50,11 @@ export interface AiToolSpec<I> {
   needsApproval: boolean;
   /** 외부 앱 도구면 그 앱의 slug. 사용자가 이번 대화에서 그 앱을 켰을 때만 모델에 보인다 */
   connector?: string;
+  /**
+   * 턴마다 설명을 다시 짜는 도구. 사람마다 부를 수 있는 범위가 다를 때 쓴다 — 업무 데이터 조회가 그렇다.
+   * `null` 을 돌려주면 이번 턴에 그 도구를 아예 내보내지 않는다(부를 것이 하나도 없는 사람).
+   */
+  describe?: (ctx: AiToolContext) => string | null;
   timeoutMs?: number;
   execute: (input: I, ctx: AiToolContext) => Promise<unknown>;
 }
@@ -206,8 +211,11 @@ export function toolSetFor(ctx: AiToolContext, onApproval: (a: ApprovalRequest) 
   for (const spec of registry.values()) {
     // 외부 앱 도구는 사용자가 이번 대화에서 켠 앱만. 연결됐는지는 BE 가 실행할 때 다시 본다
     if (spec.connector && !ctx.apps.includes(spec.connector)) continue;
+    // 사람마다 범위가 다른 도구는 여기서 설명을 짠다. 부를 것이 없으면 내보내지 않는다
+    const description = spec.describe ? spec.describe(ctx) : spec.description;
+    if (description === null) continue;
     set[spec.name] = tool({
-      description: spec.description,
+      description,
       inputSchema: spec.inputSchema,
       execute: async (input: unknown) => {
         if (spec.needsApproval) {

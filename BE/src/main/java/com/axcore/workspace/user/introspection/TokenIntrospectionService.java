@@ -79,6 +79,11 @@ public class TokenIntrospectionService {
         List<String> modules =
                 moduleAccess.allowedModules(
                         workspace.getSchemaName(), user.getId(), user.isInternalAdmin());
+        // 탭까지 내려보낸다 — AI 가 업무 데이터를 조회할 때 모듈이 아니라 탭 단위로 걸러야 한다.
+        // 「경영지원을 가졌다」 와 「급여 탭을 가졌다」 는 다르고, 급여 API 는 후자만 연다.
+        List<String> tabs =
+                moduleAccess.allowedTabs(
+                        workspace.getSchemaName(), user.getId(), user.isInternalAdmin());
 
         return new IntrospectionResponse(
                 user.getId(),
@@ -89,6 +94,7 @@ public class TokenIntrospectionService {
                 workspace.getName(),
                 workspace.getSchemaName(),
                 modules,
+                tabs,
                 tokenExpiresAt);
     }
 

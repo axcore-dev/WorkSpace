@@ -113,8 +113,99 @@ public class ModuleAccessReader {
         return ordered(effective);
     }
 
+    /**
+     * 쓸 수 있는 <b>기능 탭</b>. 모듈보다 한 칸 좁다 — 경영지원을 가진 사람이 급여 탭까지 가진 것은 아니다.
+     *
+     * <p>계산은 {@link #allowedModules} 와 같은 세 겹이되 탭 단위다. 회사가 켠 탭({@code enabled_features}) ∩ 직급이
+     * 가진 탭({@code role_module_grants.subfunction_id}) ∩ 개인 부여. 개인 부여는 모듈 단위라 그 모듈의 탭 전체를
+     * 통과시킨다 — 모듈을 막으면 그 안의 탭도 따라 막힌다.
+     *
+     * <p>소유자와 서버 운영자는 회사가 켠 탭 전부다. 관리자(is_admin)는 특별 대우가 없다 — 회사 설정을 다루는
+     * 자격이지 기능 접근이 아니다({@link #allowedModules} 와 같은 규칙).
+     *
+     * <p><b>트랜잭션 안에서 불러야 한다.</b> {@link #allowedModules} 와 같은 전제다.
+     */
+    public List<String> allowedTabs(String schemaName, UUID userId, boolean internalAdmin) {
+        searchPath.bind(schemaName);
+
+        // 회사가 켠 탭. 이 밖의 것은 아래 어떤 규칙으로도 열리지 않는다
+        Set<String> enabled = new HashSet<>();
+        features.readAll()
+                .forEach((module, tabs) -> tabs.forEach((tab, on) -> {
+                    if (Boolean.TRUE.equals(on)) {
+                        enabled.add(tab);
+                    }
+                }));
+
+        if (internalAdmin) {
+            return orderedTabs(enabled);
+        }
+
+        List<Boolean> ownerFlags =
+                jdbc.query(
+                        """
+                        select coalesce(r.code = 'owner', false)
+                          from members m
+                          left join roles r on r.id = m.role_id
+                         where m.user_id = ? and m.status = 'active'
+                        """,
+                        (rs, i) -> rs.getBoolean(1),
+                        userId);
+        if (ownerFlags.isEmpty()) {
+            return List.of();
+        }
+        if (ownerFlags.get(0)) {
+            return orderedTabs(enabled);
+        }
+
+        Set<String> role =
+                new HashSet<>(
+                        jdbc.queryForList(
+                                """
+                                select distinct g.subfunction_id
+                                  from role_module_grants g
+                                  join members m on m.role_id = g.role_id
+                                 where m.user_id = ? and g.subfunction_id is not null
+                                """,
+                                String.class,
+                                userId));
+
+        // 개인 부여는 모듈 단위다. 있으면 그 모듈들의 탭만 남긴다
+        Set<String> memberModules =
+                new HashSet<>(
+                        jdbc.queryForList(
+                                """
+                                select g.module_slug
+                                  from member_module_grants g
+                                  join members m on m.id = g.member_id
+                                 where m.user_id = ?
+                                """,
+                                String.class,
+                                userId));
+        if (!memberModules.isEmpty()) {
+            Set<String> allowedByMember = new HashSet<>();
+            for (FeatureCatalog.Module module : FeatureCatalog.modules()) {
+                if (memberModules.contains(module.slug())) {
+                    allowedByMember.addAll(module.tabs());
+                }
+            }
+            role.retainAll(allowedByMember);
+        }
+
+        role.retainAll(enabled);
+        return orderedTabs(role);
+    }
+
     /** 알려진 slug 만, 화면 순서대로. */
     private static List<String> ordered(Set<String> slugs) {
         return ALL_MODULES.stream().filter(slugs::contains).toList();
+    }
+
+    /** 카탈로그에 있는 탭만, 모듈 순서 · 탭 순서 그대로. */
+    private static List<String> orderedTabs(Set<String> tabs) {
+        return FeatureCatalog.modules().stream()
+                .flatMap(m -> m.tabs().stream())
+                .filter(tabs::contains)
+                .toList();
     }
 }

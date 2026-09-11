@@ -34,6 +34,11 @@ export interface AiPrincipal {
    * 이 분야 질문에만 답한다. 비어 있으면 어떤 분야도 열리지 않는다.
    */
   modules: string[];
+  /**
+   * 쓸 수 있는 <b>기능 탭</b> id — 모듈보다 한 칸 좁다. 경영지원을 가졌다고 급여 탭까지 가진 것은 아니다.
+   * 업무 데이터 조회(`data-tools.ts`)가 이 값으로 목록을 거른다. 비어 있으면 조회할 수 있는 것이 없다.
+   */
+  tabs: string[];
   /** access 토큰 만료. 캐시 상한 */
   tokenExpiresAt: string;
 }
@@ -104,13 +109,14 @@ async function introspect(token: string): Promise<AiPrincipal> {
   }
 
   const p = (await res.json()) as AiPrincipal;
-  if (!p?.userId || !SCHEMA_RE.test(p.schemaName ?? "") || !Array.isArray(p.modules)) {
+  if (!p?.userId || !SCHEMA_RE.test(p.schemaName ?? "") || !Array.isArray(p.modules) || !Array.isArray(p.tabs)) {
     // 여기 걸리면 BE 응답 계약이 깨진 것이다. 사용자에게 보일 일은 없어야 한다.
     console.error("[ai-auth] introspect 응답 형태가 어긋났어요");
     throw new HttpError(502, "AUTH_UNAVAILABLE", "인증을 확인하지 못했어요");
   }
   // slug 는 문자열만, 알 수 없는 값은 버린다 — 검색 쿼리의 배열 파라미터로 그대로 들어간다
   p.modules = p.modules.filter((m): m is string => typeof m === "string" && /^[a-z]{1,30}$/.test(m));
+  p.tabs = p.tabs.filter((t): t is string => typeof t === "string" && /^[a-z]{1,30}$/.test(t));
   return p;
 }
 
