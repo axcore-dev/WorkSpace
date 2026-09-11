@@ -29,7 +29,7 @@ const SEPARATORS = [
   { value: ".", label: "." },
 ];
 
-type Section = "segments" | "separators" | "material" | "parts" | "tags";
+type Section = "segments" | "separators" | "material" | "parts";
 
 /** 무채색 칩 목록 — 읽기 상태 */
 function Chips({ items }: { items: string[] }) {
@@ -99,25 +99,34 @@ export function RulesTab() {
     </Button>
   );
 
-  /* ── 태그 편집 ── */
+  /* ── 태그 — 수정 모드 없이 바로 저장한다(Notion 의 다중 선택 값 편집처럼). 지워도 이미 붙은 라인의 글자는 남는다 ── */
+  const [tagError, setTagError] = useState("");
+  const [adding, setAdding] = useState(false);
+  function saveTags(next: string[]) {
+    void dispatch({ type: "setDocRules", rules: { ...r, processTags: next } }).then((ok) => ok && notify("저장했어요"));
+  }
   function addTag() {
     const t = newTag.trim();
-    if (!t) return;
-    if (draft.processTags.some((x) => x.toLowerCase() === t.toLowerCase())) {
-      setError("이미 있는 태그예요");
+    if (!t) {
+      setAdding(false);
       return;
     }
-    setError("");
-    setDraft({ ...draft, processTags: [...draft.processTags, t] });
+    if (r.processTags.some((x) => x.toLowerCase() === t.toLowerCase())) {
+      setTagError("이미 있는 태그예요");
+      return;
+    }
+    setTagError("");
     setNewTag("");
+    setAdding(false);
+    saveTags([...r.processTags, t]);
   }
   function commitRename() {
     if (!renaming) return;
     const t = renaming.value.trim();
-    if (t && !draft.processTags.some((x, i) => i !== renaming.index && x.toLowerCase() === t.toLowerCase())) {
-      setDraft({ ...draft, processTags: draft.processTags.map((x, i) => (i === renaming.index ? t : x)) });
-    }
     setRenaming(null);
+    if (!t || t === r.processTags[renaming.index]) return;
+    if (r.processTags.some((x, i) => i !== renaming.index && x.toLowerCase() === t.toLowerCase())) return;
+    saveTags(r.processTags.map((x, i) => (i === renaming.index ? t : x)));
   }
 
   const formatRow = (key: "material" | "parts", name: string) => (
@@ -231,68 +240,65 @@ export function RulesTab() {
         </SettingsRows>
       </SettingsSection>
 
-      <SettingsSection
-        title="가공 요청 태그"
-        aside={
-          editing === "tags" ? (
-            <EditActions onClose={() => setEditing(null)} onSave={() => save(draft)} />
-          ) : (
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-slate-500">{r.processTags.length}개</span>
-              {editBtn("tags")}
-            </div>
-          )
-        }
-      >
+      <SettingsSection title="가공 요청 태그" aside={<span className="text-xs text-slate-500">{r.processTags.length}개</span>}>
         <SettingsRows>
           <SettingsRow>
-            {editing === "tags" ? (
-              <div className="space-y-3">
-                <div className="flex flex-wrap items-center gap-1.5" role="list" aria-label="가공 요청 태그">
-                  {draft.processTags.map((t, i) =>
-                    renaming?.index === i ? (
-                      <input
-                        key={`edit-${i}`}
-                        autoFocus
-                        aria-label={`${t} 이름 바꾸기`}
-                        value={renaming.value}
-                        onChange={(e) => setRenaming({ index: i, value: e.target.value })}
-                        onBlur={commitRename}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") commitRename();
-                          if (e.key === "Escape") setRenaming(null);
-                        }}
-                        className={`${FIELD_SM} w-32`}
-                      />
-                    ) : (
-                      <span role="listitem" key={t}>
-                        <Chip label={t} onClick={() => setRenaming({ index: i, value: t })} onRemove={() => setDraft({ ...draft, processTags: draft.processTags.filter((_, k) => k !== i) })} removeLabel={`${t} 빼기`} />
-                      </span>
-                    ),
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-1.5" role="list" aria-label="가공 요청 태그">
+              {r.processTags.map((t, i) =>
+                renaming?.index === i ? (
                   <input
+                    key={`edit-${i}`}
+                    autoFocus
+                    aria-label={`${t} 이름 바꾸기`}
+                    value={renaming.value}
+                    onChange={(e) => setRenaming({ index: i, value: e.target.value })}
+                    onBlur={commitRename}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") commitRename();
+                      if (e.key === "Escape") setRenaming(null);
+                    }}
+                    className={`${FIELD_SM} w-32`}
+                  />
+                ) : (
+                  <span role="listitem" key={t}>
+                    <Chip label={t} onClick={() => setRenaming({ index: i, value: t })} onRemove={() => saveTags(r.processTags.filter((_, k) => k !== i))} removeLabel={`${t} 빼기`} />
+                  </span>
+                ),
+              )}
+              {adding ? (
+                <span className="inline-flex items-center gap-2">
+                  <input
+                    autoFocus
                     aria-label="새 태그"
-                    aria-invalid={!!error}
-                    placeholder="+ 태그"
+                    aria-invalid={!!tagError}
                     value={newTag}
                     onChange={(e) => {
                       setNewTag(e.target.value);
-                      setError("");
+                      setTagError("");
                     }}
-                    onKeyDown={(e) => e.key === "Enter" && addTag()}
-                    className={`${error ? FIELD_SM_ERROR : FIELD_SM} w-40`}
+                    onBlur={addTag}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") addTag();
+                      if (e.key === "Escape") {
+                        setNewTag("");
+                        setTagError("");
+                        setAdding(false);
+                      }
+                    }}
+                    className={`${tagError ? FIELD_SM_ERROR : FIELD_SM} w-32`}
                   />
-                  <Button size="sm" variant="secondary" onClick={addTag} disabled={!newTag.trim()}>
-                    추가
-                  </Button>
-                  {error && <p className="text-xs text-red-600">{error}</p>}
-                </div>
-              </div>
-            ) : (
-              <Chips items={r.processTags} />
-            )}
+                  {tagError && <span className="text-xs text-red-600">{tagError}</span>}
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setAdding(true)}
+                  className="cursor-pointer rounded border border-dashed border-slate-300 px-2 py-0.5 text-xs text-slate-500 transition-colors duration-150 hover:border-slate-400 hover:text-slate-700"
+                >
+                  + 태그
+                </button>
+              )}
+            </div>
           </SettingsRow>
         </SettingsRows>
       </SettingsSection>

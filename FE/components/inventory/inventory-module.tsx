@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { IconClipboardCheck, IconSettings } from "@/components/icons";
 import { Tab } from "@/components/module-view";
 import { Button, EmptyState, Segmented } from "@/components/ui";
 import type { InventorySub } from "@/data/inventory";
@@ -44,9 +45,25 @@ const SETTINGS_TABS: TabDef[] = [
   { id: "docrules", label: "문서 규칙", subs: ["docrules"], render: () => <RulesTab /> },
 ];
 
-const VIEW_OPTIONS: { value: View; label: string }[] = [
-  { value: "process", label: "처리" },
-  { value: "settings", label: "설정" },
+const VIEW_OPTIONS: { value: View; label: React.ReactNode }[] = [
+  {
+    value: "process",
+    label: (
+      <span className="inline-flex items-center gap-1.5">
+        <IconClipboardCheck size={13} />
+        처리
+      </span>
+    ),
+  },
+  {
+    value: "settings",
+    label: (
+      <span className="inline-flex items-center gap-1.5">
+        <IconSettings size={13} />
+        설정
+      </span>
+    ),
+  },
 ];
 
 export function InventoryModule({ mod }: { mod: ModuleDef }) {

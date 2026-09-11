@@ -21,19 +21,19 @@ import { CardTools } from "./card-tools";
 import { useInventory } from "./inventory-provider";
 import { OrderEditor } from "./order-editor";
 
-/** 상태 셀 — 지금 행동할 값(기한 넘김 · 잔량)만 색이 있다. 「도착」은 말하지 않는다 */
+/** 상태 셀 — 본문 크기. 지금 행동할 값(기한 넘김 · 잔량)만 색 + 굵게, 나머지는 내림. 「도착」은 말하지 않는다 */
 function statusCell(s: OrderStatus): Cell {
   switch (s.kind) {
     case "overdue":
-      return { badge: `${s.days}일 경과`, tone: "red" };
+      return { badge: `${s.days}일 경과`, tone: "red", size: "md", strong: true };
     case "partial":
-      return { badge: `잔량 ${s.remaining} EA`, tone: "amber" };
+      return { badge: `잔량 ${s.remaining} EA`, tone: "amber", size: "md", strong: true };
     case "waiting":
-      return { badge: `등록 전 · ${s.days}일차`, tone: "slate" };
+      return { badge: `등록 전 · ${s.days}일차`, tone: "slate", size: "md" };
     case "making":
-      return { badge: `제작 중 · ${s.days}일차`, tone: "slate" };
+      return { badge: `제작 중 · ${s.days}일차`, tone: "slate", size: "md" };
     case "done":
-      return { badge: "입고 완료", tone: "slate" };
+      return { badge: "입고 완료", tone: "slate", size: "md" };
   }
 }
 
@@ -310,7 +310,7 @@ export function OrdersTab() {
               columns: LINE_COLUMNS,
               rows: order.lines.map((l) => {
                 const rem = lineRemaining(l);
-                const judgement: Cell = l.judgement === "fail" ? { badge: "불합격", tone: "red" } : l.judgement === "pass" ? "합격" : "—";
+                const judgement: Cell = l.judgement === "fail" ? { badge: "불합격", tone: "red" } : l.judgement === "pass" ? "합격" : "대기";
                 return [l.no, l.nameAtOrder, `${l.specAtOrder} ${l.sizeAtOrder}`, String(l.ordered), String(l.received), order.closedOn && rem > 0 ? `취소 ${rem}` : String(rem), judgement, l.note || "—"];
               }),
             }}
@@ -319,7 +319,7 @@ export function OrdersTab() {
             rowEmphasis={(_, k) => (lineRemaining(order.lines[k]) === 0 && order.lines[k].judgement === "pass" ? "down" : undefined)}
             emphasisAt={(row, k, j) => {
               if (j === 5) return !order.closedOn && lineRemaining(order.lines[k]) > 0 ? "em" : "down";
-              if (row[j] === "—" || row[j] === "합격" || row[j] === "0") return "down";
+              if (row[j] === "—" || row[j] === "합격" || row[j] === "대기" || row[j] === "0") return "down";
               return undefined;
             }}
           />
@@ -333,7 +333,13 @@ export function OrdersTab() {
       <Card>
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-[15px] font-semibold text-slate-900">발주 현황</h2>
-          <CardTools search={{ value: query, onChange: setQuery, placeholder: "발주번호 · 발주처 · 관리번호로 찾기" }}>
+          <CardTools
+            search={{ value: query, onChange: setQuery, placeholder: "발주번호 · 발주처 · 관리번호로 찾기" }}
+            onExport={() => {
+              downloadCsv("재고물류_발주현황.csv", [COLUMNS, ...rows]);
+              notify(`발주 ${rows.length}건을 내보냈어요`);
+            }}
+          >
             {canPurchase && (
               <Button size="sm" variant="secondary" onClick={() => setEditor((w) => ({ seq: w.seq + 1 }))}>
                 발주서 만들기
@@ -343,7 +349,7 @@ export function OrdersTab() {
         </div>
         <DataTable
           data={{ columns: COLUMNS, rows }}
-          emphasis={[undefined, undefined, undefined, undefined, undefined, "em"]}
+          // 강조는 상태 셀(기한 넘김 · 잔량)에만 — 입고 열까지 굵으면 행마다 강조가 둘이 된다
           rowEmphasis={(_, i) => (statuses[i].kind === "done" ? "down" : undefined)}
           onRowClick={toggleRow}
           expandedRow={expandedIndex >= 0 ? expandedIndex : null}

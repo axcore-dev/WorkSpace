@@ -65,51 +65,42 @@ function SearchTool({ value, onChange, placeholder }: { value: string; onChange:
     setOpen(false);
   }
 
+  // 한 상자가 폭만 바뀐다 — 닫히면 아이콘 버튼(w-8), 열리면 아이콘이 안에 든 입력창(w-60)
   return (
-    <div className="flex items-center gap-1">
-      <button
-        type="button"
-        onClick={() => (open ? close() : setOpen(true))}
-        aria-expanded={open}
-        aria-label="검색"
-        title="검색"
-        className={`${TOOL_BTN} ${open ? "bg-slate-100" : ""}`}
-      >
-        <IconSearch size={15} />
-      </button>
-      <div
-        className={`relative overflow-hidden transition-[width,opacity] duration-200 ease-out motion-reduce:transition-none ${
-          open ? "w-60 opacity-100" : "w-0 opacity-0"
-        }`}
-        aria-hidden={!open}
-      >
-        <input
-          ref={inputRef}
-          tabIndex={open ? 0 : -1}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") close();
-          }}
-          onBlur={() => {
-            if (!value.trim()) setOpen(false);
-          }}
-          placeholder={placeholder}
-          aria-label={placeholder}
-          className={`${FIELD_SM} pr-8`}
-        />
-        <button
-          type="button"
-          tabIndex={open ? 0 : -1}
-          // 포커스가 입력에서 이 버튼으로 옮겨 가는 사이 blur 가 접지 않게 — mousedown 을 막는다
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => (value ? onChange("") : close())}
-          aria-label={value ? "검색어 지우기" : "검색 접기"}
-          className="absolute right-1.5 top-1/2 -translate-y-1/2 cursor-pointer rounded p-0.5 text-slate-500 transition-colors duration-150 hover:text-slate-700"
-        >
-          <IconX size={14} />
+    <div className={`relative h-8 shrink-0 transition-[width] duration-200 ease-out motion-reduce:transition-none ${open ? "w-60" : "w-8"}`}>
+      {open ? (
+        <>
+          <IconSearch size={15} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
+          <input
+            ref={inputRef}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") close();
+            }}
+            onBlur={() => {
+              if (!value.trim()) setOpen(false);
+            }}
+            placeholder={placeholder}
+            aria-label={placeholder}
+            className={`${FIELD_SM} pl-8 pr-8`}
+          />
+          <button
+            type="button"
+            // 포커스가 입력에서 이 버튼으로 옮겨 가는 사이 blur 가 접지 않게 — mousedown 을 막는다
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => (value ? onChange("") : close())}
+            aria-label={value ? "검색어 지우기" : "검색 접기"}
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 cursor-pointer rounded p-0.5 text-slate-500 transition-colors duration-150 hover:text-slate-700"
+          >
+            <IconX size={14} />
+          </button>
+        </>
+      ) : (
+        <button type="button" onClick={() => setOpen(true)} aria-expanded={false} aria-label="검색" title="검색" className={TOOL_BTN}>
+          <IconSearch size={15} />
         </button>
-      </div>
+      )}
     </div>
   );
 }

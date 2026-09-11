@@ -15,8 +15,8 @@ const KIND_TONE: Record<MovementKind, Tone> = { in: "green", out: "slate", adjus
 
 const SIMPLE = ["날짜", "품목", "구분", "수량", "귀속"];
 const DETAIL = ["일시", "품목", "사양", "규격", "구분", "수량", "잔량", "담당자", "발주번호", "검사", "귀속", "메모"];
-/** 상세 12열은 폭을 고정하고 넘치는 글자는 말줄임(`title` 로 전문). 합 1,190px — 좁으면 카드 안에서 가로 스크롤 */
-const DETAIL_WIDTHS = ["104px", "150px", "72px", "104px", "56px", "64px", "64px", "96px", "116px", "64px", "140px", "160px"];
+/** 상세 12열은 폭을 고정하고 넘치는 글자는 말줄임(`title` 로 전문). 고정 폭 합 916px + 메모(남는 폭) — 1440 에서 카드 안에 들어온다 */
+const DETAIL_WIDTHS = ["100px", "128px", "64px", "92px", "48px", "52px", "52px", "84px", "112px", "56px", "128px", undefined];
 
 const signed = (n: number) => (n > 0 ? `+${n}` : String(n));
 const dateOf = (at: string) => at.slice(5, 10).replace("-", ".");

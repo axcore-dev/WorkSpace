@@ -4,7 +4,8 @@ import type { IconKey } from "@/components/icons";
 export type Tone = "green" | "amber" | "red" | "violet" | "blue" | "slate";
 
 /** 테이블 셀: 일반 텍스트 또는 상태 배지 */
-export type Cell = string | number | { badge: string; tone: Tone };
+/** 표 셀. 배지 셀은 기본 text-xs — 지금 행동할 상태값(기한 넘김 · 잔량)은 `size: "md"` + `strong` 으로 본문 크기 semibold 로 올린다 */
+export type Cell = string | number | { badge: string; tone: Tone; size?: "md"; strong?: boolean };
 
 export interface TableData {
   columns: string[];

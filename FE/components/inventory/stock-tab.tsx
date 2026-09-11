@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button, Card, DataTable, FIELD_SM, FIELD_SM_ERROR, Segmented } from "@/components/ui";
+import { Button, Card, DataTable, FIELD, FIELD_ERROR, FIELD_SM, FIELD_SM_ERROR, Segmented } from "@/components/ui";
 import type { Item, MovementKind } from "@/data/inventory";
 import type { Cell, Tone } from "@/data/types";
 import { downloadCsv } from "@/lib/download";
@@ -17,6 +17,16 @@ const SAFETY_COL = 8;
 
 const KIND_LABEL: Record<MovementKind, string> = { in: "입고", out: "출고", adjust: "조정", baseline: "기초" };
 const KIND_TONE: Record<MovementKind, Tone> = { in: "green", out: "slate", adjust: "amber", baseline: "slate" };
+
+/** 입력 오른쪽 끝의 단위 표기(EA · 일) — 값이 무엇인지 칸 안에서 읽히게 */
+function Suffixed({ suffix, children }: { suffix: string; children: React.ReactNode }) {
+  return (
+    <div className="relative">
+      {children}
+      <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-sm text-slate-500">{suffix}</span>
+    </div>
+  );
+}
 
 type Panel = "history" | "standard";
 const PANEL_OPTIONS: { value: Panel; label: string }[] = [
@@ -252,7 +262,7 @@ export function StockTab() {
                 data={{
                   columns: ["날짜", "구분", "수량", "담당자", "귀속"],
                   rows: history.map((m) => [
-                    m.at.slice(5, 10).replace("-", "."),
+                    m.at.slice(0, 10),
                     { badge: KIND_LABEL[m.kind], tone: KIND_TONE[m.kind] },
                     m.kind === "baseline" ? `= ${m.qty}` : m.qty > 0 ? `+${m.qty}` : String(m.qty),
                     m.actor || "—",
@@ -272,30 +282,32 @@ export function StockTab() {
           <form
             // noValidate — `max` · `min` 은 힌트(달력 범위)로만 두고, 막는 문구는 우리 것으로 통일한다
             noValidate
-            className="flex flex-wrap items-start gap-3"
+            className="grid gap-4 sm:grid-cols-3"
             onSubmit={(e) => {
               e.preventDefault();
               saveStandard(item);
             }}
           >
             <div>
-              <label htmlFor={`std-base-${item.code}`} className="mb-1.5 block text-xs font-medium text-slate-600">
-                기초 재고 ({item.unit})
+              <label htmlFor={`std-base-${item.code}`} className="mb-1.5 block text-sm font-medium text-slate-700">
+                기초 재고
               </label>
-              <input
-                id={`std-base-${item.code}`}
-                type="number"
-                inputMode="numeric"
-                min={0}
-                value={standard.baseline}
-                aria-invalid={!!errors.baseline}
-                onChange={(e) => setStandard({ ...standard, baseline: e.target.value })}
-                className={`${errors.baseline ? FIELD_SM_ERROR : FIELD_SM} w-28 text-right`}
-              />
-              {errors.baseline && <p className="mt-1 max-w-xs text-xs text-red-600">{errors.baseline}</p>}
+              <Suffixed suffix={item.unit}>
+                <input
+                  id={`std-base-${item.code}`}
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  value={standard.baseline}
+                  aria-invalid={!!errors.baseline}
+                  onChange={(e) => setStandard({ ...standard, baseline: e.target.value })}
+                  className={`${errors.baseline ? FIELD_ERROR : FIELD} pr-12`}
+                />
+              </Suffixed>
+              {errors.baseline && <p className="mt-1.5 text-xs text-red-600">{errors.baseline}</p>}
             </div>
             <div>
-              <label htmlFor={`std-asof-${item.code}`} className="mb-1.5 block text-xs font-medium text-slate-600">
+              <label htmlFor={`std-asof-${item.code}`} className="mb-1.5 block text-sm font-medium text-slate-700">
                 실사 기준일
               </label>
               <input
@@ -305,35 +317,36 @@ export function StockTab() {
                 value={standard.asOf}
                 aria-invalid={!!errors.asOf}
                 onChange={(e) => setStandard({ ...standard, asOf: e.target.value })}
-                className={`${errors.asOf ? FIELD_SM_ERROR : FIELD_SM} w-40`}
+                className={errors.asOf ? FIELD_ERROR : FIELD}
               />
-              {errors.asOf && <p className="mt-1 text-xs text-red-600">{errors.asOf}</p>}
+              {errors.asOf && <p className="mt-1.5 text-xs text-red-600">{errors.asOf}</p>}
             </div>
             <div>
-              <label htmlFor={`std-safety-${item.code}`} className="mb-1.5 block text-xs font-medium text-slate-600">
-                안전 기준 ({item.unit})
+              <label htmlFor={`std-safety-${item.code}`} className="mb-1.5 block text-sm font-medium text-slate-700">
+                안전 기준
               </label>
-              {state.standard.method === "manual" ? (
-                <input
-                  id={`std-safety-${item.code}`}
-                  type="number"
-                  inputMode="numeric"
-                  min={0}
-                  placeholder="미설정"
-                  value={standard.safety}
-                  aria-invalid={!!errors.safety}
-                  onChange={(e) => setStandard({ ...standard, safety: e.target.value })}
-                  className={`${errors.safety ? FIELD_SM_ERROR : FIELD_SM} w-28 text-right`}
-                />
-              ) : (
-                // 자동 산정 — 값은 설정 화면의 방식이 정한다. 여기서는 읽기만
-                <input id={`std-safety-${item.code}`} readOnly value={safety === null ? "미설정" : String(safety)} title={METHOD_LABEL[state.standard.method]} className={`${FIELD_SM} w-28 bg-slate-50 text-right text-slate-500`} />
-              )}
-              {errors.safety && <p className="mt-1 text-xs text-red-600">{errors.safety}</p>}
+              <Suffixed suffix={item.unit}>
+                {state.standard.method === "manual" ? (
+                  <input
+                    id={`std-safety-${item.code}`}
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    placeholder="미설정"
+                    value={standard.safety}
+                    aria-invalid={!!errors.safety}
+                    onChange={(e) => setStandard({ ...standard, safety: e.target.value })}
+                    className={`${errors.safety ? FIELD_ERROR : FIELD} pr-12`}
+                  />
+                ) : (
+                  // 자동 산정 — 값은 설정 화면의 방식이 정한다. 여기서는 읽기만
+                  <input id={`std-safety-${item.code}`} readOnly value={safety === null ? "미설정" : String(safety)} title={METHOD_LABEL[state.standard.method]} className={`${FIELD} bg-slate-50 pr-12 text-slate-500`} />
+                )}
+              </Suffixed>
+              {errors.safety && <p className="mt-1.5 text-xs text-red-600">{errors.safety}</p>}
             </div>
-            <div className="flex gap-2 self-end pb-px">
+            <div className="flex justify-end gap-2 sm:col-span-3">
               <Button
-                size="sm"
                 variant="secondary"
                 type="button"
                 onClick={() => {
@@ -343,9 +356,7 @@ export function StockTab() {
               >
                 닫기
               </Button>
-              <Button size="sm" type="submit">
-                저장
-              </Button>
+              <Button type="submit">저장</Button>
             </div>
           </form>
         )}

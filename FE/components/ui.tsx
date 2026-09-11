@@ -77,17 +77,23 @@ export const TONE_TEXT: Record<Tone, string> = {
 
 export function Badge({
   tone = "slate",
+  size = "xs",
+  strong = false,
   children,
   className = "",
 }: {
   tone?: Tone;
   /** @deprecated 더 이상 점 표시를 쓰지 않음 (호환용) */
   dot?: boolean;
+  /** `md` = 본문 크기 — 표의 상태 셀처럼 다른 셀과 같은 줄에서 읽혀야 할 때 */
+  size?: "xs" | "md";
+  /** 지금 행동할 값(기한 넘김 · 잔량)만 굵게 — 화면당 강조 예산에 센다 (DESIGN.md 「위계」) */
+  strong?: boolean;
   children: React.ReactNode;
   className?: string;
 }) {
   return (
-    <span className={`inline-flex items-center text-xs font-medium ${TONE_TEXT[tone]} ${className}`}>
+    <span className={`inline-flex items-center ${size === "md" ? "text-sm" : "text-xs"} ${strong ? "font-semibold" : "font-medium"} ${TONE_TEXT[tone]} ${className}`}>
       {children}
     </span>
   );
@@ -229,7 +235,12 @@ export function Stat({ stat, onCta }: { stat: StatData; onCta?: (tabId: string) 
 /** 내림 행에서는 배지도 중립 톤으로 — 완료 행에 초록 배지가 남으면 회색이 무의미해진다 */
 function CellView({ cell, muted }: { cell: Cell; muted: boolean }) {
   if (typeof cell === "object") {
-    return <Badge tone={muted ? "slate" : cell.tone}>{cell.badge}</Badge>;
+    // 내림 행에서는 톤도 굵기도 내린다 — 끝난 행에 붉은 글자가 남지 않게
+    return (
+      <Badge tone={muted ? "slate" : cell.tone} size={cell.size} strong={!muted && cell.strong}>
+        {cell.badge}
+      </Badge>
+    );
   }
   return <>{cell}</>;
 }
@@ -276,7 +287,8 @@ export function DataTable({
   const align = (j: number) => CELL_ALIGN[colAlign?.[j] ?? "left"];
   return (
     <div className="thin-scroll -mx-1 overflow-x-auto px-1">
-      <table className={`w-full text-left text-sm ${fixed ? "table-fixed" : "min-w-[560px]"}`}>
+      {/* 열 폭 고정 모드는 열이 많은 상세 보기라 글자를 한 단 줄인다(13px) — 12열이 카드 폭에 들어오게 */}
+      <table className={`w-full text-left ${fixed ? "table-fixed text-[13px]" : "min-w-[560px] text-sm"}`}>
         {fixed && (
           <colgroup>
             {expandable && <col className="w-7" />}
@@ -335,9 +347,9 @@ export function DataTable({
                 </tr>
                 {open && (
                   <tr id={`${panelId}-${i}`}>
-                    {/* 펼친 패널 — 행과 같은 표 안에 있어 가로 스크롤을 함께 탄다 */}
+                    {/* 펼친 패널 — 행과 같은 표 안에 있어 가로 스크롤을 함께 탄다. 흰 바탕 + 테두리(카드와 같은 언어, 그림자 없음) */}
                     <td colSpan={row.length + 1} className="px-1 pb-4 pt-1">
-                      <div className="rounded-lg bg-slate-50 px-4 py-4">{renderExpanded(i)}</div>
+                      <div className="rounded-lg border border-slate-200 bg-white px-4 py-4">{renderExpanded(i)}</div>
                     </td>
                   </tr>
                 )}
@@ -433,7 +445,7 @@ export function Segmented<T extends string>({
   label,
   disabled = false,
 }: {
-  options: { value: T; label: string }[];
+  options: { value: T; label: React.ReactNode }[];
   value: T;
   onChange: (v: T) => void;
   label: string;

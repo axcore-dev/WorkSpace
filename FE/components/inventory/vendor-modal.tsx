@@ -113,7 +113,7 @@ export function VendorModal({ vendor, onClose }: { vendor: Vendor | null; onClos
             save();
           }}
         >
-          <div className="sm:col-span-2">
+          <div>
             <label htmlFor="vendor-name" className={LABEL}>
               거래처명
             </label>
@@ -150,8 +150,9 @@ export function VendorModal({ vendor, onClose }: { vendor: Vendor | null; onClos
           </div>
           <div>
             <label htmlFor="vendor-lead" className={LABEL}>
-              리드타임 (일)
+              리드타임
             </label>
+            <div className="relative">
             <input
               id="vendor-lead"
               type="number"
@@ -162,8 +163,10 @@ export function VendorModal({ vendor, onClose }: { vendor: Vendor | null; onClos
               placeholder={inhouse ? "—" : ""}
               aria-invalid={!!errors.leadTimeDays}
               onChange={(e) => set({ lead: e.target.value })}
-              className={`${errors.leadTimeDays ? FIELD_ERROR : FIELD} disabled:bg-slate-50 disabled:text-slate-500`}
+              className={`${errors.leadTimeDays ? FIELD_ERROR : FIELD} pr-10 disabled:bg-slate-50 disabled:text-slate-500`}
             />
+            <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-sm text-slate-500">일</span>
+            </div>
             {errors.leadTimeDays && <p className={ERR}>{errors.leadTimeDays}</p>}
           </div>
           <div>
@@ -179,7 +182,7 @@ export function VendorModal({ vendor, onClose }: { vendor: Vendor | null; onClos
               ))}
             </select>
           </div>
-          <div className="sm:col-span-2">
+          <div>
             <span className={LABEL}>상태</span>
             <Segmented
               options={[...STATUS_OPTIONS]}
