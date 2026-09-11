@@ -42,7 +42,7 @@ export async function indexSource(principal: AiPrincipal, docId: string): Promis
       return null;
     });
 
-    // 업무 분야 분류 — 권한 있는 분야만 검색되게 하는 태그. 실패하면 null(제한 없음)
+    // 업무 분야 — 모델이 분류한다. 실패하면 null 이고, 화면 목록의 표시에만 쓴다
     const moduleSlug = await classifyModule(doc.name, chunks);
     // 문서 요약 — 답변 문맥의 문서 머리말. 실패하면 null 이고 검색·답변은 그대로 돈다
     const summary = await summarizeDoc(doc.name, chunks);

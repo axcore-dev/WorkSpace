@@ -46,8 +46,6 @@ export function ChatRail({
   onToggleSource,
   onToggleAll,
   onAddSource,
-  shareAll,
-  onToggleShare,
   onRemoveSource,
   onOpenSource,
 }: {
@@ -60,9 +58,6 @@ export function ChatRail({
   onToggleSource: (name: string) => void;
   onToggleAll: () => void;
   onAddSource: () => void;
-  /** 다음에 올릴 문서를 회사 전체와 공유할지 — 켜면 같은 회사 구성원의 AI 검색에도 잡힌다 */
-  shareAll: boolean;
-  onToggleShare: () => void;
   onRemoveSource: (name: string) => void;
   /** 서버에 올라간 문서를 새 탭에서 연다. id 가 없는 옛 저장본에는 버튼이 나오지 않는다 */
   onOpenSource?: (name: string) => void;
@@ -251,19 +246,6 @@ export function ChatRail({
                 <IconUpload size={14} />
                 소스 추가
               </Button>
-              {/* 올리기 전에 정한다 — 올린 뒤 바꾸는 길은 아직 없다. 기본은 나만 보기 */}
-              <button
-                type="button"
-                role="checkbox"
-                aria-checked={shareAll}
-                onClick={onToggleShare}
-                className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-1 py-1 text-left text-[13px] text-slate-500 transition-colors hover:bg-slate-50"
-              >
-                <span className={`${CHECKBOX} ${shareAll ? "border-slate-800 bg-slate-800 text-white" : "border-slate-300"}`}>
-                  {shareAll && <IconCheck size={11} />}
-                </span>
-                회사 전체와 공유
-              </button>
               {sources.length > 0 && (
                 <button
                   type="button"

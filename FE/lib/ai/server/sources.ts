@@ -74,15 +74,13 @@ export async function insertDoc(
     type: string;
     sizeBytes: number;
     storageKey: string;
-    /** 기본은 개인. `company` 면 같은 회사 구성원이 검색할 수 있다 */
-    scope?: "personal" | "company";
   },
 ): Promise<DocRow> {
   const { rows } = await db.query<DocRow>(
     `INSERT INTO ai_source_docs (id, owner_user_id, name, type, size_bytes, storage_key, scope)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     VALUES ($1, $2, $3, $4, $5, $6, 'personal')
      RETURNING *`,
-    [doc.id, doc.ownerUserId, doc.name, doc.type, doc.sizeBytes, doc.storageKey, doc.scope ?? "personal"],
+    [doc.id, doc.ownerUserId, doc.name, doc.type, doc.sizeBytes, doc.storageKey],
   );
   return rows[0];
 }
@@ -192,8 +190,6 @@ export interface ChunkHit {
   lexical: boolean;
   /** 이 조각이 속한 문서의 요약. 색인 때 만들어 둔 것이고 없으면 null */
   doc_summary: string | null;
-  /** 내가 올린 문서가 아니라 회사에 공유된 문서인가 */
-  shared: boolean;
 }
 
 /** 세 순위를 합칠 때 쓰는 상수(RRF). 60 은 이 방식의 관례값이고, 클수록 상위권 가중이 완만해진다 */
@@ -211,8 +207,8 @@ const TRGM_FLOOR = 0.5;
 /**
  * 질문과 가까운 조각을 찾는다. `names` 가 있으면 그 문서 안에서, `null` 이면 본인 문서 전체에서.
  *
- * **접근 규칙이 SQL 에 있다.** 내 문서는 분야와 무관하게, 회사 공유 문서는 내 권한 분야만 잡힌다(아래 `scope` 주석).
- * 권한 밖 문서는 조각 단계에서 걸러지므로 프롬프트가 실수해도 모델에 닿지 않는다.
+ * **접근 규칙이 SQL 에 있다.** 내가 올린 문서만 잡힌다(아래 `scope` 주석). 남의 문서는 조각 단계에서 걸러지므로
+ * 프롬프트가 실수해도 모델에 닿지 않는다.
  *
  * **벡터와 전문 검색을 둘 다 돌려 순위를 합친다(RRF).** 예전에는 벡터가 한 건이라도 나오면 거기서 끝냈고, 벡터는
  * 거의 항상 무언가를 돌려주므로 전문 검색은 사실상 켜지지 않았다. 그런데 품번(`PRT-BRG-608`)·전표번호처럼 글자가
@@ -228,32 +224,21 @@ export async function searchChunks(
   db: Db,
   ownerUserId: string,
   names: string[] | null,
-  allowedModules: string[],
   query: { text: string; embedding: number[] | null; embeddingModel: string },
   limit: number,
 ): Promise<ChunkHit[]> {
   if (names !== null && names.length === 0) return [];
   /*
-   * 볼 수 있는 문서의 규칙. 두 갈래이고 <b>서로 다른 잣대를 쓴다.</b>
+   * 볼 수 있는 문서는 <b>내가 올린 것뿐이다.</b> 소스는 개인 자료이고 회사 공유는 두지 않기로 했다(2026-09-11 결정).
+   * 남이 올린 문서는 어떤 권한을 가져도 보이지 않는다.
    *
-   * 1. <b>내가 올린 문서 — 분야 권한과 무관하게 본다.</b> 내가 올린 내 자료다. 급여 탭이 없다고 내가 올린 급여 파일을
-   *    나에게 숨기는 것은 말이 안 된다. 분류가 비어 있어도 본다.
-   * 2. <b>회사에 공유된 문서 — 분야 권한이 있어야 본다.</b> 남이 올린 자료라 회사의 권한 규칙을 따른다. 분류가 비어
-   *    있으면(`module_slug IS NULL`) 어느 분야인지 알 수 없으므로 <b>보이지 않는다</b> — 모르는 것을 여는 쪽보다
-   *    막는 쪽이 맞다. 공유한 사람이 분야를 정해 주면 그때 열린다.
-   *
-   * 남이 올린 개인 문서는 어느 갈래에도 들지 않는다. 어떤 권한을 가져도 보이지 않는다.
-   *
-   * 이름으로 고른 문서($2)도 <b>내 것만</b> 본다. 문서 이름은 사람마다 따로 유일해서(ux_ai_source_docs_owner_name)
-   * 같은 이름이 둘일 수 있고, 화면의 문서 고르기는 내 문서만 보여 준다 — 남의 같은 이름 문서가 딸려오면 내가 고른
-   * 것과 다른 자료가 근거로 쓰인다.
+   * <b>업무 분야로 거르지 않는다.</b> 내가 올린 내 자료라 급여 탭이 없다고 내가 올린 급여 파일을 나에게 숨길 이유가
+   * 없다. 분야(`module_slug`)는 화면 목록의 표시에만 쓴다. 권한으로 좁히는 것은 업무 데이터 조회(`data-tools.ts`)이고,
+   * 그쪽은 탭 단위로 BE 가 판정한다.
    */
-  const scope = `(
-            d.owner_user_id = $1
-            OR (d.scope = 'company' AND d.module_slug = ANY($5::text[]))
-          )
+  const scope = `d.owner_user_id = $1
           AND d.status = 'ready'
-          AND ($2::text[] IS NULL OR (d.owner_user_id = $1 AND d.name = ANY($2::text[])))`;
+          AND ($2::text[] IS NULL OR d.name = ANY($2::text[]))`;
 
   const { rows } = await db.query<ChunkHit>(
     `WITH q AS (
@@ -265,17 +250,17 @@ export async function searchChunks(
      ),
      vec AS (
        SELECT c.id,
-              row_number() OVER (ORDER BY c.embedding OPERATOR(public.<=>) $6::public.vector) AS rnk,
-              1 - (c.embedding OPERATOR(public.<=>) $6::public.vector) AS sim
+              row_number() OVER (ORDER BY c.embedding OPERATOR(public.<=>) $5::public.vector) AS rnk,
+              1 - (c.embedding OPERATOR(public.<=>) $5::public.vector) AS sim
          FROM ai_source_chunks c
          JOIN ai_source_docs d ON d.id = c.doc_id
-        WHERE $6::public.vector IS NOT NULL
+        WHERE $5::public.vector IS NOT NULL
           AND c.embedding IS NOT NULL
           -- 다른 모델로 만든 벡터는 비교 대상이 아니다. 재색인 전까지 그 문서는 전문 검색·부분 일치로만 찾힌다
-          AND d.embedding_model IS NOT DISTINCT FROM $8
+          AND d.embedding_model IS NOT DISTINCT FROM $7
           AND ${scope}
-        ORDER BY c.embedding OPERATOR(public.<=>) $6::public.vector
-        LIMIT $7
+        ORDER BY c.embedding OPERATOR(public.<=>) $5::public.vector
+        LIMIT $6
      ),
      trg AS (
        -- 부분 일치. 조사가 붙은 낱말("단가는")과 품번 일부를 잡는다 — 전문 검색이 낱말 단위라 놓치는 자리다.
@@ -287,7 +272,7 @@ export async function searchChunks(
         WHERE public.word_similarity($3, c.content) >= ${TRGM_FLOOR}
           AND ${scope}
         ORDER BY public.word_similarity($3, c.content) DESC
-        LIMIT $7
+        LIMIT $6
      ),
      lex AS (
        SELECT c.id,
@@ -299,7 +284,7 @@ export async function searchChunks(
           AND c.tsv @@ q.tsq
           AND ${scope}
         ORDER BY ts_rank(c.tsv, q.tsq) DESC
-        LIMIT $7
+        LIMIT $6
      ),
      ids AS (SELECT id FROM vec UNION SELECT id FROM lex UNION SELECT id FROM trg)
      SELECT d.name AS doc_name, c.page, c.content,
@@ -308,8 +293,7 @@ export async function searchChunks(
              + coalesce(1.0 / (${RRF_K} + t.rnk), 0))::float8 AS score,
             v.sim AS similarity,
             (l.id IS NOT NULL OR t.id IS NOT NULL) AS lexical,
-            d.summary AS doc_summary,
-            (d.owner_user_id <> $1) AS shared
+            d.summary AS doc_summary
        FROM ids
        JOIN ai_source_chunks c ON c.id = ids.id
        JOIN ai_source_docs d ON d.id = c.doc_id
@@ -323,7 +307,6 @@ export async function searchChunks(
       names,
       query.text,
       limit,
-      allowedModules,
       query.embedding ? toVectorLiteral(query.embedding) : null,
       CANDIDATES,
       query.embeddingModel,

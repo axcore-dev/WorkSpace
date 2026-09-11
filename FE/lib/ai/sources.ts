@@ -25,16 +25,12 @@ async function throwIfError(res: Response, fallback: ApiError): Promise<void> {
 /**
  * 소스 문서 업로드 — 등록된 메타를 돌려준다. 색인은 뒤에서 이어지므로 `status` 가 indexing 일 수 있다.
  *
- * @param scope `company` 면 같은 회사 구성원의 AI 검색에도 잡힌다. 기본은 나만 보는 `personal` 이다 —
- *   공유는 올리는 사람이 분명히 고른 때만 일어난다.
+ *
+ * 올린 문서는 <b>올린 사람만</b> 본다. 회사 공유는 두지 않으므로 범위를 고르는 입력이 없다.
  */
-export async function uploadSources(
-  files: File[],
-  scope: "personal" | "company" = "personal",
-): Promise<SourceDoc[]> {
+export async function uploadSources(files: File[]): Promise<SourceDoc[]> {
   const form = new FormData();
   files.forEach((f) => form.append("files", f));
-  form.append("scope", scope);
   const res = await fetch(SOURCES_ENDPOINT, {
     method: "POST",
     credentials: "include",

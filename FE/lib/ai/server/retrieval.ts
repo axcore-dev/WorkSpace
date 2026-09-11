@@ -64,8 +64,8 @@ function block(h: ChunkHit, i: number): string {
  * @param names 선택된 문서 이름. **빈 배열이면 내가 볼 수 있는 문서 전체를 뒤진다** — 답은 항상 이 회사 자료에서만
  *   나와야 하므로, 사용자가 문서를 고르지 않았다고 자료 없이 답하게 두지 않는다. 고른 경우에는 내 문서 중에서만 찾는다.
  *
- *   볼 수 있는 범위는 두 갈래다. <b>내가 올린 문서는 분야 권한과 무관하게</b>, <b>회사에 공유된 문서는 내 권한
- *   분야(`principal.modules`)만</b> 잡힌다. 남이 올린 개인 문서는 어느 경우에도 잡히지 않는다(`sources.ts` 의 `scope`).
+ *   볼 수 있는 범위는 <b>내가 올린 문서뿐이다.</b> 소스는 개인 자료라 분야 권한으로 거르지 않고, 남이 올린 문서는
+ *   어떤 권한을 가져도 잡히지 않는다(`sources.ts` 의 `scope`).
  */
 export async function retrieve(
   principal: AiPrincipal,
@@ -84,7 +84,6 @@ export async function retrieve(
       db,
       principal.userId,
       names.length ? names : null,
-      principal.modules,
       { text: question, embedding, embeddingModel: embeddingModelId() },
       RERANK_POOL,
     ),

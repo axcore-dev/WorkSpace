@@ -18,7 +18,7 @@ import type { Notebooks } from "./use-conversations";
 
 export interface Sources {
   /** 파일 추가 — 실패하면 같은 파일로 다시 시도할 수 있게 파일을 함께 올린다 */
-  add: (files: File[], scope?: "personal" | "company") => Promise<void>;
+  add: (files: File[]) => Promise<void>;
   remove: (name: string) => void;
   open: (name: string) => Promise<void>;
   /** 선택 변경 — 화면에 바로 반영하고, 대화가 있으면 서버에도 남긴다 */
@@ -67,13 +67,13 @@ export function useSources(opts: { nb: Notebooks; setError: (f: Failure | null) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [indexing]);
 
-  async function add(files: File[], scope: "personal" | "company" = "personal") {
+  async function add(files: File[]) {
     if (!files.length) return;
     setError(null);
     try {
       // 같은 이름은 교체다 — 서버가 기존 문서(객체·조각)를 지우고 새 것으로 바꿔 다시 색인한다.
       // 화면도 그 항목을 새 id·'색인 중' 으로 갈아 끼우되 자리와 선택 상태는 그대로 둔다.
-      const docs = await uploadSources(files, scope);
+      const docs = await uploadSources(files);
       const byName = new Map(docs.map((d) => [d.name, d]));
       const added = docs.filter((d) => !nb.src.sources.some((x) => x.name === d.name));
       const nextSelected = [...new Set([...nb.src.selected, ...docs.map((d) => d.name)])];
