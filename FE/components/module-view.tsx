@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { ChartFromSpec } from "@/components/charts";
 import {
   ICON_MAP,
@@ -20,10 +20,9 @@ import { PayrollWorkbench } from "@/components/management/payroll-workbench";
 import { useModules } from "@/components/module-provider";
 import { RecordModal } from "@/components/record-modal";
 import { DrawingManager } from "@/components/drawing-manager";
-import { PurchaseOrder } from "@/components/purchase-order";
-import { ReceivingInspection } from "@/components/receiving-inspection";
 import { ReportAutomation } from "@/components/report-automation";
-import { AiBadge, Badge, Button, Card, DataTable, EmptyState, FIELD, SectionHeader, Stat , WizardSteps } from "@/components/ui";
+import { UploadReviewModal } from "@/components/upload-review-modal";
+import { AiBadge, Badge, Button, Card, DataTable, EmptyState, FIELD, SectionHeader, Stat } from "@/components/ui";
 import { ROW_DETAILS } from "@/data/module-details";
 import { downloadCsv } from "@/lib/download";
 import type { Cell, DetailRecord, ModuleDef, ModulePageData, TabAction, TreeNode } from "@/data/types";
@@ -38,8 +37,8 @@ const TAB_ACTIONS: Record<TabAction, { label: string; icon: typeof IconFilter; p
 
 const cellText = (c: Cell) => (typeof c === "object" ? c.badge : String(c));
 
-/** 서브기능 탭 — 순서는 data/pages 가 정한다. 사용자 편집(드래그 정렬)은 두지 않는다 */
-function Tab({
+/** 서브기능 탭 — 순서는 data/pages 가 정한다. 사용자 편집(드래그 정렬)은 두지 않는다. 재고·물류 모듈도 같은 탭을 쓴다 */
+export function Tab({
   tab,
   isActive,
   onSelect,
@@ -54,7 +53,7 @@ function Tab({
       role="tab"
       aria-selected={isActive}
       onClick={onSelect}
-      className={`-mb-px cursor-pointer border-b-2 px-4 py-2.5 text-sm font-medium transition-colors duration-150 ${
+      className={`-mb-px cursor-pointer whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition-colors duration-150 ${
         isActive
           ? "border-slate-900 text-slate-900"
           : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700"
@@ -103,141 +102,6 @@ function TreeItem({ node, depth = 0 }: { node: TreeNode; depth?: number }) {
 }
 
 /** 신규 등록 팝업 — 테이블 컬럼 기반 공용 폼 */
-/**
- * 엑셀 업로드 — 파일 선택 → 정제 결과 확인·수정 → 승인(FR-IV-06, HITL).
- * 데모라 실제 파싱은 하지 않고, 선택한 파일명으로 정제된 것처럼 미리보기를 만든다.
- */
-function UploadReviewModal({
-  open,
-  title,
-  columns,
-  onApprove,
-  onClose,
-}: {
-  open: boolean;
-  title: string;
-  columns: string[];
-  onApprove: (rows: Cell[][]) => void;
-  onClose: () => void;
-}) {
-  const [step, setStep] = useState(1);
-  const [fileName, setFileName] = useState("");
-  const [rows, setRows] = useState<string[][]>([]);
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  function pickFile(name: string) {
-    setFileName(name);
-    // 데모: 정제 결과 2행을 생성한다. 실제로는 서버 파싱 결과가 들어온다.
-    setRows([
-      columns.map((c, j) => (j === 0 ? "(신규) 업로드 항목 1" : `${c} 값`)),
-      columns.map((c, j) => (j === 0 ? "(신규) 업로드 항목 2" : `${c} 값`)),
-    ]);
-    setStep(2);
-  }
-
-  function close() {
-    setStep(1);
-    setFileName("");
-    setRows([]);
-    onClose();
-  }
-
-  return (
-    <Modal
-      open={open}
-      onClose={close}
-      size="xl"
-      title={`${title} 엑셀 업로드`}
-      footer={
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-xs text-slate-400">{fileName && `${fileName} · ${rows.length}건`}</span>
-          <div className="flex gap-2">
-            <Button variant="secondary" onClick={close}>
-              닫기
-            </Button>
-            <Button
-              disabled={step !== 2 || rows.length === 0}
-              onClick={() => {
-                onApprove(rows.map((r) => r as Cell[]));
-                close();
-              }}
-            >
-              승인하고 반영
-            </Button>
-          </div>
-        </div>
-      }
-    >
-      <WizardSteps steps={["파일 선택", "정제 결과 확인", "승인"]} current={step} />
-      {step === 1 ? (
-        <div className="p-5">
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            className="flex w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 px-6 py-12 text-slate-400 transition-colors hover:border-slate-400 hover:bg-slate-50 hover:text-slate-600"
-          >
-            <IconUpload size={22} />
-            <span className="text-sm font-medium">엑셀 파일을 선택하세요</span>
-            <span className="text-xs">.xlsx · .csv</span>
-          </button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".xlsx,.xls,.csv"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) pickFile(f.name);
-              e.target.value = "";
-            }}
-          />
-        </div>
-      ) : (
-        <div className="space-y-3 p-5">
-          <p className="text-sm text-slate-500">
-            아래 내용이 등록됩니다. 값을 눌러 수정할 수 있습니다.
-          </p>
-          <div className="thin-scroll overflow-x-auto">
-            <table className="w-full min-w-[560px] text-left text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 text-xs font-medium text-slate-400">
-                  {columns.map((c) => (
-                    <th key={c} scope="col" className="px-3 py-2.5">
-                      {c}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {rows.map((r, i) => (
-                  <tr key={i}>
-                    {r.map((v, j) => (
-                      <td key={j} className="px-2 py-1.5">
-                        <input
-                          aria-label={`${i + 1}행 ${columns[j]}`}
-                          value={v}
-                          onChange={(e) =>
-                            setRows((prev) =>
-                              prev.map((row, ri) =>
-                                ri === i ? row.map((cv, ci) => (ci === j ? e.target.value : cv)) : row,
-                              ),
-                            )
-                          }
-                          className="w-full rounded-md border border-transparent px-2 py-1.5 text-sm text-slate-700 transition-colors hover:border-slate-200 focus:border-slate-400 focus:outline-none"
-                        />
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-    </Modal>
-  );
-}
-
 function CreateRecordModal({
   open,
   title,
@@ -478,17 +342,9 @@ export function ModuleView({ mod, page }: { mod: ModuleDef; page: ModulePageData
         <div role="tabpanel">
           <ReportAutomation />
         </div>
-      ) : active?.custom === "purchase-order" ? (
-        <div role="tabpanel">
-          <PurchaseOrder onOpenTab={switchTab} />
-        </div>
       ) : active?.custom === "drawing-manager" ? (
         <div role="tabpanel">
           <DrawingManager />
-        </div>
-      ) : active?.custom === "receiving-inspection" ? (
-        <div role="tabpanel">
-          <ReceivingInspection query={filterQuery} />
         </div>
       ) : active?.custom === "payroll-workbench" ? (
         <div role="tabpanel">

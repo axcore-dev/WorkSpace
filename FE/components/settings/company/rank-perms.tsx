@@ -77,8 +77,10 @@ export function RankTabsPreview({ role }: { role: RoleDef | null }) {
             <span className="w-[68px] shrink-0 text-xs font-semibold text-slate-600">
               {m.name}
             </span>
-            <span className="flex min-w-0 flex-1 flex-wrap gap-1">
-              {m.subfunctions.map((s) => (
+            <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
+              {m.subfunctions.flatMap((s, i) => [
+                // 묶음이 바뀌는 자리(처리 | 설정)에 세로 구분선
+                ...(i > 0 && s.group && s.group !== m.subfunctions[i - 1].group ? [<span key={`sep-${s.id}`} aria-hidden className="mx-0.5 h-3.5 w-px bg-slate-300" />] : []),
                 <span
                   key={s.id}
                   className={`rounded-md border px-1.5 py-0.5 text-[11px] ${
@@ -88,8 +90,8 @@ export function RankTabsPreview({ role }: { role: RoleDef | null }) {
                   }`}
                 >
                   {s.name}
-                </span>
-              ))}
+                </span>,
+              ])}
             </span>
             <span className="shrink-0 text-[11px] text-slate-400">
               {on.length}/{m.subfunctions.length}

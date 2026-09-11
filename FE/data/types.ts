@@ -4,7 +4,8 @@ import type { IconKey } from "@/components/icons";
 export type Tone = "green" | "amber" | "red" | "violet" | "blue" | "slate";
 
 /** 테이블 셀: 일반 텍스트 또는 상태 배지 */
-export type Cell = string | number | { badge: string; tone: Tone };
+/** 표 셀. 배지 셀은 기본 text-xs — 지금 행동할 상태값(기한 넘김 · 잔량)은 `size: "md"` + `strong` 으로 본문 크기 semibold 로 올린다 */
+export type Cell = string | number | { badge: string; tone: Tone; size?: "md"; strong?: boolean };
 
 export interface TableData {
   columns: string[];
@@ -80,9 +81,7 @@ export interface SubfunctionTab {
   /** 데이터 기반 렌더링 대신 전용 인터랙티브 컴포넌트로 그리는 탭 */
   custom?:
     | "report-automation"
-    | "purchase-order"
     | "drawing-manager"
-    | "receiving-inspection"
     | "hr-workbench"
     | "payroll-workbench"
     | "accounting-workbench";
@@ -95,7 +94,8 @@ export interface ModuleDef {
   icon: IconKey;
   /** 대응 외부 시스템 (중복 시 OFF 추천 매핑) */
   externalSystem: string;
-  subfunctions: { id: string; name: string; ai?: boolean }[];
+  /** `group` 이 바뀌는 자리에 기능 관리 · 권한 미리보기가 구분선을 긋는다(재고·물류의 처리 / 설정) */
+  subfunctions: { id: string; name: string; ai?: boolean; group?: string }[];
 }
 
 /** 모듈 상세 페이지 콘텐츠 */
