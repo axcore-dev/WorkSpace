@@ -20,9 +20,9 @@ import {
 } from "@/components/icons";
 import { Avatar } from "@/components/avatar";
 import { Logo } from "@/components/logo";
-import { useModules } from "@/components/module-provider";
 import { useLogout } from "@/components/use-logout";
 import { useSidebarCollapsed } from "@/components/use-sidebar-collapsed";
+import { useModules } from "@/components/module-provider";
 import { useAccountMe } from "@/lib/account-me";
 import { ApiRequestError, apiGet, apiPostAuthed } from "@/lib/api";
 import { setAccessToken } from "@/lib/session";
@@ -80,7 +80,6 @@ function NavLink({
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { state } = useModules();
 
   const [orgOpen, setOrgOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -121,6 +120,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // 빈 줄(공백 문자)로 높이만 지킨다 — 빈 문자열이면 줄이 사라져 사이드바가 들썩인다.
   const { me: account } = useAccountMe();
   const { me: ws } = useWorkspaceMe();
+
+  /**
+   * 사이드바에 보일 기능 — <b>회사가 켠 기능이면서 내가 볼 수 있는 기능</b>이다.
+   *
+   * 켠 상태는 기능 관리 화면과 같은 스토어(`useModules`)에서 읽어 토글을 끄면 그 자리에서 사라진다.
+   * 권한은 서버가 계산한 `me.modules`(회사가 켠 기능 ∩ 내 직급 ∩ 내 개별 권한)에서 읽는다 — 켠 목록만 보고
+   * 그리면 권한 없는 사람에게도 보이고 눌러야 403 을 만난다. 받기 전에는 비어 있다 — 없는 것을 보여 주는 편이
+   * 없는 권한을 보여 주는 것보다 낫다.
+   */
+  const { state } = useModules();
+  const allowed = new Set(ws?.modules ?? []);
+  const visibleModules = MODULES.filter((m) => state[m.slug]?.enabled && allowed.has(m.slug));
 
   /**
    * 회사 선택기 — 내 소속 목록(`GET /api/auth/workspaces`)과 지금 회사.
@@ -297,7 +308,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </NavLink>
           </div>
 
-          <div>
+          {/* 볼 수 있는 기능이 하나도 없으면 제목만 남아 빈 칸이 된다 — 묶음째 감춘다 */}
+          <div className={visibleModules.length === 0 ? "hidden" : ""}>
             <p
               className={`mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400 ${
                 collapsed ? "hidden" : ""
@@ -306,11 +318,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               핵심 기능
             </p>
             <div className="space-y-1">
-              {MODULES.map((mod) => {
+              {visibleModules.map((mod) => {
                 const Icon = ICON_MAP[mod.icon];
-                const enabled = state[mod.slug]?.enabled;
                 const active = pathname === `/modules/${mod.slug}`;
-                if (!enabled) return null;
                 return (
                   <NavLink
                     key={mod.slug}

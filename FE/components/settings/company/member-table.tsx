@@ -66,10 +66,10 @@ export function MemberTable({
     setEditing(u.id);
   }
 
-  /** 부서를 바꾸면 직급도 그 부서 것으로 함께 옮긴다 */
+  /** 부서를 바꾸면 직급은 비운다 — 새 부서의 직급은 고르는 사람이 정한다(임의로 첫 직급을 주지 않는다) */
   function draftDept(next: number | null) {
     const list = ranksOf(roles, next);
-    setDraft({ deptId: next, roleId: list.find((r) => r.id === draft.roleId)?.id ?? list[0]?.id ?? null });
+    setDraft({ deptId: next, roleId: list.find((r) => r.id === draft.roleId)?.id ?? null });
   }
 
   async function saveEdit(u: MemberDto) {
@@ -229,11 +229,14 @@ export function MemberTable({
                   {list.length === 0 ? (
                     <option value="">줄 수 있는 직급이 없어요</option>
                   ) : (
-                    list.map((r) => (
-                      <option key={r.id} value={String(r.id)}>
-                        {r.name}
-                      </option>
-                    ))
+                    <>
+                      <option value="">직급을 골라 주세요</option>
+                      {list.map((r) => (
+                        <option key={r.id} value={String(r.id)}>
+                          {r.name}
+                        </option>
+                      ))}
+                    </>
                   )}
                 </select>
               );

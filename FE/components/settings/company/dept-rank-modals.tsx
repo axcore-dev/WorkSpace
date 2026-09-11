@@ -178,12 +178,13 @@ export function RankDeleteModal({
   rank: string;
   /** 이 직급을 가진 사람 수 */
   members: number;
-  /** 옮길 수 있는 다른 직급 — `이름 (부서)` */
-  others: { name: string; label: string }[];
+  /** 옮길 수 있는 다른 직급 — 라벨은 `이름 (부서)`. 이름은 부서마다 겹칠 수 있어 id 로 고른다 */
+  others: { id: number; label: string }[];
   onClose: () => void;
-  onDelete: (moveTo: string | null) => void;
+  onDelete: (moveTo: number | null) => void;
 }) {
-  const [moveTo, setMoveTo] = useState(others[0]?.name ?? "");
+  // 기본값을 두지 않는다 — 사람이 옮겨 갈 직급은 고르는 사람이 정한다
+  const [moveTo, setMoveTo] = useState("");
   const needsMove = members > 0;
   const ok = !needsMove || moveTo !== "";
 
@@ -198,7 +199,7 @@ export function RankDeleteModal({
           <Button variant="secondary" onClick={onClose}>
             취소
           </Button>
-          <Button variant="danger" disabled={!ok} onClick={() => onDelete(needsMove ? moveTo : null)}>
+          <Button variant="danger" disabled={!ok} onClick={() => onDelete(needsMove ? Number(moveTo) : null)}>
             {needsMove ? "옮기고 지우기" : "지우기"}
           </Button>
         </div>
@@ -222,8 +223,9 @@ export function RankDeleteModal({
               value={moveTo}
               onChange={(e) => setMoveTo(e.target.value)}
             >
+              <option value="">직급을 골라 주세요</option>
               {others.map((o) => (
-                <option key={o.name} value={o.name}>
+                <option key={o.id} value={o.id}>
                   {o.label}
                 </option>
               ))}
