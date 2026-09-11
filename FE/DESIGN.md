@@ -90,6 +90,7 @@ WorkSpace 데모의 시각 언어와 공용 컴포넌트 규칙. 코드가 단�
 - 내림의 하한은 `slate-500`(4.76:1)이다. 더 옅게는 못 간다 — 「옅다」는 절대값이 아니라 강조 행과의 대비로 만든다.
 - 정상·완료를 굵게 쓰지 않는다. 눈에 남아야 하는 건 남은 일이다.
 - 조회 화면(이력 · 목록 훑기)은 강조 0개가 정상이다. 상태 톤(`Tone`)만 남긴다.
+- **상태 셀은 배지지만 본문 크기다**(`Cell` 배지 `size: "md"`). 지금 행동할 상태(기한 넘김 red · 잔량 amber)만 `strong`, 등록 전 · 완료 · 제작 중은 내림 톤. 강조 열을 하나 더 두지 않는다 — 행마다 강조가 둘이면 위계가 배경이 된다.
 
 ## 타이포그래피
 
@@ -172,25 +173,28 @@ WorkSpace 데모의 시각 언어와 공용 컴포넌트 규칙. 코드가 단�
 | --- | --- | --- |
 | `Button` | 액션 버튼 | `primary`(블루) / `secondary` / `ghost` / `danger` × `sm/md/lg`. `href`를 주면 `Link`로 렌더한다 — 이동은 버튼이 아니라 링크여야 한다 |
 | `Card` | 콘텐츠 컨테이너 | `padding=false`로 내부 직접 제어 |
-| `Badge` | 상태 텍스트 | `Tone` 기반, 배경 없음 |
+| `Badge` | 상태 텍스트 | `Tone` 기반, 배경 없음. 기본 text-xs. 표의 상태 셀처럼 다른 셀과 한 줄에서 읽혀야 하면 `size="md"`(본문 크기), 지금 행동할 값(기한 넘김 · 잔량)만 `strong` — 화면당 강조 예산에 센다. `Cell` 배지도 같은 두 필드를 갖는다 |
 | `AiBadge` | AI 기능 표기 | 무채색 외곽선 태그 |
 | `Stat` | KPI 숫자 카드 | delta 화살표 + 톤 |
-| `DataTable` | 데이터 테이블 | `onRowClick`으로 행 상세 연결 · `emphasis`(열별 강조/기본/내림) · `rowEmphasis`(행 단위 내림 — 끝난 행). **첫 열 자동 강조는 없다** — 위치가 아니라 의미가 위계를 정한다(「위계」 절) |
+| `DataTable` | 데이터 테이블 | `onRowClick`으로 행 상세·펼침 연결(행은 Tab 으로 닿고 Enter/Space 로 연다) · `emphasis`(열별) · `emphasisAt`(셀별 — 0 · — 는 내림, 미달 수량은 강조) · `rowEmphasis`(끝난 행 전부 내림) · `expandedRow` + `renderExpanded`(행 아래로 펼치는 패널 — 모달 아님, 첫 열에 ▸, `aria-expanded`/`aria-controls`, 흰 바탕 + 테두리) · `colWidths`(열이 많은 상세 보기 — `table-layout: fixed` + 13px + 말줄임 + `title`). **첫 열 자동 강조는 없다** — 위치가 아니라 의미가 위계를 정한다(「위계」 절) |
 | `WizardSteps` | 다단계 폼 진행 표시 | 완료 = 다크 슬레이트, 현재 = `primary-600` |
 | `Toggle` | 스위치 | ON = 다크 슬레이트 |
 | `ProgressBar` | 진행률 | 톤별 색, 중립은 다크 슬레이트 |
 | `SectionHeader` | 섹션 제목/설명/액션 | |
 | `EmptyState` | 빈 상태 | 점선 테두리 |
 | `SettingsSection` | 설정 폼 섹션 | **카드를 쓰지 않는다** — 섹션 제목 + 그 아래 실선(`border-slate-200`), 행 사이 옅은 실선(`border-slate-100`). 설정은 값을 읽고 고치는 목록이라 상자를 겹치면 좌우 패딩이 매 섹션 들어가 담기는 행이 줄고, 왼쪽 이름과 오른쪽 버튼이 섹션마다 다른 x좌표에서 시작한다. 원시요소는 `SettingsSection`·`SettingsRows`·`SettingsRow`·`ActionRow`(이름+값 / 동작)·`FieldRow`(라벨 132px + 입력)·`SectionActions`. `components/settings/settings-section.tsx` |
-| `Segmented` | 3지 선택 | 라디오 대신 쓰는 분절 컨트롤 (없음/읽기/쓰기, 전체/부서/본인). 선택된 칸은 `bg-white` + `ring-slate-200` + 굵게 — 활성 내비 항목과 같은 시각 언어다. 트랙은 `bg-slate-100`. `aria-pressed`로 상태를 알린다. **블루를 쓰지 않는다** — 선택 상태는 액션이 아니다 |
+| `Segmented` | 2~3지 선택 | 라디오 대신 쓰는 분절 컨트롤 (없음/읽기/쓰기, 전체/부서/본인, 처리/설정, 간단/상세). 선택된 칸은 `bg-white` + `ring-slate-200` + 굵게 — 활성 내비 항목과 같은 시각 언어다. 트랙은 `bg-slate-100`. `aria-pressed`로 상태를 알린다. `label` 은 ReactNode 라 아이콘을 넣을 수 있다(재고·물류 헤더 토글). **블루를 쓰지 않는다** — 선택 상태는 액션이 아니다 |
 | `Toast` | 저장 피드백 | `role="status"` + `aria-live="polite"`. 영역은 메시지가 없을 때도 DOM에 남긴다 — 영역째 나타나면 스크린리더가 읽지 않는다. 상태는 `components/use-toast.ts`의 `useToast()`가 쥔다 (`ui.tsx`에 `"use client"`가 없어 훅을 여기 두면 `Card`·`Button`을 쓰는 서버 컴포넌트가 전부 클라이언트 경계로 끌려간다) |
 | `FIELD` / `FIELD_LG` (상수) | 입력 필드 공용 클래스 | 설정·모달·관리자 폼은 `FIELD`, 인증처럼 필드가 주인공인 폼은 큰 변형 `FIELD_LG` |
 | `FIELD_ERROR` / `FIELD_LG_ERROR` (상수) | 입력 필드 에러 변형 | 테두리만 교체(`border-red-300`). 헬퍼는 `mt-1.5 text-xs text-red-600` |
 | `FIELD_SM` / `FIELD_SM_INLINE` (상수) | 작은 입력 변형 | 표 위 필터 줄·표 셀처럼 `Button size="sm"`과 나란히 놓을 때. **높이를 `h-8`로 못 박는다** — 패딩으로 맞추면 글자 크기가 다른 요소끼리 1~2px씩 어긋난다. `_INLINE`은 폭 자동 + `pr-2`(select 화살표가 글자에서 떨어져 보이지 않게) |
+| `FIELD_SM_ERROR` (상수) | 작은 입력의 에러 변형 | 표 안 · 펼침 패널 안 입력의 필드 에러. 헬퍼는 `mt-1 text-xs text-red-600`, 입력에는 `aria-invalid` |
 | `FIELD_INLINE` (상수) | 폭 자동 변형 | 필터 드롭다운처럼 한 줄에 여러 개 놓을 때. `FIELD`에 `w-auto`를 덧붙이는 걸로는 안 된다 — 클래스 문자열 순서가 CSS 우선순위를 정하지 않는다 |
 | `isPersonalEmail` (유틸) | 개인 메일 도메인 판별 | 업무용 메일 지향 안내 (로그인·회원가입) |
 | `Workbench` 계열 | 경영지원 작업대 골격 | 좌 320 마스터(`MasterList`: 만들기 → 찾기 → 목록/트리 → 개수) \| 우 디테일(`EntityHeader` → `Banner` → `Tiles` → 표 → `KvGrid`/`Kv`). `lg` 미만은 선택 바 + `Modal sm`. `ConfirmModal`(왼쪽 항상 [닫기], 승인은 `primary`+체크·삭제는 `danger`+경고)·`MenuModal`(처리 메뉴). **다른 모듈로 일반화하지 않는다** — 두 번째 모듈이 필요해질 때. `components/management/workbench.tsx` |
 | `Banner` | 조건부 안내 문장 | `amber`(할 일 있음) / `slate`(진행 중). 문장만 — 버튼을 넣지 않는다(블루 예산). 상태 배지가 아니라 문맥 설명이라 옅은 배경을 허용한다 |
+| `MultiPicker` (`components/multi-picker.tsx`) | 다중 선택 · 단일 선택 | Notion 다중 선택 속성을 따른다 — 칸을 누르면 칩 뒤 캐럿, 타이핑으로 목록이 걸러지고 Enter/클릭으로 칩 추가, 없는 이름은 「만들기 [입력값]」(`onCreate`), × 로 빼고 드래그(키보드 Alt+←/→)로 순서. **첫 칩 = 기본**(`firstTag`) — 순서가 뜻이라 별도 토글이 없다. `single` 이면 하나만(발주처 고르기). 못 고르는 항목(`disabled`)은 옅게 보이되 선택되지 않는다. 무채색 칩(`ring-slate-200`), 팝오버만 `shadow-lg`. `role="combobox"` + `aria-activedescendant` + `listbox/option`. 칩 순서 훅 `useChipReorder` · `Chip` 도 export |
+| `UploadReviewModal` (`components/upload-review-modal.tsx`) | 엑셀 업로드 → 확인 → 승인 | `parse`(실제 파일 읽기 — `lib/sheet.ts`: CSV 직접, .xlsx 는 `exceljs` 를 눌렀을 때만) · `classify`(행마다 갱신 · 신규 · 오류 + 사유). 오류 행은 승인에서 빠진다(부분 성공). 둘 다 없으면 옛 데모 파싱 |
 
 보조 — 다이얼로그: `Modal`(sm~xl, ESC 닫기 · `modal.tsx`), `RecordModal`(행 상세 · `record-modal.tsx`).
 
@@ -313,6 +317,21 @@ AI 표현(전역 CSS, `globals.css`): `.shimmer-text`·`.agent-fade`·`.pixel-do
 
 단계 표시기(`WizardSteps`)는 스크롤 영역 **밖**에 둔다 — 안에 두면 표가 길어지는 순간 지금
 몇 단계인지가 위로 밀려 사라진다. 띠의 세로 패딩은 헤더 16 · 단계 12 · 본문 20 · 푸터 16이다.
+
+## 처리 / 설정 두 화면 (모듈 헤더 토글)
+
+한 모듈이 「매일 처리하는 일」과 「처리하기 위해 미리 정하는 값」을 함께 가질 때 쓴다(재고·물류: 발주·입고 · 이력 · 재고 / 품목 · 거래처 · 안전 기준 · 문서 규칙). **한 층의 탭에 섞지 않는다** — 설정 성격의 값이 매일 쓰는 탭 사이에 끼면 무엇부터 해야 할지 안 보인다.
+
+| 자리 | 값 |
+| --- | --- |
+| 헤더 오른쪽 | `Segmented` [처리 \| 설정] (아이콘 + 라벨). 설정 권한(`items · vendors · safety · docrules` 중 하나)이 있을 때만. 제목도 함께 바뀐다(「재고·물류」 ↔ 「재고·물류 설정」) — 숨은 모드가 되지 않게 |
+| 탭 줄 | 토글이 탭 세트를 통째로 갈아끼운다. **탭 줄 오른쪽에는 버튼을 두지 않는다** — 도구는 카드 헤더 안 |
+| 카드 헤더 도구 (`components/inventory/card-tools.tsx`) | 왼쪽 h2, 오른쪽 [🔍 → 240px 입력창으로 펼침, 200ms] [간단 \| 상세](열이 바뀔 때만) [⤓] + 보조 버튼(secondary). 열린 검색은 아이콘이 입력창 안에 있는 한 상자, × 는 검색어가 있으면 지우기 · 없으면 접기, ESC 는 항상 접기 |
+| 행 펼침 | `DataTable` `expandedRow`/`renderExpanded` — 모달이 아니라 행 아래로. 패널 안의 primary 는 화면에 하나(「입고 등록」 · 「저장」). 편집 중 다른 행을 누르면 「바꾼 내용을 버릴까요?」 |
+| 설정 탭 | 표형(품목 · 거래처)은 카드 + 행 클릭 → 팝업(저장 시 자동 닫힘 + 「저장했어요」), 값형(안전 기준 · 문서 규칙)은 `SettingsSection` + 행마다 [수정] → 그 자리에서 고치고 [저장]. 태그처럼 작은 값 목록은 수정 모드 없이 인라인(Notion 의 다중 선택 값 편집) |
+| 시스템이 모르는 것 | 말하지 않는다 — 「도착했어요」 대신 「등록 전 · N일차」 · 「N일 경과」(리드타임 기준) |
+
+**보조 텍스트는 없다.** 제목 아래 설명 문장 · 카드 설명 · 표 각주 · 설정 행의 값 설명 전부. 남는 글자는 값 · 상태 · 행 안의 데이터 메타줄만이다.
 
 ## 페이지 안 탭 (인라인 탭)
 

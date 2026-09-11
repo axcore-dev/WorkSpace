@@ -323,9 +323,22 @@ export function DataTable({
               <Fragment key={i}>
                 <tr
                   onClick={clickable ? () => onRowClick(i) : undefined}
+                  // 클릭할 수 있는 행은 키보드로도 — Tab 으로 닿고 Enter/Space 로 연다(펼침 · 상세)
+                  tabIndex={clickable ? 0 : undefined}
+                  onKeyDown={
+                    clickable
+                      ? (e) => {
+                          if (e.target !== e.currentTarget) return;
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            onRowClick(i);
+                          }
+                        }
+                      : undefined
+                  }
                   aria-expanded={expandable ? open : undefined}
                   aria-controls={open ? `${panelId}-${i}` : undefined}
-                  className={`transition-colors hover:bg-slate-50/70 ${clickable ? "cursor-pointer" : ""}`}
+                  className={`transition-colors hover:bg-slate-50/70 ${clickable ? "cursor-pointer focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-slate-400" : ""}`}
                 >
                   {expandable && (
                     <td className={`px-1 ${dense ? "py-2" : "py-3"}`}>

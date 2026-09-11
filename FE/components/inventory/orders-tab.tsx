@@ -361,7 +361,11 @@ export function OrdersTab() {
             {pendingWorks.map(({ d, count, qty }) => (
               <li key={d.code} className="flex flex-wrap items-center justify-between gap-3 py-2.5">
                 <p className="text-sm text-slate-600">
-                  {d.projectCode} · {d.rev} · <span className="font-semibold text-slate-900">{count}품목 {qty} EA</span> · 발주 전
+                  <span className="whitespace-nowrap">{d.projectCode}</span> · {d.rev} ·{" "}
+                  <span className="whitespace-nowrap font-semibold text-slate-900">
+                    {count}품목 {qty} EA
+                  </span>{" "}
+                  · <span className="whitespace-nowrap">발주 전</span>
                 </p>
                 <Button size="sm" variant="secondary" onClick={() => setEditor((w) => ({ seq: w.seq + 1, drawing: d.code }))}>
                   발주서 만들기

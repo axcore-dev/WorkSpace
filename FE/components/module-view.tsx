@@ -53,7 +53,7 @@ export function Tab({
       role="tab"
       aria-selected={isActive}
       onClick={onSelect}
-      className={`-mb-px cursor-pointer border-b-2 px-4 py-2.5 text-sm font-medium transition-colors duration-150 ${
+      className={`-mb-px cursor-pointer whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition-colors duration-150 ${
         isActive
           ? "border-slate-900 text-slate-900"
           : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700"
