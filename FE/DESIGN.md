@@ -194,9 +194,9 @@ WorkSpace 데모의 시각 언어와 공용 컴포넌트 규칙. 코드가 단�
 | `isPersonalEmail` (유틸) | 개인 메일 도메인 판별 | 업무용 메일 지향 안내 (로그인·회원가입) |
 | `Workbench` 계열 | 경영지원 작업대 골격 | 좌 320 마스터(`MasterList`: 만들기 → 찾기 → 목록/트리 → 개수) \| 우 디테일(`EntityHeader` → `Banner` → `Tiles` → 표 → `KvGrid`/`Kv`). `lg` 미만은 선택 바 + `Modal sm`. `ConfirmModal`(왼쪽 항상 [닫기], 승인은 `primary`+체크·삭제는 `danger`+경고)·`MenuModal`(처리 메뉴). **다른 모듈로 일반화하지 않는다** — 두 번째 모듈이 필요해질 때. `components/management/workbench.tsx` |
 | `Banner` | 조건부 안내 문장 | `amber`(할 일 있음) / `slate`(진행 중). 문장만 — 버튼을 넣지 않는다(블루 예산). 상태 배지가 아니라 문맥 설명이라 옅은 배경을 허용한다 |
-| `MenuButton` (`ui.tsx`) | 한 행동의 범위 · 방식 고르기 | 「등록 ▾」(엑셀 / 직접) · 「발주서 출력 ▾」(업체별 / 전체). 서로 다른 행동을 한 메뉴에 담지 않는다(그건 버튼 둘). 트리거 `aria-haspopup="menu"` + `aria-expanded`, 목록 `role="menu"`/`menuitem`, 바깥 클릭 · ESC 닫힘, `shadow-lg`, `align` 으로 펴지는 쪽 |
 | `MultiPicker` (`components/multi-picker.tsx`) | 다중 선택 · 단일 선택 | Notion 다중 선택 속성을 따른다 — 칸을 누르면 칩 뒤 캐럿, 타이핑으로 목록이 걸러지고 Enter/클릭으로 칩 추가, 없는 이름은 「만들기 [입력값]」(`onCreate`), × 로 빼고 드래그(키보드 Alt+←/→)로 순서. **첫 칩 = 기본**(`firstTag`) — 순서가 뜻이라 별도 토글이 없다. `single` 이면 하나만(발주처 고르기). 못 고르는 항목(`disabled`)은 옅게 보이되 선택되지 않는다. 무채색 칩(`ring-slate-200`), 팝오버만 `shadow-lg`. `role="combobox"` + `aria-activedescendant` + `listbox/option`. 칩 순서 훅 `useChipReorder` · `Chip` 도 export |
 | `UploadReviewModal` (`components/upload-review-modal.tsx`) | 엑셀 업로드 → 확인 → 승인 | `parse`(실제 파일 읽기 — `lib/sheet.ts`: CSV 직접, .xlsx 는 `exceljs` 를 눌렀을 때만) · `classify`(행마다 갱신 · 신규 · 오류 + 사유). 오류 행은 승인에서 빠진다(부분 성공). 둘 다 없으면 옛 데모 파싱 |
+| `MenuButton` (`ui.tsx`) | 한 행동의 범위 · 방식 고르기 | 「등록 ▾」(엑셀 / 직접) · 「발주서 출력 ▾」(업체별 / 전체). 서로 다른 행동을 한 메뉴에 담지 않는다(그건 버튼 둘). 트리거 `aria-haspopup="menu"` + `aria-expanded`, 목록 `role="menu"`/`menuitem`, 바깥 클릭 · ESC 닫힘, `shadow-lg`, `align` 으로 펴지는 쪽 |
 
 보조 — 다이얼로그: `Modal`(sm~xl, ESC 닫기 · `modal.tsx`), `RecordModal`(행 상세 · `record-modal.tsx`).
 
