@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Cell, StatData, TableData, Tone } from "@/data/types";
+import { EMPHASIS_CLASS, cellEmphasis, type Emphasis } from "@/lib/emphasis";
 import { IconAlertCircle, IconArrowDownRight, IconArrowUpRight, IconCheck } from "@/components/icons";
 
 /**
@@ -62,8 +63,9 @@ export function isPersonalEmail(email: string): boolean {
 }
 
 export const TONE_TEXT: Record<Tone, string> = {
-  green: "text-emerald-600",
-  amber: "text-amber-600",
+  // 흰 배경 대비 4.5:1 하한 — emerald-600(3.77)·amber-600(3.19)은 미달이라 한 단 내렸다 (DESIGN.md 접근성)
+  green: "text-emerald-700",
+  amber: "text-amber-700",
   red: "text-red-600",
   violet: "text-slate-600", // 카테고리성 → 무채색
   blue: "text-slate-600",
@@ -221,9 +223,10 @@ export function Stat({ stat, onCta }: { stat: StatData; onCta?: (tabId: string) 
   );
 }
 
-function CellView({ cell }: { cell: Cell }) {
+/** 내림 행에서는 배지도 중립 톤으로 — 완료 행에 초록 배지가 남으면 회색이 무의미해진다 */
+function CellView({ cell, muted }: { cell: Cell; muted: boolean }) {
   if (typeof cell === "object") {
-    return <Badge tone={cell.tone}>{cell.badge}</Badge>;
+    return <Badge tone={muted ? "slate" : cell.tone}>{cell.badge}</Badge>;
   }
   return <>{cell}</>;
 }
@@ -235,6 +238,8 @@ export function DataTable({
   dense = false,
   onRowClick,
   colAlign,
+  emphasis,
+  rowEmphasis,
 }: {
   data: TableData;
   dense?: boolean;
@@ -242,6 +247,10 @@ export function DataTable({
   onRowClick?: (rowIndex: number) => void;
   /** 컬럼별 정렬 (예: 재무제표 숫자 열 가운데 정렬) — 미지정 컬럼은 왼쪽 */
   colAlign?: (keyof typeof CELL_ALIGN)[];
+  /** 열별 위계 — 미지정 열은 기본. 첫 열 자동 강조는 없다: 위치가 아니라 의미가 정한다 (DESIGN.md 「위계」) */
+  emphasis?: (Emphasis | undefined)[];
+  /** 행 단위 내림 — 끝난 행(완료·정상)을 돌려주면 셀 전부 회색, 배지는 중립 톤 */
+  rowEmphasis?: (row: Cell[], rowIndex: number) => "down" | undefined;
 }) {
   const clickable = !!onRowClick;
   const align = (j: number) => CELL_ALIGN[colAlign?.[j] ?? "left"];
@@ -254,7 +263,7 @@ export function DataTable({
               <th
                 key={col}
                 scope="col"
-                className={`whitespace-nowrap px-3 py-2.5 text-xs font-medium text-slate-400 first:pl-1 last:pr-1 ${align(j)}`}
+                className={`whitespace-nowrap px-3 py-2.5 text-xs font-medium text-slate-500 first:pl-1 last:pr-1 ${align(j)}`}
               >
                 {col}
               </th>
@@ -262,22 +271,25 @@ export function DataTable({
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
-          {data.rows.map((row, i) => (
-            <tr
-              key={i}
-              onClick={clickable ? () => onRowClick(i) : undefined}
-              className={`transition-colors hover:bg-slate-50/70 ${clickable ? "cursor-pointer" : ""}`}
-            >
-              {row.map((cell, j) => (
-                <td
-                  key={j}
-                  className={`whitespace-nowrap px-3 ${dense ? "py-2" : "py-3"} first:pl-1 first:font-medium first:text-slate-900 last:pr-1 text-slate-600 ${align(j)}`}
-                >
-                  <CellView cell={cell} />
-                </td>
-              ))}
-            </tr>
-          ))}
+          {data.rows.map((row, i) => {
+            const down = rowEmphasis?.(row, i) === "down";
+            return (
+              <tr
+                key={i}
+                onClick={clickable ? () => onRowClick(i) : undefined}
+                className={`transition-colors hover:bg-slate-50/70 ${clickable ? "cursor-pointer" : ""}`}
+              >
+                {row.map((cell, j) => (
+                  <td
+                    key={j}
+                    className={`whitespace-nowrap px-3 ${dense ? "py-2" : "py-3"} first:pl-1 last:pr-1 ${EMPHASIS_CLASS[cellEmphasis(emphasis?.[j], down)]} ${align(j)}`}
+                  >
+                    <CellView cell={cell} muted={down} />
+                  </td>
+                ))}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

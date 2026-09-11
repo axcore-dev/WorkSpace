@@ -37,7 +37,8 @@ WorkSpace 데모의 시각 언어와 공용 컴포넌트 규칙. 코드가 단�
 | --- | --- | --- |
 | `ink` | `slate-900` | 본문/제목 텍스트 |
 | `ink-soft` | `slate-600` | 보조 텍스트 (짙은 쪽. 옅은 보조는 `slate-500`) |
-| `ink-mute` | `slate-400` | 뮤트 텍스트·테이블 헤더·플레이스홀더 |
+| `ink-mute` | `slate-500` | 보조·뮤트 텍스트·테이블 헤더 — **데이터 텍스트의 하한**(4.76:1) |
+| `ink-faint` | `slate-400` | 플레이스홀더·아이콘·장식 전용. **데이터에 쓰지 않는다** — 흰 배경 대비 2.56:1로 읽히지 않는다 |
 | `line` | `slate-200` | 카드·모달 테두리 |
 | `line-soft` | `slate-100` | 모달 내부 구분선·리스트 divider |
 | `line-input` | `slate-300` | 입력 필드 테두리 (focus 시 `slate-400`) |
@@ -54,9 +55,9 @@ WorkSpace 데모의 시각 언어와 공용 컴포넌트 규칙. 코드가 단�
 
 | Tone | 렌더링 | 의미 |
 | --- | --- | --- |
-| `green` | `text-emerald-600` | 정상·완료·증가(긍정) |
-| `amber` | `text-amber-600` | 경고·지연·주의 |
-| `red` | `text-red-600` | 이상·중단·실패 |
+| `green` | `text-emerald-700` | 정상·완료·증가(긍정) — 5.48:1 (`emerald-600`은 3.77로 미달) |
+| `amber` | `text-amber-700` | 경고·지연·주의 — 5.02:1 (`amber-600`은 3.19로 미달) |
+| `red` | `text-red-600` | 이상·중단·실패 — 4.83:1 |
 | `slate` | `text-slate-500` | 중립 |
 | `violet`, `blue` | `text-slate-600` | 카테고리성 → 무채색으로 강등 |
 
@@ -72,6 +73,23 @@ WorkSpace 데모의 시각 언어와 공용 컴포넌트 규칙. 코드가 단�
 | `CHART.muted` | `#e2e8f0` | 잔여·기타 세그먼트 |
 | `CHART.neutral400` | `#94a3b8` | 스파크라인 등 소형 차트 라인 |
 | `CHART.amber` / `CHART.red` | amber/red-500 | 경고·이상 상태 시리즈 |
+
+## 위계 — 무엇을 덜 보이게 할지
+
+색·굵기는 요소 종류가 아니라 **의미**가 정한다. 표의 셀은 세 단이 전부다.
+
+| 단 | 렌더링 | 자리 |
+| --- | --- | --- |
+| 강조 | `text-slate-900 font-semibold` | 사람이 지금 행동해야 하는 값 — 잔량·지연 일수·미달 수량 |
+| 기본 | `text-slate-600` | 읽어야 하지만 행동을 부르지 않는 값 |
+| 내림 | `text-slate-500` | `0` · `—` · 정상 · 완료 · 변화 없음. 굵기를 주지 않는다 |
+
+- **강조는 화면당 5개까지.** 넘으면 위계가 아니라 배경이 된다 — 필터·정렬·접기로 줄인다. primary 버튼도 이 예산에 센다.
+- **열 위치로 강조하지 않는다.** 어느 열이 어느 단인지는 화면이 지정한다(`DataTable`의 `emphasis`). 첫 열 자동 강조는 없다.
+- **끝난 행은 셀 전부 내림**(`rowEmphasis`). 완료된 것이 진하게 남으면 지금 할 일이 묻힌다. 정렬(할 일 위)과 색(끝난 건 회색)이 같은 말을 해야 한다.
+- 내림의 하한은 `slate-500`(4.76:1)이다. 더 옅게는 못 간다 — 「옅다」는 절대값이 아니라 강조 행과의 대비로 만든다.
+- 정상·완료를 굵게 쓰지 않는다. 눈에 남아야 하는 건 남은 일이다.
+- 조회 화면(이력 · 목록 훑기)은 강조 0개가 정상이다. 상태 톤(`Tone`)만 남긴다.
 
 ## 타이포그래피
 
@@ -127,7 +145,7 @@ WorkSpace 데모의 시각 언어와 공용 컴포넌트 규칙. 코드가 단�
 | base | `duration-200` | 공용 컴포넌트 기본 (`Button`, `Toggle` — `transition-colors`) |
 | slow | `duration-300` | 크기·레이아웃 변화 (`ProgressBar` width) |
 
-- 명명 애니메이션 예외: `.shimmer-text`(AI 추론 로딩, 1.8s — **AI 표면 전용**), `.spinner`(일반 대기 표시, 0.8s), `.tab-wiggle`(탭 편집 모드, 0.28s), `.agent-fade`(AI 답변 요소 등장, 0.28s), `.pixel-dots`(AI 작업 중 3×3 도트, 0.65s stagger).
+- 명명 애니메이션 예외: `.shimmer-text`(AI 추론 로딩, 1.8s — **AI 표면 전용**), `.spinner`(일반 대기 표시, 0.8s), `.agent-fade`(AI 답변 요소 등장, 0.28s), `.pixel-dots`(AI 작업 중 3×3 도트, 0.65s stagger).
 - **AI 표면 한정 허용**: skeleton(`animate-pulse`, 대화 복원·전환 대기), 타자 효과(새 답변 1회 — 복원된 메시지엔 쓰지 않는다), 앰비언트 배경(빈 상태에서만, `components/chat/ai-backdrop.tsx`).
 
   - **중앙 블룸 + 점 격자 두 겹**이다. 블룸은 primary 12% 저알파 타원 하나로 **정적**이고, 중심(`--bloom-x`/`--bloom-y`)만 입력창을 따라간다 — 입력창이 첫 화면↔대화 전환에 세로로 미끄러져도 어긋나지 않고, 퇴장할 때 배경과 한 몸으로 움직인다. 블룸은 커서를 따라다니지 않는다.
@@ -157,7 +175,7 @@ WorkSpace 데모의 시각 언어와 공용 컴포넌트 규칙. 코드가 단�
 | `Badge` | 상태 텍스트 | `Tone` 기반, 배경 없음 |
 | `AiBadge` | AI 기능 표기 | 무채색 외곽선 태그 |
 | `Stat` | KPI 숫자 카드 | delta 화살표 + 톤 |
-| `DataTable` | 데이터 테이블 | `onRowClick`으로 행 상세(`RecordModal`) 연결 |
+| `DataTable` | 데이터 테이블 | `onRowClick`으로 행 상세 연결 · `emphasis`(열별 강조/기본/내림) · `rowEmphasis`(행 단위 내림 — 끝난 행). **첫 열 자동 강조는 없다** — 위치가 아니라 의미가 위계를 정한다(「위계」 절) |
 | `WizardSteps` | 다단계 폼 진행 표시 | 완료 = 다크 슬레이트, 현재 = `primary-600` |
 | `Toggle` | 스위치 | ON = 다크 슬레이트 |
 | `ProgressBar` | 진행률 | 톤별 색, 중립은 다크 슬레이트 |
@@ -336,6 +354,9 @@ AI 표현(전역 CSS, `globals.css`): `.shimmer-text`·`.agent-fade`·`.pixel-do
 
 ## 접근성
 
+- **명도 대비 하한 4.5:1**(WCAG AA 본문). 글자 크기와 무관하게 적용한다 — ERP의 12px 보조 문구도 읽어야 하는 정보다.
+  흰 배경 실측: `slate-400` 2.56 ✗ · `slate-500` 4.76 · `slate-600` 7.58 · `red-600` 4.83 · `amber-700` 5.02 · `emerald-700` 5.48 · `amber-600` 3.19 ✗ · `emerald-600` 3.77 ✗.
+  새 색은 쓰기 전에 잰다.
 - 포커스는 `focus-visible:outline-2 focus-visible:outline-offset-2`로 표시.
 - 토글은 `role="switch"` + `aria-checked`, 모달은 `role="dialog"` + `aria-modal`, 차트 SVG는 `role="img"` + `aria-label`, 토스트는 `role="status"` + `aria-live="polite"`.
 - 새 인터랙션 요소를 만들 때 이 패턴을 따른다.
