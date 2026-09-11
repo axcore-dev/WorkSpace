@@ -197,7 +197,9 @@ WorkSpace 데모의 시각 언어와 공용 컴포넌트 규칙. 코드가 단�
 | `MultiPicker` (`components/multi-picker.tsx`) | 다중 선택 · 단일 선택 | Notion 다중 선택 속성을 따른다 — 칸을 누르면 칩 뒤 캐럿, 타이핑으로 목록이 걸러지고 Enter/클릭으로 칩 추가, 없는 이름은 「만들기 [입력값]」(`onCreate`), × 로 빼고 드래그(키보드 Alt+←/→)로 순서. **첫 칩 = 기본**(`firstTag`) — 순서가 뜻이라 별도 토글이 없다. `single` 이면 하나만(발주처 고르기). 못 고르는 항목(`disabled`)은 옅게 보이되 선택되지 않는다. 무채색 칩(`ring-slate-200`), 팝오버만 `shadow-lg`. `role="combobox"` + `aria-activedescendant` + `listbox/option`. **목록은 `document.body` 포털 + `position: fixed`**(`z-[60]`, 모달 위) — 칸 아래 `absolute` 로 두면 모달 본문 · 표 래퍼의 `overflow` 가 잘라 발주처 목록이 1% 만 보였다(2026-09-11). 아래 공간이 240px 미만이고 위가 더 넓으면 위로 편다. ESC 는 목록이 열려 있을 때만 여기서 멈추고(`stopPropagation`), 닫혀 있으면 모달로 올라간다. 칩 순서 훅 `useChipReorder` · `Chip` 도 export |
 | `UploadReviewModal` (`components/upload-review-modal.tsx`) | 엑셀 업로드 → 확인 → 승인 | `parse`(실제 파일 읽기 — `lib/sheet.ts`: CSV 직접, .xlsx 는 `exceljs` 를 눌렀을 때만) · `classify`(행마다 갱신 · 신규 · 오류 + 사유). 오류 행은 승인에서 빠진다(부분 성공). 둘 다 없으면 옛 데모 파싱 |
 
-보조 — 다이얼로그: `Modal`(sm~xl · `modal.tsx`), `RecordModal`(행 상세 · `record-modal.tsx`).
+보조 — 다이얼로그: `Modal`(sm~xl · `screen` · `modal.tsx`), `RecordModal`(행 상세 · `record-modal.tsx`).
+
+`Modal size="screen"` 은 **전폭 시트** — 화면을 덮는 편집 화면(헤더 · 푸터 고정, 본문 스크롤). 열이 많은 폼(발주서 작성: 라인 8열)이 팝업 폭에 갇혀 라인 0개에도 가로 스크롤이 생기던 자리에 쓴다(2026-09-11). 본문 폭 상한은 페이지 규칙대로 시트가 아니라 안의 블록이 진다(편집기 `max-w-[1400px]`). 닫기는 헤더 × 하나 — 푸터에 [닫기] 를 또 두면 확인 다이얼로그까지 「닫기」 가 넷이 된다. 라인은 표가 아니라 격자다: xl 이상 한 줄(9열), md 두 줄(6열), 그 아래 두 열 — `min-w` 표는 폭에 맞춰 줄을 바꾸지 못한다.
 
 `Modal` 의 키 · 포커스 규칙(2026-09-11): `role="dialog"` 는 배경이 아니라 **패널**에 있고 제목이 `aria-labelledby` 다. ESC 는 document 가 아니라 패널의 `onKeyDown` 에서 받는다 — 안에 든 콤보박스가 자기 목록을 닫는 ESC 를 멈출 수 있어야 한다. 열리면 포커스가 안으로 들어오고(`autoFocus` 필드가 있으면 그것, 없으면 패널 자체 `tabIndex=-1`), Tab · Shift+Tab 은 패널 안에서 돌고, 닫히면 열었던 요소(행 · 버튼)로 돌아간다. 확인 다이얼로그를 모달 위에 겹쳐 열면 안쪽이 ESC 를 먹어 바깥은 닫히지 않는다.
 

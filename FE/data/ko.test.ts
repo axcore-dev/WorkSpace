@@ -43,3 +43,10 @@ test("withJosa는 이름과 조사를 붙인다", () => {
   assert.equal(withJosa("생산본부", "을/를"), "생산본부를");
   assert.equal(withJosa("공장장", "을/를"), "공장장을");
 });
+
+test("은/는 — 받침 있으면 「은」, 없으면 「는」", () => {
+  // 발주서 편집기: 서식에 안 찍히는 열 이름 뒤 — 「단위는」 · 「가공 요청은」 · 「호칭 · 단위는」(마지막 글자 기준)
+  assert.equal(withJosa("단위", "은/는"), "단위는");
+  assert.equal(withJosa("가공 요청", "은/는"), "가공 요청은");
+  assert.equal(withJosa("호칭 · 단위", "은/는"), "호칭 · 단위는");
+});
