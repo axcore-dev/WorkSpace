@@ -8,6 +8,8 @@ const SIZES = {
   md: "max-w-lg",
   lg: "max-w-2xl",
   xl: "max-w-4xl",
+  /** 전폭 시트 — 화면을 덮는 편집 화면. 열이 많은 폼(발주서 작성)이 팝업 폭에 갇혀 가로 스크롤이 생기던 자리 */
+  screen: "",
 } as const;
 
 /** Tab 이 도는 범위 — 비활성 컨트롤과 `tabindex="-1"` 은 뺀다 */
@@ -81,8 +83,14 @@ export function Modal({
 
   if (!open) return null;
 
+  // 클래스를 조건으로 갈라 쓴다 — `max-h-none` 을 덧붙이는 식은 문자열 순서가 우선순위를 정하지 않아 안 먹는다
+  const screen = size === "screen";
+  const shell = screen
+    ? "h-full w-full"
+    : `max-h-[88vh] w-full ${SIZES[size]} rounded-2xl border border-slate-200 shadow-2xl`;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className={`fixed inset-0 z-50 flex items-center justify-center ${screen ? "" : "p-4"}`}>
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[1px]" onClick={onClose} aria-hidden />
       <div
         ref={panelRef}
@@ -91,7 +99,7 @@ export function Modal({
         aria-labelledby={title ? titleId : undefined}
         tabIndex={-1}
         onKeyDown={onKeyDown}
-        className={`relative flex max-h-[88vh] w-full ${SIZES[size]} flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl focus:outline-none`}
+        className={`relative flex ${shell} flex-col overflow-hidden bg-white focus:outline-none`}
       >
         {(title || desc) && (
           <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">
