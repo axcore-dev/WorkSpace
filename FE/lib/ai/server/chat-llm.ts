@@ -48,6 +48,7 @@ import {
 } from "./conversations";
 import { withTenant } from "./db";
 import { chatModel, providerOptions } from "./models";
+import { searchQuery } from "./query-rewrite";
 import { retrieve } from "./retrieval";
 import { decideApproval, hasTools, MAX_TOOL_STEPS, toolSetFor } from "./tools";
 // 외부 앱 도구를 레지스트리에 올린다. import 자체가 등록이다
@@ -253,7 +254,9 @@ export function streamAnswer(
 
       // ── 검색 — 선택한 문서가 있으면 그 안에서, 없으면 내 문서 전체에서. 어느 쪽이든 권한 분야만 ──
       label(turn.sources.length ? "선택한 문서에서 근거를 찾고 있어요" : "등록된 자료에서 근거를 찾고 있어요");
-      const r = await retrieve(principal, turn.sources, turn.question);
+      // 이어지는 질문("그럼 그건 얼마야?")은 그대로는 검색되지 않는다. 앞선 턴을 보고 독립적인 검색어로 바꾼다
+      const query = await searchQuery(history, turn.question);
+      const r = await retrieve(principal, turn.sources, query);
       const context = r.context;
       writer.write({
         type: "data-trace",
@@ -261,7 +264,10 @@ export function streamAnswer(
           icon: "doc",
           text: turn.sources.length ? `소스 문서 검색 — ${turn.sources.length}개 문서` : "등록된 자료 전체 검색",
           result: r.hits.length ? `관련 조각 ${r.hits.length}개` : "일치 없음",
-          input: `query=${JSON.stringify(turn.question)}\ndocs=${turn.sources.length ? turn.sources.join(", ") : "(권한 분야 전체)"}`,
+          input:
+            `query=${JSON.stringify(query)}` +
+            (query === turn.question ? "" : `\n원 질문=${JSON.stringify(turn.question)}`) +
+            `\ndocs=${turn.sources.length ? turn.sources.join(", ") : "(권한 분야 전체)"}`,
           output: r.hits
             .slice(0, 3)
             .map((h) => `${h.doc_name}${h.page ? ` ${h.page}쪽` : ""}: ${h.content.slice(0, 80)}…`)
