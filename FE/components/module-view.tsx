@@ -1,33 +1,14 @@
 "use client";
 
 import { useRef, useState } from "react";
-import {
-  DndContext,
-  KeyboardSensor,
-  PointerSensor,
-  closestCenter,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core";
-import {
-  SortableContext,
-  arrayMove,
-  horizontalListSortingStrategy,
-  sortableKeyboardCoordinates,
-  useSortable,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import { ChartFromSpec } from "@/components/charts";
 import {
   ICON_MAP,
   IconAlertTriangle,
-  IconCheck,
   IconChevronDown,
   IconChevronRight,
   IconDownload,
   IconFilter,
-  IconPencil,
   IconPlus,
   IconUpload,
   IconSearch,
@@ -57,50 +38,29 @@ const TAB_ACTIONS: Record<TabAction, { label: string; icon: typeof IconFilter; p
 
 const cellText = (c: Cell) => (typeof c === "object" ? c.badge : String(c));
 
-/** 편집 모드에서 드래그(마우스·터치)와 키보드(Space+방향키)로 순서를 바꿀 수 있는 탭 */
-function SortableTab({
+/** 서브기능 탭 — 순서는 data/pages 가 정한다. 사용자 편집(드래그 정렬)은 두지 않는다 */
+function Tab({
   tab,
-  index,
-  editing,
   isActive,
   onSelect,
 }: {
   tab: { id: string; label: string; ai?: boolean };
-  index: number;
-  editing: boolean;
   isActive: boolean;
   onSelect: () => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: tab.id,
-    disabled: !editing,
-  });
   return (
     <button
-      ref={setNodeRef}
       type="button"
-      {...(editing ? { ...attributes, ...listeners } : {})}
       role="tab"
       aria-selected={isActive}
-      onClick={() => {
-        if (!editing) onSelect();
-      }}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={`-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition-colors duration-150 ${
-        isDragging ? "z-10" : ""
-      } ${
-        editing
-          ? "cursor-grab touch-none rounded-t-lg border-dashed border-slate-300 bg-slate-50 text-slate-600 active:cursor-grabbing"
-          : isActive
-            ? "cursor-pointer border-slate-900 text-slate-900"
-            : "cursor-pointer border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700"
+      onClick={onSelect}
+      className={`-mb-px cursor-pointer border-b-2 px-4 py-2.5 text-sm font-medium transition-colors duration-150 ${
+        isActive
+          ? "border-slate-900 text-slate-900"
+          : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700"
       }`}
     >
-      {/* 흔들림은 안쪽 요소에 — dnd 이동 transform과 충돌하지 않게 분리 */}
-      <span
-        className={`inline-flex items-center gap-1.5 ${editing && !isDragging ? "tab-wiggle" : ""}`}
-        style={editing && !isDragging ? { animationDelay: `${index * 60}ms` } : undefined}
-      >
+      <span className="inline-flex items-center gap-1.5">
         {tab.label}
         {tab.ai && <AiBadge />}
       </span>
@@ -340,29 +300,11 @@ export function ModuleView({ mod, page }: { mod: ModuleDef; page: ModulePageData
   const modState = state[mod.slug];
   const Icon = ICON_MAP[mod.icon];
 
-  // 탭 순서 — 편집 모드에서 드래그앤드롭으로 변경 가능
-  const [tabOrder, setTabOrder] = useState<string[]>(() => page.tabs.map((t) => t.id));
-  const orderedTabs = tabOrder
-    .map((id) => page.tabs.find((t) => t.id === id))
-    .filter((t): t is NonNullable<typeof t> => !!t);
-
-  const enabledTabs = orderedTabs.filter((t) => modState?.subs[t.id] !== false);
+  const enabledTabs = page.tabs.filter((t) => modState?.subs[t.id] !== false);
   const [activeId, setActiveId] = useState(() =>
     page.defaultTabId && enabledTabs.some((t) => t.id === page.defaultTabId) ? page.defaultTabId : enabledTabs[0]?.id,
   );
   const active = enabledTabs.find((t) => t.id === activeId) ?? enabledTabs[0];
-
-  const [editingTabs, setEditingTabs] = useState(false);
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
-
-  function handleDragEnd(e: DragEndEvent) {
-    const { active: dragged, over } = e;
-    if (!over || dragged.id === over.id) return;
-    setTabOrder((prev) => arrayMove(prev, prev.indexOf(String(dragged.id)), prev.indexOf(String(over.id))));
-  }
 
   // 필터/내보내기/신규 등록 — 실제 동작 (탭별 로컬 상태)
   const [filterOpen, setFilterOpen] = useState(false);
@@ -489,26 +431,12 @@ export function ModuleView({ mod, page }: { mod: ModuleDef; page: ModulePageData
         </div>
       )}
 
-      {/* 서브기능 탭 + 액션 버튼(동일 뎁스) — 우측 끝 편집 버튼으로 순서 변경 */}
+      {/* 서브기능 탭 + 액션 버튼(동일 뎁스). 탭 순서는 data/pages 가 정한다 */}
       <div className="mb-4 flex items-center gap-1 border-b border-slate-200">
         <div className="thin-scroll flex min-w-0 flex-1 items-center gap-1 overflow-x-auto pb-px" role="tablist">
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext items={tabOrder} strategy={horizontalListSortingStrategy}>
-              {orderedTabs.map((tab, i) => {
-                if (modState.subs[tab.id] === false) return null;
-                return (
-                  <SortableTab
-                    key={tab.id}
-                    tab={tab}
-                    index={i}
-                    editing={editingTabs}
-                    isActive={active?.id === tab.id}
-                    onSelect={() => switchTab(tab.id)}
-                  />
-                );
-              })}
-            </SortableContext>
-          </DndContext>
+          {enabledTabs.map((tab) => (
+            <Tab key={tab.id} tab={tab} isActive={active?.id === tab.id} onSelect={() => switchTab(tab.id)} />
+          ))}
         </div>
 
         <div className="mb-1.5 flex shrink-0 items-center gap-2">
@@ -543,22 +471,6 @@ export function ModuleView({ mod, page }: { mod: ModuleDef; page: ModulePageData
               </Button>
             );
           })}
-          {(active?.actions?.length ?? 0) > 0 && <span className="h-4 w-px bg-slate-200" aria-hidden />}
-          <button
-            type="button"
-            onClick={() => setEditingTabs((v) => !v)}
-            aria-pressed={editingTabs}
-            aria-label={editingTabs ? "탭 순서 편집 완료" : "탭 순서 편집"}
-            title={editingTabs ? "완료" : "탭을 드래그해 순서를 바꿀 수 있어요"}
-            className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
-              editingTabs
-                ? "bg-slate-800 text-white hover:bg-slate-700"
-                : "border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700"
-            }`}
-          >
-            {editingTabs ? <IconCheck size={13} /> : <IconPencil size={13} />}
-            {editingTabs ? "확인" : "편집"}
-          </button>
         </div>
       </div>
 

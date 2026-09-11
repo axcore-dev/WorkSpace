@@ -127,7 +127,7 @@ WorkSpace 데모의 시각 언어와 공용 컴포넌트 규칙. 코드가 단�
 | base | `duration-200` | 공용 컴포넌트 기본 (`Button`, `Toggle` — `transition-colors`) |
 | slow | `duration-300` | 크기·레이아웃 변화 (`ProgressBar` width) |
 
-- 명명 애니메이션 예외: `.shimmer-text`(AI 추론 로딩, 1.8s — **AI 표면 전용**), `.spinner`(일반 대기 표시, 0.8s), `.tab-wiggle`(탭 편집 모드, 0.28s), `.agent-fade`(AI 답변 요소 등장, 0.28s), `.pixel-dots`(AI 작업 중 3×3 도트, 0.65s stagger).
+- 명명 애니메이션 예외: `.shimmer-text`(AI 추론 로딩, 1.8s — **AI 표면 전용**), `.spinner`(일반 대기 표시, 0.8s), `.agent-fade`(AI 답변 요소 등장, 0.28s), `.pixel-dots`(AI 작업 중 3×3 도트, 0.65s stagger).
 - **AI 표면 한정 허용**: skeleton(`animate-pulse`, 대화 복원·전환 대기), 타자 효과(새 답변 1회 — 복원된 메시지엔 쓰지 않는다), 앰비언트 배경(빈 상태에서만, `components/chat/ai-backdrop.tsx`).
 
   - **중앙 블룸 + 점 격자 두 겹**이다. 블룸은 primary 12% 저알파 타원 하나로 **정적**이고, 중심(`--bloom-x`/`--bloom-y`)만 입력창을 따라간다 — 입력창이 첫 화면↔대화 전환에 세로로 미끄러져도 어긋나지 않고, 퇴장할 때 배경과 한 몸으로 움직인다. 블룸은 커서를 따라다니지 않는다.

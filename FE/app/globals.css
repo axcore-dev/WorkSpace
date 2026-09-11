@@ -44,20 +44,6 @@ body {
   border-radius: 3px;
 }
 
-/* 탭 편집 모드 — iOS 홈화면식 흔들림 */
-@keyframes tab-wiggle {
-  0%,
-  100% {
-    transform: rotate(-1.2deg);
-  }
-  50% {
-    transform: rotate(1.2deg);
-  }
-}
-.tab-wiggle {
-  animation: tab-wiggle 0.28s ease-in-out infinite;
-}
-
 /* 일반 로딩 스피너 — 대기 상태 표시 (AI 전용인 shimmer와 구분) */
 .spinner {
   display: inline-block;

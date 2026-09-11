@@ -19,7 +19,7 @@ export default async function ModulePage({
   const page = MODULE_PAGES[slug];
   if (!mod || !page) notFound();
 
-  // 모듈 전환 시 탭 순서·편집 모드 등 내부 상태를 초기화하기 위해 slug로 리마운트
+  // 모듈 전환 시 활성 탭·필터 등 내부 상태를 초기화하기 위해 slug로 리마운트
   return (
     <ModuleGate key={slug} mod={mod}>
       {slug === "management" ? (
