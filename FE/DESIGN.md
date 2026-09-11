@@ -194,6 +194,7 @@ WorkSpace 데모의 시각 언어와 공용 컴포넌트 규칙. 코드가 단�
 | `isPersonalEmail` (유틸) | 개인 메일 도메인 판별 | 업무용 메일 지향 안내 (로그인·회원가입) |
 | `Workbench` 계열 | 경영지원 작업대 골격 | 좌 320 마스터(`MasterList`: 만들기 → 찾기 → 목록/트리 → 개수) \| 우 디테일(`EntityHeader` → `Banner` → `Tiles` → 표 → `KvGrid`/`Kv`). `lg` 미만은 선택 바 + `Modal sm`. `ConfirmModal`(왼쪽 항상 [닫기], 승인은 `primary`+체크·삭제는 `danger`+경고)·`MenuModal`(처리 메뉴). **다른 모듈로 일반화하지 않는다** — 두 번째 모듈이 필요해질 때. `components/management/workbench.tsx` |
 | `Banner` | 조건부 안내 문장 | `amber`(할 일 있음) / `slate`(진행 중). 문장만 — 버튼을 넣지 않는다(블루 예산). 상태 배지가 아니라 문맥 설명이라 옅은 배경을 허용한다 |
+| `MenuButton` (`ui.tsx`) | 한 행동의 범위 · 방식 고르기 | 「등록 ▾」(엑셀 / 직접) · 「발주서 출력 ▾」(업체별 / 전체). 서로 다른 행동을 한 메뉴에 담지 않는다(그건 버튼 둘). 트리거 `aria-haspopup="menu"` + `aria-expanded`, 목록 `role="menu"`/`menuitem`, 바깥 클릭 · ESC 닫힘, `shadow-lg`, `align` 으로 펴지는 쪽 |
 | `MultiPicker` (`components/multi-picker.tsx`) | 다중 선택 · 단일 선택 | Notion 다중 선택 속성을 따른다 — 칸을 누르면 칩 뒤 캐럿, 타이핑으로 목록이 걸러지고 Enter/클릭으로 칩 추가, 없는 이름은 「만들기 [입력값]」(`onCreate`), × 로 빼고 드래그(키보드 Alt+←/→)로 순서. **첫 칩 = 기본**(`firstTag`) — 순서가 뜻이라 별도 토글이 없다. `single` 이면 하나만(발주처 고르기). 못 고르는 항목(`disabled`)은 옅게 보이되 선택되지 않는다. 무채색 칩(`ring-slate-200`), 팝오버만 `shadow-lg`. `role="combobox"` + `aria-activedescendant` + `listbox/option`. 칩 순서 훅 `useChipReorder` · `Chip` 도 export |
 | `UploadReviewModal` (`components/upload-review-modal.tsx`) | 엑셀 업로드 → 확인 → 승인 | `parse`(실제 파일 읽기 — `lib/sheet.ts`: CSV 직접, .xlsx 는 `exceljs` 를 눌렀을 때만) · `classify`(행마다 갱신 · 신규 · 오류 + 사유). 오류 행은 승인에서 빠진다(부분 성공). 둘 다 없으면 옛 데모 파싱 |
 
@@ -328,7 +329,9 @@ AI 표현(전역 CSS, `globals.css`): `.shimmer-text`·`.agent-fade`·`.pixel-do
 | 헤더 오른쪽 | `Segmented` [처리 \| 설정] (아이콘 + 라벨). 설정 권한(`items · vendors · safety · docrules` 중 하나)이 있을 때만. 제목도 함께 바뀐다(「재고·물류」 ↔ 「재고·물류 설정」) — 숨은 모드가 되지 않게 |
 | 탭 줄 | 토글이 탭 세트를 통째로 갈아끼운다. **탭 줄 오른쪽에는 버튼을 두지 않는다** — 도구는 카드 헤더 안 |
 | 카드 헤더 도구 (`components/inventory/card-tools.tsx`) | 왼쪽 h2, 오른쪽 [🔍 → 240px 입력창으로 펼침, 200ms] [간단 \| 상세](열이 바뀔 때만) [⤓] + 보조 버튼(secondary). 열린 검색은 아이콘이 입력창 안에 있는 한 상자, × 는 검색어가 있으면 지우기 · 없으면 접기, ESC 는 항상 접기 |
-| 행 펼침 | `DataTable` `expandedRow`/`renderExpanded` — 모달이 아니라 행 아래로. 패널 안의 primary 는 화면에 하나(「입고 등록」 · 「저장」). 편집 중 다른 행을 누르면 「바꾼 내용을 버릴까요?」 |
+| 행 펼침 | `DataTable` `expandedRow`/`renderExpanded` — 모달이 아니라 행 아래로. 패널 안의 primary 는 화면에 하나(「입고 등록」 → 편집 중엔 「저장」). **마감(「검수 완료」)은 secondary** — 잔량을 전부 취소로 만드는 길이 가장 눈에 띄는 버튼이면 안 된다. 편집 폼은 `<form>` 이라 Enter 가 저장이고, 첫 열린 라인의 수량 칸에 포커스가 선다. 초과 입고는 「잔량 N EA보다 M 많아요」로 사실을 먼저 말한다. 편집 중 다른 행을 누르면 「바꾼 내용을 버릴까요?」 |
+| 발주번호 | 기록용 식별자다. 실무자가 매일 보는 **간단 밀도 표에서는 열을 뺀다** — 상세 밀도 · 펼침 패널 메타 · 출력물에는 있다(2026-09-11). 문서의 줄 번호(01, 02)도 출력물에만 — 화면 표에는 없다 |
+| 출력 | 「발주서 출력 ▾」(`MenuButton`) — 업체별(이 발주처) / 전체(같은 관리번호의 발주 N건). 「다시 출력」처럼 이전 행동을 전제하는 말을 쓰지 않는다 |
 | 설정 탭 | 표형(품목 · 거래처)은 카드 + 행 클릭 → 팝업(저장 시 자동 닫힘 + 「저장했어요」), 값형(안전 기준 · 문서 규칙)은 `SettingsSection` + 행마다 [수정] → 그 자리에서 고치고 [저장]. 태그처럼 작은 값 목록은 수정 모드 없이 인라인(Notion 의 다중 선택 값 편집) |
 | 시스템이 모르는 것 | 말하지 않는다 — 「도착했어요」 대신 「등록 전 · N일차」 · 「N일 경과」(리드타임 기준) |
 
