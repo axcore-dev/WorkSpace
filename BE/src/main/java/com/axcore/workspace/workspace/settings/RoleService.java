@@ -32,7 +32,9 @@ import java.util.UUID;
  * <p>기능 탭은 카탈로그에 있으면 저장한다. 회사가 끈 기능의 탭도 "가진" 것으로 남고, 실제 접근은 회사가 켠 것과의 교집합이다
  * ({@code ModuleAccessReader}). 화면은 끈 기능의 토글을 잠가 바꾸지 못하게만 한다.
  *
- * <p>이름 중복은 DB 의 {@code ux_roles_name} 이 막고 {@code GlobalExceptionHandler} 가 409 로 옮긴다 — 여기서 미리 세지 않는다.
+ * <p>이름 중복은 DB 의 {@code ux_roles_dept_name} 이 막고 {@code GlobalExceptionHandler} 가 409 로 옮긴다 — 여기서 미리
+ * 세지 않는다. <b>같은 이름이라도 부서가 다르면 된다</b>(tenant V15) — 생산팀 「팀장」과 물류팀 「팀장」은 다른 직급이다.
+ * 부서 없는 직급(「전사」)끼리는 여전히 이름이 겹칠 수 없다.
  */
 @Service
 public class RoleService {
