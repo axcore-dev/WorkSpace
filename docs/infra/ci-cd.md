@@ -75,6 +75,8 @@ compose 가 채우므로 바꿀 때만 적는다. compose 가 읽는 키와 `.en
 | `AUTH_COOKIE_SECURE` | refresh 쿠키 Secure | HTTPS 이므로 `true`. 로컬(`http://localhost:8000`)은 `false` |
 | `GOOGLE_CLIENT_ID` `GOOGLE_CLIENT_SECRET` | 소셜 로그인 | 비우면 그 제공자만 비활성. FE 번들에도 같은 client-id 가 들어간다 |
 | `NAVER_CLIENT_ID` `NAVER_CLIENT_SECRET` | 소셜 로그인 | 위와 같다 |
+| `NEXT_PUBLIC_DEMO_ENABLED` | 로그인 화면의 「데모 체험하기」 노출 | `1` 이면 보인다. 비우면 버튼이 없다. 비밀이 아니다 |
+| `NEXT_PUBLIC_DEMO_EMAIL` `NEXT_PUBLIC_DEMO_PASSWORD` | 시연 계정 자격 | **FE 번들에 실려 공개된다.** 시연 전용 워크스페이스 소유자만 쓰고 다른 곳의 비밀번호를 재사용하지 않는다. BE `POST /api/auth/demo-login` 으로 옮기면 없앤다 |
 | `NEXT_PUBLIC_API_BASE_URL` | FE → API 주소 | nginx 뒤라 **비운다**(빈 문자열). 그러면 같은 오리진 `/api/...` 를 부른다 |
 | `MAIL_MODE` `MAIL_FROM` | 메일 발송 방식 · 보내는 주소 | `smtp` / 발송 계정 주소. `log` 면 보내지 않고 BE 로그에 찍는다(확인 링크가 로그에 남는다, 개발 전용) |
 | `MAIL_HOST` `MAIL_PORT` `MAIL_USERNAME` `MAIL_PASSWORD` | SMTP 접속 (mode=smtp 일 때만 쓰임) | Google Workspace: `smtp.gmail.com` / `587` / 발송 계정 / **앱 비밀번호 16자**. 아래 「Google Workspace SMTP」 참고. log 모드에서는 비워 둔다 |
