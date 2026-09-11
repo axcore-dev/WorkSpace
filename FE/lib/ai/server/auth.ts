@@ -109,14 +109,18 @@ async function introspect(token: string): Promise<AiPrincipal> {
   }
 
   const p = (await res.json()) as AiPrincipal;
-  if (!p?.userId || !SCHEMA_RE.test(p.schemaName ?? "") || !Array.isArray(p.modules) || !Array.isArray(p.tabs)) {
+  if (!p?.userId || !SCHEMA_RE.test(p.schemaName ?? "") || !Array.isArray(p.modules)) {
     // 여기 걸리면 BE 응답 계약이 깨진 것이다. 사용자에게 보일 일은 없어야 한다.
     console.error("[ai-auth] introspect 응답 형태가 어긋났어요");
     throw new HttpError(502, "AUTH_UNAVAILABLE", "인증을 확인하지 못했어요");
   }
   // slug 는 문자열만, 알 수 없는 값은 버린다 — 검색 쿼리의 배열 파라미터로 그대로 들어간다
   p.modules = p.modules.filter((m): m is string => typeof m === "string" && /^[a-z]{1,30}$/.test(m));
-  p.tabs = p.tabs.filter((t): t is string => typeof t === "string" && /^[a-z]{1,30}$/.test(t));
+  // 탭은 없으면 빈 목록이다. FE 가 먼저 배포되고 BE 가 아직 옛 버전일 수 있다 — 그때 대화 전체를 502 로 끊는 대신
+  // 업무 데이터 조회만 닫는다. 문서 검색은 modules 로 돌아가므로 답변은 계속 나온다
+  p.tabs = Array.isArray(p.tabs)
+    ? p.tabs.filter((t): t is string => typeof t === "string" && /^[a-z]{1,30}$/.test(t))
+    : [];
   return p;
 }
 
