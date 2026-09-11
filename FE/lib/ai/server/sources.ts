@@ -74,15 +74,38 @@ export async function insertDoc(
     type: string;
     sizeBytes: number;
     storageKey: string;
+    /** 기본은 개인. `company` 면 같은 회사 구성원이 검색할 수 있다 */
+    scope?: "personal" | "company";
   },
 ): Promise<DocRow> {
   const { rows } = await db.query<DocRow>(
-    `INSERT INTO ai_source_docs (id, owner_user_id, name, type, size_bytes, storage_key)
-     VALUES ($1, $2, $3, $4, $5, $6)
+    `INSERT INTO ai_source_docs (id, owner_user_id, name, type, size_bytes, storage_key, scope)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING *`,
-    [doc.id, doc.ownerUserId, doc.name, doc.type, doc.sizeBytes, doc.storageKey],
+    [doc.id, doc.ownerUserId, doc.name, doc.type, doc.sizeBytes, doc.storageKey, doc.scope ?? "personal"],
   );
   return rows[0];
+}
+
+/** 색인이 만든 요약과 그 벡터를 만든 임베딩 모델을 기록한다 */
+export async function setIndexMeta(
+  db: Db,
+  id: string,
+  meta: { summary: string | null; embeddingModel: string | null },
+) {
+  await db.query(
+    `UPDATE ai_source_docs SET summary = $2, embedding_model = $3, updated_at = now() WHERE id = $1`,
+    [id, meta.summary, meta.embeddingModel],
+  );
+}
+
+/** 재색인 대상 — 내가 올린 문서 전부. 실패한 것도 다시 해 본다 */
+export async function listDocsForReindex(db: Db, ownerUserId: string): Promise<DocRow[]> {
+  const { rows } = await db.query<DocRow>(
+    `SELECT * FROM ai_source_docs WHERE owner_user_id = $1 ORDER BY created_at`,
+    [ownerUserId],
+  );
+  return rows;
 }
 
 export async function findDoc(db: Db, ownerUserId: string, id: string): Promise<DocRow | null> {
@@ -170,18 +193,29 @@ export interface ChunkHit {
   doc_name: string;
   page: number | null;
   content: string;
-  /** 두 검색의 순위를 합친 값(RRF). 절대 크기에 뜻이 없고 이 목록 안의 순서만 뜻한다 */
+  /** 세 검색의 순위를 합친 값(RRF). 절대 크기에 뜻이 없고 이 목록 안의 순서만 뜻한다 */
   score: number;
   /** 코사인 유사도(0~1). 벡터 쪽에 안 걸렸으면 null — 문턱 판정은 `retrieval.ts` 가 한다 */
   similarity: number | null;
-  /** 전문 검색에서도 잡혔는가 — 질의 낱말이 본문에 그대로 있다는 뜻이다 */
+  /** 전문 검색이나 부분 일치에서 잡혔는가 — 질의 낱말이 본문에 실제로 있다는 뜻이다 */
   lexical: boolean;
+  /** 이 조각이 속한 문서의 요약. 색인 때 만들어 둔 것이고 없으면 null */
+  doc_summary: string | null;
+  /** 내가 올린 문서가 아니라 회사에 공유된 문서인가 */
+  shared: boolean;
 }
 
-/** 두 순위를 합칠 때 쓰는 상수(RRF). 60 은 이 방식의 관례값이고, 클수록 상위권 가중이 완만해진다 */
+/** 세 순위를 합칠 때 쓰는 상수(RRF). 60 은 이 방식의 관례값이고, 클수록 상위권 가중이 완만해진다 */
 const RRF_K = 60;
 /** 각 검색에서 가져올 후보 수. 합친 뒤 상위 `limit` 개만 남는다 */
 const CANDIDATES = 30;
+/**
+ * 부분 일치로 인정할 최소 낱말 유사도(0~1).
+ *
+ * `word_similarity` 는 질의가 본문의 어느 한 대목과 얼마나 닮았는지를 본다. 0.5 면 "단가" 가 "단가는" 에,
+ * "608ZZ" 가 "608ZZ-01" 에 걸리는 정도다. 낮추면 아무 낱말이나 걸리고, 높이면 조사 하나에도 떨어진다.
+ */
+const TRGM_FLOOR = 0.5;
 
 /**
  * 질문과 가까운 조각을 찾는다. `names` 가 있으면 그 문서 안에서, `null` 이면 본인 문서 전체에서.
@@ -204,12 +238,12 @@ export async function searchChunks(
   ownerUserId: string,
   names: string[] | null,
   allowedModules: string[],
-  query: { text: string; embedding: number[] | null },
+  query: { text: string; embedding: number[] | null; embeddingModel: string },
   limit: number,
 ): Promise<ChunkHit[]> {
   if (names !== null && names.length === 0) return [];
-  // $2 가 NULL 이면 이름 조건을 건너뛴다 — 본인 문서 전체. $5 는 허용 모듈(빈 배열이면 분류 없는 문서만)
-  const scope = `d.owner_user_id = $1
+  // $2 가 NULL 이면 이름 조건을 건너뛴다 — 내가 볼 수 있는 문서 전체. $5 는 허용 모듈(빈 배열이면 분류 없는 문서만)
+  const scope = `(d.owner_user_id = $1 OR d.scope = 'company')
           AND d.status = 'ready'
           AND ($2::text[] IS NULL OR d.name = ANY($2::text[]))
           AND (d.module_slug IS NULL OR d.module_slug = ANY($5::text[]))`;
@@ -230,8 +264,22 @@ export async function searchChunks(
          JOIN ai_source_docs d ON d.id = c.doc_id
         WHERE $6::public.vector IS NOT NULL
           AND c.embedding IS NOT NULL
+          -- 다른 모델로 만든 벡터는 비교 대상이 아니다. 재색인 전까지 그 문서는 전문 검색·부분 일치로만 찾힌다
+          AND d.embedding_model IS NOT DISTINCT FROM $8
           AND ${scope}
         ORDER BY c.embedding OPERATOR(public.<=>) $6::public.vector
+        LIMIT $7
+     ),
+     trg AS (
+       -- 부분 일치. 조사가 붙은 낱말("단가는")과 품번 일부를 잡는다 — 전문 검색이 낱말 단위라 놓치는 자리다.
+       -- word_similarity 는 본문에서 질의와 가장 닮은 대목을 보고, gin_trgm_ops 색인을 탄다
+       SELECT c.id,
+              row_number() OVER (ORDER BY public.word_similarity($3, c.content) DESC) AS rnk
+         FROM ai_source_chunks c
+         JOIN ai_source_docs d ON d.id = c.doc_id
+        WHERE public.word_similarity($3, c.content) >= ${TRGM_FLOOR}
+          AND ${scope}
+        ORDER BY public.word_similarity($3, c.content) DESC
         LIMIT $7
      ),
      lex AS (
@@ -246,16 +294,21 @@ export async function searchChunks(
         ORDER BY ts_rank(c.tsv, q.tsq) DESC
         LIMIT $7
      ),
-     ids AS (SELECT id FROM vec UNION SELECT id FROM lex)
+     ids AS (SELECT id FROM vec UNION SELECT id FROM lex UNION SELECT id FROM trg)
      SELECT d.name AS doc_name, c.page, c.content,
-            (coalesce(1.0 / (${RRF_K} + v.rnk), 0) + coalesce(1.0 / (${RRF_K} + l.rnk), 0))::float8 AS score,
+            (coalesce(1.0 / (${RRF_K} + v.rnk), 0)
+             + coalesce(1.0 / (${RRF_K} + l.rnk), 0)
+             + coalesce(1.0 / (${RRF_K} + t.rnk), 0))::float8 AS score,
             v.sim AS similarity,
-            (l.id IS NOT NULL) AS lexical
+            (l.id IS NOT NULL OR t.id IS NOT NULL) AS lexical,
+            d.summary AS doc_summary,
+            (d.owner_user_id <> $1) AS shared
        FROM ids
        JOIN ai_source_chunks c ON c.id = ids.id
        JOIN ai_source_docs d ON d.id = c.doc_id
        LEFT JOIN vec v ON v.id = ids.id
        LEFT JOIN lex l ON l.id = ids.id
+       LEFT JOIN trg t ON t.id = ids.id
       ORDER BY score DESC, similarity DESC NULLS LAST
       LIMIT $4`,
     [
@@ -266,6 +319,7 @@ export async function searchChunks(
       allowedModules,
       query.embedding ? toVectorLiteral(query.embedding) : null,
       CANDIDATES,
+      query.embeddingModel,
     ],
   );
   return rows;

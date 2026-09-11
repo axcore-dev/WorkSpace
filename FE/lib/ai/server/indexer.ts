@@ -9,14 +9,18 @@
  * 보여야 사용자가 다른 형식으로 다시 올릴 수 있다.
  */
 import "server-only";
+import { embedInput } from "@/lib/ai/text";
 import type { AiPrincipal } from "./auth";
 import { chunkPages } from "./chunk";
 import { withTenant } from "./db";
 import { embedTexts } from "./embedding";
 import { classifyModule } from "./classify";
+import { embeddingModelId } from "./env";
 import { ExtractError, extractPages } from "./extract";
-import { findDoc, replaceChunks, setModule, updateStatus } from "./sources";
+import { findDoc, replaceChunks, setIndexMeta, setModule, updateStatus } from "./sources";
 import { getObjectBuffer } from "./storage";
+import { summarizeDoc } from "./summarize";
+
 
 export async function indexSource(principal: AiPrincipal, docId: string): Promise<void> {
   const doc = await withTenant(principal.schemaName, (db) =>
@@ -33,21 +37,25 @@ export async function indexSource(principal: AiPrincipal, docId: string): Promis
     }
     // 임베딩은 있으면 좋은 것이지 색인의 전제가 아니다. 모델 권한·한도·장애로 실패해도 조각은 저장해
     // 전문 검색(tsv)으로는 찾을 수 있게 한다. 실패한 문서는 나중에 재색인하면 임베딩이 채워진다.
-    const embeddings = await embedTexts(chunks.map((c) => c.content)).catch((e) => {
+    const embeddings = await embedTexts(chunks.map((c) => embedInput(doc.name, c))).catch((e) => {
       console.warn(`[ai-index] ${doc.name}: 임베딩 실패, 전문 검색만 가능`, e);
       return null;
     });
 
     // 업무 분야 분류 — 권한 있는 분야만 검색되게 하는 태그. 실패하면 null(제한 없음)
     const moduleSlug = await classifyModule(doc.name, chunks);
+    // 문서 요약 — 답변 문맥의 문서 머리말. 실패하면 null 이고 검색·답변은 그대로 돈다
+    const summary = await summarizeDoc(doc.name, chunks);
 
     await withTenant(principal.schemaName, async (db) => {
       await replaceChunks(db, docId, chunks, embeddings);
       await setModule(db, docId, moduleSlug);
+      // 어떤 모델로 만든 벡터인지 남긴다. 모델을 바꾸면 이 문서는 재색인 전까지 벡터 검색에서 빠진다
+      await setIndexMeta(db, docId, { summary, embeddingModel: embeddings ? embeddingModelId() : null });
       await updateStatus(db, docId, "ready", { chunkCount: chunks.length });
     });
     console.info(
-      `[ai-index] ${doc.name}: 조각 ${chunks.length}개${embeddings ? "" : " (임베딩 없음)"} · 분야 ${moduleSlug ?? "없음"}`,
+      `[ai-index] ${doc.name}: 조각 ${chunks.length}개${embeddings ? "" : " (임베딩 없음)"} · 분야 ${moduleSlug ?? "없음"} · 요약 ${summary ? "있음" : "없음"}`,
     );
   } catch (e) {
     // 사용자에게 보여도 되는 문구는 ExtractError 만이다. 나머지는 원인을 로그에만 남긴다

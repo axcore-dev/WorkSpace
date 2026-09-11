@@ -43,6 +43,10 @@ export async function POST(req: Request) {
       form?.getAll("files").filter((f): f is File => f instanceof File) ?? [],
     );
 
+    // 공유 범위 — 기본은 개인이다. `company` 면 같은 회사 구성원의 AI 검색에도 잡힌다.
+    // 값이 이상하면 조용히 개인으로 둔다. 공유는 사용자가 분명히 고른 때만 일어나야 한다.
+    const scope = form?.get("scope") === "company" ? "company" : "personal";
+
     const docs: SourceDoc[] = [];
     const uploadedKeys: string[] = [];
     for (const { file, name, type } of files) {
@@ -69,6 +73,7 @@ export async function POST(req: Request) {
           type: type.toUpperCase(),
           sizeBytes: file.size,
           storageKey: key,
+          scope,
         });
       }).catch(async (e) => {
         // 메타를 못 남기면 스토리지에 고아 객체가 남는다. 올린 것은 되돌린다
