@@ -109,7 +109,8 @@ function InventoryScreen({ mod }: { mod: ModuleDef }) {
         ))}
       </div>
 
-      <div role="tabpanel">
+      {/* 탭 · 화면이 바뀌면 내용이 새로 마운트되며 fade-in(150ms) — key 가 바뀌는 것이 모션의 전부다 */}
+      <div role="tabpanel" key={`${effectiveView}:${active?.id ?? ""}`} className="fade-in">
         {status === "loading" ? (
           <p className="text-sm text-slate-500">불러오는 중이에요</p>
         ) : status === "error" ? (

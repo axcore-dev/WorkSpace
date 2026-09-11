@@ -256,7 +256,7 @@ export function OrderEditor({ initialDrawing, onClose }: { initialDrawing?: stri
                   const off = l.qty <= 0;
                   const who = l.itemName || "라인";
                   return (
-                    <li key={l.id} className={`${LINE_GRID} py-2.5 xl:py-1.5 ${off ? "opacity-60" : ""}`}>
+                    <li key={l.id} className={`${LINE_GRID} fade-in py-2.5 xl:py-1.5 ${off ? "opacity-60" : ""}`}>
                       <div className="col-span-2 xl:col-span-1">
                         <label htmlFor={`${l.id}-name`} className={CELL_LABEL}>
                           품명

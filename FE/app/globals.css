@@ -93,6 +93,47 @@ body {
   }
 }
 
+/* 가벼운 등장 — 편집 폼 · 드롭다운 · 탭 내용 · 새 라인 · 칩. 2px 떠오르며 150ms(fast). 이미 보이는 상태에서 출발한다 */
+.fade-in {
+  animation: fade-in 0.15s ease-out both;
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 모달 등장 — 배경은 페이드, 패널은 0.98 → 1 로 200ms(base). 닫힘은 언마운트 그대로 */
+.backdrop-in {
+  animation: backdrop-in 0.2s ease-out both;
+}
+@keyframes backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.modal-in {
+  animation: modal-in 0.2s ease-out both;
+}
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 /* AI 작업 중 3×3 픽셀 도트 — 각 점이 시차를 두고 켜진다 (--i: 0~8) */
 .pixel-dots span {
   animation: pixel-on 0.65s steps(1, end) infinite;
