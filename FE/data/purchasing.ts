@@ -1,31 +1,7 @@
 /**
- * 재고·물류 > 구매(발주) 관리 더미 데이터 (FR-PO-01~10).
- * 실제 API 연동 시 이 파일만 교체한다.
+ * 도면(BOM) 데모 — 발주서 작성의 소요 근거. 제품설계 모듈이 완성되면 그쪽 데이터로 바뀐다.
+ * 발주 목록 자체는 `data/inventory.ts`(PurchaseOrder) 로 옮겨졌다.
  */
-
-export type PoStatus = "발주" | "부분 입고" | "입고 완료" | "지연";
-
-export interface PoLine {
-  itemName: string;
-  spec: string;
-  size: string;
-  qty: number;
-}
-
-/** 발주 목록 한 건 — 발주처 단위로 채번되며 이후 입고·검수가 이 번호로 연결된다 */
-export interface PurchaseOrderRow {
-  poNo: string;
-  orderedOn: string;
-  supplier: string;
-  /** 귀속 관리번호 */
-  projectCode: string;
-  /** 근거 도면 + 리비전 (FR-PO-09) */
-  drawing: string;
-  rev: string;
-  requester: string;
-  status: PoStatus;
-  lines: PoLine[];
-}
 
 /** [Step.1] 발주 대상으로 고를 수 있는 도면(BOM). unmapped > 0 이면 진행 차단 (FR-BM-03) */
 export interface PoDrawing {
@@ -46,72 +22,6 @@ export interface PoNeed {
   stock: number;
   supplier: string;
 }
-
-export const PURCHASE_ORDERS: PurchaseOrderRow[] = [
-  {
-    poNo: "PO-2607-0021",
-    orderedOn: "2026-07-02",
-    supplier: "POWERTEC",
-    projectCode: "26MSX-S03 OP20",
-    drawing: "26MSX-S03-20",
-    rev: "Rev.C",
-    requester: "구매 담당",
-    status: "부분 입고",
-    lines: [
-      { itemName: "GUIDE POST", spec: "MYKP", size: "Φ32-140L", qty: 4 },
-      { itemName: "SPRING-LIFT", spec: "SWF", size: "12-50", qty: 3 },
-      { itemName: "LIFT PIN", spec: "LP", size: "10-58", qty: 3 },
-    ],
-  },
-  {
-    poNo: "PO-2607-0022",
-    orderedOn: "2026-07-02",
-    supplier: "JINYANG",
-    projectCode: "26MSX-S03 OP20",
-    drawing: "26MSX-S03-20",
-    rev: "Rev.C",
-    requester: "구매 담당",
-    status: "입고 완료",
-    lines: [{ itemName: "GAUGE", spec: "HMD", size: "20*65*35t", qty: 7 }],
-  },
-  {
-    poNo: "PO-2607-0023",
-    orderedOn: "2026-07-02",
-    supplier: "POWERTEC",
-    projectCode: "26MSX-S04 OP20",
-    drawing: "26MSX-S04-20",
-    rev: "Rev.B",
-    requester: "구매 담당",
-    status: "발주",
-    lines: [
-      { itemName: "GUIDE POST", spec: "MYKP", size: "Φ32-140L", qty: 4 },
-      { itemName: "SPRING-LIFT", spec: "SWF", size: "12-50", qty: 3 },
-      { itemName: "LIFT PIN", spec: "LP", size: "10-58", qty: 3 },
-    ],
-  },
-  {
-    poNo: "PO-2607-0024",
-    orderedOn: "2026-07-02",
-    supplier: "JINYANG",
-    projectCode: "26MSX-S04 OP20",
-    drawing: "26MSX-S04-20",
-    rev: "Rev.B",
-    requester: "구매 담당",
-    status: "부분 입고",
-    lines: [{ itemName: "GAUGE", spec: "HMD", size: "20*65*35t", qty: 7 }],
-  },
-  {
-    poNo: "PO-2606-0018",
-    orderedOn: "2026-06-30",
-    supplier: "대성정공",
-    projectCode: "26PNQ-S16 OP10",
-    drawing: "26PNQ-S16-10",
-    rev: "Rev.D",
-    requester: "구매 담당",
-    status: "입고 완료",
-    lines: [{ itemName: "GUIDE PIN", spec: "SGPH", size: "20-120", qty: 8 }],
-  },
-];
 
 export const PO_DRAWINGS: PoDrawing[] = [
   {

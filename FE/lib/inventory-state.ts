@@ -8,7 +8,7 @@ import type {
   SafetyStandard,
   Vendor,
 } from "../data/inventory";
-import type { PurchaseOrderRow } from "../data/purchasing";
+import type { PoDrawing, PoNeed } from "../data/purchasing";
 import { daysBetween } from "./management-state.ts";
 
 /**
@@ -75,6 +75,8 @@ export const orderRemaining = (o: PurchaseOrder) => o.lines.reduce((s, l) => s +
 export type OrderStatus =
   | { kind: "overdue"; days: number }
   | { kind: "waiting"; days: number }
+  /** 자체 제작 거래처 — 문서가 없는 제작 지시. 입고 등록이 시작되면 부분 입고로 */
+  | { kind: "making"; days: number }
   | { kind: "partial"; remaining: number }
   | { kind: "done" };
 
@@ -82,19 +84,21 @@ export function orderStatus(order: PurchaseOrder, vendors: Vendor[], today: stri
   const remaining = orderRemaining(order);
   if (remaining === 0 || order.closedOn) return { kind: "done" };
   const days = daysBetween(order.orderedOn, today);
-  const lead = vendors.find((v) => v.id === order.vendorId)?.leadTimeDays ?? null;
+  const vendor = vendors.find((v) => v.id === order.vendorId);
+  if (vendor?.kind === "inhouse" && orderReceived(order) === 0) return { kind: "making", days };
+  const lead = vendor?.leadTimeDays ?? null;
   if (lead !== null && days > lead) return { kind: "overdue", days };
   if (orderReceived(order) === 0) return { kind: "waiting", days };
   return { kind: "partial", remaining };
 }
 
-const STATUS_RANK: Record<OrderStatus["kind"], number> = { overdue: 0, waiting: 1, partial: 2, done: 3 };
+const STATUS_RANK: Record<OrderStatus["kind"], number> = { overdue: 0, waiting: 1, making: 2, partial: 3, done: 4 };
 
-/** 할 일 순 — 기한 넘김(경과일 큰 순) → 등록 전(경과일 큰 순) → 부분 입고(잔량 큰 순) → 완료(최근 발주 먼저) */
+/** 할 일 순 — 기한 넘김(경과일 큰 순) → 등록 전(경과일 큰 순) → 제작 중 → 부분 입고(잔량 큰 순) → 완료(최근 발주 먼저) */
 export function orderSort(orders: PurchaseOrder[], vendors: Vendor[], today: string): PurchaseOrder[] {
   const key = (o: PurchaseOrder): [number, number, string] => {
     const s = orderStatus(o, vendors, today);
-    const inner = s.kind === "overdue" || s.kind === "waiting" ? -s.days : s.kind === "partial" ? -s.remaining : 0;
+    const inner = s.kind === "overdue" || s.kind === "waiting" || s.kind === "making" ? -s.days : s.kind === "partial" ? -s.remaining : 0;
     return [STATUS_RANK[s.kind], inner, o.orderedOn];
   };
   return [...orders].sort((a, b) => {
@@ -116,34 +120,180 @@ export function revMismatch(order: PurchaseOrder, drawings: { code: string; rev:
 export const pendingCount = (state: Pick<InventoryState, "orders" | "vendors" | "today">) =>
   state.orders.filter((o) => orderStatus(o, state.vendors, state.today).kind !== "done").length;
 
-/**
- * 발주서 위저드(도면·BOM 기반, Phase 5 까지 유지)가 만든 발주 → 새 모델.
- * 발주처는 이름으로, 품목은 사양+규격 → 이름 순으로 맞춘다. 못 맞추면 빈 코드 — 발주서는 나가지만 재고에는 잡히지 않는다.
- */
-export function fromWizardRows(rows: PurchaseOrderRow[], vendors: Vendor[], items: Item[]): PurchaseOrder[] {
-  return rows.map((row) => ({
-    poNo: row.poNo,
-    orderedOn: row.orderedOn,
-    vendorId: vendors.find((v) => v.name === row.supplier)?.id ?? "",
-    projectCode: row.projectCode,
-    drawing: row.drawing,
-    rev: row.rev,
-    requester: row.requester,
-    lines: row.lines.map((l, i) => {
-      const item = items.find((it) => it.spec === l.spec && it.size === l.size) ?? items.find((it) => it.name === l.itemName);
-      return {
-        no: String(i + 1).padStart(2, "0"),
-        itemCode: item?.code ?? "",
-        nameAtOrder: l.itemName,
-        specAtOrder: l.spec,
-        sizeAtOrder: l.size,
-        ordered: l.qty,
-        received: 0,
-        judgement: null,
-        note: "",
-      };
-    }),
+/* ───────────── 발주서 작성 (한 화면 편집기) ───────────── */
+
+export type DocFormat = "material" | "parts";
+
+/** 편집기의 라인 — 모든 칸을 사람이 고칠 수 있다. 수량 0 은 화면에 남되 문서 · 등록에서 빠진다 */
+export interface DraftLine {
+  id: string;
+  itemName: string;
+  spec: string;
+  size: string;
+  unit: string;
+  qty: number;
+  vendorId: string;
+  /** 가공 요청 태그 — 문서 규칙의 태그 마스터에서 고른다 */
+  tags: string[];
+  note: string;
+}
+
+export interface OrderDraft {
+  drawing: string;
+  rev: string;
+  projectCode: string;
+  requester: string;
+  orderedOn: string;
+  format: DocFormat;
+  lines: DraftLine[];
+}
+
+/** 품목 마스터에서 라인에 맞는 품목 — 사양+규격 → 이름 순. 없으면 undefined(발주서는 나가지만 재고에 안 잡힌다) */
+export const findItemFor = (items: Item[], l: { itemName: string; spec: string; size: string }) =>
+  items.find((it) => it.spec === l.spec && it.size === l.size) ?? items.find((it) => it.name === l.itemName);
+
+export const blankLine = (id: string): DraftLine => ({ id, itemName: "", spec: "", size: "", unit: "EA", qty: 0, vendorId: "", tags: [], note: "" });
+
+/** 도면(BOM)에서 초안 — 수량은 소요 − 재고, 발주처는 BOM 의 공급처(거래 중이면) → 품목 기본 거래처 순 */
+export function draftFromBom(
+  drawing: PoDrawing | null,
+  bom: PoNeed[],
+  vendors: Vendor[],
+  items: Item[],
+  base: { requester: string; orderedOn: string; format?: DocFormat },
+): OrderDraft {
+  const lines: DraftLine[] = bom.map((n, i) => {
+    const item = findItemFor(items, n);
+    const supplier = vendors.find((v) => v.name === n.supplier && v.active);
+    return {
+      id: `bom-${i + 1}`,
+      itemName: n.itemName,
+      spec: n.spec,
+      size: n.size,
+      unit: item?.unit ?? "EA",
+      qty: Math.max(0, n.need - n.stock),
+      vendorId: supplier?.id ?? item?.vendorIds[0] ?? "",
+      tags: [],
+      note: "",
+    };
+  });
+  return {
+    drawing: drawing?.code ?? "",
+    rev: drawing?.rev ?? "",
+    projectCode: drawing?.projectCode ?? "",
+    requester: base.requester,
+    orderedOn: base.orderedOn,
+    format: base.format ?? "parts",
+    lines,
+  };
+}
+
+/** 수량 > 0 라인을 발주처별로(첫 등장 순). 발주처가 빈 라인은 빈 문자열 그룹 */
+export function groupDraft(draft: OrderDraft): { vendorId: string; lines: DraftLine[] }[] {
+  const groups: { vendorId: string; lines: DraftLine[] }[] = [];
+  for (const l of draft.lines) {
+    if (l.qty <= 0) continue;
+    const g = groups.find((x) => x.vendorId === l.vendorId);
+    if (g) g.lines.push(l);
+    else groups.push({ vendorId: l.vendorId, lines: [l] });
+  }
+  return groups;
+}
+
+/** 등록 전 검증 — 수량 있는 라인 · 품명 · 발주처 · 관리번호 · 미매핑 BOM */
+export function validateDraft(draft: OrderDraft, drawings: PoDrawing[]): Record<string, string> {
+  const e: Record<string, string> = {};
+  const active = draft.lines.filter((l) => l.qty > 0);
+  if (active.length === 0) e.lines = "수량이 있는 라인이 없어요";
+  else {
+    if (active.some((l) => !l.itemName.trim())) e.lines = "품명이 빈 라인이 있어요";
+    if (active.some((l) => !l.vendorId)) e.vendor = "발주처가 빈 라인이 있어요";
+  }
+  if (!draft.projectCode.trim()) e.projectCode = "관리번호를 적어 주세요";
+  const d = drawings.find((x) => x.code === draft.drawing);
+  if (d && d.unmapped > 0) e.unmapped = `제품설계 > BOM 관리에서 매핑을 마쳐 주세요 — 품목 마스터에 없는 BOM 항목이 ${d.unmapped}건 있어요`;
+  return e;
+}
+
+/** 발주처별 발주 — 번호는 서버가 정하기 전까지의 데모 규칙 `PO-YYMM-NNNN`. 태그는 라인 조치사항 앞에 남는다 */
+export function buildOrders(draft: OrderDraft, items: Item[], seqStart: number): PurchaseOrder[] {
+  const yymm = `${draft.orderedOn.slice(2, 4)}${draft.orderedOn.slice(5, 7)}`;
+  return groupDraft(draft).map((g, i) => ({
+    poNo: `PO-${yymm}-${String(seqStart + i + 1).padStart(4, "0")}`,
+    orderedOn: draft.orderedOn,
+    vendorId: g.vendorId,
+    projectCode: draft.projectCode.trim(),
+    drawing: draft.drawing,
+    rev: draft.rev,
+    requester: draft.requester,
+    lines: g.lines.map((l, k) => ({
+      no: String(k + 1).padStart(2, "0"),
+      itemCode: findItemFor(items, l)?.code ?? "",
+      nameAtOrder: l.itemName.trim(),
+      specAtOrder: l.spec.trim(),
+      sizeAtOrder: l.size.trim(),
+      ordered: l.qty,
+      received: 0,
+      judgement: null,
+      note: [l.tags.join(" · "), l.note.trim()].filter(Boolean).join(" — "),
+    })),
   }));
+}
+
+/** 문서 열 이름 → 라인 값. 서식에 없는 열은 문서에 안 찍힌다 */
+const DOC_FIELD: Record<string, (l: DraftLine, d: OrderDraft) => string> = {
+  품명: (l) => l.itemName,
+  호칭: (l) => l.spec,
+  규격: (l) => l.size,
+  수량: (l) => String(l.qty),
+  단위: (l) => l.unit,
+  비고: (l) => l.note,
+  도면번호: (_, d) => d.drawing,
+  납기: () => "",
+};
+
+export interface OrderDocument {
+  /** 파일 이름 조각 — 전체 / 발주처명 */
+  label: string;
+  vendorId: string | null;
+  rows: string[][];
+}
+
+/**
+ * 출력물 — 전체 1장(항상, 자체 제작 포함 · 발주처 열 있음) + 거래처별 N장(자체 제작은 문서가 없다 · 제작 지시).
+ * 열은 문서 규칙의 서식(자재/부품)을 따르고, 가공 요청 태그가 하나라도 있으면 「가공 요청」 열이 붙는다.
+ */
+export function orderDocuments(draft: OrderDraft, vendors: Vendor[], rules: DocRules): OrderDocument[] {
+  const groups = groupDraft(draft);
+  const cols = rules.formats[draft.format];
+  const tagged = groups.some((g) => g.lines.some((l) => l.tags.length > 0));
+  const name = (id: string) => vendors.find((v) => v.id === id)?.name ?? "—";
+  const head = (title: string, vendor?: string) => [
+    [title],
+    ["관리번호", draft.projectCode, "", "근거 도면", `${draft.drawing} ${draft.rev}`.trim()],
+    ["발주일", draft.orderedOn, "", vendor === undefined ? "요청자" : "발주처", vendor === undefined ? draft.requester : vendor],
+    [],
+  ];
+  const line = (l: DraftLine, i: number, extra: string[] = []) => [
+    String(i + 1),
+    ...cols.map((c) => DOC_FIELD[c]?.(l, draft) ?? ""),
+    ...(tagged ? [l.tags.join(" · ")] : []),
+    ...extra,
+  ];
+  const total = (ls: DraftLine[]) => String(ls.reduce((s, l) => s + l.qty, 0));
+  const header = (extra: string[] = []) => ["No.", ...cols, ...(tagged ? ["가공 요청"] : []), ...extra];
+  const sumRow = (ls: DraftLine[], extra = 0) => ["합계", ...cols.map((c) => (c === "수량" ? total(ls) : "")), ...(tagged ? [""] : []), ...Array<string>(extra).fill("")];
+
+  const all = groups.flatMap((g) => g.lines);
+  const docs: OrderDocument[] = [
+    { label: "전체", vendorId: null, rows: [...head("발주서 · 전체"), header(["발주처"]), ...all.map((l, i) => line(l, i, [name(l.vendorId)])), [], sumRow(all, 1)] },
+  ];
+  for (const g of groups) {
+    const v = vendors.find((x) => x.id === g.vendorId);
+    if (!v || v.kind === "inhouse") continue;
+    docs.push({ label: v.name, vendorId: v.id, rows: [...head(`발주서 · ${v.name}`, v.name), header(), ...g.lines.map((l, i) => line(l, i)), [], sumRow(g.lines)] });
+  }
+  return docs;
 }
 
 /* ───────────── 재고 ───────────── */

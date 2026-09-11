@@ -1,14 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { PurchaseOrderWizard } from "@/components/purchase-order";
 import { Button, Card, DataTable, FIELD_SM, FIELD_SM_ERROR, Segmented } from "@/components/ui";
 import type { Item, MovementKind } from "@/data/inventory";
 import type { Cell, Tone } from "@/data/types";
 import { downloadCsv } from "@/lib/download";
-import { fromWizardRows, safetyOf, shortage, stockBreakdown, type StockBreakdown } from "@/lib/inventory-state";
+import { safetyOf, shortage, stockBreakdown, type StockBreakdown } from "@/lib/inventory-state";
 import { CardTools } from "./card-tools";
 import { useInventory } from "./inventory-provider";
+import { OrderEditor } from "./order-editor";
 import { METHOD_LABEL } from "./settings/standard-tab";
 
 const COLUMNS = ["품목명", "사양/시리즈", "규격", "기초 재고", "입고", "출고", "조정", "현재 재고", "안전 기준"];
@@ -51,7 +51,7 @@ export function StockTab() {
   const [adjust, setAdjust] = useState<AdjustDraft | null>(null);
   const [standard, setStandard] = useState<StandardDraft>({ baseline: "", asOf: "", safety: "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [wizard, setWizard] = useState(0);
+  const [editor, setEditor] = useState(0);
 
   const q = query.trim().toLowerCase();
   const items = state.items.filter((i) => !i.discontinued).filter((i) => !q || [i.name, i.spec, i.size, i.code].some((s) => s.toLowerCase().includes(q)));
@@ -172,7 +172,7 @@ export function StockTab() {
                 조정 추가
               </Button>
               {canPurchase && short !== null && short > 0 && (
-                <Button size="sm" variant="secondary" onClick={() => setWizard((n) => n + 1)}>
+                <Button size="sm" variant="secondary" onClick={() => setEditor((n) => n + 1)}>
                   발주서 만들기
                 </Button>
               )}
@@ -375,19 +375,7 @@ export function StockTab() {
         />
       </Card>
 
-      {wizard > 0 && (
-        <PurchaseOrderWizard
-          key={wizard}
-          open
-          onClose={() => setWizard(0)}
-          orderCount={state.orders.length}
-          today={state.today}
-          onRegistered={(created) => {
-            const mapped = fromWizardRows(created, state.vendors, state.items);
-            void dispatch({ type: "createOrders", orders: mapped }).then((ok) => ok && notify(`발주 ${mapped.length}건을 등록했어요`));
-          }}
-        />
-      )}
+      {editor > 0 && <OrderEditor key={editor} onClose={() => setEditor(0)} />}
     </>
   );
 }

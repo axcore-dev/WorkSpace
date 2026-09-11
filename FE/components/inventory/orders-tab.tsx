@@ -3,14 +3,12 @@
 import { useState } from "react";
 import { IconAlertTriangle, IconDownload } from "@/components/icons";
 import { ConfirmModal } from "@/components/management/workbench";
-import { PurchaseOrderWizard } from "@/components/purchase-order";
 import { Button, Card, DataTable, FIELD_SM, FIELD_SM_ERROR, Segmented } from "@/components/ui";
 import type { Judgement, PoLine, PurchaseOrder } from "@/data/inventory";
-import { PO_BOM, PO_DRAWINGS, type PurchaseOrderRow } from "@/data/purchasing";
+import { PO_BOM, PO_DRAWINGS } from "@/data/purchasing";
 import type { Cell } from "@/data/types";
 import { downloadCsv } from "@/lib/download";
 import {
-  fromWizardRows,
   lineRemaining,
   orderOrdered,
   orderReceived,
@@ -21,6 +19,7 @@ import {
 } from "@/lib/inventory-state";
 import { CardTools } from "./card-tools";
 import { useInventory } from "./inventory-provider";
+import { OrderEditor } from "./order-editor";
 
 /** 상태 셀 — 지금 행동할 값(기한 넘김 · 잔량)만 색이 있다. 「도착」은 말하지 않는다 */
 function statusCell(s: OrderStatus): Cell {
@@ -31,6 +30,8 @@ function statusCell(s: OrderStatus): Cell {
       return { badge: `잔량 ${s.remaining} EA`, tone: "amber" };
     case "waiting":
       return { badge: `등록 전 · ${s.days}일차`, tone: "slate" };
+    case "making":
+      return { badge: `제작 중 · ${s.days}일차`, tone: "slate" };
     case "done":
       return { badge: "입고 완료", tone: "slate" };
   }
@@ -74,8 +75,8 @@ export function OrdersTab() {
   const [draft, setDraft] = useState<Record<string, Draft>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [confirm, setConfirm] = useState<Confirm>(null);
-  /** 위저드는 열 때마다 새로 마운트한다(key). 0 = 닫힘 */
-  const [wizard, setWizard] = useState<{ seq: number; drawing?: string }>({ seq: 0 });
+  /** 발주서 편집기는 열 때마다 새로 마운트한다(key). 0 = 닫힘 */
+  const [editor, setEditor] = useState<{ seq: number; drawing?: string }>({ seq: 0 });
 
   const vendorName = (id: string) => state.vendors.find((v) => v.id === id)?.name ?? "—";
   const q = query.trim().toLowerCase();
@@ -178,11 +179,6 @@ export function OrdersTab() {
       }
     }
     void commit();
-  }
-
-  function registerOrders(created: PurchaseOrderRow[]) {
-    const mapped = fromWizardRows(created, state.vendors, state.items);
-    void dispatch({ type: "createOrders", orders: mapped }).then((ok) => ok && notify(`발주 ${mapped.length}건을 등록했어요`));
   }
 
   // 소요가 확정됐는데 발주가 없는 작업 — 도면(BOM) 데모에서 읽는다(제품설계 연동 전)
@@ -337,7 +333,13 @@ export function OrdersTab() {
       <Card>
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-[15px] font-semibold text-slate-900">발주 현황</h2>
-          <CardTools search={{ value: query, onChange: setQuery, placeholder: "발주번호 · 발주처 · 관리번호로 찾기" }} />
+          <CardTools search={{ value: query, onChange: setQuery, placeholder: "발주번호 · 발주처 · 관리번호로 찾기" }}>
+            {canPurchase && (
+              <Button size="sm" variant="secondary" onClick={() => setEditor((w) => ({ seq: w.seq + 1 }))}>
+                발주서 만들기
+              </Button>
+            )}
+          </CardTools>
         </div>
         <DataTable
           data={{ columns: COLUMNS, rows }}
@@ -355,7 +357,7 @@ export function OrdersTab() {
                 <p className="text-sm text-slate-600">
                   {d.projectCode} · {d.rev} · <span className="font-semibold text-slate-900">{count}품목 {qty} EA</span> · 발주 전
                 </p>
-                <Button size="sm" variant="secondary" onClick={() => setWizard((w) => ({ seq: w.seq + 1, drawing: d.code }))}>
+                <Button size="sm" variant="secondary" onClick={() => setEditor((w) => ({ seq: w.seq + 1, drawing: d.code }))}>
                   발주서 만들기
                 </Button>
               </li>
@@ -364,17 +366,7 @@ export function OrdersTab() {
         )}
       </Card>
 
-      {wizard.seq > 0 && (
-        <PurchaseOrderWizard
-          key={wizard.seq}
-          open
-          onClose={() => setWizard({ seq: 0 })}
-          orderCount={state.orders.length}
-          today={state.today}
-          initialDrawing={wizard.drawing}
-          onRegistered={registerOrders}
-        />
-      )}
+      {editor.seq > 0 && <OrderEditor key={editor.seq} initialDrawing={editor.drawing} onClose={() => setEditor({ seq: 0 })} />}
 
       <ConfirmModal
         open={confirm?.kind === "close"}

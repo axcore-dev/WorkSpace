@@ -133,6 +133,7 @@ export function MultiPicker({
   placeholder = "",
   invalid = false,
   firstTag = "기본",
+  single = false,
 }: {
   id?: string;
   label: string;
@@ -146,6 +147,8 @@ export function MultiPicker({
   invalid?: boolean;
   /** 첫 칩 뒤 표기. null 이면 없음 */
   firstTag?: string | null;
+  /** 하나만 — 고르면 바꿔 끼운다(발주처 고르기). 첫 칩 표기 없음 */
+  single?: boolean;
 }) {
   const autoId = useId();
   const baseId = id ?? autoId;
@@ -167,10 +170,11 @@ export function MultiPicker({
     inputRef.current?.focus();
   }
   function add(optionId: string) {
-    onChange([...value, optionId]);
+    onChange(single ? [optionId] : [...value, optionId]);
     setQuery("");
     setActive(0);
-    focusInput();
+    if (single) setOpen(false);
+    else focusInput();
   }
   function create() {
     onCreate?.(query.trim());
@@ -235,7 +239,7 @@ export function MultiPicker({
           <Chip
             key={o.id}
             label={o.label}
-            tag={i === 0 && firstTag ? firstTag : undefined}
+            tag={i === 0 && firstTag && !single ? firstTag : undefined}
             dragging={reorder.dragging === i}
             dragProps={reorder.dragProps(i)}
             onKeyDown={(e) => {

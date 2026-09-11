@@ -2,8 +2,13 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Item, Movement, PurchaseOrder, Vendor } from "../data/inventory";
 import { DEMO_TODAY, DOC_RULES, ITEMS, MOVEMENTS, ORDERS, SAFETY_STANDARD, STANDARDS, VENDORS } from "../data/inventory-demo.ts";
+import { PO_BOM, PO_DRAWINGS } from "../data/purchasing.ts";
 import {
-  fromWizardRows,
+  buildOrders,
+  draftFromBom,
+  groupDraft,
+  orderDocuments,
+  validateDraft,
   itemUsage,
   orderSort,
   orderStatus,
@@ -134,32 +139,40 @@ test("발주서 위저드가 만든 발주는 목록 앞에 들어간다", () =>
   assert.equal(next.orders.length, ORDERS.length + 1);
 });
 
-test("위저드 발주 → 새 모델: 발주처는 이름, 품목은 사양+규격으로 맞추고 못 맞추면 빈 코드", () => {
-  const [o] = fromWizardRows(
-    [
-      {
-        poNo: "PO-2607-0007",
-        orderedOn: "2026-07-08",
-        supplier: "대성정공",
-        projectCode: "26PNQ-S18 OP10",
-        drawing: "26PNQ-S18-10",
-        rev: "Rev.A",
-        requester: "구매 담당",
-        status: "발주",
-        lines: [
-          { itemName: "GUIDE PIN", spec: "SGPH", size: "20-120", qty: 4 },
-          { itemName: "SPRING-LIFT", spec: "SWF", size: "12-50", qty: 2 },
-          { itemName: "UNKNOWN", spec: "??", size: "??", qty: 1 },
-        ],
-      },
-    ],
-    VENDORS,
-    ITEMS,
-  );
-  assert.equal(o.vendorId, "v-daesung");
-  assert.deepEqual(o.lines.map((l) => l.itemCode), ["ITM-GP-0007", "ITM-SP-0001", ""]);
-  assert.equal(o.lines[1].nameAtOrder, "SPRING-LIFT", "발주 시점 표기는 그대로 남는다");
-  assert.equal(o.lines[0].received, 0);
+test("발주서 편집기 — BOM 초안 · 발주처별 묶음 · 수량 0 제외 · 자체 제작은 문서 없음", () => {
+  const d = PO_DRAWINGS.find((x) => x.code === "26PNQ-S18-10")!;
+  const draft = draftFromBom(d, PO_BOM[d.code], VENDORS, ITEMS, { requester: "구매 담당", orderedOn: DEMO_TODAY });
+  assert.deepEqual(draft.lines.map((l) => [l.qty, l.vendorId]), [[4, "v-daesung"], [5, "v-daesung"], [3, "v-kgs"]]);
+  assert.equal(draft.lines[0].unit, "EA", "품목 마스터에서 단위를 가져온다");
+
+  // 한 라인은 0 으로, 한 라인은 자체 제작으로
+  const edited = { ...draft, lines: [{ ...draft.lines[0], qty: 0 }, draft.lines[1], { ...draft.lines[2], vendorId: "v-inhouse", tags: ["열처리"] }] };
+  const groups = groupDraft(edited);
+  assert.deepEqual(groups.map((g) => [g.vendorId, g.lines.length]), [["v-daesung", 1], ["v-inhouse", 1]]);
+
+  const orders = buildOrders(edited, ITEMS, ORDERS.length);
+  assert.deepEqual(orders.map((o) => o.poNo), ["PO-2607-0007", "PO-2607-0008"]);
+  assert.equal(orders[0].lines[0].itemCode, "ITM-WP-0004", "사양+규격으로 품목을 맞춘다");
+  assert.equal(orders[1].lines[0].note, "열처리", "태그는 조치사항 앞에 남는다");
+  assert.equal(orderStatus(orders[1], VENDORS, DEMO_TODAY).kind, "making", "자체 제작은 제작 중");
+
+  const docs = orderDocuments(edited, VENDORS, DOC_RULES);
+  assert.deepEqual(docs.map((x) => x.label), ["전체", "대성정공"], "전체 1장 + 거래처별. 자체 제작은 문서 없음");
+  // 부품 서식(품명 · 호칭 · 규격 · 수량 · 비고) + 태그가 있어 「가공 요청」 열
+  assert.deepEqual(docs[1].rows[4], ["No.", "품명", "호칭", "규격", "수량", "비고", "가공 요청"]);
+  assert.equal(docs[0].rows.filter((r) => /^\d+$/.test(r[0] ?? "")).length, 2, "수량 0 라인은 빠진다");
+  const material = orderDocuments({ ...edited, format: "material" }, VENDORS, DOC_RULES);
+  assert.deepEqual(material[1].rows[4], ["No.", "품명", "규격", "수량", "비고", "가공 요청"], "자재 서식에는 호칭이 없다");
+});
+
+test("발주서 검증 — 수량 없음 · 발주처 없음 · 미매핑 BOM", () => {
+  const d = PO_DRAWINGS.find((x) => x.code === "26MSX-S03-20")!; // unmapped 2
+  const draft = draftFromBom(d, PO_BOM[d.code], VENDORS, ITEMS, { requester: "", orderedOn: DEMO_TODAY });
+  assert.match(validateDraft(draft, PO_DRAWINGS).unmapped, /미매핑|매핑/);
+  const zero = { ...draft, drawing: "", lines: draft.lines.map((l) => ({ ...l, qty: 0 })) };
+  assert.equal(validateDraft(zero, PO_DRAWINGS).lines, "수량이 있는 라인이 없어요");
+  const noVendor = { ...draft, drawing: "", lines: draft.lines.map((l) => ({ ...l, vendorId: "" })) };
+  assert.equal(validateDraft(noVendor, PO_DRAWINGS).vendor, "발주처가 빈 라인이 있어요");
 });
 
 test("마감하면 잔량이 남아도 완료가 된다", () => {

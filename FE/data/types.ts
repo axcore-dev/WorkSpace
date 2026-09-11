@@ -80,7 +80,6 @@ export interface SubfunctionTab {
   /** 데이터 기반 렌더링 대신 전용 인터랙티브 컴포넌트로 그리는 탭 */
   custom?:
     | "report-automation"
-    | "purchase-order"
     | "drawing-manager"
     | "hr-workbench"
     | "payroll-workbench"
@@ -94,7 +93,8 @@ export interface ModuleDef {
   icon: IconKey;
   /** 대응 외부 시스템 (중복 시 OFF 추천 매핑) */
   externalSystem: string;
-  subfunctions: { id: string; name: string; ai?: boolean }[];
+  /** `group` 이 바뀌는 자리에 기능 관리 · 권한 미리보기가 구분선을 긋는다(재고·물류의 처리 / 설정) */
+  subfunctions: { id: string; name: string; ai?: boolean; group?: string }[];
 }
 
 /** 모듈 상세 페이지 콘텐츠 */
