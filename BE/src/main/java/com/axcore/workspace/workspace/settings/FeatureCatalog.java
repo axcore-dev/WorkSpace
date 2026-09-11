@@ -30,10 +30,12 @@ public final class FeatureCatalog {
                     new Module("production", "생산관리", List.of("monitoring", "workorders", "bottleneck", "reporting")),
                     new Module("equipment", "장비관리", List.of("predict", "maintenance")),
                     new Module("quality", "품질검사", List.of("defects", "control")),
+                    // 화면(FE/data/modules.ts)과 같은 8개 — 처리(purchasing · receiving · movements · stock) / 설정(items · vendors · safety · docrules).
+                    // vendors · docrules 는 2026-09-11 재고·물류 리뉴얼에서 생겼다. 여기 없으면 소유자 외 직급이 그 탭을 못 보고 기능 관리 토글이 잠긴다.
                     new Module(
                             "inventory",
                             "재고·물류",
-                            List.of("items", "stock", "safety", "receiving", "movements", "purchasing")),
+                            List.of("purchasing", "receiving", "movements", "stock", "items", "vendors", "safety", "docrules")),
                     new Module("sales", "영업관리", List.of("orders", "forecast", "quotes")),
                     new Module("support", "고객지원", List.of("tickets", "tracking", "voc")));
 
