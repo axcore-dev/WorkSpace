@@ -18,13 +18,13 @@ import { z } from "zod";
 import { authenticate } from "@/lib/ai/server/auth";
 import { handle, HttpError } from "@/lib/ai/server/http";
 import { retrieve } from "@/lib/ai/server/retrieval";
-import { formatSummary, summarize, type CaseResult } from "@/lib/ai/eval/metrics";
+import { formatSummary, recallAt, refusedCorrectly, summarize, type CaseResult } from "@/lib/ai/eval/metrics";
 
 /** 상위 몇 개까지 보고 셀지 — 대화에서 모델에 넣는 조각 수와 같게 둔다 */
 const K = 8;
 
 const caseSchema = z.object({
-  q: z.string().max(1_000),
+  q: z.string().min(1).max(1_000),
   docs: z.array(z.string().max(200)).max(20).default([]),
 });
 const bodySchema = z.array(caseSchema).min(1).max(200);
@@ -40,14 +40,8 @@ export async function POST(req: Request) {
     if (!parsed.success) {
       throw new HttpError(400, "VALIDATION_FAILED", "질문 목록의 형태가 올바르지 않아요");
     }
-    // 형태만 보이는 예시 줄(q 가 빈 문자열)은 건너뛴다
-    const cases = parsed.data.filter((c) => c.q.trim().length > 0);
-    if (cases.length === 0) {
-      throw new HttpError(400, "VALIDATION_FAILED", "질문이 하나도 없어요");
-    }
-
     const results: CaseResult[] = [];
-    for (const c of cases) {
+    for (const c of parsed.data) {
       // 한 번에 하나씩 — 임베딩 호출이 몰리지 않게 하고, 순서가 그대로 보고서 순서가 된다
       const r = await retrieve(principal, [], c.q);
       results.push({
@@ -66,7 +60,8 @@ export async function POST(req: Request) {
         q: r.q,
         expected: r.expected,
         retrieved: r.retrieved,
-        ok: r.expected.length === 0 ? r.retrieved.length === 0 : r.expected.some((d) => r.retrieved.slice(0, K).includes(d)),
+        // 근거가 있어야 하는 질문은 재현율, 없어야 하는 질문은 거절 — 판정 규칙은 metrics 에만 적는다
+        ok: (recallAt(r, K) ?? (refusedCorrectly(r) ? 1 : 0)) === 1,
       })),
     });
   });

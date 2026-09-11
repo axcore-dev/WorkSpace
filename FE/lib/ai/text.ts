@@ -19,6 +19,19 @@ export function embedInput(docName: string, chunk: { page?: number; content: str
 }
 
 /**
+ * 조각 앞부분을 이어 붙인 표본 — 분류·요약처럼 "무엇에 대한 문서인가" 만 알면 되는 호출에 쓴다.
+ * 문서 전체를 보내면 비용만 들고 판단은 나아지지 않는다.
+ */
+export function sampleText(chunks: { content: string }[], limit: number): string {
+  let out = "";
+  for (const c of chunks) {
+    if (out.length >= limit) break;
+    out += (out ? "\n\n" : "") + c.content.slice(0, limit - out.length);
+  }
+  return out;
+}
+
+/**
  * 재랭킹 응답 파싱 — "3, 1, 7" → [3, 1, 7].
  *
  * 모델이 번호만 뱉으라 해도 "3, 1, 7 번이 관련 있습니다" 처럼 말을 붙이거나, 없는 번호를 만들거나, 같은 번호를 두 번

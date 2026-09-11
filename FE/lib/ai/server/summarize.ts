@@ -8,6 +8,7 @@
  */
 import "server-only";
 import { generateText } from "ai";
+import { sampleText } from "@/lib/ai/text";
 import type { Chunk } from "./chunk";
 import { chatModel, providerOptions } from "./models";
 
@@ -20,11 +21,7 @@ export async function summarizeDoc(name: string, chunks: Chunk[]): Promise<strin
   const model = chatModel();
   if (!model || chunks.length === 0) return null;
 
-  let sample = "";
-  for (const c of chunks) {
-    if (sample.length >= SAMPLE_CHARS) break;
-    sample += (sample ? "\n\n" : "") + c.content.slice(0, SAMPLE_CHARS - sample.length);
-  }
+  const sample = sampleText(chunks, SAMPLE_CHARS);
 
   try {
     const { text } = await generateText({

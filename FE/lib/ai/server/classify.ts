@@ -11,6 +11,7 @@
 import "server-only";
 import { generateText } from "ai";
 import { MODULES } from "@/data/modules";
+import { sampleText } from "@/lib/ai/text";
 import type { Chunk } from "./chunk";
 import { chatModel, providerOptions } from "./models";
 
@@ -22,11 +23,7 @@ export async function classifyModule(name: string, chunks: Chunk[]): Promise<str
   const model = chatModel();
   if (!model || chunks.length === 0) return null;
 
-  let sample = "";
-  for (const c of chunks) {
-    if (sample.length >= SAMPLE_CHARS) break;
-    sample += (sample ? "\n\n" : "") + c.content.slice(0, SAMPLE_CHARS - sample.length);
-  }
+  const sample = sampleText(chunks, SAMPLE_CHARS);
   const menu = MODULES.map((m) => `${m.slug}: ${m.name}`).join(", ");
 
   try {

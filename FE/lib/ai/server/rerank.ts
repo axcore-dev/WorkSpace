@@ -18,8 +18,6 @@ import type { ChunkHit } from "./sources";
 
 /** 조각 하나를 모델에게 보일 때의 길이 — 앞부분이면 관련 여부를 가리기에 충분하다 */
 const PREVIEW = 400;
-/** 이 수보다 후보가 적으면 부르지 않는다. 어차피 다 넣을 것이라 점수가 필요 없다 */
-const MIN_CANDIDATES = 3;
 
 /**
  * @param hits 검색이 합쳐 준 후보(상위부터)
@@ -27,7 +25,8 @@ const MIN_CANDIDATES = 3;
  * @returns 관련도 높은 순서로 정렬해 `keep` 개. 모델이 없거나 실패하면 `hits` 의 앞에서 `keep` 개
  */
 export async function rerank(question: string, hits: ChunkHit[], keep: number): Promise<ChunkHit[]> {
-  if (hits.length <= Math.max(keep, MIN_CANDIDATES)) return hits.slice(0, keep);
+  // 후보가 남길 수보다 많지 않으면 고를 것이 없다
+  if (hits.length <= keep) return hits;
 
   const model = chatModel();
   if (!model) return hits.slice(0, keep);

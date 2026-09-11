@@ -99,15 +99,6 @@ export async function setIndexMeta(
   );
 }
 
-/** 재색인 대상 — 내가 올린 문서 전부. 실패한 것도 다시 해 본다 */
-export async function listDocsForReindex(db: Db, ownerUserId: string): Promise<DocRow[]> {
-  const { rows } = await db.query<DocRow>(
-    `SELECT * FROM ai_source_docs WHERE owner_user_id = $1 ORDER BY created_at`,
-    [ownerUserId],
-  );
-  return rows;
-}
-
 export async function findDoc(db: Db, ownerUserId: string, id: string): Promise<DocRow | null> {
   const { rows } = await db.query<DocRow>(
     `SELECT * FROM ai_source_docs WHERE owner_user_id = $1 AND id = $2`,

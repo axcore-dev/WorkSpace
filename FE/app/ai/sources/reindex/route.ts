@@ -17,14 +17,15 @@ import { authenticate } from "@/lib/ai/server/auth";
 import { withTenant } from "@/lib/ai/server/db";
 import { handle } from "@/lib/ai/server/http";
 import { indexSource } from "@/lib/ai/server/indexer";
-import { listDocsForReindex, updateStatus } from "@/lib/ai/server/sources";
+import { listDocs, updateStatus } from "@/lib/ai/server/sources";
 
 export async function POST(req: Request) {
   return handle(async () => {
     const principal = await authenticate(req);
 
     const docs = await withTenant(principal.schemaName, async (db) => {
-      const rows = await listDocsForReindex(db, principal.userId);
+      // 내 문서 전부 — 실패한 것도 다시 해 본다. 순서는 상관없다
+      const rows = await listDocs(db, principal.userId);
       // 목록에 바로 「색인 중」 으로 보이게 한다 — 눌렀는데 아무 일도 안 일어나 보이지 않게
       for (const d of rows) await updateStatus(db, d.id, "indexing", {});
       return rows;

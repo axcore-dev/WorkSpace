@@ -40,13 +40,6 @@ export interface Summary {
   refusal: number | null;
 }
 
-/** 정답 문서가 상위 k 안에 있으면 1. 근거가 없어야 하는 질문이면 null */
-export function recallAt(r: CaseResult, k: number): number | null {
-  if (r.expected.length === 0) return null;
-  const top = r.retrieved.slice(0, k);
-  return r.expected.some((d) => top.includes(d)) ? 1 : 0;
-}
-
 /** 정답이 처음 나온 등수의 역수. 상위 k 안에 없으면 0. 근거가 없어야 하는 질문이면 null */
 export function reciprocalRank(r: CaseResult, k: number): number | null {
   if (r.expected.length === 0) return null;
@@ -55,6 +48,12 @@ export function reciprocalRank(r: CaseResult, k: number): number | null {
     if (r.expected.includes(top[i])) return 1 / (i + 1);
   }
   return 0;
+}
+
+/** 정답 문서가 상위 k 안에 있으면 1. "안에 있는가" 는 등수가 있는가와 같은 말이라 여기서 파생한다 */
+export function recallAt(r: CaseResult, k: number): number | null {
+  const rr = reciprocalRank(r, k);
+  return rr === null ? null : rr > 0 ? 1 : 0;
 }
 
 /** 근거가 없어야 하는 질문에 아무것도 안 가져왔으면 true. 근거가 있어야 하는 질문이면 null */
