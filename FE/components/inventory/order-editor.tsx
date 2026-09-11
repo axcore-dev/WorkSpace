@@ -377,9 +377,10 @@ export function OrderEditor({ initialDrawing, onClose }: { initialDrawing?: stri
 
       <ConfirmModal
         open={confirmDiscard}
-        title="작성 중인 발주서를 버릴까요?"
-        message="저장하지 않은 라인과 수량이 사라져요."
-        cta="버리기"
+        title="작성을 취소하시겠습니까?"
+        message="저장하지 않은 라인과 수량은 사라집니다."
+        cancel="계속 작성"
+        cta="작성 취소"
         variant="danger"
         icon="warn"
         onConfirm={() => {

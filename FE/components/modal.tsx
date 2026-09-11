@@ -33,6 +33,7 @@ export function Modal({
   footer,
   size = "md",
   headerAccessory,
+  closeButton = true,
 }: {
   open: boolean;
   onClose: () => void;
@@ -42,6 +43,8 @@ export function Modal({
   footer?: React.ReactNode;
   size?: keyof typeof SIZES;
   headerAccessory?: React.ReactNode;
+  /** 헤더 × — 확인 다이얼로그는 끈다. 거절 버튼이 따로 있는데 × 까지 있으면 「아니오」가 둘이다 */
+  closeButton?: boolean;
 }) {
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -113,14 +116,16 @@ export function Modal({
             </div>
             <div className="flex shrink-0 items-center gap-2">
               {headerAccessory}
-              <button
-                type="button"
-                onClick={onClose}
-                aria-label="닫기"
-                className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
-              >
-                <IconX size={18} />
-              </button>
+              {closeButton && (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  aria-label="닫기"
+                  className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+                >
+                  <IconX size={18} />
+                </button>
+              )}
             </div>
           </div>
         )}
