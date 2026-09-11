@@ -349,8 +349,8 @@ export function OrdersTab() {
         </div>
         <DataTable
           data={{ columns: COLUMNS, rows }}
-          // 강조는 상태 셀(기한 넘김 · 잔량)에만 — 입고 열까지 굵으면 행마다 강조가 둘이 된다
-          rowEmphasis={(_, i) => (statuses[i].kind === "done" ? "down" : undefined)}
+          // 강조는 상태 셀(기한 넘김 · 잔량)에만 — 입고 열까지 굵으면 행마다 강조가 둘이 된다. 입고 완료는 지나간 행 — 한 단 더 옅게
+          rowEmphasis={(_, i) => (statuses[i].kind === "done" ? "faint" : undefined)}
           onRowClick={toggleRow}
           expandedRow={expandedIndex >= 0 ? expandedIndex : null}
           renderExpanded={renderPanel}

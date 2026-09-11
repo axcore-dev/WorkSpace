@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Fragment, useId } from "react";
 import type { Cell, StatData, TableData, Tone } from "@/data/types";
-import { EMPHASIS_CLASS, cellEmphasis, type Emphasis } from "@/lib/emphasis";
+import { EMPHASIS_CLASS, cellEmphasis, type Emphasis, type RowEmphasis } from "@/lib/emphasis";
 import { IconAlertCircle, IconArrowDownRight, IconArrowUpRight, IconCheck, IconChevronRight } from "@/components/icons";
 
 /**
@@ -233,11 +233,13 @@ export function Stat({ stat, onCta }: { stat: StatData; onCta?: (tabId: string) 
 }
 
 /** 내림 행에서는 배지도 중립 톤으로 — 완료 행에 초록 배지가 남으면 회색이 무의미해진다 */
-function CellView({ cell, muted }: { cell: Cell; muted: boolean }) {
+function CellView({ cell, row }: { cell: Cell; row?: RowEmphasis }) {
   if (typeof cell === "object") {
+    // 지나간 행(faint)의 배지는 톤 없이 행 색을 그대로 따른다 — 셀보다 진한 회색이 남지 않게
+    if (row === "faint") return <span className={cell.size === "md" ? "text-sm" : "text-xs"}>{cell.badge}</span>;
     // 내림 행에서는 톤도 굵기도 내린다 — 끝난 행에 붉은 글자가 남지 않게
     return (
-      <Badge tone={muted ? "slate" : cell.tone} size={cell.size} strong={!muted && cell.strong}>
+      <Badge tone={row ? "slate" : cell.tone} size={cell.size} strong={!row && cell.strong}>
         {cell.badge}
       </Badge>
     );
@@ -272,8 +274,8 @@ export function DataTable({
   emphasis?: (Emphasis | undefined)[];
   /** 셀 단위 위계 — 값이 정한다(0 · — 는 내림, 미달 수량은 강조). 열 지정을 덮고, 행 내림에는 덮인다 */
   emphasisAt?: (row: Cell[], rowIndex: number, colIndex: number) => Emphasis | undefined;
-  /** 행 단위 내림 — 끝난 행(완료·정상)을 돌려주면 셀 전부 회색, 배지는 중립 톤 */
-  rowEmphasis?: (row: Cell[], rowIndex: number) => "down" | undefined;
+  /** 행 단위 내림 — `down` 끝난 행(완료·정상)은 셀 전부 회색 · 배지 중립 톤, `faint` 지나간 행(입고 완료)은 한 단 더 옅게 */
+  rowEmphasis?: (row: Cell[], rowIndex: number) => RowEmphasis | undefined;
   /**
    * 열 폭 고정(`table-layout: fixed`) — 열이 많은 상세 보기용. 넘치는 글자는 말줄임하고 `title` 로 전문을 보인다.
    * 폭 합이 카드보다 넓으면 카드 안에서 가로 스크롤. 미지정이면 내용대로(`nowrap` + 최소 560px)
@@ -317,7 +319,7 @@ export function DataTable({
         </thead>
         <tbody className="divide-y divide-slate-100">
           {data.rows.map((row, i) => {
-            const down = rowEmphasis?.(row, i) === "down";
+            const level = rowEmphasis?.(row, i);
             const open = expandable && expandedRow === i;
             return (
               <Fragment key={i}>
@@ -338,7 +340,8 @@ export function DataTable({
                   }
                   aria-expanded={expandable ? open : undefined}
                   aria-controls={open ? `${panelId}-${i}` : undefined}
-                  className={`transition-colors hover:bg-slate-50/70 ${clickable ? "cursor-pointer focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-slate-400" : ""}`}
+                  // 펼친 행은 패널과 함께 옅은 띠(slate-50) 위에 놓인다 — 어디까지가 한 덩어리인지 보이게
+                  className={`transition-colors ${open ? "bg-slate-50" : "hover:bg-slate-50/70"} ${clickable ? "cursor-pointer focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-slate-400" : ""}`}
                 >
                   {expandable && (
                     <td className={`px-1 ${dense ? "py-2" : "py-3"}`}>
@@ -352,17 +355,18 @@ export function DataTable({
                     <td
                       key={j}
                       title={fixed && typeof cell !== "object" ? String(cell) : undefined}
-                      className={`${fixed ? "truncate" : "whitespace-nowrap"} px-3 ${dense ? "py-2" : "py-3"} ${expandable ? "" : "first:pl-1"} last:pr-1 ${EMPHASIS_CLASS[cellEmphasis(emphasisAt?.(row, i, j) ?? emphasis?.[j], down)]} ${align(j)}`}
+                      className={`${fixed ? "truncate" : "whitespace-nowrap"} px-3 ${dense ? "py-2" : "py-3"} ${expandable ? "" : "first:pl-1"} last:pr-1 ${EMPHASIS_CLASS[cellEmphasis(emphasisAt?.(row, i, j) ?? emphasis?.[j], level)]} ${align(j)}`}
                     >
-                      <CellView cell={cell} muted={down} />
+                      <CellView cell={cell} row={level} />
                     </td>
                   ))}
                 </tr>
                 {open && (
-                  <tr id={`${panelId}-${i}`}>
-                    {/* 펼친 패널 — 행과 같은 표 안에 있어 가로 스크롤을 함께 탄다. 흰 바탕 + 테두리(카드와 같은 언어, 그림자 없음) */}
-                    <td colSpan={row.length + 1} className="px-1 pb-4 pt-1">
-                      <div className="rounded-lg border border-slate-200 bg-white px-4 py-4">{renderExpanded(i)}</div>
+                  <tr id={`${panelId}-${i}`} className="bg-slate-50">
+                    {/* 펼친 패널 — 행과 같은 표 안에 있어 가로 스크롤을 함께 탄다. 옅은 띠 위에 흰 카드(테두리, 그림자 없음),
+                        첫 데이터 열 아래로 들여 쓴다(38px) — 행에 속한 상세라는 것이 보이게 */}
+                    <td colSpan={row.length + 1} className="pb-4 pl-[38px] pr-2.5 pt-0">
+                      <div className="rounded-lg border border-slate-200 bg-white p-4">{renderExpanded(i)}</div>
                     </td>
                   </tr>
                 )}
