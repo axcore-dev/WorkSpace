@@ -38,8 +38,8 @@ const TAB_ACTIONS: Record<TabAction, { label: string; icon: typeof IconFilter; p
 
 const cellText = (c: Cell) => (typeof c === "object" ? c.badge : String(c));
 
-/** 서브기능 탭 — 순서는 data/pages 가 정한다. 사용자 편집(드래그 정렬)은 두지 않는다 */
-function Tab({
+/** 서브기능 탭 — 순서는 data/pages 가 정한다. 사용자 편집(드래그 정렬)은 두지 않는다. 재고·물류 모듈도 같은 탭을 쓴다 */
+export function Tab({
   tab,
   isActive,
   onSelect,

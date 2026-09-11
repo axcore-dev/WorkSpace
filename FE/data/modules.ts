@@ -64,13 +64,18 @@ export const MODULES: ModuleDef[] = [
     name: "재고·물류",
     icon: "truck",
     externalSystem: "WMS",
+    // 처리 화면(발주·입고 · 이력 · 재고) 4개 + 설정 화면(품목 · 거래처 · 안전 기준 · 문서 규칙) 4개.
+    // `purchasing` · `receiving` 은 한 탭(발주·입고)을 두 권한으로 가른다 — 구매 담당과 품질 관리자가 다른 부서다.
+    // BE `FeatureCatalog` 에 `vendors` · `docrules` 가 더해져야 소유자 아닌 직급에도 열린다.
     subfunctions: [
-      { id: "items", name: "품목 마스터" },
-      { id: "stock", name: "현재 재고" },
-      { id: "safety", name: "안전 재고" },
-      { id: "receiving", name: "입고·수입검사" },
+      { id: "purchasing", name: "발주 관리" },
+      { id: "receiving", name: "입고·검수" },
       { id: "movements", name: "입출고 이력" },
-      { id: "purchasing", name: "구매(발주) 관리" },
+      { id: "stock", name: "현재 재고" },
+      { id: "items", name: "품목 마스터" },
+      { id: "vendors", name: "거래처" },
+      { id: "safety", name: "안전 재고 기준" },
+      { id: "docrules", name: "문서 규칙" },
     ],
   },
   {

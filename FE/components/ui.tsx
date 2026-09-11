@@ -239,6 +239,7 @@ export function DataTable({
   onRowClick,
   colAlign,
   emphasis,
+  emphasisAt,
   rowEmphasis,
 }: {
   data: TableData;
@@ -249,6 +250,8 @@ export function DataTable({
   colAlign?: (keyof typeof CELL_ALIGN)[];
   /** 열별 위계 — 미지정 열은 기본. 첫 열 자동 강조는 없다: 위치가 아니라 의미가 정한다 (DESIGN.md 「위계」) */
   emphasis?: (Emphasis | undefined)[];
+  /** 셀 단위 위계 — 값이 정한다(0 · — 는 내림, 미달 수량은 강조). 열 지정을 덮고, 행 내림에는 덮인다 */
+  emphasisAt?: (row: Cell[], rowIndex: number, colIndex: number) => Emphasis | undefined;
   /** 행 단위 내림 — 끝난 행(완료·정상)을 돌려주면 셀 전부 회색, 배지는 중립 톤 */
   rowEmphasis?: (row: Cell[], rowIndex: number) => "down" | undefined;
 }) {
@@ -282,7 +285,7 @@ export function DataTable({
                 {row.map((cell, j) => (
                   <td
                     key={j}
-                    className={`whitespace-nowrap px-3 ${dense ? "py-2" : "py-3"} first:pl-1 last:pr-1 ${EMPHASIS_CLASS[cellEmphasis(emphasis?.[j], down)]} ${align(j)}`}
+                    className={`whitespace-nowrap px-3 ${dense ? "py-2" : "py-3"} first:pl-1 last:pr-1 ${EMPHASIS_CLASS[cellEmphasis(emphasisAt?.(row, i, j) ?? emphasis?.[j], down)]} ${align(j)}`}
                   >
                     <CellView cell={cell} muted={down} />
                   </td>
