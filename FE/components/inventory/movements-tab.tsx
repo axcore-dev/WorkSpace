@@ -6,6 +6,7 @@ import type { Movement, MovementKind } from "@/data/inventory";
 import type { Cell, Tone } from "@/data/types";
 import { downloadCsv } from "@/lib/download";
 import { runningStock } from "@/lib/inventory-state";
+import { matchesQuery } from "@/lib/search";
 import { CardTools } from "./card-tools";
 import { useInventory } from "./inventory-provider";
 
@@ -35,7 +36,7 @@ export function MovementsTab() {
     .filter((m) => {
       if (!q) return true;
       const it = itemOf(m.itemCode);
-      return [it?.name ?? m.itemCode, it?.spec ?? "", it?.size ?? "", m.ref, m.actor, m.poNo ?? ""].some((s) => s.toLowerCase().includes(q));
+      return matchesQuery(query, [it?.name ?? m.itemCode, it?.spec, it?.size, m.ref, m.actor, m.poNo]);
     });
 
   const kindCell = (m: Movement): Cell => ({ badge: KIND_LABEL[m.kind], tone: KIND_TONE[m.kind] });
@@ -60,10 +61,11 @@ export function MovementsTab() {
     <Card>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-[15px] font-semibold text-slate-900">입출고 이력</h2>
-        <CardTools search={{ value: query, onChange: setQuery, placeholder: "품목 · 관리번호 · 담당자로 찾기" }} density onExport={exportCsv} />
+        <CardTools search={{ value: query, onChange: setQuery, placeholder: "품목 · 관리번호 · 담당자 · 발주번호로 찾기" }} density onExport={exportCsv} />
       </div>
       <DataTable
         data={{ columns, rows: cells }}
+        emptyText={query.trim() ? "검색 결과가 없어요" : "입출고 이력이 없어요"}
         dense={density === "detail"}
         colWidths={density === "detail" ? DETAIL_WIDTHS : undefined}
         colAlign={density === "detail" ? ["left", "left", "left", "left", "left", "right", "right"] : ["left", "left", "left", "right"]}

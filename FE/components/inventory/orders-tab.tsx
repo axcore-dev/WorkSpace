@@ -8,6 +8,7 @@ import type { Judgement, PoLine, PurchaseOrder } from "@/data/inventory";
 import { PO_BOM, PO_DRAWINGS } from "@/data/purchasing";
 import type { Cell } from "@/data/types";
 import { downloadCsv } from "@/lib/download";
+import { matchesQuery } from "@/lib/search";
 import {
   lineRemaining,
   orderOrdered,
@@ -89,9 +90,9 @@ export function OrdersTab() {
   const [editor, setEditor] = useState<{ seq: number; drawing?: string }>({ seq: 0 });
 
   const vendorName = (id: string) => state.vendors.find((v) => v.id === id)?.name ?? "—";
-  const q = query.trim().toLowerCase();
-  const orders = orderSort(state.orders, state.vendors, state.today).filter(
-    (o) => !q || [o.poNo, vendorName(o.vendorId), o.projectCode].some((s) => s.toLowerCase().includes(q)),
+  // 발주번호 · 발주처 · 관리번호 + 라인의 품명 · 호칭 · 규격 — 실무자는 품명으로 찾는다
+  const orders = orderSort(state.orders, state.vendors, state.today).filter((o) =>
+    matchesQuery(query, [o.poNo, vendorName(o.vendorId), o.projectCode, ...o.lines.flatMap((l) => [l.nameAtOrder, l.specAtOrder, l.sizeAtOrder])]),
   );
   const statuses = orders.map((o) => orderStatus(o, state.vendors, state.today));
   const expandedIndex = orders.findIndex((o) => o.poNo === expanded);
@@ -229,8 +230,10 @@ export function OrdersTab() {
   }
 
   // 소요가 확정됐는데 발주가 없는 작업 — 도면(BOM) 데모에서 읽는다(제품설계 연동 전)
+  // 검색 중이면 이 목록도 같은 검색어로 걸러진다 — 표만 줄고 아래 줄이 그대로면 「없음」 이 아닌 것처럼 읽힌다
   const pendingWorks = canPurchase
     ? PO_DRAWINGS.filter((d) => !state.orders.some((o) => o.projectCode === d.projectCode))
+        .filter((d) => matchesQuery(query, [d.projectCode, d.code, d.name, d.rev]))
         .map((d) => {
           const lines = (PO_BOM[d.code] ?? []).filter((n) => n.need - n.stock > 0);
           return { d, count: lines.length, qty: lines.reduce((s, n) => s + (n.need - n.stock), 0) };
@@ -420,7 +423,7 @@ export function OrdersTab() {
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-[15px] font-semibold text-slate-900">발주 현황</h2>
           <CardTools
-            search={{ value: query, onChange: setQuery, placeholder: "발주번호 · 발주처 · 관리번호로 찾기" }}
+            search={{ value: query, onChange: setQuery, placeholder: "품명 · 발주처 · 관리번호 · 발주번호로 찾기" }}
             density
             onExport={() => {
               downloadCsv("재고물류_발주현황.csv", [COLUMNS_ALL, ...fullRows]);
@@ -436,6 +439,7 @@ export function OrdersTab() {
         </div>
         <DataTable
           data={{ columns, rows }}
+          emptyText={query.trim() ? "검색 결과가 없어요" : "발주가 없어요"}
           // 강조는 상태 셀(기한 넘김 · 잔량)에만 — 입고 열까지 굵으면 행마다 강조가 둘이 된다. 입고 완료는 지나간 행 — 한 단 더 옅게
           rowEmphasis={(_, i) => (statuses[i].kind === "done" ? "faint" : undefined)}
           onRowClick={toggleRow}

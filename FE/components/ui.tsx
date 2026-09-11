@@ -259,6 +259,7 @@ export function DataTable({
   rowEmphasis,
   expandedRow,
   renderExpanded,
+  emptyText,
   colWidths,
 }: {
   data: TableData;
@@ -268,6 +269,8 @@ export function DataTable({
   /** 행 펼침 — `renderExpanded` 를 주면 첫 열에 ▸ 가 생기고, `expandedRow` 행 아래에 패널이 열린다(모달 아님). 토글은 `onRowClick` 이 한다 */
   expandedRow?: number | null;
   renderExpanded?: (rowIndex: number) => React.ReactNode;
+  /** 행이 0개일 때 표 안에 보이는 한 줄 — 「검색 결과가 없어요」. 없으면 머리글만 남는다 */
+  emptyText?: string;
   /** 컬럼별 정렬 (예: 재무제표 숫자 열 가운데 정렬) — 미지정 컬럼은 왼쪽 */
   colAlign?: (keyof typeof CELL_ALIGN)[];
   /** 열별 위계 — 미지정 열은 기본. 첫 열 자동 강조는 없다: 위치가 아니라 의미가 정한다 (DESIGN.md 「위계」) */
@@ -318,6 +321,13 @@ export function DataTable({
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
+          {data.rows.length === 0 && emptyText && (
+            <tr>
+              <td colSpan={data.columns.length + (expandable ? 1 : 0)} className="py-8 text-center text-sm text-slate-500">
+                {emptyText}
+              </td>
+            </tr>
+          )}
           {data.rows.map((row, i) => {
             const level = rowEmphasis?.(row, i);
             const open = expandable && expandedRow === i;
