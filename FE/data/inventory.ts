@@ -10,6 +10,8 @@
 export type InventorySub = "purchasing" | "receiving" | "movements" | "stock" | "items" | "vendors" | "safety" | "docrules";
 
 export type VendorKind = "parts" | "material" | "outsourcing" | "inhouse";
+/** 화면 표기. 탭 · 팝업이 함께 쓰므로 컴포넌트가 아니라 여기 둔다(컴포넌트끼리 서로 import 하면 순환이 된다) */
+export const VENDOR_KIND_LABEL: Record<VendorKind, string> = { parts: "자재·부품", material: "소재", outsourcing: "외주 가공", inhouse: "자체 제작" };
 
 export interface Vendor {
   id: string;

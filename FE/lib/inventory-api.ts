@@ -1,4 +1,4 @@
-import { apiGet, apiPostAuthed, apiPut } from "@/lib/api";
+import { apiDelete, apiGet, apiPostAuthed, apiPut } from "@/lib/api";
 import type { DocRules, Item, Movement, PurchaseOrder, SafetyStandard, ItemStandard, Vendor } from "@/data/inventory";
 import type { InventoryAction, InventoryData } from "@/lib/inventory-state";
 
@@ -51,6 +51,12 @@ export async function send(action: InventoryAction): Promise<void> {
       return;
     case "discontinueItem":
       await apiPut(`${BASE}/items/${seg(action.itemCode)}/discontinued`, { discontinued: action.discontinued });
+      return;
+    case "deleteItem":
+      await apiDelete(`${BASE}/items/${seg(action.itemCode)}`);
+      return;
+    case "importItems":
+      await apiPostAuthed(`${BASE}/items/import`, { items: action.items });
       return;
     case "upsertVendor":
       await apiPut(`${BASE}/vendors/${seg(action.vendor.id)}`, action.vendor);

@@ -2,7 +2,22 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Item, Movement, PurchaseOrder, Vendor } from "../data/inventory";
 import { DEMO_TODAY, DOC_RULES, ITEMS, MOVEMENTS, ORDERS, SAFETY_STANDARD, STANDARDS, VENDORS } from "../data/inventory-demo.ts";
-import { fromWizardRows, orderSort, orderStatus, reduce, safetyOf, shortage, stockBreakdown, stockOf, type InventoryState } from "./inventory-state.ts";
+import {
+  fromWizardRows,
+  itemUsage,
+  orderSort,
+  orderStatus,
+  parseItemRows,
+  reduce,
+  safetyOf,
+  shortage,
+  stockBreakdown,
+  stockOf,
+  validateDocRules,
+  validateItem,
+  validateVendor,
+  type InventoryState,
+} from "./inventory-state.ts";
 
 const state: InventoryState = {
   orders: ORDERS,
@@ -173,4 +188,92 @@ test("품목 upsert 는 코드 기준이다", () => {
   const next = reduce(state, { type: "upsertItem", item }, "2026-07-08T10:00", "테스터");
   assert.equal(next.items.length, ITEMS.length);
   assert.equal(next.items.find((i) => i.code === item.code)!.name, "GAS SPRING (신)");
+});
+
+/* ───────────── 설정 검증 ───────────── */
+
+const gs1500 = ITEMS.find((i) => i.code === "ITM-GS-0021")!;
+
+test("품목: 코드 중복 · 단위 변경(재고·이력 있음) · 기본 거래처 중지를 막는다", () => {
+  assert.equal(validateItem({ ...gs1500 }, state, true).code, "이미 있는 코드예요");
+  assert.match(validateItem({ ...gs1500, unit: "kg" }, state, false).unit, /새 품목으로 등록/);
+  // 한일스프링(거래 중지)을 앞으로
+  assert.match(validateItem({ ...gs1500, vendorIds: ["v-hanil", "v-kgs"] }, state, false).vendorIds, /거래 중지/);
+  assert.deepEqual(validateItem({ ...gs1500, name: "GAS SPRING (신)" }, state, false), {}, "표기 변경은 통과");
+  // 이력이 없는 품목은 단위를 바꿀 수 있다
+  const fresh = ITEMS.find((i) => i.code === "ITM-ER-0009")!;
+  assert.equal(validateItem({ ...fresh, unit: "SET" }, { ...state, movements: [], standards: [] }, false).unit, undefined);
+});
+
+test("품목 사용 여부 — 진행 중 발주 · 재고 · 이력", () => {
+  const u = itemUsage("ITM-LP-0011", state); // LIFT PIN: PO-0021 · PO-0023 에 라인, 재고 0, 이력 0
+  assert.deepEqual(u, { openOrders: 2, stock: 0, movements: 0 });
+});
+
+test("거래처: 이름 중복(공백·대소문자 무시) · 자체 제작 하나 · 리드타임 필수 · 이니셜 겹침은 경고만", () => {
+  const base = { id: "v-new", name: "power tec", kind: "parts" as const, initial: "PT", leadTimeDays: 3, owner: "", active: true };
+  const r = validateVendor(base, state, true);
+  assert.equal(r.errors.name, "이미 있는 거래처예요");
+  assert.match(r.warnings.initial, /이니셜이 겹쳐요/);
+  assert.match(validateVendor({ ...base, name: "새공장", kind: "inhouse" }, state, true).errors.kind, /하나만/);
+  assert.match(validateVendor({ ...base, name: "새공장", leadTimeDays: null }, state, true).errors.leadTimeDays, /리드타임/);
+  assert.deepEqual(validateVendor({ ...base, name: "새공장", initial: "SG" }, state, true).errors, {});
+});
+
+test("거래 중지하면 그 거래처를 기본으로 쓰던 품목은 다음 거래처가 기본이 된다", () => {
+  const kgs = VENDORS.find((v) => v.id === "v-kgs")!;
+  const next = reduce(state, { type: "upsertVendor", vendor: { ...kgs, active: false } }, "2026-07-08T10:00", "구매 담당");
+  const item = next.items.find((i) => i.code === "ITM-GS-0021")!; // [v-kgs, v-hanil]
+  assert.deepEqual(item.vendorIds, ["v-hanil", "v-kgs"]);
+  const only = next.items.find((i) => i.code === "ITM-GS-0014")!; // [v-kgs] 하나뿐 → 그대로
+  assert.deepEqual(only.vendorIds, ["v-kgs"]);
+});
+
+test("자동 → 수동으로 바꾸면 자동값이 담당자 값으로 굳는다", () => {
+  const auto: InventoryState = { ...state, standard: { method: "leadTimeAvg", avgWindowDays: 30 } };
+  const next = reduce(auto, { type: "setStandard", standard: { method: "manual", avgWindowDays: 30 } }, "2026-07-08T10:00", "구매 담당");
+  // GAS SPRING MH 1500: 리드타임 10 × (2/30) → 1
+  assert.equal(next.standards.find((s) => s.itemCode === "ITM-GS-0021")!.safety, 1);
+  // 리드타임 없는 거래처(신성금속)의 품목은 그대로(4000)
+  assert.equal(next.standards.find((s) => s.itemCode === "MAT-AL-6061")!.safety, 4000);
+});
+
+test("문서 규칙: 순번 조각 · 품명/수량 열은 필수", () => {
+  assert.match(validateDocRules({ ...DOC_RULES, codeSegments: ["year", "model"] }).codeSegments, /순번/);
+  assert.match(validateDocRules({ ...DOC_RULES, formats: { ...DOC_RULES.formats, parts: ["규격"] } }).parts, /품명 · 수량/);
+  assert.deepEqual(validateDocRules(DOC_RULES), {});
+});
+
+test("엑셀: 코드 기준으로 갱신 · 신규 · 오류를 나눈다. 미등록 거래처는 만들지 않는다", () => {
+  const rows = [
+    ["품목 코드", "품목명", "사양", "규격", "단위", "분류", "거래처", "보관 위치", "상태"],
+    ["ITM-GS-0021", "GAS SPRING", "MH", "1500", "", "", "한국가스스프링 · POWERTEC", "공구실 A-9", ""],
+    ["ITM-NEW-0001", "새 부품", "X", "10", "EA", "금형 부품", "대성정공", "", ""],
+    ["ITM-NEW-0002", "거래처 오타", "X", "10", "EA", "", "대성정곡", "", ""],
+    ["ITM-GS-0021", "중복", "", "", "", "", "", "", ""],
+    ["ITM-WP-0003", "WEAR PLATE", "", "", "kg", "", "", "", ""],
+    ["", "코드 없음", "", "", "EA", "", "대성정공", "", ""],
+    ["ITM-NEW-0003", "거래처 없음", "", "", "EA", "", "", "", ""],
+  ];
+  const r = parseItemRows(rows, state);
+  assert.deepEqual(r.map((x) => x.status), ["update", "create", "error", "error", "error", "error", "error"]);
+  assert.deepEqual(r[0].item!.vendorIds, ["v-kgs", "v-powertec"]);
+  assert.equal(r[0].item!.unit, "EA", "빈 칸은 기존 값을 둔다");
+  assert.equal(r[0].item!.location, "공구실 A-9");
+  assert.match(r[2].reason!, /미등록 거래처: 대성정곡/);
+  assert.match(r[3].reason!, /두 번/);
+  assert.match(r[4].reason!, /단위를 바꿀 수 없어요/);
+  assert.match(r[5].reason!, /비어 있어요/);
+  assert.match(r[6].reason!, /거래처가 비어/);
+  assert.equal(parseItemRows([["코드", "이름"]], state)[0].reason?.includes("머리글"), true);
+});
+
+test("품목 삭제 · 엑셀 반영(importItems)", () => {
+  const del = reduce(state, { type: "deleteItem", itemCode: "ITM-ER-0009" }, "2026-07-08T10:00", "구매 담당");
+  assert.equal(del.items.some((i) => i.code === "ITM-ER-0009"), false);
+  assert.equal(del.standards.some((s) => s.itemCode === "ITM-ER-0009"), false);
+  const imp = reduce(state, { type: "importItems", items: [{ ...gs1500, location: "A-9" }, { ...gs1500, code: "ITM-NEW-0001", name: "새 부품" }] }, "2026-07-08T10:00", "구매 담당");
+  assert.equal(imp.items.length, ITEMS.length + 1);
+  assert.equal(imp.items[0].code, "ITM-NEW-0001", "신규는 앞에");
+  assert.equal(imp.items.find((i) => i.code === "ITM-GS-0021")!.location, "A-9");
 });

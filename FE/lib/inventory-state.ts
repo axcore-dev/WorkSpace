@@ -49,6 +49,10 @@ export type InventoryAction =
   | { type: "createOrders"; orders: PurchaseOrder[] }
   | { type: "upsertItem"; item: Item }
   | { type: "discontinueItem"; itemCode: string; discontinued: boolean }
+  /** 발주 · 재고 · 이력이 하나도 없을 때만 (화면이 버튼을 안 그린다) */
+  | { type: "deleteItem"; itemCode: string }
+  /** 엑셀 업로드 — 갱신 · 신규를 한 번에. 오류 행은 화면이 이미 뺐다 */
+  | { type: "importItems"; items: Item[] }
   | { type: "upsertVendor"; vendor: Vendor }
   | { type: "createVendorInline"; name: string }
   | { type: "setStandard"; standard: SafetyStandard }
@@ -240,6 +244,159 @@ export function previewCode(rules: DocRules): string {
   return s;
 }
 
+/* ───────────── 설정 검증 (팝업 · 엑셀 · 규칙) ───────────── */
+
+/** 이름 비교용 — 공백 · 대소문자를 무시한다 */
+export const normalizeName = (s: string) => s.toLowerCase().replace(/\s+/g, "");
+
+export interface ItemUsage {
+  /** 진행 중(완료 아닌) 발주 중 이 품목 라인이 있는 건수 */
+  openOrders: number;
+  stock: number;
+  movements: number;
+}
+
+export function itemUsage(itemCode: string, state: Pick<InventoryState, "orders" | "movements" | "standards" | "vendors" | "today">): ItemUsage {
+  return {
+    openOrders: state.orders.filter((o) => orderStatus(o, state.vendors, state.today).kind !== "done" && o.lines.some((l) => l.itemCode === itemCode)).length,
+    stock: stockOf(itemCode, state.movements, state.standards),
+    movements: state.movements.filter((m) => m.itemCode === itemCode).length,
+  };
+}
+
+/** 발주 · 재고 · 이력 중 하나라도 있으면 삭제할 수 없고 코드 · 단위를 바꿀 수 없다 */
+export const itemInUse = (u: ItemUsage) => u.openOrders > 0 || u.stock !== 0 || u.movements > 0;
+
+/** 품목 저장 검증 — 필드별 에러 문구(다음 행동이 제목). 비면 통과 */
+export function validateItem(draft: Item, state: InventoryState, isNew: boolean): Record<string, string> {
+  const e: Record<string, string> = {};
+  const code = draft.code.trim();
+  if (!code) e.code = "품목 코드를 적어 주세요";
+  else if (isNew && state.items.some((i) => i.code === code)) e.code = "이미 있는 코드예요";
+  if (!draft.name.trim()) e.name = "품목명을 적어 주세요";
+  if (!draft.unit.trim()) e.unit = "단위를 골라 주세요";
+  else if (!isNew) {
+    const before = state.items.find((i) => i.code === draft.code);
+    if (before && before.unit !== draft.unit) {
+      const u = itemUsage(draft.code, state);
+      if (u.stock !== 0 || u.movements > 0) e.unit = "단위를 바꾸려면 새 품목으로 등록하고 이 품목은 단종해 주세요";
+    }
+  }
+  if (draft.vendorIds.length === 0) e.vendorIds = "거래처를 한 곳 이상 골라 주세요";
+  else {
+    const first = state.vendors.find((v) => v.id === draft.vendorIds[0]);
+    if (draft.vendorIds.some((id) => !state.vendors.some((v) => v.id === id))) e.vendorIds = "거래처를 만들지 못했어요 — 다시 골라 주세요";
+    else if (first && !first.active) e.vendorIds = "기본 거래처가 거래 중지 상태예요 — 다른 거래처를 앞으로 옮겨 주세요";
+  }
+  return e;
+}
+
+/** 이 거래처를 기본(첫 칩)으로 쓰는 품목 — 거래 중지 confirm 의 N */
+export const defaultVendorItems = (vendorId: string, items: Item[]) => items.filter((i) => !i.discontinued && i.vendorIds[0] === vendorId);
+
+/** 거래처 저장 검증. `warnings` 는 저장은 되지만 알려 주는 것(이니셜 겹침) */
+export function validateVendor(draft: Vendor, state: Pick<InventoryState, "vendors">, isNew: boolean): { errors: Record<string, string>; warnings: Record<string, string> } {
+  const errors: Record<string, string> = {};
+  const warnings: Record<string, string> = {};
+  const others = state.vendors.filter((v) => (isNew ? true : v.id !== draft.id));
+  const name = draft.name.trim();
+  if (!name) errors.name = "거래처명을 적어 주세요";
+  else if (others.some((v) => normalizeName(v.name) === normalizeName(name))) errors.name = "이미 있는 거래처예요";
+  if (draft.kind === "inhouse") {
+    if (others.some((v) => v.kind === "inhouse")) errors.kind = "자체 제작 거래처는 하나만 둘 수 있어요";
+    if (!draft.active) errors.active = "자체 제작은 거래 중지할 수 없어요";
+  } else if (draft.leadTimeDays === null || !Number.isInteger(draft.leadTimeDays) || draft.leadTimeDays < 0) {
+    errors.leadTimeDays = "리드타임을 0 이상의 정수로 적어 주세요";
+  }
+  const initial = draft.initial.trim();
+  if (initial && others.some((v) => v.initial.trim().toUpperCase() === initial.toUpperCase())) warnings.initial = "이니셜이 겹쳐요 — 관리번호가 겹칠 수 있어요";
+  return { errors, warnings };
+}
+
+/** 문서 규칙 검증 — 순번 조각은 필수, 서식은 품명 · 수량 필수 */
+export function validateDocRules(rules: DocRules): Record<string, string> {
+  const e: Record<string, string> = {};
+  if (rules.codeSegments.length === 0) e.codeSegments = "조각을 하나 이상 두어 주세요";
+  else if (!rules.codeSegments.includes("seq")) e.codeSegments = "순번 조각은 꼭 있어야 해요";
+  for (const key of ["material", "parts"] as const) {
+    const cols = rules.formats[key];
+    if (!cols.includes("품명") || !cols.includes("수량")) e[key] = "품명 · 수량 열은 꼭 있어야 해요";
+  }
+  return e;
+}
+
+/* ───────────── 엑셀 업로드 (품목) ───────────── */
+
+export const ITEM_SHEET_COLUMNS = ["품목 코드", "품목명", "사양", "규격", "단위", "분류", "거래처", "보관 위치", "상태"];
+
+export type ImportStatus = "update" | "create" | "error";
+export interface ImportRow {
+  /** 파일의 행 번호(머리글 1) */
+  row: number;
+  status: ImportStatus;
+  item?: Item;
+  reason?: string;
+}
+
+/**
+ * 엑셀 행 → 갱신 / 신규 / 오류. 첫 행은 머리글(열 이름으로 맞춘다, 순서 무관).
+ * 코드 기준 매칭. 갱신에서 빈 칸은 기존 값을 둔다. 거래처는 이름으로 맞추고(공백 · 대소문자 무시, `·` `,` `/` `;` 로 여러 곳)
+ * 없으면 오류 — 자동으로 만들지 않는다(엑셀 오타로 거래처가 늘어나는 걸 막는다). 단위는 재고 · 이력이 있으면 바꿀 수 없다.
+ */
+export function parseItemRows(rows: string[][], state: InventoryState): ImportRow[] {
+  const [header = [], ...body] = rows;
+  const col = (name: string) => header.findIndex((h) => normalizeName(h) === normalizeName(name));
+  const at = (r: string[], name: string) => {
+    const k = col(name);
+    return k >= 0 ? (r[k] ?? "").trim() : "";
+  };
+  if (col("품목 코드") < 0 || col("품목명") < 0) {
+    return [{ row: 1, status: "error", reason: "머리글에 「품목 코드」 · 「품목명」 열이 있어야 해요" }];
+  }
+  const seen = new Set<string>();
+  const out: ImportRow[] = [];
+  body.forEach((r, i) => {
+    const row = i + 2;
+    if (r.every((c) => !c || !String(c).trim())) return;
+    const code = at(r, "품목 코드");
+    const name = at(r, "품목명");
+    if (!code || !name) return void out.push({ row, status: "error", reason: "품목 코드 · 품목명이 비어 있어요" });
+    if (seen.has(code)) return void out.push({ row, status: "error", reason: "파일 안에 같은 코드가 두 번 있어요" });
+    seen.add(code);
+
+    const before = state.items.find((it) => it.code === code);
+    const vendorNames = at(r, "거래처").split(/[·,/;]/).map((s) => s.trim()).filter(Boolean);
+    const vendorIds: string[] = [];
+    for (const vn of vendorNames) {
+      const v = state.vendors.find((x) => normalizeName(x.name) === normalizeName(vn));
+      if (!v) return void out.push({ row, status: "error", reason: `미등록 거래처: ${vn}` });
+      vendorIds.push(v.id);
+    }
+    if (!before && vendorIds.length === 0) return void out.push({ row, status: "error", reason: "거래처가 비어 있어요" });
+
+    const unit = at(r, "단위") || before?.unit || "";
+    if (!unit) return void out.push({ row, status: "error", reason: "단위가 비어 있어요" });
+    if (before && before.unit !== unit) {
+      const u = itemUsage(code, state);
+      if (u.stock !== 0 || u.movements > 0) return void out.push({ row, status: "error", reason: "단위를 바꿀 수 없어요 — 재고 · 이력이 있어요" });
+    }
+    const statusText = at(r, "상태");
+    const item: Item = {
+      code,
+      name,
+      spec: at(r, "사양") || before?.spec || "",
+      size: at(r, "규격") || before?.size || "",
+      unit,
+      category: at(r, "분류") || before?.category || "",
+      vendorIds: vendorIds.length > 0 ? vendorIds : before?.vendorIds ?? [],
+      location: at(r, "보관 위치") || before?.location || "",
+      discontinued: statusText ? statusText === "단종" : before?.discontinued ?? false,
+    };
+    out.push({ row, status: before ? "update" : "create", item });
+  });
+  return out;
+}
+
 /* ───────────── 리듀서 (dev 폴백 전용) ───────────── */
 
 const nextId = (prefix: string, existing: { id: string }[]) => {
@@ -313,9 +470,27 @@ export function reduce(state: InventoryState, action: InventoryAction, at: strin
     }
     case "discontinueItem":
       return { ...state, items: state.items.map((i) => (i.code === action.itemCode ? { ...i, discontinued: action.discontinued } : i)) };
+    case "deleteItem":
+      return {
+        ...state,
+        items: state.items.filter((i) => i.code !== action.itemCode),
+        standards: state.standards.filter((s) => s.itemCode !== action.itemCode),
+      };
+    case "importItems": {
+      const byCode = new Map(action.items.map((i) => [i.code, i]));
+      const updated = state.items.map((i) => byCode.get(i.code) ?? i);
+      const created = action.items.filter((i) => !state.items.some((x) => x.code === i.code));
+      return { ...state, items: [...created, ...updated] };
+    }
     case "upsertVendor": {
-      const has = state.vendors.some((v) => v.id === action.vendor.id);
-      return { ...state, vendors: has ? state.vendors.map((v) => (v.id === action.vendor.id ? action.vendor : v)) : [...state.vendors, action.vendor] };
+      const prev = state.vendors.find((v) => v.id === action.vendor.id);
+      const vendors = prev ? state.vendors.map((v) => (v.id === action.vendor.id ? action.vendor : v)) : [...state.vendors, action.vendor];
+      // 거래 중지 — 이 거래처를 기본으로 쓰던 품목은 다음 거래처가 기본이 된다(거래처가 하나뿐이면 그대로 남는다)
+      const deactivated = prev?.active && !action.vendor.active;
+      const items = deactivated
+        ? state.items.map((i) => (i.vendorIds[0] === action.vendor.id && i.vendorIds.length > 1 ? { ...i, vendorIds: [...i.vendorIds.slice(1), action.vendor.id] } : i))
+        : state.items;
+      return { ...state, vendors, items };
     }
     case "createVendorInline":
       // 「만들기」로 생긴 거래처 — 리드타임이 비어 거래처 탭에서 채우게 한다
@@ -323,8 +498,21 @@ export function reduce(state: InventoryState, action: InventoryAction, at: strin
         ...state,
         vendors: [...state.vendors, { id: nextId("v", state.vendors), name: action.name.trim(), kind: "parts", initial: "", leadTimeDays: null, owner: "", active: true }],
       };
-    case "setStandard":
+    case "setStandard": {
+      // 자동 → 수동으로 바꾸면 지금 보이던 자동값을 담당자 값으로 굳혀 둔다 — 안전 기준이 한꺼번에 「미설정」이 되지 않게
+      if (state.standard.method === "leadTimeAvg" && action.standard.method === "manual") {
+        const standards = [...state.standards];
+        for (const item of state.items) {
+          const auto = safetyOf(item, state);
+          if (auto === null) continue;
+          const k = standards.findIndex((s) => s.itemCode === item.code);
+          if (k >= 0) standards[k] = { ...standards[k], safety: auto };
+          else standards.push({ itemCode: item.code, baseline: 0, asOf: "", safety: auto });
+        }
+        return { ...state, standard: action.standard, standards };
+      }
       return { ...state, standard: action.standard };
+    }
     case "setDocRules":
       return { ...state, docRules: action.rules };
   }
