@@ -6,7 +6,7 @@ import { useModules } from "@/components/module-provider";
 import { AiBadge, Badge, Toast, Toggle } from "@/components/ui";
 import { useToast } from "@/components/use-toast";
 import { MODULES } from "@/data/modules";
-import { useWorkspaceMe } from "@/lib/workspace-me";
+import { refreshWorkspaceMe, useWorkspaceMe } from "@/lib/workspace-me";
 
 /**
  * 워크스페이스 › 기능 관리 — 기능과 그 하위 항목 ON/OFF.
@@ -41,7 +41,11 @@ export function FeatureSettings() {
   /** 저장 결과를 토스트로. 성공 문구는 바로, 실패는 스토어가 되돌린 뒤 에러 톤으로 */
   function report(saving: Promise<void>, done: string) {
     saving.then(
-      () => showToast(done),
+      () => {
+        showToast(done);
+        // 사이드바는 「회사가 켠 기능 ∩ 내 권한」으로 그린다. 그 교집합을 서버가 계산해 주므로 켠 뒤에 다시 받는다
+        void refreshWorkspaceMe();
+      },
       (e: unknown) =>
         showToast(e instanceof Error && e.message ? e.message : "저장하지 못했어요", "error"),
     );
