@@ -76,6 +76,7 @@ compose 가 채우므로 바꿀 때만 적는다. compose 가 읽는 키와 `.en
 | `GOOGLE_CLIENT_ID` `GOOGLE_CLIENT_SECRET` | 소셜 로그인 | 비우면 그 제공자만 비활성. FE 번들에도 같은 client-id 가 들어간다 |
 | `NAVER_CLIENT_ID` `NAVER_CLIENT_SECRET` | 소셜 로그인 | 위와 같다 |
 | `NEXT_PUBLIC_API_BASE_URL` | FE → API 주소 | nginx 뒤라 **비운다**(빈 문자열). 그러면 같은 오리진 `/api/...` 를 부른다 |
+| `NEXT_PUBLIC_DEMO_EMAIL` `NEXT_PUBLIC_DEMO_PASSWORD` | 로그인 화면의 「데모 체험하기」 버튼 | `INFRA/seed/seed-demo-workspace.sh` 가 만든 소유자 계정(`<편지함>+demo-owner@…`)과 그때 쓴 비밀번호. **둘 다 있어야 버튼이 나온다** — 하나라도 비면 버튼이 사라진다. **번들에 평문으로 실리므로 시연 전용 계정만 넣는다.** 바꾸면 FE 를 다시 빌드해야 한다 |
 | `MAIL_MODE` `MAIL_FROM` | 메일 발송 방식 · 보내는 주소 | `smtp` / 발송 계정 주소. `log` 면 보내지 않고 BE 로그에 찍는다(확인 링크가 로그에 남는다, 개발 전용) |
 | `MAIL_HOST` `MAIL_PORT` `MAIL_USERNAME` `MAIL_PASSWORD` | SMTP 접속 (mode=smtp 일 때만 쓰임) | Google Workspace: `smtp.gmail.com` / `587` / 발송 계정 / **앱 비밀번호 16자**. 아래 「Google Workspace SMTP」 참고. log 모드에서는 비워 둔다 |
 | `LOG_REQUESTS` `LOG_APP_LEVEL` | BE 로그 | `false` / `INFO` |

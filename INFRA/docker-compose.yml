@@ -119,6 +119,10 @@ services:
         # BE 와 같은 client-id 를 쓴다. 따로 관리하지 않는다.
         NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
         NEXT_PUBLIC_NAVER_CLIENT_ID: ${NAVER_CLIENT_ID}
+        # 「데모 체험하기」 버튼. 둘 다 있어야 버튼이 보이고, 비면 버튼이 사라진다.
+        # 번들에 그대로 실리므로 시연 전용 계정만 넣는다 (INFRA/seed/seed-demo-workspace.sh 가 만드는 소유자).
+        NEXT_PUBLIC_DEMO_EMAIL: ${NEXT_PUBLIC_DEMO_EMAIL:-}
+        NEXT_PUBLIC_DEMO_PASSWORD: ${NEXT_PUBLIC_DEMO_PASSWORD:-}
     image: axcore/workspace-fe:local
     container_name: axcore-fe
     ports:
