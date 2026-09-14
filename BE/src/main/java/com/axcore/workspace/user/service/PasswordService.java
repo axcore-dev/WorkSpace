@@ -6,6 +6,7 @@ import com.axcore.workspace.user.entity.UserToken;
 import com.axcore.workspace.user.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.axcore.workspace.workspace.settings.SettingsForbiddenException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -31,13 +32,16 @@ public class PasswordService {
     private final PasswordEncoder passwordEncoder;
     private final SessionRevoker sessionRevoker;
     private final AccountMailer mailer;
+    private final DemoAccount demo;
 
     public PasswordService(
             UserRepository userRepository,
             VerificationTokenService verificationTokenService,
             PasswordEncoder passwordEncoder,
             SessionRevoker sessionRevoker,
-            AccountMailer mailer) {
+            AccountMailer mailer,
+            DemoAccount demo) {
+        this.demo = demo;
         this.userRepository = userRepository;
         this.verificationTokenService = verificationTokenService;
         this.passwordEncoder = passwordEncoder;
@@ -63,6 +67,10 @@ public class PasswordService {
                 userRepository
                         .findById(userId)
                         .orElseThrow(() -> new BadCredentialsException("세션이 만료되었습니다. 다시 로그인해 주세요"));
+        // 데모 계정은 버튼을 누르는 누구나 세션을 받는다. 한 사람이 비밀번호를 바꾸면 다음 시연부터 전부 막힌다.
+        if (demo.is(user)) {
+            throw new SettingsForbiddenException("데모 계정의 비밀번호는 바꿀 수 없습니다");
+        }
         // 소셜 전용 계정은 대조할 해시가 없다. 이 검사 없이 내려가면 PasswordEncoder 가
         // IllegalArgumentException 을 던져 500 이 된다.
         if (!user.hasPassword()) {

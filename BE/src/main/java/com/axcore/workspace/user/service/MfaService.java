@@ -10,6 +10,7 @@ import com.axcore.workspace.user.repository.MfaChallengeRepository;
 import com.axcore.workspace.user.repository.UserMfaMethodRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.axcore.workspace.workspace.settings.SettingsForbiddenException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -49,6 +50,7 @@ public class MfaService {
     private final PasswordEncoder passwordEncoder;
     private final SessionIssuer sessionIssuer;
     private final SessionRevoker sessionRevoker;
+    private final DemoAccount demo;
 
     public MfaService(
             MfaChallengeRepository challengeRepository,
@@ -57,7 +59,9 @@ public class MfaService {
             AccountMailer mailer,
             PasswordEncoder passwordEncoder,
             SessionIssuer sessionIssuer,
-            SessionRevoker sessionRevoker) {
+            SessionRevoker sessionRevoker,
+            DemoAccount demo) {
+        this.demo = demo;
         this.challengeRepository = challengeRepository;
         this.methodRepository = methodRepository;
         this.attemptRecorder = attemptRecorder;
@@ -102,6 +106,10 @@ public class MfaService {
      */
     @Transactional
     public String startEmailEnrollment(User user, Instant now) {
+        // 데모 계정에 2단계가 켜지면 코드가 운영자 편지함으로만 가서 아무도 들어갈 수 없다(AuthService#loginDemo)
+        if (demo.is(user)) {
+            throw new SettingsForbiddenException("데모 계정에는 2단계 인증을 켤 수 없습니다");
+        }
         UserMfaMethod method =
                 methodRepository
                         .findByUserIdAndMethod(user.getId(), MfaMethod.EMAIL)
