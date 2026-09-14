@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { Fragment, useId } from "react";
+import { Fragment, useEffect, useId, useRef, useState } from "react";
 import type { Cell, StatData, TableData, Tone } from "@/data/types";
 import { EMPHASIS_CLASS, cellEmphasis, type Emphasis, type RowEmphasis } from "@/lib/emphasis";
-import { IconAlertCircle, IconArrowDownRight, IconArrowUpRight, IconCheck, IconChevronRight } from "@/components/icons";
+import { IconAlertCircle, IconArrowDownRight, IconArrowUpRight, IconCheck, IconChevronDown, IconChevronRight } from "@/components/icons";
 
 /**
  * 색상 정책 (사용자 지침):
@@ -455,6 +455,81 @@ export function Toggle({
  *
  * `label`은 접근성 이름이다. 시각적으로는 왼쪽 행 이름이 그 역할을 하므로 화면에 쓰지 않는다.
  */
+/**
+ * 버튼 하나에 고르기 여럿 — 「등록 ▾」(엑셀 / 직접) · 「발주서 출력 ▾」(업체별 / 전체)처럼 한 행동의 **범위나 방식**을 고를 때.
+ * 서로 다른 행동을 한 메뉴에 담지 않는다(그건 버튼 둘). 떠 있는 표면이라 `shadow-lg`. 바깥 클릭 · ESC 로 닫힌다.
+ * 접근성: 트리거 `aria-haspopup="menu"` + `aria-expanded`, 목록 `role="menu"` / `menuitem`.
+ */
+export function MenuButton({
+  label,
+  menuLabel,
+  items,
+  size = "md",
+  variant = "secondary",
+  align = "right",
+}: {
+  label: React.ReactNode;
+  /** 목록의 접근성 이름 — 「등록 방법」 · 「발주서 출력 범위」 */
+  menuLabel: string;
+  items: { label: React.ReactNode; onClick: () => void; disabled?: boolean }[];
+  size?: "sm" | "md";
+  variant?: keyof typeof BTN_VARIANTS;
+  /** 목록이 트리거의 어느 끝에 맞춰 펴지는지 */
+  align?: "left" | "right";
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative inline-flex">
+      <Button size={size} variant={variant} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+        {label}
+        <IconChevronDown size={14} className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+      </Button>
+      {open && (
+        <ul
+          role="menu"
+          aria-label={menuLabel}
+          className={`absolute top-full z-20 mt-1 min-w-44 rounded-lg border border-slate-200 bg-white p-1 shadow-lg ${align === "right" ? "right-0" : "left-0"}`}
+        >
+          {items.map((it, i) => (
+            <li key={i} role="none">
+              <button
+                type="button"
+                role="menuitem"
+                disabled={it.disabled}
+                onClick={() => {
+                  setOpen(false);
+                  it.onClick();
+                }}
+                className="w-full cursor-pointer whitespace-nowrap rounded-md px-3 py-2 text-left text-sm text-slate-700 transition-colors duration-150 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {it.label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export function Segmented<T extends string>({
   options,
   value,
