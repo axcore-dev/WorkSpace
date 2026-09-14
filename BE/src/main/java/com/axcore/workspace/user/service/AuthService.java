@@ -9,6 +9,8 @@ import com.axcore.workspace.user.entity.User;
 import com.axcore.workspace.user.repository.UserRepository;
 import com.axcore.workspace.security.UserPrincipal;
 import com.axcore.workspace.workspace.settings.SettingsNotFoundException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -32,6 +34,8 @@ import java.time.Instant;
  */
 @Service
 public class AuthService {
+
+    private static final Logger log = LoggerFactory.getLogger(AuthService.class);
 
     private final AuthenticationManager authenticationManager;
     private final UserRepository userRepository;
@@ -158,8 +162,26 @@ public class AuthService {
         if (!demo.configured()) {
             throw new SettingsNotFoundException("이 배포에는 데모 계정이 없습니다");
         }
-        AuthResult result =
-                login(new LoginRequest(demo.email(), demo.password(), rememberMe), userAgent, ip);
+        AuthResult result;
+        try {
+            result = login(new LoginRequest(demo.email(), demo.password(), rememberMe), userAgent, ip);
+        } catch (BadCredentialsException e) {
+            // 화면에는 일반 로그인과 같은 문구만 나가서 운영자가 원인을 알 수 없다. 서버 설정과 DB 계정이
+            // 어긋난 것이므로 어긋난 자리를 로그에 남긴다 — 비밀번호 자체는 어디에도 찍지 않는다.
+            // 길이와 앞뒤 공백·제어문자(.env 의 CRLF · 따옴표 · $ 치환)만으로 대부분 갈린다.
+            String pw = demo.password();
+            boolean suspicious = pw.strip().length() != pw.length() || pw.chars().anyMatch(Character::isISOControl);
+            var user = userRepository.findByEmail(demo.email());
+            log.warn(
+                    "데모 로그인 실패: email={} · 계정 {} · 잠김 {} · 이메일 확인 {} · 비밀번호 길이 {} · 앞뒤 공백/제어문자 {}",
+                    demo.email(),
+                    user.isPresent() ? "있음" : "없음",
+                    user.map(User::isLocked).orElse(false),
+                    user.map(u -> u.getEmailVerifiedAt() != null).orElse(false),
+                    pw.length(),
+                    suspicious ? "있음" : "없음");
+            throw e;
+        }
         if (!result.hasRefreshToken()) {
             throw new MfaStateException("데모 계정에 2단계 인증이 켜져 있어 들어갈 수 없습니다");
         }
