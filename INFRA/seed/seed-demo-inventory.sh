@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 #
-# 재고·물류 데모 데이터 시드. 로컬과 배포 서버 둘 다에서 돌린다.
+# 재고·물류 + 제품설계 데모 데이터 시드. 로컬과 배포 서버 둘 다에서 돌린다.
 #
-# 넣는 것: 거래처 8 · 품목 16 · 발주 6(라인 10) · 기준 16 · 입출고 이력 12 · 회사 기준 1.
+# 제품설계(도면 · 리비전 · BOM, data/design-demo.sql)를 같은 스크립트가 넣는 이유: BOM 의 item_code 가 재고 품목을
+# 가리켜서 두 데이터는 한 몸이다. 따로 돌리면 어느 한쪽만 새로 넣어 매핑이 끊긴다.
+#
+# 넣는 것: 거래처 8 · 품목 16 · 발주 6(라인 10) · 기준 16 · 입출고 이력 12 · 회사 기준 1 · 도면 8(리비전 15 · BOM 16).
 # 값은 `data/inventory-demo.sql` 에 있고 `FE/data/inventory-demo.ts` 와 같다.
 #
 # **API 가 아니라 SQL 로 넣는다.** 다른 시드와 다른 점이라 이유를 적어 둔다: 발주 라인의 입고 누계와 판정,
@@ -29,7 +32,9 @@
 source "$(dirname "$0")/lib.sh"
 
 DATA="$(dirname "$0")/data/inventory-demo.sql"
+DESIGN="$(dirname "$0")/data/design-demo.sql"
 [ -f "$DATA" ] || die "데이터 파일이 없다: $DATA"
+[ -f "$DESIGN" ] || die "데이터 파일이 없다: $DESIGN"
 
 # seed-demo-workspace.sh 가 만드는 회사. 기본값으로 둔 이유는 이것이 시연 전용 가상 회사이기 때문이다.
 TARGET="${SEED_WORKSPACE:-한결정밀 주식회사}"
@@ -50,9 +55,9 @@ NAME="$(psql_ "select name from shared.workspaces where schema_name = '$SCHEMA'"
 say "대상: $NAME ($SCHEMA)"
 
 # 마이그레이션이 아직이면 표가 없다. 여기서 먼저 막는다 — psql 오류 12줄보다 한 줄이 낫다.
-HAS="$(psql_ "select count(*) from information_schema.tables where table_schema = '$SCHEMA' and table_name = 'inv_items'")"
-[ "$(printf '%s' "$HAS" | tr -d '[:space:]')" = "1" ] \
-  || die "$SCHEMA 에 재고 표가 없다. BE 를 새 이미지로 한 번 띄워 tenant V17 을 적용한 뒤 다시 돌린다."
+HAS="$(psql_ "select count(*) from information_schema.tables where table_schema = '$SCHEMA' and table_name in ('inv_items', 'dsg_drawings')")"
+[ "$(printf '%s' "$HAS" | tr -d '[:space:]')" = "2" ] \
+  || die "$SCHEMA 에 재고 · 설계 표가 없다. BE 를 새 이미지로 한 번 띄워 tenant V17 · V18 을 적용한 뒤 다시 돌린다."
 
 # 이 시드는 표를 비우고 다시 넣는다. 다른 시드는 「이미 있으면 건너뛴다」라 이 위험이 없고 이 시드만 다르다.
 # SEED_WORKSPACE 를 잘못 넘기면 실제 재고 데이터가 사라지고 되돌릴 수 없으므로, 지울 것이 있을 때만 묻는다(#95).
@@ -60,15 +65,16 @@ HAS="$(psql_ "select count(*) from information_schema.tables where table_schema 
 COUNTS="$(psql_ "set search_path to $SCHEMA;
        select (select count(*) from inv_vendors) || ' ' || (select count(*) from inv_items) || ' '
            || (select count(*) from inv_purchase_orders) || ' ' || (select count(*) from inv_movements) || ' '
-           || (select count(*) from inv_item_standards) || ' ' || (select count(*) from inv_settings)" | tr -d '\r')"
-# 질의가 실패하면 빈 값이 산술에서 0 이 되어 확인 없이 지우게 된다. 숫자 여섯이 아니면 여기서 멈춘다(닫힌 실패).
-[[ "$COUNTS" =~ ^[0-9]+(\ [0-9]+){5}$ ]] || die "재고 표의 행 수를 읽지 못했다: '$COUNTS'"
-read -r N_VENDORS N_ITEMS N_ORDERS N_MOVES N_STDS N_SETTINGS <<< "$COUNTS"
-TOTAL=$((N_VENDORS + N_ITEMS + N_ORDERS + N_MOVES + N_STDS + N_SETTINGS))
+           || (select count(*) from inv_item_standards) || ' ' || (select count(*) from inv_settings) || ' '
+           || (select count(*) from dsg_drawings)" | tr -d '\r')"
+# 질의가 실패하면 빈 값이 산술에서 0 이 되어 확인 없이 지우게 된다. 숫자 일곱이 아니면 여기서 멈춘다(닫힌 실패).
+[[ "$COUNTS" =~ ^[0-9]+(\ [0-9]+){6}$ ]] || die "재고 · 설계 표의 행 수를 읽지 못했다: '$COUNTS'"
+read -r N_VENDORS N_ITEMS N_ORDERS N_MOVES N_STDS N_SETTINGS N_DRAWINGS <<< "$COUNTS"
+TOTAL=$((N_VENDORS + N_ITEMS + N_ORDERS + N_MOVES + N_STDS + N_SETTINGS + N_DRAWINGS))
 if [ "$TOTAL" -gt 0 ] && [ "${SEED_FORCE:-}" != "1" ]; then
   STATUS="$(psql_ "select status from shared.workspaces where schema_name = '$SCHEMA'" | tr -d '[:space:]')"
   echo
-  say "이 회사에 재고 데이터가 있다: 거래처 $N_VENDORS · 품목 $N_ITEMS · 발주 $N_ORDERS · 이력 $N_MOVES · 기준 $N_STDS · 설정 $N_SETTINGS"
+  say "이 회사에 재고 · 설계 데이터가 있다: 거래처 $N_VENDORS · 품목 $N_ITEMS · 발주 $N_ORDERS · 이력 $N_MOVES · 기준 $N_STDS · 설정 $N_SETTINGS · 도면 $N_DRAWINGS"
   say "전부 지우고 데모 데이터로 바꾼다. 되돌릴 수 없다."
   # 파이프 안에서 돌아도 사람에게 묻도록 터미널에서 직접 읽는다. 터미널이 없으면(CI) SEED_FORCE=1 을 쓰라는 뜻이다.
   if [ "$STATUS" = "active" ]; then
@@ -82,11 +88,12 @@ if [ "$TOTAL" -gt 0 ] && [ "${SEED_FORCE:-}" != "1" ]; then
 fi
 
 echo
-echo "== 재고·물류 데모 데이터"
+echo "== 재고·물류 + 제품설계 데모 데이터"
 {
-  # 위에서 형태를 확인했으므로 따옴표 없이 넣는다.
+  # 위에서 형태를 확인했으므로 따옴표 없이 넣는다. 재고가 먼저다 — 설계의 BOM 이 재고 품목을 가리킨다.
   echo "SET search_path TO $SCHEMA;"
   cat "$DATA"
+  cat "$DESIGN"
 } | docker exec -i "$PG" sh -c 'psql -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
   || die "데이터를 넣지 못했다."
 
@@ -98,7 +105,10 @@ psql_ "set search_path to $SCHEMA;
            || ' · 발주 '   || (select count(*) from inv_purchase_orders)
            || '(라인 '     || (select count(*) from inv_po_lines) || ')'
            || ' · 이력 '   || (select count(*) from inv_movements)
-           || ' · 기준 '   || (select count(*) from inv_item_standards)"
+           || ' · 기준 '   || (select count(*) from inv_item_standards)
+           || ' · 도면 '   || (select count(*) from dsg_drawings)
+           || ' · BOM '    || (select count(*) from dsg_bom_lines)
+           || ' (미매핑 '  || (select count(*) from dsg_bom_lines where item_code is null) || ')'"
 
 echo
-echo "  이제 데모 계정으로 로그인해 사이드바의 「재고·물류」를 연다."
+echo "  이제 데모 계정으로 로그인해 사이드바의 「제품설계」 · 「재고·물류」를 연다. 제품설계 기능은 이 시드가 켠다."
