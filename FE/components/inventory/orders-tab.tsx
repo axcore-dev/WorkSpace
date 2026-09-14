@@ -292,7 +292,7 @@ export function OrdersTab() {
 
         {isEditing ? (
           <form
-            className="space-y-3"
+            className="fade-in space-y-3"
             onSubmit={(e) => {
               e.preventDefault();
               save(order, false);

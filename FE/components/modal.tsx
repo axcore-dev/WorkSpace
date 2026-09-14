@@ -94,7 +94,7 @@ export function Modal({
 
   return (
     <div className={`fixed inset-0 z-50 flex items-center justify-center ${screen ? "" : "p-4"}`}>
-      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[1px]" onClick={onClose} aria-hidden />
+      <div className="backdrop-in absolute inset-0 bg-slate-900/40 backdrop-blur-[1px]" onClick={onClose} aria-hidden />
       <div
         ref={panelRef}
         role="dialog"
@@ -102,7 +102,7 @@ export function Modal({
         aria-labelledby={title ? titleId : undefined}
         tabIndex={-1}
         onKeyDown={onKeyDown}
-        className={`relative flex ${shell} flex-col overflow-hidden bg-white focus:outline-none`}
+        className={`modal-in relative flex ${shell} flex-col overflow-hidden bg-white focus:outline-none`}
       >
         {(title || desc) && (
           <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">

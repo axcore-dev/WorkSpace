@@ -147,7 +147,14 @@ WorkSpace 데모의 시각 언어와 공용 컴포넌트 규칙. 코드가 단�
 | base | `duration-200` | 공용 컴포넌트 기본 (`Button`, `Toggle` — `transition-colors`) |
 | slow | `duration-300` | 크기·레이아웃 변화 (`ProgressBar` width) |
 
-- 명명 애니메이션 예외: `.shimmer-text`(AI 추론 로딩, 1.8s — **AI 표면 전용**), `.spinner`(일반 대기 표시, 0.8s), `.agent-fade`(AI 답변 요소 등장, 0.28s), `.pixel-dots`(AI 작업 중 3×3 도트, 0.65s stagger).
+- 명명 애니메이션 예외: `.shimmer-text`(AI 추론 로딩, 1.8s — **AI 표면 전용**), `.spinner`(일반 대기 표시, 0.8s), `.agent-fade`(AI 답변 요소 등장, 0.28s), `.pixel-dots`(AI 작업 중 3×3 도트, 0.65s stagger), `.fade-in`(등장 — 2px 떠오르며 150ms · fast), `.modal-in` + `.backdrop-in`(모달 등장 — 패널 0.98→1 · 배경 페이드, 200ms · base).
+- **운영 화면의 모션 자리**(2026-09-11, 재고·물류에서 시작 · 공용 컴포넌트라 다른 모듈에도 적용). 전부 CSS, 라이브러리 없음:
+  - 행 펼침(`DataTable`): 패널이 `grid-template-rows` 0fr ↔ 1fr 로 300ms(slow) 자라고 줄어든다 — 접힐 때도 같은 길이로 줄어든 뒤 언마운트. 셰브론 회전(200ms)과 함께.
+  - 등장 `.fade-in`: 탭 · 화면 전환의 내용(`tabpanel` 의 key), 펼침 패널의 편집 폼, 드롭다운 · 메뉴 목록, 편집기의 새 라인, 새 칩. 제거 · 닫힘은 즉시.
+  - 모달 `.modal-in`: 팝업 · 전폭 시트 · 확인 다이얼로그 전부. 닫힘은 언마운트 그대로.
+  - `Segmented`: 흰 선택 배경이 옆으로 미끄러진다(`left · width` 200ms · base). 첫 프레임은 정적 배경, 측정 뒤 thumb 가 자리를 이어받는다.
+  - 표 셀 글자색 `transition-colors` 300ms — 저장 뒤 행이 내림 · faint 로 바뀔 때. 정렬 이동(FLIP)은 하지 않는다.
+  - 하지 않는 것: 숫자 카운트 전환(수량은 즉시 읽혀야 한다), 필터 결과 행 슬라이드(타이핑마다 깜빡임), 커서 따라다니는 하이라이트, 스켈레톤(AI 표면 전용).
 - **AI 표면 한정 허용**: skeleton(`animate-pulse`, 대화 복원·전환 대기), 타자 효과(새 답변 1회 — 복원된 메시지엔 쓰지 않는다), 앰비언트 배경(빈 상태에서만, `components/chat/ai-backdrop.tsx`).
 
   - **중앙 블룸 + 점 격자 두 겹**이다. 블룸은 primary 12% 저알파 타원 하나로 **정적**이고, 중심(`--bloom-x`/`--bloom-y`)만 입력창을 따라간다 — 입력창이 첫 화면↔대화 전환에 세로로 미끄러져도 어긋나지 않고, 퇴장할 때 배경과 한 몸으로 움직인다. 블룸은 커서를 따라다니지 않는다.
