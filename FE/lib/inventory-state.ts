@@ -1,4 +1,5 @@
 import type {
+  CodeSegment,
   DocRules,
   Item,
   ItemStandard,
@@ -272,13 +273,13 @@ export function groupDraft(draft: OrderDraft): { vendorId: string; lines: DraftL
   return groups;
 }
 
-/** 등록 전 검증 — 수량 있는 라인 · 품명 · 발주처 · 관리번호 · 미매핑 BOM */
+/** 등록 전 검증 — 수량 있는 라인 · 품목명 · 발주처 · 관리번호 · 미매핑 BOM */
 export function validateDraft(draft: OrderDraft, drawings: PoDrawing[]): Record<string, string> {
   const e: Record<string, string> = {};
   const active = draft.lines.filter((l) => l.qty > 0);
   if (active.length === 0) e.lines = "수량이 있는 라인이 없어요";
   else {
-    if (active.some((l) => !l.itemName.trim())) e.lines = "품명이 빈 라인이 있어요";
+    if (active.some((l) => !l.itemName.trim())) e.lines = "품목명이 빈 라인이 있어요";
     if (active.some((l) => !l.vendorId)) e.vendor = "발주처가 빈 라인이 있어요";
   }
   if (!draft.projectCode.trim()) e.projectCode = "관리번호를 적어 주세요";
@@ -314,8 +315,8 @@ export function buildOrders(draft: OrderDraft, items: Item[], seqStart: number):
 
 /** 문서 열 이름 → 라인 값. 서식에 없는 열은 문서에 안 찍힌다 */
 const DOC_FIELD: Record<string, (l: DraftLine, d: OrderDraft) => string> = {
-  품명: (l) => l.itemName,
-  호칭: (l) => l.spec,
+  품목명: (l) => l.itemName,
+  사양: (l) => l.spec,
   규격: (l) => l.size,
   수량: (l) => String(l.qty),
   단위: (l) => l.unit,
@@ -455,16 +456,17 @@ const SEGMENT_SAMPLE: Record<DocRules["codeSegments"][number], string> = {
   seq: "20",
 };
 
-/** 관리번호 미리보기 — 데모 값으로 조각 순서 · 구분자를 보여 준다. 예) `26MSX-S03 OP20` */
-export function previewCode(rules: DocRules): string {
-  let s = "";
-  for (const seg of rules.codeSegments) {
-    if (seg === "team") s += rules.separators.beforeTeam + SEGMENT_SAMPLE.team;
-    else if (seg === "seq") s += rules.separators.beforeOp + "OP" + SEGMENT_SAMPLE.seq;
-    else s += SEGMENT_SAMPLE[seg];
-  }
-  return s;
+/** 관리번호 미리보기의 조각 — 글자와 무엇의 글자인지(`seg` 는 조각, `sep` 은 구분자). 빈 구분자는 빠진다 */
+export function previewParts(rules: DocRules): ({ text: string; seg: CodeSegment } | { text: string; sep: "beforeTeam" | "beforeOp" })[] {
+  return rules.codeSegments.flatMap((seg) => {
+    const sepKey: "beforeTeam" | "beforeOp" | null = seg === "team" ? "beforeTeam" : seg === "seq" ? "beforeOp" : null;
+    const sep = sepKey && rules.separators[sepKey] ? [{ text: rules.separators[sepKey], sep: sepKey }] : [];
+    return [...sep, { text: seg === "seq" ? "OP" + SEGMENT_SAMPLE.seq : SEGMENT_SAMPLE[seg], seg }];
+  });
 }
+
+/** 관리번호 미리보기 — 데모 값으로 조각 순서 · 구분자를 보여 준다. 예) `26MSX-S03 OP20` */
+export const previewCode = (rules: DocRules) => previewParts(rules).map((p) => p.text).join("");
 
 /* ───────────── 설정 검증 (팝업 · 엑셀 · 규칙) ───────────── */
 
@@ -535,14 +537,24 @@ export function validateVendor(draft: Vendor, state: Pick<InventoryState, "vendo
   return { errors, warnings };
 }
 
-/** 문서 규칙 검증 — 순번 조각은 필수, 서식은 품명 · 수량 필수 */
+/**
+ * 옛 서식 열 이름 → 지금 이름(2026-09-14 품목 표기 통일 — DESIGN.md 「품목 표기」). 이미 저장된 규칙이나 서버 기본값이
+ * 「품명 · 호칭」이어도 화면 · 출력물은 새 이름만 본다. 다음에 규칙을 저장하면 새 이름으로 바뀐다
+ */
+const LEGACY_COLUMN: Record<string, string> = { 품명: "품목명", 호칭: "사양" };
+export const normalizeDocRules = (r: DocRules): DocRules => {
+  const fix = (cols: string[]) => cols.map((c) => LEGACY_COLUMN[c] ?? c);
+  return { ...r, formats: { material: fix(r.formats.material), parts: fix(r.formats.parts) } };
+};
+
+/** 문서 규칙 검증 — 순번 조각은 필수, 서식은 품목명 · 수량 필수 */
 export function validateDocRules(rules: DocRules): Record<string, string> {
   const e: Record<string, string> = {};
   if (rules.codeSegments.length === 0) e.codeSegments = "조각을 하나 이상 두어 주세요";
   else if (!rules.codeSegments.includes("seq")) e.codeSegments = "순번 조각은 꼭 있어야 해요";
   for (const key of ["material", "parts"] as const) {
     const cols = rules.formats[key];
-    if (!cols.includes("품명") || !cols.includes("수량")) e[key] = "품명 · 수량 열은 꼭 있어야 해요";
+    if (!cols.includes("품목명") || !cols.includes("수량")) e[key] = "품목명 · 수량 열은 꼭 있어야 해요";
   }
   return e;
 }

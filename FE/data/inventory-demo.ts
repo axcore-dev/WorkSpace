@@ -155,8 +155,8 @@ export const DOC_RULES: DocRules = {
   codeSegments: ["year", "model", "team", "seq"],
   separators: { beforeTeam: "-", beforeOp: " " },
   formats: {
-    material: ["품명", "규격", "수량", "비고"],
-    parts: ["품명", "호칭", "규격", "수량", "비고"],
+    material: ["품목명", "규격", "수량", "비고"],
+    parts: ["품목명", "사양", "규격", "수량", "비고"],
   },
   processTags: ["열처리", "연마", "도금", "방전"],
 };
