@@ -8,7 +8,8 @@ import type {
   SafetyStandard,
   Vendor,
 } from "../data/inventory";
-import type { PoDrawing, PoNeed } from "../data/purchasing";
+import type { Drawing } from "../data/drawings";
+import { isDerived, latestOf, liveLatest } from "./design-state.ts";
 import { daysBetween } from "./management-state.ts";
 
 /**
@@ -20,6 +21,8 @@ import { daysBetween } from "./management-state.ts";
  */
 
 export interface InventoryData {
+  /** 제품설계의 도면 — 발주서 소요의 근거(BOM). 제품설계 권한이 없으면 빈 목록이고 발주서는 도면 없이 쓴다 */
+  drawings: Drawing[];
   orders: PurchaseOrder[];
   movements: Movement[];
   items: Item[];
@@ -146,6 +149,66 @@ export interface OrderDraft {
   orderedOn: string;
   format: DocFormat;
   lines: DraftLine[];
+}
+
+/* ───────────── 제품설계 연동 — 도면(BOM) 을 발주서의 소요로 ───────────── */
+
+/** [Step.1] 발주 대상으로 고를 수 있는 도면. unmapped > 0 이면 진행 차단 (FR-BM-03) */
+export interface PoDrawing {
+  code: string;
+  name: string;
+  rev: string;
+  projectCode: string;
+  vehicle: string;
+  unmapped: number;
+}
+
+/** [Step.2] 도면별 BOM 소요량과 현재 재고. supplier 는 매핑 품목의 기본 거래처 이름 */
+export interface PoNeed {
+  itemName: string;
+  spec: string;
+  size: string;
+  need: number;
+  stock: number;
+  supplier: string;
+}
+
+/** 발주서가 고를 수 있는 도면 — 폐기되지 않은 원본의 지금 리비전. 파생 도면(가공도)은 자재 소요의 근거가 아니다 */
+export function toPoDrawings(drawings: Drawing[]): PoDrawing[] {
+  return liveLatest(drawings)
+    .filter((d) => !isDerived(d))
+    .map((d) => ({
+      code: d.code,
+      name: d.name,
+      rev: d.rev,
+      projectCode: d.projectCode ?? "",
+      vehicle: d.vehicle ?? "",
+      unmapped: d.bom.filter((l) => !l.itemCode).length,
+    }));
+}
+
+/**
+ * 도면의 BOM → 소요. 재고는 매핑된 품목의 현재 재고(`stockOf`), 발주처는 그 품목의 기본 거래처다.
+ * 미매핑 줄은 재고 0 · 발주처 없음으로 나온다 — 어차피 `validateDraft` 가 그 도면을 막는다.
+ */
+export function bomNeeds(
+  code: string | undefined,
+  state: Pick<InventoryState, "drawings" | "items" | "vendors" | "movements" | "standards">,
+): PoNeed[] {
+  const drawing = code ? latestOf(state.drawings, code) : undefined;
+  if (!drawing) return [];
+  return drawing.bom.map((l) => {
+    const item = l.itemCode ? state.items.find((it) => it.code === l.itemCode) : undefined;
+    const vendor = item ? state.vendors.find((v) => v.id === item.vendorIds[0]) : undefined;
+    return {
+      itemName: l.item,
+      spec: l.spec,
+      size: l.size,
+      need: l.qty,
+      stock: item ? Math.max(0, stockOf(item.code, state.movements, state.standards)) : 0,
+      supplier: vendor?.name ?? "",
+    };
+  });
 }
 
 /** 품목 마스터에서 라인에 맞는 품목 — 사양+규격 → 이름 순. 없으면 undefined(발주서는 나가지만 재고에 안 잡힌다) */

@@ -1,4 +1,5 @@
 import { apiDelete, apiGet, apiPostAuthed, apiPut } from "@/lib/api";
+import { getDrawingsOrNone } from "@/lib/design-api";
 import type { DocRules, Item, Movement, PurchaseOrder, SafetyStandard, ItemStandard, Vendor } from "@/data/inventory";
 import type { InventoryAction, InventoryData } from "@/lib/inventory-state";
 
@@ -22,15 +23,17 @@ interface SettingsDto {
 }
 
 export async function getAll(): Promise<InventoryData> {
-  const [orders, movements, items, vendors, settings] = await Promise.all([
+  // 도면은 제품설계 API 다. 권한이 없거나 기능이 꺼져 있으면 빈 목록으로 온다 — 발주서는 도면 없이도 쓴다
+  const [orders, movements, items, vendors, settings, drawings] = await Promise.all([
     apiGet<PurchaseOrder[]>(`${BASE}/orders`),
     apiGet<Movement[]>(`${BASE}/movements`),
     apiGet<Item[]>(`${BASE}/items`),
     apiGet<Vendor[]>(`${BASE}/vendors`),
     apiGet<SettingsDto>(`${BASE}/settings`),
+    getDrawingsOrNone(),
   ]);
   const s = must(settings);
-  return { orders: orders ?? [], movements: movements ?? [], items: items ?? [], vendors: vendors ?? [], standards: s.standards, standard: s.standard, docRules: s.docRules };
+  return { drawings, orders: orders ?? [], movements: movements ?? [], items: items ?? [], vendors: vendors ?? [], standards: s.standards, standard: s.standard, docRules: s.docRules };
 }
 
 /** 동작 하나를 서버에 보낸다. 성공 뒤 호출한 쪽이 `getAll` 로 다시 받는다 — 낙관적 갱신 없음 */

@@ -26,7 +26,8 @@ public final class FeatureCatalog {
                     // materials 탭은 화면(FE/data/modules.ts · pages/management.ts)에 없어 뺐다(2026-09-10). 남아 있으면
                     // 화면이 세 탭을 다 꺼도 이 탭이 기본 ON 으로 살아 모듈이 켜진 것으로 계산됐다.
                     new Module("management", "경영지원", List.of("hr", "payroll", "accounting")),
-                    new Module("design", "제품설계", List.of("drawings", "specs", "bom")),
+                    // specs(설계 관리) 탭은 2026-09-14 제품설계 실연동에서 뺐다 — 화면에 없다. DB 에 남은 행은 카탈로그에 없어 무시된다.
+                    new Module("design", "제품설계", List.of("drawings", "bom")),
                     new Module("production", "생산관리", List.of("monitoring", "workorders", "bottleneck", "reporting")),
                     new Module("equipment", "장비관리", List.of("predict", "maintenance")),
                     new Module("quality", "품질검사", List.of("defects", "control")),

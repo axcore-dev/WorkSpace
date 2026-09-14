@@ -81,7 +81,6 @@ export interface SubfunctionTab {
   /** 데이터 기반 렌더링 대신 전용 인터랙티브 컴포넌트로 그리는 탭 */
   custom?:
     | "report-automation"
-    | "drawing-manager"
     | "hr-workbench"
     | "payroll-workbench"
     | "accounting-workbench";

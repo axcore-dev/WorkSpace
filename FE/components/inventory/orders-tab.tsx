@@ -5,7 +5,6 @@ import { IconAlertTriangle, IconDownload } from "@/components/icons";
 import { ConfirmModal } from "@/components/management/workbench";
 import { Button, Card, DataTable, FIELD_SM, FIELD_SM_ERROR, MenuButton, Segmented } from "@/components/ui";
 import type { Judgement, PoLine, PurchaseOrder } from "@/data/inventory";
-import { PO_BOM, PO_DRAWINGS } from "@/data/purchasing";
 import type { Cell } from "@/data/types";
 import { downloadCsv } from "@/lib/download";
 import { matchesQuery } from "@/lib/search";
@@ -16,6 +15,7 @@ import {
   orderSort,
   orderStatus,
   revMismatch,
+  toPoDrawings,
   type OrderStatus,
 } from "@/lib/inventory-state";
 import { CardTools } from "./card-tools";
@@ -71,7 +71,8 @@ type Confirm = null | { kind: "close"; detail: string; then: () => Promise<void>
  * 「검수 완료」(마감)는 secondary 다 — 잔량을 전부 취소로 만드는 길이 가장 눈에 띄는 버튼이면 안 된다.
  * 초과 입고는 사유 전에 사실(「잔량 N EA보다 M 많아요」)을 먼저 말한다.
  *
- * 권한: `receiving` 이 없으면 입고 등록 · 판정을 그리지 않고, `purchasing` 이 없으면 발주서 만들기 · 출력 · 「발주 전」 줄을 그리지 않는다.
+ * 권한: `receiving` 이 없으면 입고 등록 · 판정을 그리지 않고, `purchasing` 이 없으면 발주서 만들기 · 출력을 그리지 않는다.
+ * 발주가 없는 도면을 표 아래 「발주 전」 줄로 보이던 것은 2026-09-14 에 뺐다 — 발주서는 「발주서 만들기」에서 도면을 고른다.
  * 표와 펼침은 둘 다 본다.
  */
 export function OrdersTab() {
@@ -87,7 +88,7 @@ export function OrdersTab() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [confirm, setConfirm] = useState<Confirm>(null);
   /** 발주서 편집기는 열 때마다 새로 마운트한다(key). 0 = 닫힘 */
-  const [editor, setEditor] = useState<{ seq: number; drawing?: string }>({ seq: 0 });
+  const [editor, setEditor] = useState(0);
 
   const vendorName = (id: string) => state.vendors.find((v) => v.id === id)?.name ?? "—";
   // 발주번호 · 발주처 · 관리번호 + 라인의 품명 · 호칭 · 규격 — 실무자는 품명으로 찾는다
@@ -229,23 +230,14 @@ export function OrdersTab() {
     void commit();
   }
 
-  // 소요가 확정됐는데 발주가 없는 작업 — 도면(BOM) 데모에서 읽는다(제품설계 연동 전)
-  // 검색 중이면 이 목록도 같은 검색어로 걸러진다 — 표만 줄고 아래 줄이 그대로면 「없음」 이 아닌 것처럼 읽힌다
-  const pendingWorks = canPurchase
-    ? PO_DRAWINGS.filter((d) => !state.orders.some((o) => o.projectCode === d.projectCode))
-        .filter((d) => matchesQuery(query, [d.projectCode, d.code, d.name, d.rev]))
-        .map((d) => {
-          const lines = (PO_BOM[d.code] ?? []).filter((n) => n.need - n.stock > 0);
-          return { d, count: lines.length, qty: lines.reduce((s, n) => s + (n.need - n.stock), 0) };
-        })
-        .filter((w) => w.count > 0)
-    : [];
+  // 도면의 지금 리비전 — 발주 뒤 도면이 개정됐는지(revMismatch) 보는 데만 쓴다
+  const poDrawings = toPoDrawings(state.drawings);
 
   function renderPanel(i: number) {
     const order = orders[i];
     const status = statuses[i];
-    const mismatch = revMismatch(order, PO_DRAWINGS);
-    const drawingRev = PO_DRAWINGS.find((d) => d.code === order.drawing)?.rev;
+    const mismatch = revMismatch(order, poDrawings);
+    const drawingRev = poDrawings.find((d) => d.code === order.drawing)?.rev;
     const isEditing = editing === order.poNo;
     const siblings = state.orders.filter((o) => o.projectCode === order.projectCode).length;
     const firstOpen = order.lines.findIndex((l) => lineRemaining(l) > 0);
@@ -431,7 +423,7 @@ export function OrdersTab() {
             }}
           >
             {canPurchase && (
-              <Button size="sm" variant="secondary" onClick={() => setEditor((w) => ({ seq: w.seq + 1 }))}>
+              <Button size="sm" variant="secondary" onClick={() => setEditor((n) => n + 1)}>
                 발주서 만들기
               </Button>
             )}
@@ -447,27 +439,9 @@ export function OrdersTab() {
           renderExpanded={renderPanel}
         />
 
-        {pendingWorks.length > 0 && (
-          <ul className="mt-4 divide-y divide-slate-100 border-t border-slate-200">
-            {pendingWorks.map(({ d, count, qty }) => (
-              <li key={d.code} className="flex flex-wrap items-center justify-between gap-3 py-2.5">
-                <p className="text-sm text-slate-600">
-                  <span className="whitespace-nowrap">{d.projectCode}</span> · {d.rev} ·{" "}
-                  <span className="whitespace-nowrap font-semibold text-slate-900">
-                    {count}품목 {qty} EA
-                  </span>{" "}
-                  · <span className="whitespace-nowrap">발주 전</span>
-                </p>
-                <Button size="sm" variant="secondary" onClick={() => setEditor((w) => ({ seq: w.seq + 1, drawing: d.code }))}>
-                  발주서 만들기
-                </Button>
-              </li>
-            ))}
-          </ul>
-        )}
       </Card>
 
-      {editor.seq > 0 && <OrderEditor key={editor.seq} initialDrawing={editor.drawing} onClose={() => setEditor({ seq: 0 })} />}
+      {editor > 0 && <OrderEditor key={editor} onClose={() => setEditor(0)} />}
 
       <ConfirmModal
         open={confirm?.kind === "close"}

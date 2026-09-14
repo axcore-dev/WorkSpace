@@ -5,6 +5,7 @@ import { Card, DataTable, MenuButton } from "@/components/ui";
 import { UploadReviewModal, type UploadRowStatus } from "@/components/upload-review-modal";
 import type { Item } from "@/data/inventory";
 import type { Cell } from "@/data/types";
+import { liveLatest } from "@/lib/design-state";
 import { ITEM_SHEET_COLUMNS, parseItemRows } from "@/lib/inventory-state";
 import { matchesQuery } from "@/lib/search";
 import { parseSheet } from "@/lib/sheet";
@@ -26,6 +27,10 @@ export function ItemsTab() {
 
   const vendorName = (id: string) => state.vendors.find((v) => v.id === id)?.name ?? "—";
   const items = state.items.filter((i) => matchesQuery(query, [i.code, i.name, i.spec, i.size, i.category, i.location, ...i.vendorIds.map(vendorName)]));
+  // 폐기되지 않은 도면(지금 리비전)의 BOM 줄이 이 품목들을 얼마나 가리키는지
+  const bomLines = liveLatest(state.drawings).flatMap((d) => d.bom);
+  const bomMapped = bomLines.filter((l) => l.itemCode).length;
+  const bomUnmapped = bomLines.length - bomMapped;
 
   const rows: Cell[][] = items.map((i) => [
     i.code,
@@ -64,8 +69,15 @@ export function ItemsTab() {
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2.5">
             <h2 className="text-[15px] font-semibold text-slate-900">품목 마스터</h2>
-            {/* 제품설계 완성 뒤 연결한다 — 지금은 자리만 알린다 */}
-            <span className="rounded px-1.5 py-0.5 text-xs text-slate-500 ring-1 ring-inset ring-slate-200">도면(BOM) 자동 연동 · 준비 중</span>
+            {/* 제품설계 연동 — 도면 BOM 이 이 품목들을 가리킨다. 미매핑이 남아 있으면 그 도면으로 발주서를 쓸 수 없다 */}
+            {state.drawings.length > 0 && (
+              <span
+                className={`rounded px-1.5 py-0.5 text-xs ring-1 ring-inset ${bomUnmapped > 0 ? "text-amber-700 ring-amber-200" : "text-slate-500 ring-slate-200"}`}
+                title="제품설계 > BOM 관리에서 도면의 부품을 품목 마스터와 맺어요"
+              >
+                도면(BOM) 연동 · 매핑 {bomMapped}건{bomUnmapped > 0 ? ` · 미매핑 ${bomUnmapped}건` : ""}
+              </span>
+            )}
           </div>
           <CardTools search={{ value: query, onChange: setQuery, placeholder: "코드 · 품목명 · 규격 · 거래처로 찾기" }}>
             <MenuButton
