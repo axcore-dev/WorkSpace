@@ -13,7 +13,7 @@
  */
 import { DefaultChatTransport } from "ai";
 import { apiRequestError } from "@/lib/api";
-import { ensureAccessToken } from "@/lib/session";
+import { ensureAccessToken, forceRefresh } from "@/lib/session";
 import type { OcrProposal } from "@/data/chat";
 import type { AxpUIMessage } from "./ui-messages";
 
@@ -75,9 +75,22 @@ export function createChatTransport() {
     /**
      * HTTP 오류를 `lib/api.ts` 와 같은 `ApiRequestError` 로 던진다. SDK 기본은 본문을 plain `Error` 로
      * 감싸서, 서버가 `{code, message}` 로 만든 문구(401 「인증이 필요합니다」 등)가 화면에 닿지 않는다.
+     *
+     * <b>401 이면 한 번만 재발급받아 다시 보낸다</b> — `lib/api.ts` 와 같은 규칙이다. AI 서버는 introspect 로
+     * 세션 행까지 보는데, 다른 탭(같은 호스트의 다른 포트 포함)이 refresh 를 회전하면 이 탭이 메모리에 든 access
+     * 토큰의 세션(`sid`)은 폐기된다. 토큰 자체는 만료 전이라 `ensureAccessToken` 은 그대로 쓰고, 화면 API 는
+     * 서명만 봐서 멀쩡한데 AI 채팅만 「세션이 만료되었습니다」 로 떨어진다. 재발급하면 살아 있는 세션의 토큰을 받는다.
      */
     fetch: async (input, init) => {
-      const res = await fetch(input, init);
+      let res = await fetch(input, init);
+      if (res.status === 401) {
+        const token = await forceRefresh();
+        if (token) {
+          const headers = new Headers(init?.headers);
+          headers.set("Authorization", `Bearer ${token}`);
+          res = await fetch(input, { ...init, headers });
+        }
+      }
       if (res.ok) return res;
       throw apiRequestError(res.status, await res.json().catch(() => null));
     },
