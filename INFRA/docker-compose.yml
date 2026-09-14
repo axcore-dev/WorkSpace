@@ -119,6 +119,10 @@ services:
         # BE 와 같은 client-id 를 쓴다. 따로 관리하지 않는다.
         NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
         NEXT_PUBLIC_NAVER_CLIENT_ID: ${NAVER_CLIENT_ID}
+        # 「데모 체험하기」 — 셋 다 비우면 버튼이 안 뜬다(빌드는 그대로 된다).
+        NEXT_PUBLIC_DEMO_ENABLED: ${NEXT_PUBLIC_DEMO_ENABLED:-}
+        NEXT_PUBLIC_DEMO_EMAIL: ${NEXT_PUBLIC_DEMO_EMAIL:-}
+        NEXT_PUBLIC_DEMO_PASSWORD: ${NEXT_PUBLIC_DEMO_PASSWORD:-}
     image: axcore/workspace-fe:local
     container_name: axcore-fe
     ports:

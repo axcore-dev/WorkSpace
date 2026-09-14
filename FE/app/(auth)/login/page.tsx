@@ -14,22 +14,12 @@ import {
   startSocialLogin,
 } from "@/lib/auth";
 import { ApiRequestError, apiGet, apiPost } from "@/lib/api";
+import { DEMO_ENABLED, demoLogin } from "@/lib/demo-login";
 import { setAccessToken } from "@/lib/session";
 
 /** 데모: 매직링크 대기 화면 진입 후 이 시간(ms)이 지나면 링크를 클릭한 것으로 간주한다 */
 const DEMO_LINK_CLICK_MS = 5000;
 const LINK_TTL_SEC = 600;
-
-/**
- * 「데모 체험하기」 — 시연용 계정으로 바로 로그인한다. 두 값이 다 있을 때만 버튼이 보인다.
- *
- * `NEXT_PUBLIC_` 이라 **번들에 그대로 실리고 누구나 볼 수 있다.** 그래서 이 계정은 시연 전용
- * 워크스페이스의 소유자여야 하고, 다른 곳에서 쓰는 비밀번호를 두면 안 된다. 코드에 값을 박지
- * 않는 이유는 계정을 바꿀 때 배포 없이 환경 변수만 갈아끼우기 위해서다.
- */
-const DEMO_EMAIL = process.env.NEXT_PUBLIC_DEMO_EMAIL ?? "";
-const DEMO_PASSWORD = process.env.NEXT_PUBLIC_DEMO_PASSWORD ?? "";
-const DEMO_ENABLED = DEMO_EMAIL !== "" && DEMO_PASSWORD !== "";
 
 type LoginResult = MfaLoginResult & { mfaToken?: string | null };
 
@@ -90,16 +80,14 @@ export default function LoginPage() {
    * `demo` 면 시연 계정으로 로그인하고, 회사가 하나뿐이면 고르는 화면을 건너뛴다.
    */
   async function signIn(demo = false) {
-    const creds = demo ? { email: DEMO_EMAIL, password: DEMO_PASSWORD } : { email: email.trim(), password };
-    if (demo) {
-      // 어떤 계정으로 들어갔는지 화면에도 남긴다 — 실패 문구가 떠도 어느 계정 얘긴지 알 수 있게
-      setEmail(creds.email);
-      setPassword(creds.password);
-    }
     setLoginError(null);
     setSubmitting(true);
     try {
-      const result = await apiPost<LoginResult>("/api/auth/login", { ...creds, rememberMe: true });
+      // 데모는 자격을 화면이 모른다 — `lib/demo-login.ts` 가 쥐고 있고, BE 엔드포인트가 생기면
+      // 그 파일만 바뀐다. 폼에 자격을 되비추지 않는 이유도 같다(비밀번호가 DOM 값으로 남는다).
+      const result = demo
+        ? await demoLogin<LoginResult>()
+        : await apiPost<LoginResult>("/api/auth/login", { email: email.trim(), password, rememberMe: true });
 
       if (result?.next === "MFA_REQUIRED" && result.mfaToken) {
         // 비밀번호는 맞았고 2단계가 남았다. 토큰은 아직 없다 — 코드를 넣어야 나온다.
