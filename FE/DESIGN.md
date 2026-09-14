@@ -194,10 +194,12 @@ WorkSpace 데모의 시각 언어와 공용 컴포넌트 규칙. 코드가 단�
 | `isPersonalEmail` (유틸) | 개인 메일 도메인 판별 | 업무용 메일 지향 안내 (로그인·회원가입) |
 | `Workbench` 계열 | 경영지원 작업대 골격 | 좌 320 마스터(`MasterList`: 만들기 → 찾기 → 목록/트리 → 개수) \| 우 디테일(`EntityHeader` → `Banner` → `Tiles` → 표 → `KvGrid`/`Kv`). `lg` 미만은 선택 바 + `Modal sm`. `ConfirmModal`(왼쪽 항상 [닫기], 승인은 `primary`+체크·삭제는 `danger`+경고)·`MenuModal`(처리 메뉴). **다른 모듈로 일반화하지 않는다** — 두 번째 모듈이 필요해질 때. `components/management/workbench.tsx` |
 | `Banner` | 조건부 안내 문장 | `amber`(할 일 있음) / `slate`(진행 중). 문장만 — 버튼을 넣지 않는다(블루 예산). 상태 배지가 아니라 문맥 설명이라 옅은 배경을 허용한다 |
-| `MultiPicker` (`components/multi-picker.tsx`) | 다중 선택 · 단일 선택 | Notion 다중 선택 속성을 따른다 — 칸을 누르면 칩 뒤 캐럿, 타이핑으로 목록이 걸러지고 Enter/클릭으로 칩 추가, 없는 이름은 「만들기 [입력값]」(`onCreate`), × 로 빼고 드래그(키보드 Alt+←/→)로 순서. **첫 칩 = 기본**(`firstTag`) — 순서가 뜻이라 별도 토글이 없다. `single` 이면 하나만(발주처 고르기). 못 고르는 항목(`disabled`)은 옅게 보이되 선택되지 않는다. 무채색 칩(`ring-slate-200`), 팝오버만 `shadow-lg`. `role="combobox"` + `aria-activedescendant` + `listbox/option`. 칩 순서 훅 `useChipReorder` · `Chip` 도 export |
+| `MultiPicker` (`components/multi-picker.tsx`) | 다중 선택 · 단일 선택 | Notion 다중 선택 속성을 따른다 — 칸을 누르면 칩 뒤 캐럿, 타이핑으로 목록이 걸러지고 Enter/클릭으로 칩 추가, 없는 이름은 「만들기 [입력값]」(`onCreate`), × 로 빼고 드래그(키보드 Alt+←/→)로 순서. **첫 칩 = 기본**(`firstTag`) — 순서가 뜻이라 별도 토글이 없다. `single` 이면 하나만(발주처 고르기). 못 고르는 항목(`disabled`)은 옅게 보이되 선택되지 않는다. 무채색 칩(`ring-slate-200`), 팝오버만 `shadow-lg`. `role="combobox"` + `aria-activedescendant` + `listbox/option`. **목록은 `document.body` 포털 + `position: fixed`**(`z-[60]`, 모달 위) — 칸 아래 `absolute` 로 두면 모달 본문 · 표 래퍼의 `overflow` 가 잘라 발주처 목록이 1% 만 보였다(2026-09-11). 아래 공간이 240px 미만이고 위가 더 넓으면 위로 편다. ESC 는 목록이 열려 있을 때만 여기서 멈추고(`stopPropagation`), 닫혀 있으면 모달로 올라간다. 칩 순서 훅 `useChipReorder` · `Chip` 도 export |
 | `UploadReviewModal` (`components/upload-review-modal.tsx`) | 엑셀 업로드 → 확인 → 승인 | `parse`(실제 파일 읽기 — `lib/sheet.ts`: CSV 직접, .xlsx 는 `exceljs` 를 눌렀을 때만) · `classify`(행마다 갱신 · 신규 · 오류 + 사유). 오류 행은 승인에서 빠진다(부분 성공). 둘 다 없으면 옛 데모 파싱 |
 
-보조 — 다이얼로그: `Modal`(sm~xl, ESC 닫기 · `modal.tsx`), `RecordModal`(행 상세 · `record-modal.tsx`).
+보조 — 다이얼로그: `Modal`(sm~xl · `modal.tsx`), `RecordModal`(행 상세 · `record-modal.tsx`).
+
+`Modal` 의 키 · 포커스 규칙(2026-09-11): `role="dialog"` 는 배경이 아니라 **패널**에 있고 제목이 `aria-labelledby` 다. ESC 는 document 가 아니라 패널의 `onKeyDown` 에서 받는다 — 안에 든 콤보박스가 자기 목록을 닫는 ESC 를 멈출 수 있어야 한다. 열리면 포커스가 안으로 들어오고(`autoFocus` 필드가 있으면 그것, 없으면 패널 자체 `tabIndex=-1`), Tab · Shift+Tab 은 패널 안에서 돌고, 닫히면 열었던 요소(행 · 버튼)로 돌아간다. 확인 다이얼로그를 모달 위에 겹쳐 열면 안쪽이 ESC 를 먹어 바깥은 닫히지 않는다.
 
 인증 화면(`auth-shell.tsx`): `AuthSplit`(로그인·회원가입·개설 대기 공통 분할 레이아웃 — 좌측 브랜드 패널 고정, 우측만 교체), `AuthPrimaryButton`(인증 폼 주 액션 — py-3.5 / 15px · `className` 관통 허용). 워크스페이스 선택은 별도 화면 없이 사이드바 전환기(`app-shell.tsx`)가 담당한다.
 
