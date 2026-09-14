@@ -1,6 +1,17 @@
 "use client";
 
-import { useId, useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type CSSProperties,
+  type DragEvent,
+  type KeyboardEvent,
+  type ReactNode,
+  type RefObject,
+} from "react";
+import { createPortal } from "react-dom";
 import { IconX } from "@/components/icons";
 
 /**
@@ -12,6 +23,10 @@ import { IconX } from "@/components/icons";
  * 색 알약은 쓰지 않는다 — 무채색 칩(`ring-slate-200`). 팝오버만 떠 있는 표면이라 `shadow-lg`.
  *
  * 접근성: 입력이 `role="combobox"` + `aria-expanded` + `aria-activedescendant`, 목록은 `listbox/option`.
+ *
+ * 목록은 `document.body` 포털에 `position: fixed` 로 띄운다 — 칸 아래 `absolute` 로 두면 모달 본문(`overflow-y-auto`)이나
+ * 편집기 표 래퍼(`overflow-x-auto`)가 잘라서 발주처 목록이 1% 만 보였다. 아래 공간이 240px 이 안 되고 위가 더 넓으면 위로 편다.
+ * ESC 는 목록이 열려 있을 때만 여기서 멈춘다 — 닫혀 있으면 모달로 올라가 모달이 닫힌다.
  */
 export interface PickerOption {
   id: string;
@@ -22,6 +37,48 @@ export interface PickerOption {
 }
 
 const norm = (s: string) => s.toLowerCase().replace(/\s+/g, "");
+
+/** 목록이 필요로 하는 세로 공간(max-h-56 + 여백). 이보다 적으면 위로 편다 */
+const LIST_SPACE = 240;
+
+/**
+ * 열려 있는 동안 기준 요소의 화면 좌표를 따라간다 — 스크롤(모달 본문 포함, capture) · 리사이즈마다 다시 잰다.
+ * 측정은 rAF 안에서 해서 한 프레임에 한 번만 상태를 바꾼다. 닫히면 null.
+ */
+function useAnchorRect(open: boolean, ref: RefObject<HTMLElement | null>) {
+  const [rect, setRect] = useState<DOMRect | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    let raf = 0;
+    const measure = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => setRect(ref.current?.getBoundingClientRect() ?? null));
+    };
+    measure();
+    window.addEventListener("scroll", measure, true);
+    window.addEventListener("resize", measure);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("scroll", measure, true);
+      window.removeEventListener("resize", measure);
+    };
+  }, [open, ref]);
+  return open ? rect : null;
+}
+
+/** 기준 칸 바로 아래(공간이 없으면 위)에 같은 폭으로 — fixed 좌표 */
+function listStyle(rect: DOMRect): CSSProperties {
+  const below = window.innerHeight - rect.bottom;
+  const flip = below < LIST_SPACE && rect.top > below;
+  const room = (flip ? rect.top : below) - 8;
+  return {
+    position: "fixed",
+    left: rect.left,
+    width: rect.width,
+    maxHeight: Math.max(96, Math.min(224, room)),
+    ...(flip ? { bottom: window.innerHeight - rect.top + 4 } : { top: rect.bottom + 4 }),
+  };
+}
 
 export const CHIP = "inline-flex items-center gap-1 rounded bg-white px-2 py-0.5 text-xs text-slate-700 ring-1 ring-inset ring-slate-200";
 
@@ -157,6 +214,7 @@ export function MultiPicker({
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const anchor = useAnchorRect(open, rootRef);
   const reorder = useChipReorder(value, onChange);
 
   const selected = value.map((v) => options.find((o) => o.id === v) ?? { id: v, label: v });
@@ -206,7 +264,11 @@ export function MultiPicker({
         pick(activeIdx);
       }
     } else if (e.key === "Escape") {
-      setOpen(false);
+      // 목록만 닫는다. 닫혀 있을 때의 ESC 는 모달 몫이라 그대로 올려 보낸다
+      if (open) {
+        e.stopPropagation();
+        setOpen(false);
+      }
     } else if (e.key === "Backspace" && query === "" && value.length > 0) {
       onChange(value.slice(0, -1));
     }
@@ -271,18 +333,24 @@ export function MultiPicker({
             setActive(0);
           }}
           onFocus={() => setOpen(true)}
+          // 이미 포커스가 있는 칸을 다시 눌러도 목록이 열려야 한다 — ESC 로 닫은 뒤 다시 고르는 흐름
+          onClick={() => setOpen(true)}
           onKeyDown={onKey}
           className="min-w-[8ch] flex-1 bg-transparent py-0.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none"
         />
       </div>
 
-      {open && (
-        <ul
-          id={`${baseId}-list`}
-          role="listbox"
-          aria-label={`${label} 목록`}
-          className="absolute left-0 right-0 top-full z-20 mt-1 max-h-56 overflow-auto rounded-lg border border-slate-200 bg-white p-1 shadow-lg"
-        >
+      {open &&
+        anchor &&
+        createPortal(
+          <ul
+            id={`${baseId}-list`}
+            role="listbox"
+            aria-label={`${label} 목록`}
+            style={listStyle(anchor)}
+            // 모달(z-50) 위에 떠야 한다
+            className="thin-scroll z-[60] overflow-auto rounded-lg border border-slate-200 bg-white p-1 shadow-lg"
+          >
           {filtered.map((o, i) => (
             <li
               key={o.id}
@@ -316,8 +384,9 @@ export function MultiPicker({
             </li>
           )}
           {count === 0 && <li className="px-2.5 py-1.5 text-sm text-slate-500">고를 수 있는 항목이 없어요</li>}
-        </ul>
-      )}
+          </ul>,
+          document.body,
+        )}
     </div>
   );
 }

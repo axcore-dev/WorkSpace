@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { IconChevronDown } from "@/components/icons";
-import { Button, Card, DataTable } from "@/components/ui";
+import { useState } from "react";
+import { Card, DataTable, MenuButton } from "@/components/ui";
 import { UploadReviewModal, type UploadRowStatus } from "@/components/upload-review-modal";
 import type { Item } from "@/data/inventory";
 import type { Cell } from "@/data/types";
@@ -13,59 +12,6 @@ import { useInventory } from "../inventory-provider";
 import { ItemModal } from "../item-modal";
 
 const COLUMNS = ["품목 코드", "품목명", "사양", "규격", "단위", "분류", "거래처", "보관 위치", "상태"];
-
-/** 「등록 ▾」 — 엑셀 업로드 / 직접 등록. 떠 있는 표면이라 shadow-lg. 바깥 클릭 · ESC 로 닫힌다 */
-function RegisterMenu({ onUpload, onCreate }: { onUpload: () => void; onCreate: () => void }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
-
-  const item = (label: string, onClick: () => void) => (
-    <li role="none">
-      <button
-        type="button"
-        role="menuitem"
-        onClick={() => {
-          setOpen(false);
-          onClick();
-        }}
-        className="w-full cursor-pointer rounded-md px-3 py-2 text-left text-sm text-slate-700 transition-colors duration-150 hover:bg-slate-100"
-      >
-        {label}
-      </button>
-    </li>
-  );
-
-  return (
-    <div ref={ref} className="relative">
-      <Button size="sm" variant="secondary" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
-        등록
-        <IconChevronDown size={14} className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
-      </Button>
-      {open && (
-        <ul role="menu" aria-label="등록 방법" className="absolute right-0 top-full z-20 mt-1 w-40 rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
-          {item("엑셀 업로드", onUpload)}
-          {item("직접 등록", onCreate)}
-        </ul>
-      )}
-    </div>
-  );
-}
 
 /**
  * 품목 마스터 — 설정 화면. 「등록 ▾」 하나(엑셀 / 직접) + 행 클릭 → 수정 팝업(저장 시 자동 닫힘 + 토스트).
@@ -122,7 +68,15 @@ export function ItemsTab() {
             <span className="rounded px-1.5 py-0.5 text-xs text-slate-500 ring-1 ring-inset ring-slate-200">도면(BOM) 자동 연동 · 준비 중</span>
           </div>
           <CardTools search={{ value: query, onChange: setQuery, placeholder: "코드 · 품목명 · 규격으로 찾기" }}>
-            <RegisterMenu onUpload={() => setUpload((n) => n + 1)} onCreate={() => setModal({ seq: Date.now(), item: null })} />
+            <MenuButton
+              size="sm"
+              label="등록"
+              menuLabel="등록 방법"
+              items={[
+                { label: "엑셀 업로드", onClick: () => setUpload((n) => n + 1) },
+                { label: "직접 등록", onClick: () => setModal({ seq: Date.now(), item: null }) },
+              ]}
+            />
           </CardTools>
         </div>
         <DataTable

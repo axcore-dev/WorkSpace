@@ -51,10 +51,18 @@ const InventoryContext = createContext<InventoryContextValue | null>(null);
 
 const messageOf = (e: unknown) => (e instanceof ApiRequestError ? e.body.message : "처리하지 못했어요. 잠시 뒤 다시 시도해 주세요");
 
-/** 개발 중 BE 가 없을 때만 폴백한다 — 404 또는 서버에 닿지 못한 경우 */
+/**
+ * 데모 데이터로 채울 것인가.
+ *
+ * **없는 경로(404)는 어디서든 채운다.** BE 에 재고·물류 API 가 아직 없어서 배포에서도 빈 오류 화면만 나왔다.
+ * 데모를 보여 주는 것이 이 배포의 목적이므로 프로덕션에서도 채운다. BE 가 생기면 404 가 사라져 저절로 꺼진다.
+ *
+ * **서버에 닿지 못한 것은 다르다.** 배포에서 그것은 장애다 — 있는 API 가 잠깐 죽었는데 지어낸 숫자를 진짜처럼
+ * 보여 주면 안 된다. 오류 화면으로 남기고, BE 를 안 띄운 개발에서만 데모로 본다.
+ */
 function demoFallback(e: unknown): boolean {
-  if (process.env.NODE_ENV === "production") return false;
-  return !(e instanceof ApiRequestError) || e.status === 404;
+  if (e instanceof ApiRequestError) return e.status === 404;
+  return process.env.NODE_ENV !== "production";
 }
 
 /** 폴백 리듀서용 시각 — 날짜는 고정 「오늘」, 시각은 지금(로컬). UTC 로 찍으면 화면 날짜와 어긋난다 */
