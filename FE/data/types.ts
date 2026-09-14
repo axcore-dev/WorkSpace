@@ -5,7 +5,22 @@ export type Tone = "green" | "amber" | "red" | "violet" | "blue" | "slate";
 
 /** 테이블 셀: 일반 텍스트 또는 상태 배지 */
 /** 표 셀. 배지 셀은 기본 text-xs — 지금 행동할 상태값(기한 넘김 · 잔량)은 `size: "md"` + `strong` 으로 본문 크기 semibold 로 올린다 */
-export type Cell = string | number | { badge: string; tone: Tone; size?: "md"; strong?: boolean };
+export type Cell =
+  | string
+  | number
+  | { badge: string; tone: Tone; size?: "md"; strong?: boolean }
+  /** 진행 막대 + 「6 / 10」 — 발주 입고처럼 얼마나 찼는지가 값인 칸 */
+  | { progress: { value: number; total: number } }
+  /** 증감 — 늘면 빨강 `+1,200`, 줄면 파랑 `-2` (DESIGN.md 「재고 증감 부호」 예외) */
+  | { delta: number };
+
+/** CSV · 검색용 글자 — 배지는 글자, 막대는 「6/10」, 증감은 부호 붙은 숫자 */
+export function cellText(c: Cell): string {
+  if (typeof c !== "object") return String(c);
+  if ("badge" in c) return c.badge;
+  if ("progress" in c) return `${c.progress.value}/${c.progress.total}`;
+  return c.delta > 0 ? `+${c.delta}` : String(c.delta);
+}
 
 export interface TableData {
   columns: string[];

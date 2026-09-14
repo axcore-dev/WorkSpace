@@ -69,49 +69,58 @@ export const orderReceived = (o: PurchaseOrder) => o.lines.reduce((s, l) => s + 
 export const orderRemaining = (o: PurchaseOrder) => o.lines.reduce((s, l) => s + lineRemaining(l), 0);
 
 /**
- * 상태 네 가지. 「도착」은 시스템이 모른다 — 발주일 · 수량 · 입고 등록만 안다.
+ * 상태 세 가지(2026-09-14 — 「잔량 N」 · 「등록 전」 · 「제작 중」을 대기 하나로). 「도착」은 시스템이 모른다 — 발주일 · 수량 · 입고 등록만 안다.
  * - overdue: 잔량 > 0 이고 `today − orderedOn > vendor.leadTimeDays`. 리드타임이 없으면 판단하지 않는다
- * - waiting: 입고 등록이 한 건도 없음(경과일 N)
- * - partial: 일부 입고, 잔량 N
+ * - waiting: 잔량 > 0 이고 아직 기한 안(부분 입고 · 자체 제작 포함). 얼마나 들어왔는지는 입고 막대가 말한다
  * - done: 잔량 0 또는 마감됨
  */
-export type OrderStatus =
-  | { kind: "overdue"; days: number }
-  | { kind: "waiting"; days: number }
-  /** 자체 제작 거래처 — 문서가 없는 제작 지시. 입고 등록이 시작되면 부분 입고로 */
-  | { kind: "making"; days: number }
-  | { kind: "partial"; remaining: number }
-  | { kind: "done" };
+export type OrderStatus = { kind: "overdue"; days: number } | { kind: "waiting"; days: number } | { kind: "done" };
 
 export function orderStatus(order: PurchaseOrder, vendors: Vendor[], today: string): OrderStatus {
-  const remaining = orderRemaining(order);
-  if (remaining === 0 || order.closedOn) return { kind: "done" };
+  if (orderRemaining(order) === 0 || order.closedOn) return { kind: "done" };
   const days = daysBetween(order.orderedOn, today);
   const vendor = vendors.find((v) => v.id === order.vendorId);
-  if (vendor?.kind === "inhouse" && orderReceived(order) === 0) return { kind: "making", days };
-  const lead = vendor?.leadTimeDays ?? null;
-  if (lead !== null && days > lead) return { kind: "overdue", days };
-  if (orderReceived(order) === 0) return { kind: "waiting", days };
-  return { kind: "partial", remaining };
+  // 자체 제작은 거래처 리드타임이 없다(null) — 기한 넘김을 판단하지 않는다
+  const lead = vendor?.kind === "inhouse" ? null : (vendor?.leadTimeDays ?? null);
+  return lead !== null && days > lead ? { kind: "overdue", days } : { kind: "waiting", days };
 }
 
-const STATUS_RANK: Record<OrderStatus["kind"], number> = { overdue: 0, waiting: 1, making: 2, partial: 3, done: 4 };
+const STATUS_RANK: Record<OrderStatus["kind"], number> = { overdue: 0, waiting: 1, done: 2 };
 
-/** 할 일 순 — 기한 넘김(경과일 큰 순) → 등록 전(경과일 큰 순) → 제작 중 → 부분 입고(잔량 큰 순) → 완료(최근 발주 먼저) */
-export function orderSort(orders: PurchaseOrder[], vendors: Vendor[], today: string): PurchaseOrder[] {
-  const key = (o: PurchaseOrder): [number, number, string] => {
-    const s = orderStatus(o, vendors, today);
-    const inner = s.kind === "overdue" || s.kind === "waiting" || s.kind === "making" ? -s.days : s.kind === "partial" ? -s.remaining : 0;
-    return [STATUS_RANK[s.kind], inner, o.orderedOn];
-  };
-  return [...orders].sort((a, b) => {
-    const [ra, ia, da] = key(a);
-    const [rb, ib, db] = key(b);
-    if (ra !== rb) return ra - rb;
-    if (ia !== ib) return ia - ib;
-    if (da !== db) return db.localeCompare(da);
-    return b.poNo.localeCompare(a.poNo);
+/** 한 번의 발주서 작성에서 발주처별로 나뉜 발주들 — 발주 현황의 한 줄 */
+export interface OrderGroup {
+  key: string;
+  /** 발주번호 순 = 작성 때 발주처가 나온 순서 */
+  orders: PurchaseOrder[];
+  /** 가장 급한 발주의 상태(기한 넘김이면 가장 오래 넘긴 것) */
+  status: OrderStatus;
+}
+
+/**
+ * 발주 묶음 + 할 일 순 정렬 — 기한 넘김(경과일 큰 순) → 대기(경과일 큰 순) → 완료(최근 발주 먼저).
+ * 한 번의 작성 = 관리번호 · 발주일 · 도면이 같은 발주들. 편집기가 이 셋을 한 번 받아 발주처마다 나누기 때문이다.
+ */
+// ponytail: 묶음 id 를 저장하지 않고 세 값으로 맞춘다 — 같은 날 같은 관리번호로 두 번 작성하면 한 줄로 합쳐진다. 따로 봐야 하면 발주에 batch id 칸을 둔다
+export function orderGroups(orders: PurchaseOrder[], vendors: Vendor[], today: string): OrderGroup[] {
+  const byKey = new Map<string, PurchaseOrder[]>();
+  for (const o of orders) {
+    const key = `${o.projectCode}|${o.orderedOn}|${o.drawing}`;
+    byKey.set(key, [...(byKey.get(key) ?? []), o]);
+  }
+  const groups: OrderGroup[] = [...byKey].map(([key, list]) => {
+    const sorted = [...list].sort((a, b) => a.poNo.localeCompare(b.poNo));
+    const statuses = sorted.map((o) => orderStatus(o, vendors, today));
+    const worst = (kind: "overdue" | "waiting") => statuses.filter((s) => s.kind === kind).sort((a, b) => ("days" in b ? b.days : 0) - ("days" in a ? a.days : 0))[0];
+    return { key, orders: sorted, status: worst("overdue") ?? worst("waiting") ?? { kind: "done" } };
   });
+  const days = (s: OrderStatus) => (s.kind === "done" ? 0 : s.days);
+  return groups.sort(
+    (a, b) =>
+      STATUS_RANK[a.status.kind] - STATUS_RANK[b.status.kind] ||
+      days(b.status) - days(a.status) ||
+      b.orders[0].orderedOn.localeCompare(a.orders[0].orderedOn) ||
+      b.orders[0].poNo.localeCompare(a.orders[0].poNo),
+  );
 }
 
 /** 발주 rev ≠ 도면 현재 rev — 개정 경고 한 줄의 조건 */

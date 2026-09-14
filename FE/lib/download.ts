@@ -1,6 +1,4 @@
-import type { Cell } from "@/data/types";
-
-const cellText = (c: Cell) => (typeof c === "object" ? c.badge : String(c));
+import { cellText, type Cell } from "@/data/types";
 
 /** CSV 다운로드 — Excel 한글 호환을 위해 BOM 포함 */
 export function downloadCsv(filename: string, rows: Cell[][]) {

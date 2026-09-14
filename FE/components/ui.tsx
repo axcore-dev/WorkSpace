@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Fragment, useEffect, useId, useRef, useState } from "react";
 import type { Cell, StatData, TableData, Tone } from "@/data/types";
+import { formatDelta, formatQty } from "@/lib/format";
 import { EMPHASIS_CLASS, cellEmphasis, type Emphasis, type RowEmphasis } from "@/lib/emphasis";
 import { IconAlertCircle, IconArrowDownRight, IconArrowUpRight, IconCheck, IconChevronDown, IconChevronRight } from "@/components/icons";
 
@@ -237,6 +238,25 @@ export function Stat({ stat, onCta }: { stat: StatData; onCta?: (tabId: string) 
 
 /** 내림 행에서는 배지도 중립 톤으로 — 완료 행에 초록 배지가 남으면 회색이 무의미해진다 */
 function CellView({ cell, row }: { cell: Cell; row?: RowEmphasis }) {
+  if (typeof cell === "object" && "progress" in cell) {
+    const { value, total } = cell.progress;
+    return (
+      <span className="inline-flex items-center gap-2.5">
+        {/* 막대는 끝난 행에서 한 단 옅게 — 글자색은 행 위계를 따른다 */}
+        <span className="block h-1.5 w-16 overflow-hidden rounded-full bg-slate-100" aria-hidden>
+          <span className={`block h-full rounded-full ${row ? "bg-slate-300" : "bg-slate-600"}`} style={{ width: `${total > 0 ? Math.min(100, (value / total) * 100) : 0}%` }} />
+        </span>
+        <span>
+          {formatQty(value)} / {formatQty(total)}
+        </span>
+      </span>
+    );
+  }
+  if (typeof cell === "object" && "delta" in cell) {
+    // 내림 · 지나간 행(불합격 입고처럼 재고에 안 들어간 줄)은 색을 지운다 — 색이 남으면 반영된 증감으로 읽힌다
+    const tone = row ? "" : cell.delta > 0 ? "font-semibold text-red-600" : cell.delta < 0 ? "font-semibold text-blue-600" : "";
+    return <span className={tone}>{formatDelta(cell.delta)}</span>;
+  }
   if (typeof cell === "object") {
     // 지나간 행(faint)의 배지는 톤 없이 행 색을 그대로 따른다 — 셀보다 진한 회색이 남지 않게
     if (row === "faint") return <span className={cell.size === "md" ? "text-sm" : "text-xs"}>{cell.badge}</span>;
@@ -260,7 +280,7 @@ export function DataTable({
   emphasis,
   emphasisAt,
   rowEmphasis,
-  expandedRow,
+  expandedRows,
   renderExpanded,
   emptyText,
   colWidths,
@@ -269,8 +289,11 @@ export function DataTable({
   dense?: boolean;
   /** 지정 시 행 클릭 가능 (상세 팝업 · 펼침 토글 등) */
   onRowClick?: (rowIndex: number) => void;
-  /** 행 펼침 — `renderExpanded` 를 주면 첫 열에 ▸ 가 생기고, `expandedRow` 행 아래에 패널이 열린다(모달 아님). 토글은 `onRowClick` 이 한다 */
-  expandedRow?: number | null;
+  /**
+   * 행 펼침 — `renderExpanded` 를 주면 첫 열에 ▸ 가 생기고, `expandedRows` 의 행마다 아래에 패널이 열린다(모달 아님).
+   * **여럿이 동시에 열린다** — 하나를 열어도 다른 행은 접히지 않는다(2026-09-14, 두 발주를 나란히 보려는 요청). 토글은 `onRowClick` 이 한다
+   */
+  expandedRows?: number[];
   renderExpanded?: (rowIndex: number) => React.ReactNode;
   /** 행이 0개일 때 표 안에 보이는 한 줄 — 「검색 결과가 없어요」. 없으면 머리글만 남는다 */
   emptyText?: string;
@@ -294,28 +317,27 @@ export function DataTable({
   const panelId = useId();
   /**
    * 펼침 모션 — 열릴 때 패널이 0fr → 1fr 로 300ms(slow) 자라고, 접힐 때 같은 길이로 줄어든 뒤 언마운트된다.
-   * `grown` 은 한 프레임 뒤에 열린 행을 따라간다(첫 프레임은 0fr 이어야 전환이 생긴다). `closing` 은 방금 닫힌 행을
-   * 300ms 붙잡아 둔다. 바뀐 직후 한 렌더는 `grown` 이 아직 이전 행이라 패널이 끊기지 않고 남는다.
-   * 상태는 rAF · 타이머 안에서만 바꾼다(effect 본문의 동기 setState 는 lint 가 막는다).
+   * `grown` 은 한 프레임 뒤에 열린 행들을 따라간다(첫 프레임은 0fr 이어야 전환이 생긴다). `closing` 은 방금 닫힌 행을
+   * 300ms 붙잡아 둔다. 바뀐 직후 한 렌더는 `grown` 에 아직 그 행이 있어 패널이 끊기지 않고 남는다.
+   * 상태는 rAF · 타이머 안에서만 바꾼다(effect 본문의 동기 setState 는 lint 가 막는다). 의존성은 배열이 아니라 글자 키 —
+   * 부모가 매 렌더 새 배열을 넘겨도 열린 행이 같으면 다시 돌지 않는다.
    */
-  const [grown, setGrown] = useState<number | null>(null);
-  const [closing, setClosing] = useState<number | null>(null);
-  const lastOpen = useRef<number | null>(null);
+  const openKey = (expandedRows ?? []).join(",");
+  const [grown, setGrown] = useState<number[]>([]);
+  const [closing, setClosing] = useState<number[]>([]);
+  const lastOpen = useRef<number[]>([]);
   useEffect(() => {
-    const prev = lastOpen.current;
-    const next = expandedRow ?? null;
+    const next = openKey ? openKey.split(",").map(Number) : [];
+    const removed = lastOpen.current.filter((i) => !next.includes(i));
     lastOpen.current = next;
-    const changed = prev !== null && prev !== next;
     const raf = requestAnimationFrame(() => {
       setGrown(next);
-      if (changed) setClosing(prev);
+      if (removed.length > 0) setClosing((c) => [...c, ...removed]);
     });
-    const timer = changed ? setTimeout(() => setClosing(null), 320) : undefined;
-    return () => {
-      cancelAnimationFrame(raf);
-      if (timer) clearTimeout(timer);
-    };
-  }, [expandedRow]);
+    // 타이머는 정리하지 않는다 — 300ms 안에 다른 행을 또 접어도 먼저 접힌 행이 제때 언마운트되게
+    if (removed.length > 0) setTimeout(() => setClosing((c) => c.filter((i) => !removed.includes(i))), 320);
+    return () => cancelAnimationFrame(raf);
+  }, [openKey]);
   const align = (j: number) => CELL_ALIGN[colAlign?.[j] ?? "left"];
   return (
     <div className="thin-scroll -mx-1 overflow-x-auto px-1">
@@ -357,7 +379,7 @@ export function DataTable({
           )}
           {data.rows.map((row, i) => {
             const level = rowEmphasis?.(row, i);
-            const open = expandable && expandedRow === i;
+            const open = expandable && !!expandedRows?.includes(i);
             return (
               <Fragment key={i}>
                 <tr
@@ -399,7 +421,7 @@ export function DataTable({
                     </td>
                   ))}
                 </tr>
-                {expandable && (open || grown === i || closing === i) && (
+                {expandable && (open || grown.includes(i) || closing.includes(i)) && (
                   <tr id={`${panelId}-${i}`} className="bg-slate-50">
                     {/* 펼친 패널 — 행과 같은 표 안에 있어 가로 스크롤을 함께 탄다. 옅은 띠 위에 흰 카드(테두리, 그림자 없음),
                         첫 데이터 열 아래로 들여 쓴다(38px) — 행에 속한 상세라는 것이 보이게.
@@ -407,7 +429,7 @@ export function DataTable({
                     <td colSpan={row.length + 1} className="p-0">
                       <div
                         className={`grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none ${
-                          open && grown === i ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+                          open && grown.includes(i) ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
                         }`}
                       >
                         <div className="min-h-0 overflow-hidden">
