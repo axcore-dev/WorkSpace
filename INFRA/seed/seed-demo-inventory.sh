@@ -22,6 +22,9 @@
 # SEED_WORKSPACE 는 스키마 이름(ax_00008)이나 회사 이름 둘 다 받는다. 비우면 데모 회사를 찾는다.
 #
 # 여러 번 돌려도 된다. 그 회사의 재고 표를 비우고 다시 넣는다 — **그 회사에 쌓인 재고 데이터는 사라진다.**
+# 그래서 지울 것이 있으면 행 수를 보이고 확인을 받는다(#95). 회사 상태가 active 면 스키마 이름을 그대로
+# 입력해야 진행한다. 자동화에서는 SEED_FORCE=1 로 확인을 건너뛴다.
+#   SEED_FORCE=1 SEED_WORKSPACE=ax_00008 bash INFRA/seed/seed-demo-inventory.sh
 
 source "$(dirname "$0")/lib.sh"
 
@@ -39,11 +42,9 @@ SCHEMA="$(psql_ "select schema_name from shared.workspaces where schema_name = '
 SCHEMA="$(printf '%s' "$SCHEMA" | tr -d '[:space:]')"
 
 [ -n "$SCHEMA" ] || die "회사를 찾을 수 없다: $TARGET  (SEED_WORKSPACE 에 회사 이름이나 스키마 이름을 넘긴다)"
-# search_path 에 문자열로 조립되는 값이라 형태를 여기서도 막는다(BE 의 2단계 검증과 같은 정규식).
-case "$SCHEMA" in
-  ax_[0-9][0-9][0-9][0-9][0-9]*) ;;
-  *) die "스키마 이름이 규칙에 맞지 않는다: $SCHEMA" ;;
-esac
+# search_path 에 문자열로 조립되는 값이라 형태를 여기서도 막는다. BE 의 SchemaName(^ax_[0-9]{5,}$)과 같은 정규식 —
+# 예전 글롭(ax_[0-9]*5*)은 뒤에 무엇이든 붙을 수 있어 그보다 느슨했다(#97).
+[[ "$SCHEMA" =~ ^ax_[0-9]{5,}$ ]] || die "스키마 이름이 규칙에 맞지 않는다: $SCHEMA"
 
 NAME="$(psql_ "select name from shared.workspaces where schema_name = '$SCHEMA'")"
 say "대상: $NAME ($SCHEMA)"
@@ -53,11 +54,37 @@ HAS="$(psql_ "select count(*) from information_schema.tables where table_schema 
 [ "$(printf '%s' "$HAS" | tr -d '[:space:]')" = "1" ] \
   || die "$SCHEMA 에 재고 표가 없다. BE 를 새 이미지로 한 번 띄워 tenant V17 을 적용한 뒤 다시 돌린다."
 
+# 이 시드는 표를 비우고 다시 넣는다. 다른 시드는 「이미 있으면 건너뛴다」라 이 위험이 없고 이 시드만 다르다.
+# SEED_WORKSPACE 를 잘못 넘기면 실제 재고 데이터가 사라지고 되돌릴 수 없으므로, 지울 것이 있을 때만 묻는다(#95).
+# 라인·품목-거래처 표는 부모(발주·품목)가 있어야 존재하므로 세지 않는다. inv_settings 는 독립 표라 따로 센다.
+COUNTS="$(psql_ "set search_path to $SCHEMA;
+       select (select count(*) from inv_vendors) || ' ' || (select count(*) from inv_items) || ' '
+           || (select count(*) from inv_purchase_orders) || ' ' || (select count(*) from inv_movements) || ' '
+           || (select count(*) from inv_item_standards) || ' ' || (select count(*) from inv_settings)" | tr -d '\r')"
+# 질의가 실패하면 빈 값이 산술에서 0 이 되어 확인 없이 지우게 된다. 숫자 여섯이 아니면 여기서 멈춘다(닫힌 실패).
+[[ "$COUNTS" =~ ^[0-9]+(\ [0-9]+){5}$ ]] || die "재고 표의 행 수를 읽지 못했다: '$COUNTS'"
+read -r N_VENDORS N_ITEMS N_ORDERS N_MOVES N_STDS N_SETTINGS <<< "$COUNTS"
+TOTAL=$((N_VENDORS + N_ITEMS + N_ORDERS + N_MOVES + N_STDS + N_SETTINGS))
+if [ "$TOTAL" -gt 0 ] && [ "${SEED_FORCE:-}" != "1" ]; then
+  STATUS="$(psql_ "select status from shared.workspaces where schema_name = '$SCHEMA'" | tr -d '[:space:]')"
+  echo
+  say "이 회사에 재고 데이터가 있다: 거래처 $N_VENDORS · 품목 $N_ITEMS · 발주 $N_ORDERS · 이력 $N_MOVES · 기준 $N_STDS · 설정 $N_SETTINGS"
+  say "전부 지우고 데모 데이터로 바꾼다. 되돌릴 수 없다."
+  # 파이프 안에서 돌아도 사람에게 묻도록 터미널에서 직접 읽는다. 터미널이 없으면(CI) SEED_FORCE=1 을 쓰라는 뜻이다.
+  if [ "$STATUS" = "active" ]; then
+    say "[주의] 회사 상태가 active 다 — 운영 중인 회사일 수 있다. 실수로 y 를 치는 것까지 막기 위해 이름을 받는다."
+    read -r -p "  스키마 이름($SCHEMA)을 그대로 입력하면 진행한다: " ANSWER < /dev/tty || die "확인을 받을 수 없다. 자동화라면 SEED_FORCE=1."
+    [ "$ANSWER" = "$SCHEMA" ] || die "중단했다. 아무것도 바꾸지 않았다."
+  else
+    read -r -p "  지우고 다시 넣을까? [y/N] " ANSWER < /dev/tty || die "확인을 받을 수 없다. 자동화라면 SEED_FORCE=1."
+    case "$ANSWER" in y|Y) ;; *) die "중단했다. 아무것도 바꾸지 않았다." ;; esac
+  fi
+fi
+
 echo
 echo "== 재고·물류 데모 데이터"
 {
-  # 위에서 형태를 확인했으므로 따옴표 없이 넣는다 — psql_ 이 질의를 큰따옴표로 감싸 전달해서
-  # 여기에 큰따옴표를 쓰면 그쪽이 깨진다.
+  # 위에서 형태를 확인했으므로 따옴표 없이 넣는다.
   echo "SET search_path TO $SCHEMA;"
   cat "$DATA"
 } | docker exec -i "$PG" sh -c 'psql -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
