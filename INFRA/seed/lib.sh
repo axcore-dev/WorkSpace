@@ -129,8 +129,11 @@ except Exception:
   esac
 }
 
+# 질의는 stdin 으로 넘긴다. 인자로 보간하면 컨테이너의 sh 가 한 번 더 파싱해서 질의 속 " · ` · $( ) 가
+# SQL 이 아니라 명령으로 풀린다(#97). 회사 이름에 큰따옴표가 있으면 그냥 깨지던 자리다.
+# ON_ERROR_STOP 은 -c 한 문장일 때 자연히 그랬던 「오류 = 종료 코드」를 stdin 방식에서도 유지한다.
 psql_() {
-  docker exec "$PG" sh -c "psql -qtAX -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" -c \"$1\""
+  printf '%s\n' "$1" | docker exec -i "$PG" sh -c 'psql -qtAX -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
 }
 
 # BE 와 DB 컨테이너가 살아 있는지. 둘 중 하나라도 없으면 아무것도 만들기 전에 멈춘다.
