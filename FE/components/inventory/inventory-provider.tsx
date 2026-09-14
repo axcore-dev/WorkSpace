@@ -19,8 +19,8 @@ import { useWorkspaceMe } from "@/lib/workspace-me";
  * 마운트 시 한 번 받고, 동작은 `dispatch` → 서버 → 다시 받기. 낙관적 갱신은 없다 — 발주번호 · 이력 id 를
  * 서버가 정한다. 실패하면 토스트, 화면은 그대로.
  *
- * **데모 폴백**: BE 에 `/api/workspace/inventory/*` 가 아직 없다. 첫 GET 이 404 면 데모 데이터로 채우고
- * `dispatch` 는 리듀서로 로컬 처리한다(`mode: "demo"`). 배포에서도 켜진다 — `demoFallback` 주석 참고.
+ * **dev 폴백**: 프로덕션이 아니고 첫 GET 이 404 · 네트워크 오류면(= BE 가 안 떠 있으면) 데모 데이터로 채우고
+ * `dispatch` 는 리듀서로 로컬 처리한다(`mode: "demo"`). 프로덕션은 오류 상태.
  */
 type Status = "loading" | "ready" | "error";
 type Mode = "server" | "demo";

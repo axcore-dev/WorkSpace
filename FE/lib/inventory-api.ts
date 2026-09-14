@@ -5,8 +5,11 @@ import type { InventoryAction, InventoryData } from "@/lib/inventory-state";
 /**
  * 재고·물류 API. 회사를 고른 토큰이어야 하고, 탭 권한이 없거나 회사가 탭을 끄면 403 이 온다.
  *
- * **BE 가 아직 없다.** 경로는 경영지원(`/api/workspace/management/*`)과 같은 자리에 둔다.
- * 개발 중 첫 GET 이 404 · 네트워크 오류면 `components/inventory/inventory-provider.tsx` 가 데모로 폴백한다.
+ * BE 는 `BE/src/main/java/com/axcore/workspace/inventory` 다. 경로는 경영지원(`/api/workspace/management/*`)과
+ * 같은 자리에 있다. 읽기는 모듈 단위, 쓰기는 탭 단위로 막힌다(`InventoryAccess`).
+ *
+ * 첫 GET 이 404 · 네트워크 오류면 `components/inventory/inventory-provider.tsx` 가 데모로 폴백한다 — 이제는
+ * "BE 가 없다" 가 아니라 "BE 가 안 떠 있다" 는 뜻이고, dev 에서만 그렇다.
  */
 const BASE = "/api/workspace/inventory";
 const must = <T,>(v: T | null) => v as T;
