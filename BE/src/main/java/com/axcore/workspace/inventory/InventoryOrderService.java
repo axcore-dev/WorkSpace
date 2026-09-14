@@ -145,20 +145,16 @@ public class InventoryOrderService {
                 throw new SettingsNotFoundException("발주에 없는 줄입니다: " + in.no());
             }
             Row row = rows.get(0);
-            boolean pass = "pass".equals(in.judgement());
-            int remaining = Math.max(0, row.ordered() - row.received());
-            int over = pass ? Math.max(0, in.received() - remaining) : 0;
-            String note = text(in.note());
-            String movementNote = over > 0 ? (note.isEmpty() ? "초과 +" + over : note + " · 초과 +" + over) : note;
+            Receipt r = Receipt.of(row.ordered(), row.received(), in.received(), in.judgement(), in.note());
 
             jdbc.update(
                     "update inv_po_lines set received = received + ?, judgement = ?, note = ? where id = ?",
-                    pass ? in.received() : 0,
+                    r.increment(),
                     in.judgement(),
-                    note,
+                    r.note(),
                     row.id());
             support.insertMovement(
-                    at, row.itemCode(), "in", in.received(), actor, ref, movementNote, poNo, in.judgement());
+                    at, row.itemCode(), "in", in.received(), actor, ref, r.movementNote(), poNo, in.judgement());
         }
 
         if (request.complete()) {
@@ -186,6 +182,26 @@ public class InventoryOrderService {
                         String.class,
                         prefix + "%");
         return nextNo(prefix, max);
+    }
+
+    /**
+     * 입고 한 줄의 계산. 화면 리듀서({@code lib/inventory-state.ts} {@code case "receive"})와 같은 규칙이고,
+     * {@code InventoryRulesTest} 가 두 쪽을 같은 표로 맞춘다. DB 를 건드리지 않는 부분만 여기 있다 —
+     * 받은 수량 0 이하를 건너뛰는 것은 호출부의 일이다.
+     *
+     * @param increment    누계({@code inv_po_lines.received})에 더할 몫. 불합격은 0 — 잔량이 남아 다시 받는다
+     * @param note         줄에 남길 메모(정리한 원문)
+     * @param movementNote 이력 메모. 초과 입고면 「초과 +N」이 붙는다
+     */
+    record Receipt(int increment, String note, String movementNote) {
+        static Receipt of(int ordered, int receivedSoFar, int received, String judgement, String rawNote) {
+            boolean pass = "pass".equals(judgement);
+            int remaining = Math.max(0, ordered - receivedSoFar);
+            int over = pass ? Math.max(0, received - remaining) : 0;
+            String note = text(rawNote);
+            String movementNote = over > 0 ? (note.isEmpty() ? "초과 +" + over : note + " · 초과 +" + over) : note;
+            return new Receipt(pass ? received : 0, note, movementNote);
+        }
     }
 
     private static String text(String v) {
