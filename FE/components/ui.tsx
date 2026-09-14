@@ -46,6 +46,8 @@ export const FIELD_SM_ERROR = `${FIELD_SHAPE} ${FIELD_LINE_ERROR} h-8 px-3 text-
  * 주면 화살표가 글자에서 멀찍이 떨어져 보인다.
  */
 export const FIELD_SM_INLINE = `${FIELD_FORM} ${FIELD_LINE} h-8 w-auto pl-3 pr-2 text-[13px]`;
+/** 36px 변형 — 카드 머리 도구 줄(검색 펼침)처럼 `Button` md · 아이콘 버튼(36)과 한 줄에 놓일 때 */
+export const FIELD_MD = `${FIELD_BASE} h-9 px-3 text-sm`;
 
 /** 업무용 메일 지향 — 대표적인 개인 메일 도메인이면 true (로그인·회원가입·초대에서 안내용) */
 const PERSONAL_EMAIL_DOMAINS = [
@@ -171,9 +173,10 @@ export function Button({
   /** 지정 시 `Link`로 렌더한다 — 이동은 버튼이 아니라 링크여야 한다(중첩 금지, 새 탭 열기 가능) */
   href?: string;
 }) {
+  // 높이 사다리 — sm 32(표 · 펼침 안, FIELD_SM 과 한 줄) · md 36(카드 · 페이지 머리, 폼 바닥). 두 줄로 접히면 늘어나게 min-h
   const sizes = {
-    sm: "px-2.5 py-1.5 text-xs rounded-lg gap-1",
-    md: "px-3.5 py-2 text-sm rounded-lg gap-1.5",
+    sm: "min-h-8 px-3 py-1 text-[13px] rounded-lg gap-1",
+    md: "min-h-9 px-3.5 py-1.5 text-sm rounded-lg gap-1.5",
     lg: "px-5 py-2.5 text-sm rounded-lg gap-2",
   };
   const cls = `inline-flex cursor-pointer items-center justify-center font-medium transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed ${sizes[size]} ${BTN_VARIANTS[variant]} ${className}`;
@@ -582,12 +585,15 @@ export function Segmented<T extends string>({
   onChange,
   label,
   disabled = false,
+  size = "md",
 }: {
   options: { value: T; label: React.ReactNode }[];
   value: T;
   onChange: (v: T) => void;
   label: string;
   disabled?: boolean;
+  /** 높이 사다리 — `md` 36(머리 · 폼), `sm` 32(표 행 · 펼침 안에서 `FIELD_SM` · `Button` sm 과 한 줄) */
+  size?: "sm" | "md";
 }) {
   const rootRef = useRef<HTMLSpanElement>(null);
   /**
@@ -613,10 +619,11 @@ export function Segmented<T extends string>({
         disabled ? "opacity-40" : ""
       }`}
     >
+      {/* 선택 표시 — 흰 바탕만으로는 트랙(slate-100)과 구분이 약해 진한 테두리(slate-300) + 옅은 그림자를 더한다 */}
       {thumb && (
         <span
           aria-hidden
-          className="absolute bottom-0.5 top-0.5 rounded-md bg-white ring-1 ring-slate-200 transition-[left,width] duration-200 ease-out motion-reduce:transition-none"
+          className="absolute bottom-0.5 top-0.5 rounded-md bg-white shadow-sm ring-1 ring-slate-300 transition-[left,width] duration-200 ease-out motion-reduce:transition-none"
           style={{ left: thumb.left, width: thumb.width }}
         />
       )}
@@ -629,9 +636,11 @@ export function Segmented<T extends string>({
             aria-pressed={on}
             disabled={disabled}
             onClick={() => onChange(o.value)}
-            className={`relative z-[1] cursor-pointer whitespace-nowrap rounded-md px-2.5 py-1 text-xs transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400 disabled:cursor-not-allowed ${
+            className={`relative z-[1] inline-flex cursor-pointer items-center whitespace-nowrap rounded-md transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400 disabled:cursor-not-allowed ${
+              size === "sm" ? "h-7 px-3 text-[13px]" : "h-8 px-3.5 text-sm"
+            } ${
               on
-                ? `font-semibold text-slate-900 ${thumb ? "" : "bg-white ring-1 ring-slate-200"}`
+                ? `font-semibold text-slate-900 ${thumb ? "" : "bg-white shadow-sm ring-1 ring-slate-300"}`
                 : "font-medium text-slate-500 hover:text-slate-700"
             }`}
           >
@@ -687,6 +696,36 @@ export function EmptyState({
       <p className="text-sm font-semibold text-slate-700">{title}</p>
       {desc && <p className="mt-1 max-w-sm text-sm text-slate-500">{desc}</p>}
       {action && <div className="mt-4">{action}</div>}
+    </div>
+  );
+}
+
+/**
+ * 표 로딩 — 도착할 카드(제목 · 도구 자리 · 머리 줄 · 행)와 같은 자리를 회색 막대로 먼저 그린다. 표가 와도 레이아웃이 튀지 않게.
+ * 1초 안에 오면 정지 막대로 지나가고, 넘으면 은은하게 깜빡인다. 줄이는 모션 설정이면 깜빡이지 않는다 (DESIGN.md 「모션」).
+ */
+export function TableSkeleton({ rows = 5, cols = 6, label = "불러오는 중" }: { rows?: number; cols?: number; label?: string }) {
+  const bar = "block rounded bg-slate-100 animate-pulse [animation-delay:1000ms] motion-reduce:animate-none";
+  // 행마다 막대 폭을 조금씩 달리 — 같은 폭이 반복되면 표가 아니라 줄무늬로 읽힌다
+  const widths = ["w-12", "w-20", "w-28", "w-24", "w-16", "w-14", "w-20", "w-10"];
+  return (
+    <div role="status" aria-label={label} className="rounded-xl border border-slate-200 bg-white p-5">
+      <div className="mb-4 flex items-center justify-between">
+        <span className={`${bar} h-4 w-24`} />
+        <span className={`${bar} h-9 w-9 rounded-lg`} />
+      </div>
+      <div className="grid gap-x-6 border-b border-slate-200 py-2.5" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+        {Array.from({ length: cols }, (_, j) => (
+          <span key={j} className={`${bar} h-2.5 w-12`} />
+        ))}
+      </div>
+      {Array.from({ length: rows }, (_, i) => (
+        <div key={i} className="grid gap-x-6 border-b border-slate-100 py-3.5 last:border-0" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+          {Array.from({ length: cols }, (_, j) => (
+            <span key={j} className={`${bar} h-3 ${widths[(i + j * 3) % widths.length]}`} />
+          ))}
+        </div>
+      ))}
     </div>
   );
 }

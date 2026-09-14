@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { IconClipboardCheck, IconSettings } from "@/components/icons";
 import { Tab } from "@/components/module-view";
-import { Button, EmptyState, Segmented } from "@/components/ui";
+import { Button, EmptyState, Segmented, TableSkeleton } from "@/components/ui";
 import type { InventorySub } from "@/data/inventory";
 import type { ModuleDef } from "@/data/types";
 import { InventoryProvider, useInventory } from "./inventory-provider";
@@ -112,7 +112,7 @@ function InventoryScreen({ mod }: { mod: ModuleDef }) {
       {/* 탭 · 화면이 바뀌면 내용이 새로 마운트되며 fade-in(150ms) — key 가 바뀌는 것이 모션의 전부다 */}
       <div role="tabpanel" key={`${effectiveView}:${active?.id ?? ""}`} className="fade-in">
         {status === "loading" ? (
-          <p className="text-sm text-slate-500">불러오는 중이에요</p>
+          <TableSkeleton label="재고·물류를 불러오는 중" />
         ) : status === "error" ? (
           <EmptyState
             title="불러오지 못했어요"
