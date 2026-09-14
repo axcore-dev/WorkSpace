@@ -32,6 +32,10 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# 점으로 시작하지 않아 위 규칙에 안 걸리는 비밀 파일들. 넓은 글롭(env.*)을 쓰면
+# FE/lib/ai/server/env.ts 같은 소스까지 잡히므로 경로를 콕 집는다.
+/INFRA/env.local
+/BE/env
 
 # vercel
 .vercel

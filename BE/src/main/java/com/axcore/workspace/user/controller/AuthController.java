@@ -72,6 +72,25 @@ public class AuthController {
     }
 
     /**
+     * 「데모 체험하기」. 자격을 받지 않는다 — 어느 계정인지는 서버 설정({@code app.demo.*})만 안다.
+     * 계약은 {@code FE/lib/demo-login.ts} 머리말에 있다: 본문 {@code {rememberMe}}, 응답은 {@code /login} 과 같다.
+     *
+     * <p>설정이 없는 배포에서는 404. 화면은 {@code NEXT_PUBLIC_DEMO_ENABLED} 로 버튼을 가리므로
+     * 두 값이 어긋난 배포에서만 보이는 응답이다. ({@code AuthService#loginDemo})
+     */
+    @PostMapping("/demo-login")
+    public ResponseEntity<LoginResponse> demoLogin(
+            @RequestBody(required = false) DemoLoginRequest request, HttpServletRequest servletRequest) {
+        boolean rememberMe = request != null && Boolean.TRUE.equals(request.rememberMe());
+        AuthResult result =
+                authService.loginDemo(rememberMe, userAgent(servletRequest), clientIp(servletRequest));
+        return refreshCookies.toResponse(result);
+    }
+
+    /** 데모 로그인 본문. 자격 없이 「로그인 유지」만 받는다. */
+    public record DemoLoginRequest(Boolean rememberMe) {}
+
+    /**
      * access 재발급. 쿠키에 실린 refresh 는 이 호출로 즉시 회전되어 무효가 된다.
      *
      * <p>인증이 필요 없는 경로다. 유효한 refresh 쿠키를 가진 것 자체가 자격 증명이다.

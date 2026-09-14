@@ -8,6 +8,7 @@ import com.axcore.workspace.user.entity.TokenPurpose;
 import com.axcore.workspace.user.entity.User;
 import com.axcore.workspace.user.repository.UserRepository;
 import com.axcore.workspace.security.UserPrincipal;
+import com.axcore.workspace.workspace.settings.SettingsNotFoundException;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -42,6 +43,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final UnverifiedAccountReclaimer reclaimer;
     private final LoginAttemptRecorder loginAttemptRecorder;
+    private final DemoAccount demo;
 
     public AuthService(
             AuthenticationManager authenticationManager,
@@ -53,7 +55,9 @@ public class AuthService {
             AccountMailer mailer,
             PasswordEncoder passwordEncoder,
             UnverifiedAccountReclaimer reclaimer,
-            LoginAttemptRecorder loginAttemptRecorder) {
+            LoginAttemptRecorder loginAttemptRecorder,
+            DemoAccount demo) {
+        this.demo = demo;
         this.authenticationManager = authenticationManager;
         this.userRepository = userRepository;
         this.refreshTokenService = refreshTokenService;
@@ -137,6 +141,29 @@ public class AuthService {
             return AuthResult.pending(LoginResponse.mfaRequired(challengeToken));
         }
         return sessionIssuer.issueNewSession(user, rememberMe, userAgent, ip, now);
+    }
+
+    /**
+     * 「데모 체험하기」. 서버 설정에 있는 데모 계정으로 로그인한다 — 자격이 브라우저로 나가지 않는다(#92).
+     *
+     * <p>설정이 비어 있으면 404. 이 배포에는 데모가 없다는 뜻이고, 화면은 플래그로 버튼을 안 그리므로
+     * 정상적으로는 오지 않는 요청이다.
+     *
+     * <p>2단계가 켜져 있으면 409. 데모 계정은 누구나 세션을 받는 계정이라 2단계가 있을 수 없고
+     * ({@link MfaService#startEmailEnrollment} 가 막는다), 그런데도 켜져 있다면 시드 밖에서 손을 댄 것이다.
+     * {@code MFA_REQUIRED} 를 그대로 돌려주면 화면이 코드 입력으로 넘어가 아무도 못 지나간다.
+     */
+    @Transactional
+    public AuthResult loginDemo(boolean rememberMe, String userAgent, String ip) {
+        if (!demo.configured()) {
+            throw new SettingsNotFoundException("이 배포에는 데모 계정이 없습니다");
+        }
+        AuthResult result =
+                login(new LoginRequest(demo.email(), demo.password(), rememberMe), userAgent, ip);
+        if (!result.hasRefreshToken()) {
+            throw new MfaStateException("데모 계정에 2단계 인증이 켜져 있어 들어갈 수 없습니다");
+        }
+        return result;
     }
 
     /**
