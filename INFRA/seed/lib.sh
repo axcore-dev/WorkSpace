@@ -11,6 +11,15 @@
 
 set -u
 
+# bash 4 문법(${VAR,,} · declare -A)을 쓴다. macOS 기본 bash 는 3.2 라 bad substitution 으로 죽고 set -u 에 걸린다(#96).
+# 시드 셋이 전부 이 파일을 source 하므로 여기 한 번으로 전부 막힌다.
+[ "${BASH_VERSINFO[0]}" -ge 4 ] || {
+  echo "  [중단] bash 4 이상이 필요하다 (현재 $BASH_VERSION)." >&2
+  echo "         macOS: brew install bash 뒤 /opt/homebrew/bin/bash INFRA/seed/<스크립트>.sh 로 실행한다." >&2
+  echo "         bash script.sh 로 부르면 PATH 와 무관하게 /bin/bash(3.2) 가 잡히므로 전체 경로로 부른다." >&2
+  exit 1
+}
+
 BASE="${API_BASE:-http://localhost:8080}"
 PG="${PG_CONTAINER:-axcore-postgres}"
 FE_CONTAINER="${FE_CONTAINER:-axcore-fe}"
