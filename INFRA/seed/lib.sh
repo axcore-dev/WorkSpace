@@ -11,6 +11,15 @@
 
 set -u
 
+# bash 4 문법(${VAR,,} · declare -A)을 쓴다. macOS 기본 bash 는 3.2 라 bad substitution 으로 죽고 set -u 에 걸린다(#96).
+# 시드 셋이 전부 이 파일을 source 하므로 여기 한 번으로 전부 막힌다.
+[ "${BASH_VERSINFO[0]}" -ge 4 ] || {
+  echo "  [중단] bash 4 이상이 필요하다 (현재 $BASH_VERSION)." >&2
+  echo "         macOS: brew install bash 뒤 /opt/homebrew/bin/bash INFRA/seed/<스크립트>.sh 로 실행한다." >&2
+  echo "         bash script.sh 로 부르면 PATH 와 무관하게 /bin/bash(3.2) 가 잡히므로 전체 경로로 부른다." >&2
+  exit 1
+}
+
 BASE="${API_BASE:-http://localhost:8080}"
 PG="${PG_CONTAINER:-axcore-postgres}"
 FE_CONTAINER="${FE_CONTAINER:-axcore-fe}"
@@ -120,8 +129,11 @@ except Exception:
   esac
 }
 
+# 질의는 stdin 으로 넘긴다. 인자로 보간하면 컨테이너의 sh 가 한 번 더 파싱해서 질의 속 " · ` · $( ) 가
+# SQL 이 아니라 명령으로 풀린다(#97). 회사 이름에 큰따옴표가 있으면 그냥 깨지던 자리다.
+# ON_ERROR_STOP 은 -c 한 문장일 때 자연히 그랬던 「오류 = 종료 코드」를 stdin 방식에서도 유지한다.
 psql_() {
-  docker exec "$PG" sh -c "psql -qtAX -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" -c \"$1\""
+  printf '%s\n' "$1" | docker exec -i "$PG" sh -c 'psql -qtAX -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
 }
 
 # BE 와 DB 컨테이너가 살아 있는지. 둘 중 하나라도 없으면 아무것도 만들기 전에 멈춘다.
