@@ -20,6 +20,10 @@ import org.springframework.stereotype.Component;
  * 필요하다) 쪼개 봐야 의미도 없다. 그래서 <b>읽기는 모듈 단위</b>({@link #openRead}) — 이 모듈의 탭을 하나라도
  * 가졌고 회사가 하나라도 켰으면 통과다.
  *
+ * <p><b>2026-09 합의(#93):</b> 이 완화를 받아들인다. V17 스키마에 단가·금액·개인정보가 없고, 인증·테넌트 경계와
+ * 아래 쓰기 분리는 그대로다. 단가·금액이 스키마에 들어오는 날 다시 본다. 거래처 인라인 생성이 {@code items} 로
+ * 권한을 보는 것({@code InventoryCatalogService#createVendorInline})도 같은 판단이다.
+ *
  * <p><b>쓰기는 탭 단위</b>({@link #open}) 다. 발주를 만드는 사람과 입고를 등록하는 사람이 다른 부서라
  * ({@code purchasing} · {@code receiving}) 여기를 뭉뚱그리면 권한을 나눈 뜻이 없어진다.
  *
