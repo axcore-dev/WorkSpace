@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { DesignModule } from "@/components/design/design-module";
 import { InventoryModule } from "@/components/inventory/inventory-module";
 import { ManagementModule } from "@/components/management/management-module";
 import { ModuleGate } from "@/components/module-gate";
@@ -24,6 +25,14 @@ export default async function ModulePage({
     return (
       <ModuleGate key={slug} mod={mod}>
         <InventoryModule key={slug} mod={mod} />
+      </ModuleGate>
+    );
+  }
+  // 제품설계도 자기 상태(/api/workspace/design)로 그린다 — 도면 · BOM 이 재고·물류 발주서의 근거가 된다
+  if (slug === "design") {
+    return (
+      <ModuleGate key={slug} mod={mod}>
+        <DesignModule key={slug} mod={mod} />
       </ModuleGate>
     );
   }

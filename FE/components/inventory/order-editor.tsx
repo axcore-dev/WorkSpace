@@ -8,16 +8,17 @@ import { MultiPicker, type PickerOption } from "@/components/multi-picker";
 import { Button, FIELD_SM, FIELD_SM_ERROR, Segmented } from "@/components/ui";
 import { VENDOR_KIND_LABEL } from "@/data/inventory";
 import { withJosa } from "@/data/ko";
-import { PO_BOM, PO_DRAWINGS } from "@/data/purchasing";
 import { useAccountMe } from "@/lib/account-me";
 import { downloadCsv } from "@/lib/download";
 import {
   blankLine,
+  bomNeeds,
   buildOrders,
   draftFromBom,
   findItemFor,
   groupDraft,
   orderDocuments,
+  toPoDrawings,
   validateDraft,
   type DocFormat,
   type DraftLine,
@@ -64,21 +65,20 @@ const NUM = "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-no
  * 자체 제작 발주처 라인은 문서 없이 제작 지시(발주 목록 「제작 중」)가 된다. 초안은 로컬 상태 — 바꾼 채 닫으면 한 번 묻는다.
  * 닫기는 헤더의 × 하나다 — 푸터에도 [닫기] 를 두면 확인 다이얼로그까지 「닫기」가 넷이 된다.
  */
-export function OrderEditor({ initialDrawing, onClose }: { initialDrawing?: string; onClose: () => void }) {
+export function OrderEditor({ onClose }: { onClose: () => void }) {
   const { state, dispatch, notify } = useInventory();
   const { me: account } = useAccountMe();
 
-  const [draft, setDraft] = useState<OrderDraft>(() => {
-    const d = PO_DRAWINGS.find((x) => x.code === initialDrawing) ?? null;
-    return draftFromBom(d, d ? PO_BOM[d.code] ?? [] : [], state.vendors, state.items, { requester: account?.name ?? "", orderedOn: state.today });
-  });
+  const [draft, setDraft] = useState<OrderDraft>(() => draftFromBom(null, [], state.vendors, state.items, { requester: account?.name ?? "", orderedOn: state.today }));
   const [initial] = useState(() => JSON.stringify(draft));
   const dirty = JSON.stringify(draft) !== initial;
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [seq, setSeq] = useState(0);
 
-  const drawing = PO_DRAWINGS.find((x) => x.code === draft.drawing);
+  // 도면(BOM)은 제품설계에서 온다 — 폐기되지 않은 원본만, 미매핑 수와 함께
+  const poDrawings = toPoDrawings(state.drawings);
+  const drawing = poDrawings.find((x) => x.code === draft.drawing);
   const docCols = state.docRules.formats[draft.format];
   const excluded = LINE_COLUMNS.filter((c) => c.doc && !docCols.includes(c.doc)).map((c) => c.label);
   const vendorOptions: PickerOption[] = state.vendors.filter((v) => v.active).map((v) => ({ id: v.id, label: v.name, meta: VENDOR_KIND_LABEL[v.kind] }));
@@ -112,8 +112,9 @@ export function OrderEditor({ initialDrawing, onClose }: { initialDrawing?: stri
     }));
   }
   function pickDrawing(code: string) {
-    const d = PO_DRAWINGS.find((x) => x.code === code) ?? null;
-    setDraft((cur) => draftFromBom(d, d ? PO_BOM[d.code] ?? [] : [], state.vendors, state.items, { requester: cur.requester, orderedOn: cur.orderedOn, format: cur.format }));
+    const d = poDrawings.find((x) => x.code === code) ?? null;
+    const needs = bomNeeds(code, state);
+    setDraft((cur) => draftFromBom(d, needs, state.vendors, state.items, { requester: cur.requester, orderedOn: cur.orderedOn, format: cur.format }));
     setErrors({});
   }
 
@@ -129,7 +130,7 @@ export function OrderEditor({ initialDrawing, onClose }: { initialDrawing?: stri
   }
 
   function register() {
-    const e = validateDraft(draft, PO_DRAWINGS);
+    const e = validateDraft(draft, poDrawings);
     setErrors(e);
     if (Object.keys(e).length > 0) return;
     const orders = buildOrders(draft, state.items, state.orders.length);
@@ -178,7 +179,7 @@ export function OrderEditor({ initialDrawing, onClose }: { initialDrawing?: stri
               </label>
               <select id="oe-drawing" value={draft.drawing} onChange={(e) => pickDrawing(e.target.value)} className={FIELD_SM}>
                 <option value="">도면 없이 작성</option>
-                {PO_DRAWINGS.map((d) => (
+                {poDrawings.map((d) => (
                   <option key={d.code} value={d.code}>
                     {d.code} {d.rev} · {d.name}
                     {d.unmapped > 0 ? ` · 미매핑 ${d.unmapped}` : ""}

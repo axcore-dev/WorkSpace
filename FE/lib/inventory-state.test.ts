@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Item, Movement, PurchaseOrder, Vendor } from "../data/inventory";
 import { DEMO_TODAY, DOC_RULES, ITEMS, MOVEMENTS, ORDERS, SAFETY_STANDARD, STANDARDS, VENDORS } from "../data/inventory-demo.ts";
-import { PO_BOM, PO_DRAWINGS } from "../data/purchasing.ts";
+import { DRAWINGS } from "../data/drawings.ts";
 import {
+  bomNeeds,
   buildOrders,
   draftFromBom,
   groupDraft,
@@ -18,6 +19,7 @@ import {
   shortage,
   stockBreakdown,
   stockOf,
+  toPoDrawings,
   validateDocRules,
   validateItem,
   validateVendor,
@@ -25,6 +27,7 @@ import {
 } from "./inventory-state.ts";
 
 const state: InventoryState = {
+  drawings: DRAWINGS,
   orders: ORDERS,
   movements: MOVEMENTS,
   items: ITEMS,
@@ -140,9 +143,14 @@ test("발주서 위저드가 만든 발주는 목록 앞에 들어간다", () =>
 });
 
 test("발주서 편집기 — BOM 초안 · 발주처별 묶음 · 수량 0 제외 · 자체 제작은 문서 없음", () => {
-  const d = PO_DRAWINGS.find((x) => x.code === "26PNQ-S18-10")!;
-  const draft = draftFromBom(d, PO_BOM[d.code], VENDORS, ITEMS, { requester: "구매 담당", orderedOn: DEMO_TODAY });
-  assert.deepEqual(draft.lines.map((l) => [l.qty, l.vendorId]), [[4, "v-daesung"], [5, "v-daesung"], [3, "v-kgs"]]);
+  // 도면(BOM)은 제품설계에서 온다 — 소요는 BOM 수량, 재고는 매핑 품목의 현재 재고, 발주처는 그 품목의 기본 거래처
+  const d = toPoDrawings(DRAWINGS).find((x) => x.code === "26PNQ-S18-10")!;
+  const needs = bomNeeds(d.code, state);
+  assert.deepEqual(needs.map((n) => [n.itemName, n.need, n.supplier]), [["GUIDE PIN", 16, "대성정공"], ["WEAR PLATE", 20, "대성정공"], ["GAS SPRING", 30, "한국가스스프링"]]);
+  assert.deepEqual(needs.map((n) => n.stock), [stockOf("ITM-GP-0007", MOVEMENTS, STANDARDS), stockOf("ITM-WP-0004", MOVEMENTS, STANDARDS), stockOf("ITM-GS-0021", MOVEMENTS, STANDARDS)]);
+  const draft = draftFromBom(d, needs, VENDORS, ITEMS, { requester: "구매 담당", orderedOn: DEMO_TODAY });
+  assert.deepEqual(draft.lines.map((l) => l.qty), needs.map((n) => Math.max(0, n.need - n.stock)), "수량은 소요 − 재고");
+  assert.deepEqual(draft.lines.map((l) => l.vendorId), ["v-daesung", "v-daesung", "v-kgs"]);
   assert.equal(draft.lines[0].unit, "EA", "품목 마스터에서 단위를 가져온다");
 
   // 한 라인은 0 으로, 한 라인은 자체 제작으로
@@ -166,13 +174,17 @@ test("발주서 편집기 — BOM 초안 · 발주처별 묶음 · 수량 0 제�
 });
 
 test("발주서 검증 — 수량 없음 · 발주처 없음 · 미매핑 BOM", () => {
-  const d = PO_DRAWINGS.find((x) => x.code === "26MSX-S03-20")!; // unmapped 2
-  const draft = draftFromBom(d, PO_BOM[d.code], VENDORS, ITEMS, { requester: "", orderedOn: DEMO_TODAY });
-  assert.match(validateDraft(draft, PO_DRAWINGS).unmapped, /미매핑|매핑/);
+  const poDrawings = toPoDrawings(DRAWINGS);
+  // 폐기되지 않은 원본만 발주 대상이다 — 파생(가공도)은 목록에 없다
+  assert.ok(poDrawings.every((x) => !x.code.includes("-P")));
+  const d = poDrawings.find((x) => x.code === "26MSX-S03-20")!;
+  assert.equal(d.unmapped, 1, "GAUGE 한 줄이 미매핑");
+  const draft = draftFromBom(d, bomNeeds(d.code, state), VENDORS, ITEMS, { requester: "", orderedOn: DEMO_TODAY });
+  assert.match(validateDraft(draft, poDrawings).unmapped, /미매핑|매핑/);
   const zero = { ...draft, drawing: "", lines: draft.lines.map((l) => ({ ...l, qty: 0 })) };
-  assert.equal(validateDraft(zero, PO_DRAWINGS).lines, "수량이 있는 라인이 없어요");
+  assert.equal(validateDraft(zero, poDrawings).lines, "수량이 있는 라인이 없어요");
   const noVendor = { ...draft, drawing: "", lines: draft.lines.map((l) => ({ ...l, vendorId: "" })) };
-  assert.equal(validateDraft(noVendor, PO_DRAWINGS).vendor, "발주처가 빈 라인이 있어요");
+  assert.equal(validateDraft(noVendor, poDrawings).vendor, "발주처가 빈 라인이 있어요");
 });
 
 test("마감하면 잔량이 남아도 완료가 된다", () => {

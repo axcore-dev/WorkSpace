@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { useModules } from "@/components/module-provider";
 import { Toast } from "@/components/ui";
 import { useToast } from "@/components/use-toast";
+import { DRAWINGS } from "@/data/drawings";
 import type { InventorySub } from "@/data/inventory";
 import { DEMO_TODAY, DOC_RULES, ITEMS, MOVEMENTS, ORDERS, SAFETY_STANDARD, STANDARDS, VENDORS } from "@/data/inventory-demo";
 import { useAccountMe } from "@/lib/account-me";
@@ -27,8 +28,8 @@ type Mode = "server" | "demo";
 export type Density = "simple" | "detail";
 
 const DENSITY_KEY = "axpoint-inventory-density";
-const DEMO: InventoryData = { orders: ORDERS, movements: MOVEMENTS, items: ITEMS, vendors: VENDORS, standards: STANDARDS, standard: SAFETY_STANDARD, docRules: DOC_RULES };
-const EMPTY: InventoryData = { orders: [], movements: [], items: [], vendors: [], standards: [], standard: SAFETY_STANDARD, docRules: DOC_RULES };
+const DEMO: InventoryData = { drawings: DRAWINGS, orders: ORDERS, movements: MOVEMENTS, items: ITEMS, vendors: VENDORS, standards: STANDARDS, standard: SAFETY_STANDARD, docRules: DOC_RULES };
+const EMPTY: InventoryData = { drawings: [], orders: [], movements: [], items: [], vendors: [], standards: [], standard: SAFETY_STANDARD, docRules: DOC_RULES };
 
 interface InventoryContextValue {
   state: InventoryState;

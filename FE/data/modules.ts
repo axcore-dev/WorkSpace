@@ -23,7 +23,6 @@ export const MODULES: ModuleDef[] = [
     externalSystem: "PLM",
     subfunctions: [
       { id: "drawings", name: "도면 관리" },
-      { id: "specs", name: "설계 관리" },
       { id: "bom", name: "BOM 관리" },
     ],
   },
