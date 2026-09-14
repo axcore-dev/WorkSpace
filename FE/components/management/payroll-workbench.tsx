@@ -197,8 +197,9 @@ export function PayrollWorkbench({ onOpenTab }: { onOpenTab: (tabId: string) => 
 
           <ConfirmModal
             open={dialog === "paid"}
-            title={`${run.name}를 지급 완료로 바꿀까요?`}
-            message="바꾼 뒤에는 회차를 다시 계산할 수 없어요. 이체가 끝난 뒤에 눌러 주세요."
+            title={`${run.name}를 지급 완료로 바꾸시겠습니까?`}
+            message="바꾼 뒤에는 회차를 다시 계산할 수 없습니다. 이체가 끝난 뒤에 진행해 주세요."
+            cancel="돌아가기"
             cta="지급 완료로 바꾸기"
             variant="primary"
             icon="check"
@@ -221,9 +222,10 @@ export function PayrollWorkbench({ onOpenTab }: { onOpenTab: (tabId: string) => 
 
           <ConfirmModal
             open={dialog === "delete"}
-            title="회차를 삭제할까요?"
-            message={<><span className="font-semibold text-slate-900">{run.name}</span> 회차를 지워요. 지운 회차는 되돌릴 수 없어요.</>}
-            cta="삭제하기"
+            title="회차를 삭제하시겠습니까?"
+            message={<><span className="font-semibold text-slate-900">{run.name}</span> 회차를 삭제합니다. 삭제한 회차는 되돌릴 수 없습니다.</>}
+            cancel="유지"
+            cta="삭제"
             variant="danger"
             icon="warn"
             onConfirm={() => {

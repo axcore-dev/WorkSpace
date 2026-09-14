@@ -264,19 +264,19 @@ export function ConnectorModal({
 
       {/* 해제 확인. 되돌리려면 다시 인증해야 하는 동작이라 한 번 되묻는다. 위험 동작은 danger 버튼 하나만 */}
       {pendingDisconnect && (
-        <Modal open onClose={() => setPendingDisconnect(null)} size="sm" title="연결을 해제할까요?">
+        <Modal open onClose={() => setPendingDisconnect(null)} size="sm" title="연결을 해제하시겠습니까?" closeButton={false}>
           <div className="p-5">
             <p className="flex items-center gap-2.5 text-sm text-slate-700">
               <BrandIcon slug={pendingDisconnect.slug} size={18} />
               <span className="font-semibold text-slate-900">{pendingDisconnect.name}</span>
             </p>
             <p className="mt-3 text-[13.5px] leading-relaxed text-slate-500">
-              연결을 해제하면 목록에서 사라지고 AI 대화에서 이 앱을 쓸 수 없어요. 다시 쓰려면 새로 연결해야 해요.
-              같은 계정을 쓰는 다른 앱이 없으면 계정 연결 자체도 끊겨요.
+              연결을 해제하면 목록에서 사라지고 AI 대화에서 이 앱을 쓸 수 없습니다. 다시 쓰려면 새로 연결해야 합니다.
+              같은 계정을 쓰는 다른 앱이 없으면 계정 연결 자체도 끊깁니다.
             </p>
             <div className="mt-5 flex justify-end gap-2">
               <Button variant="secondary" size="sm" onClick={() => setPendingDisconnect(null)}>
-                취소
+                연결 유지
               </Button>
               <Button variant="danger" size="sm" onClick={confirmDisconnect}>
                 해제

@@ -246,10 +246,19 @@ export function Kv({ label, children }: { label: string; children: ReactNode }) 
 }
 
 /** 확인 다이얼로그 — 왼쪽은 항상 [닫기]. 승인처럼 파괴적이지 않은 동작은 primary + 체크 아이콘 */
+/**
+ * 확인 다이얼로그 — 되돌릴 수 없는 결정(파기 · 마감 · 삭제 · 승인)을 한 번 되묻는다.
+ *
+ * 문구는 **격식체**다(제목 「~하시겠습니까?」, 본문 「~됩니다」) — 제품의 다른 문구는 해요체지만, 데이터를 버리거나
+ * 확정하는 순간의 「버릴까요?」 는 B2B 제조 시스템에서 캐주얼하고 불안하다(2026-09-11 결정, DESIGN.md UX 라이팅).
+ * 거절 버튼(`cancel`)은 **거절하는 행동을 말한다**([계속 작성] · [유지] · [돌아가기]) — [닫기] 는 무엇이 닫히는지 모호하고,
+ * 헤더 × 와 겹쳐 「아니오」가 둘이 된다. 그래서 × 도 없다.
+ */
 export function ConfirmModal({
   open,
   title,
   message,
+  cancel,
   cta,
   variant,
   icon,
@@ -259,6 +268,8 @@ export function ConfirmModal({
   open: boolean;
   title: string;
   message: ReactNode;
+  /** 거절 버튼 — 거절하는 행동을 말한다: 「계속 작성」 「유지」 「돌아가기」 */
+  cancel: string;
   cta: string;
   variant: "primary" | "danger";
   icon: "check" | "warn";
@@ -271,10 +282,11 @@ export function ConfirmModal({
       onClose={onClose}
       size="sm"
       title={title}
+      closeButton={false}
       footer={
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onClick={onClose}>
-            닫기
+            {cancel}
           </Button>
           <Button variant={variant} onClick={onConfirm}>
             {cta}

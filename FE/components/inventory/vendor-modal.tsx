@@ -101,7 +101,10 @@ export function VendorModal({ vendor, onClose }: { vendor: Vendor | null; onClos
             <Button variant="secondary" onClick={close}>
               닫기
             </Button>
-            <Button onClick={save}>저장</Button>
+            {/* 바꾼 게 없으면 누를 수 없다 — 수정됐는지 아닌지가 버튼 상태로 보인다 */}
+            <Button onClick={save} disabled={!dirty}>
+              저장
+            </Button>
           </div>
         }
       >
@@ -198,9 +201,10 @@ export function VendorModal({ vendor, onClose }: { vendor: Vendor | null; onClos
 
       <ConfirmModal
         open={confirm?.kind === "discard"}
-        title="바꾼 내용을 버릴까요?"
-        message="저장하지 않은 값이 사라져요."
-        cta="버리기"
+        title="변경 사항을 저장하지 않고 닫으시겠습니까?"
+        message="저장하지 않은 값은 사라집니다."
+        cancel="계속 편집"
+        cta="저장하지 않고 닫기"
         variant="danger"
         icon="warn"
         onConfirm={() => {
@@ -211,8 +215,9 @@ export function VendorModal({ vendor, onClose }: { vendor: Vendor | null; onClos
       />
       <ConfirmModal
         open={confirm?.kind === "deactivate"}
-        title={confirm?.kind === "deactivate" ? `품목 ${confirm.count}개의 기본 거래처예요` : ""}
-        message="중지하면 그 품목은 다음 거래처가 기본이 돼요. 진행 중 발주는 그대로예요."
+        title={confirm?.kind === "deactivate" ? `품목 ${confirm.count}개의 기본 거래처입니다. 거래를 중지하시겠습니까?` : ""}
+        message="중지하면 그 품목은 다음 거래처가 기본이 됩니다. 진행 중 발주는 그대로 유지됩니다."
+        cancel="유지"
         cta="거래 중지"
         variant="danger"
         icon="warn"
