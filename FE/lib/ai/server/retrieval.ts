@@ -6,6 +6,7 @@
  */
 import "server-only";
 import type { ChatSource } from "@/data/chat";
+import { expandSynonyms } from "@/lib/ai/ontology";
 import type { AiPrincipal } from "./auth";
 import { withTenant } from "./db";
 import { embedQuery } from "./embedding";
@@ -84,7 +85,8 @@ export async function retrieve(
       db,
       principal.userId,
       names.length ? names : null,
-      { text: question, embedding, embeddingModel: embeddingModelId() },
+      // 전문 검색 낱말에 온톨로지 동의어를 덧붙인다 — "제품" 으로 물어도 "품목" 이 든 조각이 걸리게
+      { text: question, lexicalText: expandSynonyms(question), embedding, embeddingModel: embeddingModelId() },
       RERANK_POOL,
     ),
   );

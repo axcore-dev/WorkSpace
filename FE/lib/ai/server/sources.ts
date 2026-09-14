@@ -224,7 +224,13 @@ export async function searchChunks(
   db: Db,
   ownerUserId: string,
   names: string[] | null,
-  query: { text: string; embedding: number[] | null; embeddingModel: string },
+  query: {
+    text: string;
+    /** 전문 검색에만 쓰는 낱말. 온톨로지 동의어를 덧붙인 것(`retrieval.ts`). 없으면 `text` */
+    lexicalText?: string;
+    embedding: number[] | null;
+    embeddingModel: string;
+  },
   limit: number,
 ): Promise<ChunkHit[]> {
   if (names !== null && names.length === 0) return [];
@@ -246,7 +252,8 @@ export async function searchChunks(
        -- websearch_to_tsquery 는 낱말을 AND 로 묶는데, 색인이 'simple'(형태소 분석 없음)이라 "단가" 와 "단가는" 이
        -- 다른 토큰이다 — 조사가 붙은 낱말 하나가 섞이면 문장 전체가 안 걸린다. OR 로 두면 걸리는 낱말 수만큼
        -- ts_rank 가 올라가고, 느슨해진 만큼은 RRF 합산과 유사도 문턱이 잡는다.
-       SELECT to_tsquery('simple', nullif(array_to_string(tsvector_to_array(to_tsvector('simple', $3)), ' | '), '')) AS tsq
+       -- $8 은 동의어를 덧붙인 낱말(온톨로지). 부분 일치($3)에는 쓰지 않는다 — 질의가 길어지면 word_similarity 가 묽어진다
+       SELECT to_tsquery('simple', nullif(array_to_string(tsvector_to_array(to_tsvector('simple', $8)), ' | '), '')) AS tsq
      ),
      vec AS (
        SELECT c.id,
@@ -310,6 +317,7 @@ export async function searchChunks(
       query.embedding ? toVectorLiteral(query.embedding) : null,
       CANDIDATES,
       query.embeddingModel,
+      query.lexicalText ?? query.text,
     ],
   );
   return rows;
