@@ -7,6 +7,7 @@ import type { Cell, Tone } from "@/data/types";
 import { downloadCsv } from "@/lib/download";
 import { safetyOf, shortage, stockBreakdown, type StockBreakdown } from "@/lib/inventory-state";
 import { CardTools } from "./card-tools";
+import { matchesQuery } from "@/lib/search";
 import { useInventory } from "./inventory-provider";
 import { OrderEditor } from "./order-editor";
 import { METHOD_LABEL } from "./settings/standard-tab";
@@ -63,8 +64,7 @@ export function StockTab() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [editor, setEditor] = useState(0);
 
-  const q = query.trim().toLowerCase();
-  const items = state.items.filter((i) => !i.discontinued).filter((i) => !q || [i.name, i.spec, i.size, i.code].some((s) => s.toLowerCase().includes(q)));
+  const items = state.items.filter((i) => !i.discontinued).filter((i) => matchesQuery(query, [i.name, i.spec, i.size, i.code, i.location]));
 
   const derived = items.map((i) => {
     const b = stockBreakdown(i.code, state.movements, state.standards);
@@ -106,7 +106,7 @@ export function StockTab() {
     const qty = Math.trunc(Number(adjust.qty));
     const next: Record<string, string> = {};
     if (!adjust.qty.trim() || !Number.isFinite(qty) || qty === 0) next.qty = "0이 아닌 수량을 적어 주세요";
-    else if (b.stock + qty < 0) next.qty = `재고가 ${b.stock} ${item.unit}뿐이에요`;
+    else if (b.stock + qty < 0) next.qty = `재고 ${b.stock} ${item.unit}보다 많이 뺄 수 없어요`;
     if (!adjust.note.trim()) next.note = "사유를 적어 주세요";
     setErrors(next);
     if (Object.keys(next).length > 0) return;
@@ -202,7 +202,7 @@ export function StockTab() {
             {adjust && (
               <form
                 noValidate
-                className="flex flex-wrap items-start gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3"
+                className="fade-in flex flex-wrap items-start gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3"
                 onSubmit={(e) => {
                   e.preventDefault();
                   saveAdjust(item, b);
@@ -282,7 +282,7 @@ export function StockTab() {
           <form
             // noValidate — `max` · `min` 은 힌트(달력 범위)로만 두고, 막는 문구는 우리 것으로 통일한다
             noValidate
-            className="grid gap-4 sm:grid-cols-3"
+            className="fade-in grid gap-4 sm:grid-cols-3"
             onSubmit={(e) => {
               e.preventDefault();
               saveStandard(item);
@@ -369,10 +369,11 @@ export function StockTab() {
       <Card>
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-[15px] font-semibold text-slate-900">현재 재고</h2>
-          <CardTools search={{ value: query, onChange: setQuery, placeholder: "품목명 · 규격 · 코드로 찾기" }} onExport={exportCsv} />
+          <CardTools search={{ value: query, onChange: setQuery, placeholder: "품목명 · 규격 · 코드 · 보관 위치로 찾기" }} onExport={exportCsv} />
         </div>
         <DataTable
           data={{ columns: COLUMNS, rows }}
+          emptyText={query.trim() ? "검색 결과가 없어요" : "사용 중인 품목이 없어요"}
           colAlign={["left", "left", "left", "right", "right", "right", "right", "right", "left"]}
           emphasisAt={(row, k, j) => {
             if (j === STOCK_COL) return derived[k].short ? "em" : undefined;

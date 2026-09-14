@@ -6,6 +6,7 @@ import { UploadReviewModal, type UploadRowStatus } from "@/components/upload-rev
 import type { Item } from "@/data/inventory";
 import type { Cell } from "@/data/types";
 import { ITEM_SHEET_COLUMNS, parseItemRows } from "@/lib/inventory-state";
+import { matchesQuery } from "@/lib/search";
 import { parseSheet } from "@/lib/sheet";
 import { CardTools } from "../card-tools";
 import { useInventory } from "../inventory-provider";
@@ -24,8 +25,7 @@ export function ItemsTab() {
   const [upload, setUpload] = useState(0);
 
   const vendorName = (id: string) => state.vendors.find((v) => v.id === id)?.name ?? "—";
-  const q = query.trim().toLowerCase();
-  const items = state.items.filter((i) => !q || [i.code, i.name, i.spec, i.size, i.category, i.location].some((s) => s.toLowerCase().includes(q)));
+  const items = state.items.filter((i) => matchesQuery(query, [i.code, i.name, i.spec, i.size, i.category, i.location, ...i.vendorIds.map(vendorName)]));
 
   const rows: Cell[][] = items.map((i) => [
     i.code,
@@ -67,7 +67,7 @@ export function ItemsTab() {
             {/* 제품설계 완성 뒤 연결한다 — 지금은 자리만 알린다 */}
             <span className="rounded px-1.5 py-0.5 text-xs text-slate-500 ring-1 ring-inset ring-slate-200">도면(BOM) 자동 연동 · 준비 중</span>
           </div>
-          <CardTools search={{ value: query, onChange: setQuery, placeholder: "코드 · 품목명 · 규격으로 찾기" }}>
+          <CardTools search={{ value: query, onChange: setQuery, placeholder: "코드 · 품목명 · 규격 · 거래처로 찾기" }}>
             <MenuButton
               size="sm"
               label="등록"
@@ -81,6 +81,7 @@ export function ItemsTab() {
         </div>
         <DataTable
           data={{ columns: COLUMNS, rows }}
+          emptyText={query.trim() ? "검색 결과가 없어요" : "등록된 품목이 없어요"}
           rowEmphasis={(_, k) => (items[k].discontinued ? "down" : undefined)}
           emphasisAt={(row, _, j) => (row[j] === "—" ? "down" : undefined)}
           onRowClick={(k) => setModal({ seq: Date.now(), item: items[k] })}

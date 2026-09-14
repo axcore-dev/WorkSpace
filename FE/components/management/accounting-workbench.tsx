@@ -188,9 +188,10 @@ export function AccountingWorkbench({ onOpenTab }: { onOpenTab: (tabId: string) 
 
       <ConfirmModal
         open={dialog === "approve"}
-        title="전표를 승인할까요?"
-        message={<><span className="font-semibold text-slate-900">{voucher.no}</span> 전표를 승인해요. 승인하면 {Number(voucher.date.slice(5, 7))}월 {voucher.kind} 원장에 바로 올라가고, 검토중 목록에서 빠져요.</>}
-        cta="승인하기"
+        title="전표를 승인하시겠습니까?"
+        message={<><span className="font-semibold text-slate-900">{voucher.no}</span> 전표를 승인합니다. 승인하면 {Number(voucher.date.slice(5, 7))}월 {voucher.kind} 원장에 바로 올라가고, 검토중 목록에서 빠집니다.</>}
+        cancel="돌아가기"
+        cta="승인"
         variant="primary"
         icon="check"
         onConfirm={() => {
@@ -222,18 +223,19 @@ function RejectModal({ open, voucher, onClose, onReject }: { open: boolean; vouc
       open={open}
       onClose={onClose}
       size="sm"
-      title="전표를 반려할까요?"
+      title="전표를 반려하시겠습니까?"
+      closeButton={false}
       footer={
         <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={onClose}>닫기</Button>
-          <Button variant="danger" onClick={() => { onReject(reason); onClose(); }}>반려하기</Button>
+          <Button variant="secondary" onClick={onClose}>돌아가기</Button>
+          <Button variant="danger" onClick={() => { onReject(reason); onClose(); }}>반려</Button>
         </div>
       }
     >
       <div className="space-y-3 p-5">
         <p className="text-sm text-slate-600">
-          <span className="font-semibold text-slate-900">{voucher.no}</span> 전표를 작성자 {voucher.owner}에게 돌려보내요.
-          {voucher.runId && " 급여 전표라서 그 회차는 「전표 반려」 상태로 돌아가요."}
+          <span className="font-semibold text-slate-900">{voucher.no}</span> 전표를 작성자 {voucher.owner}에게 돌려보냅니다.
+          {voucher.runId && " 급여 전표라서 그 회차는 「전표 반려」 상태로 돌아갑니다."}
         </p>
         <div>
           <label htmlFor="reject-reason" className="mb-1.5 block text-sm font-medium text-slate-700">

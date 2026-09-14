@@ -38,8 +38,8 @@ export interface PickerOption {
 
 const norm = (s: string) => s.toLowerCase().replace(/\s+/g, "");
 
-/** 목록이 필요로 하는 세로 공간(max-h-56 + 여백). 이보다 적으면 위로 편다 */
-const LIST_SPACE = 240;
+/** 목록이 필요로 하는 세로 공간(최대 높이 240 + 여백). 이보다 적으면 위로 편다 */
+const LIST_SPACE = 256;
 
 /**
  * 열려 있는 동안 기준 요소의 화면 좌표를 따라간다 — 스크롤(모달 본문 포함, capture) · 리사이즈마다 다시 잰다.
@@ -66,7 +66,7 @@ function useAnchorRect(open: boolean, ref: RefObject<HTMLElement | null>) {
   return open ? rect : null;
 }
 
-/** 기준 칸 바로 아래(공간이 없으면 위)에 같은 폭으로 — fixed 좌표 */
+/** 기준 칸 바로 아래(공간이 없으면 위)에 같은 폭으로 — fixed 좌표. 최대 높이 240 = 항목 7개가 스크롤 없이 들어가는 값 */
 function listStyle(rect: DOMRect): CSSProperties {
   const below = window.innerHeight - rect.bottom;
   const flip = below < LIST_SPACE && rect.top > below;
@@ -75,7 +75,7 @@ function listStyle(rect: DOMRect): CSSProperties {
     position: "fixed",
     left: rect.left,
     width: rect.width,
-    maxHeight: Math.max(96, Math.min(224, room)),
+    maxHeight: Math.max(96, Math.min(240, room)),
     ...(flip ? { bottom: window.innerHeight - rect.top + 4 } : { top: rect.bottom + 4 }),
   };
 }
@@ -158,7 +158,8 @@ export function Chip({
       {...dragProps}
       onKeyDown={onKeyDown}
       onClick={onClick}
-      className={`${CHIP} ${dragProps ? "cursor-grab active:cursor-grabbing" : ""} ${onClick ? "cursor-pointer hover:bg-slate-50" : ""} ${dragging ? "opacity-50" : ""} focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-slate-400`}
+      // 새 칩은 fade-in 으로 나타난다(마운트에만 — 순서를 바꿔도 key 가 같아 다시 돌지 않는다). 빼기는 즉시
+      className={`${CHIP} fade-in ${dragProps ? "cursor-grab active:cursor-grabbing" : ""} ${onClick ? "cursor-pointer hover:bg-slate-50" : ""} ${dragging ? "opacity-50" : ""} focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-slate-400`}
     >
       {label}
       {tag && <span className="text-[10px] text-slate-500">{tag}</span>}
@@ -348,8 +349,8 @@ export function MultiPicker({
             role="listbox"
             aria-label={`${label} 목록`}
             style={listStyle(anchor)}
-            // 모달(z-50) 위에 떠야 한다
-            className="thin-scroll z-[60] overflow-auto rounded-lg border border-slate-200 bg-white p-1 shadow-lg"
+            // 모달(z-50) 위에 떠야 한다. 등장은 fade-in(150ms)
+            className="fade-in thin-scroll z-[60] overflow-auto rounded-lg border border-slate-200 bg-white p-1 shadow-lg"
           >
           {filtered.map((o, i) => (
             <li

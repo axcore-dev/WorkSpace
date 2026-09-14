@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button, Card, DataTable } from "@/components/ui";
 import { VENDOR_KIND_LABEL, type Vendor } from "@/data/inventory";
 import type { Cell } from "@/data/types";
+import { matchesQuery } from "@/lib/search";
 import { CardTools } from "../card-tools";
 import { useInventory } from "../inventory-provider";
 import { VendorModal } from "../vendor-modal";
@@ -17,8 +18,7 @@ export function VendorsTab() {
   const [query, setQuery] = useState("");
   const [modal, setModal] = useState<{ seq: number; vendor: Vendor | null } | null>(null);
 
-  const q = query.trim().toLowerCase();
-  const vendors = state.vendors.filter((v) => !q || [v.name, v.initial, v.owner, VENDOR_KIND_LABEL[v.kind]].some((s) => s.toLowerCase().includes(q)));
+  const vendors = state.vendors.filter((v) => matchesQuery(query, [v.name, v.initial, v.owner, VENDOR_KIND_LABEL[v.kind]]));
 
   const rows: Cell[][] = vendors.map((v) => [
     v.name,
@@ -42,6 +42,7 @@ export function VendorsTab() {
         </div>
         <DataTable
           data={{ columns: COLUMNS, rows }}
+          emptyText={query.trim() ? "검색 결과가 없어요" : "등록된 거래처가 없어요"}
           rowEmphasis={(_, k) => (vendors[k].active ? undefined : "down")}
           emphasisAt={(row, _, j) => (row[j] === "—" ? "down" : j === LEAD_COL && row[j] === "미입력" ? "em" : undefined)}
           onRowClick={(k) => setModal({ seq: Date.now(), vendor: vendors[k] })}

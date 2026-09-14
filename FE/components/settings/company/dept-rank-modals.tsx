@@ -115,14 +115,15 @@ export function DeptDeleteModal({
       open
       onClose={onClose}
       size="sm"
-      title={`${withJosa(dept, "을/를")} 지울까요?`}
+      title={`${withJosa(dept, "을/를")} 삭제하시겠습니까?`}
+      closeButton={false}
       footer={
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onClick={onClose}>
-            취소
+            유지
           </Button>
           <Button variant="danger" disabled={!ok} onClick={() => onDelete(moveTo || null)}>
-            {blocked ? "옮기고 지우기" : "지우기"}
+            {blocked ? "옮기고 삭제" : "삭제"}
           </Button>
         </div>
       }
@@ -134,7 +135,7 @@ export function DeptDeleteModal({
               이 부서에 직급 {ranks.length}개가 남아 있어요 — {ranks.join(" · ")}
             </p>
             <p className="mt-3 border-l-2 border-slate-200 pl-3 text-xs leading-relaxed text-slate-500">
-              직급이 남은 부서는 지울 수 없어요. 옮길 부서를 고르거나, 직급을 먼저 지워 주세요.
+              직급이 남은 부서는 삭제할 수 없습니다. 옮길 부서를 고르거나, 직급을 먼저 삭제해 주세요.
             </p>
             <label htmlFor="dd-move" className="mb-1.5 mt-4 block text-sm font-medium text-slate-700">
               직급을 옮길 부서
@@ -193,14 +194,15 @@ export function RankDeleteModal({
       open
       onClose={onClose}
       size="sm"
-      title={`${withJosa(rank, "을/를")} 지울까요?`}
+      title={`${withJosa(rank, "을/를")} 삭제하시겠습니까?`}
+      closeButton={false}
       footer={
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onClick={onClose}>
-            취소
+            유지
           </Button>
           <Button variant="danger" disabled={!ok} onClick={() => onDelete(needsMove ? Number(moveTo) : null)}>
-            {needsMove ? "옮기고 지우기" : "지우기"}
+            {needsMove ? "옮기고 삭제" : "삭제"}
           </Button>
         </div>
       }
@@ -212,7 +214,7 @@ export function RankDeleteModal({
               이 직급을 가진 구성원이 {members}명 있어요.
             </p>
             <p className="mt-3 border-l-2 border-slate-200 pl-3 text-xs leading-relaxed text-slate-500">
-              지우면 그 사람은 어느 탭도 볼 수 없게 돼요. 옮길 직급을 골라 주세요.
+              삭제하면 그 사람은 어느 탭도 볼 수 없게 됩니다. 옮길 직급을 골라 주세요.
             </p>
             <label htmlFor="rd-move" className="mb-1.5 mt-4 block text-sm font-medium text-slate-700">
               이 사람들의 새 직급
