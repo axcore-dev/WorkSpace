@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Card, DataTable, MenuButton } from "@/components/ui";
 import { UploadReviewModal, type UploadRowStatus } from "@/components/upload-review-modal";
 import type { Item } from "@/data/inventory";
-import type { Cell } from "@/data/types";
+import { cellText, type Cell } from "@/data/types";
 import { liveLatest } from "@/lib/design-state";
 import { ITEM_SHEET_COLUMNS, parseItemRows } from "@/lib/inventory-state";
 import { matchesQuery } from "@/lib/search";
@@ -56,7 +56,7 @@ export function ItemsTab() {
   }
 
   function approve(cells: Cell[][], columns: string[]) {
-    const body = cells.map((r) => r.map((c) => (typeof c === "object" ? c.badge : String(c))));
+    const body = cells.map((r) => r.map(cellText));
     const parsed = parseItemRows([columns, ...body], state).filter((p) => p.item);
     const updates = parsed.filter((p) => p.status === "update").length;
     const creates = parsed.filter((p) => p.status === "create").length;

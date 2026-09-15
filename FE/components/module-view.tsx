@@ -25,7 +25,7 @@ import { UploadReviewModal } from "@/components/upload-review-modal";
 import { AiBadge, Badge, Button, Card, DataTable, EmptyState, FIELD, SectionHeader, Stat } from "@/components/ui";
 import { ROW_DETAILS } from "@/data/module-details";
 import { downloadCsv } from "@/lib/download";
-import type { Cell, DetailRecord, ModuleDef, ModulePageData, TabAction, TreeNode } from "@/data/types";
+import { cellText, type Cell, type DetailRecord, type ModuleDef, type ModulePageData, type TabAction, type TreeNode } from "@/data/types";
 
 /** 탭별 액션 버튼 정의 — data의 tab.actions로 필요한 곳에만 노출 */
 const TAB_ACTIONS: Record<TabAction, { label: string; icon: typeof IconFilter; primary?: boolean }> = {
@@ -35,7 +35,7 @@ const TAB_ACTIONS: Record<TabAction, { label: string; icon: typeof IconFilter; p
   upload: { label: "엑셀 업로드", icon: IconUpload },
 };
 
-const cellText = (c: Cell) => (typeof c === "object" ? c.badge : String(c));
+
 
 /** 서브기능 탭 — 순서는 data/pages 가 정한다. 사용자 편집(드래그 정렬)은 두지 않는다. 재고·물류 모듈도 같은 탭을 쓴다 */
 export function Tab({
@@ -256,7 +256,7 @@ export function ModuleView({ mod, page }: { mod: ModuleDef; page: ModulePageData
     const r = visibleRows[i];
     if (cfg && r?.origIdx != null) {
       const c = r.cells[cfg.statusCol];
-      if (typeof c === "object" && c.badge === cfg.activeWhen) setActionRow(r.origIdx);
+      if (typeof c === "object" && "badge" in c && c.badge === cfg.activeWhen) setActionRow(r.origIdx);
     }
   }
 
@@ -385,7 +385,7 @@ export function ModuleView({ mod, page }: { mod: ModuleDef; page: ModulePageData
                   {
                     visibleRows.filter((r) => {
                       const c = r.cells[active.rowAction!.statusCol];
-                      return typeof c === "object" && c.badge === active.rowAction!.activeWhen;
+                      return typeof c === "object" && "badge" in c && c.badge === active.rowAction!.activeWhen;
                     }).length
                   }
                   건 남음

@@ -25,9 +25,6 @@ import { useWorkspaceMe } from "@/lib/workspace-me";
  */
 type Status = "loading" | "ready" | "error";
 type Mode = "server" | "demo";
-export type Density = "simple" | "detail";
-
-const DENSITY_KEY = "axpoint-inventory-density";
 const DEMO: InventoryData = { drawings: DRAWINGS, orders: ORDERS, movements: MOVEMENTS, items: ITEMS, vendors: VENDORS, standards: STANDARDS, standard: SAFETY_STANDARD, docRules: DOC_RULES };
 const EMPTY: InventoryData = { drawings: [], orders: [], movements: [], items: [], vendors: [], standards: [], standard: SAFETY_STANDARD, docRules: DOC_RULES };
 
@@ -44,8 +41,6 @@ interface InventoryContextValue {
    * `me` 를 못 받은 상태(오류)에서는 막지 않는다 — 데이터 요청이 BE 에서 403 으로 막힌다. 보안 경계가 아니다.
    */
   can: (sub: InventorySub) => boolean;
-  density: Density;
-  setDensity: (d: Density) => void;
 }
 
 const InventoryContext = createContext<InventoryContextValue | null>(null);
@@ -73,22 +68,11 @@ function stamp(today: string) {
   return `${today}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-function readDensity(): Density {
-  if (typeof window === "undefined") return "simple";
-  try {
-    return localStorage.getItem(DENSITY_KEY) === "detail" ? "detail" : "simple";
-  } catch {
-    return "simple";
-  }
-}
-
 export function InventoryProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<InventoryData>(EMPTY);
   const [status, setStatus] = useState<Status>("loading");
   const [mode, setMode] = useState<Mode>("server");
   const [attempt, setAttempt] = useState(0);
-  // `ModuleGate` 가 `/api/workspace/me` 를 받은 뒤에만 이 트리를 그리므로 서버 렌더가 없다 — 초기값에서 바로 읽어도 어긋나지 않는다
-  const [density, setDensityState] = useState<Density>(readDensity);
   const [toast, show] = useToast();
   const { me } = useWorkspaceMe();
   const { me: account } = useAccountMe();
@@ -145,15 +129,6 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     [mode, today, actor, show],
   );
 
-  const setDensity = useCallback((d: Density) => {
-    setDensityState(d);
-    try {
-      localStorage.setItem(DENSITY_KEY, d);
-    } catch {
-      // 브라우저 편의값이다 — 못 남겨도 화면은 그대로 간다
-    }
-  }, []);
-
   const value = useMemo<InventoryContextValue>(() => {
     const subs = modules.inventory?.subs ?? {};
     const granted = me ? (me.member.owner ? null : new Set(me.permissions.tabs)) : null;
@@ -165,10 +140,8 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       dispatch,
       notify: show,
       can: (sub) => subs[sub] !== false && (granted === null || granted.has(sub)),
-      density,
-      setDensity,
     };
-  }, [data, today, status, mode, reload, dispatch, show, modules, me, density, setDensity]);
+  }, [data, today, status, mode, reload, dispatch, show, modules, me]);
 
   return (
     <InventoryContext.Provider value={value}>

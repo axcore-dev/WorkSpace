@@ -11,7 +11,7 @@ import {
   orderDocuments,
   validateDraft,
   itemUsage,
-  orderSort,
+  orderGroups,
   orderStatus,
   parseItemRows,
   reduce,
@@ -47,17 +47,18 @@ test("기한 넘김 — 잔량이 있고 경과일이 리드타임을 넘었다"
   assert.deepEqual(orderStatus(order("PO-2607-0021"), VENDORS, DEMO_TODAY), { kind: "overdue", days: 6 });
 });
 
-test("등록 전 — 입고가 한 건도 없으면 경과일만 말한다", () => {
+test("대기 — 입고가 한 건도 없으면 경과일만 말한다", () => {
   assert.deepEqual(orderStatus(order("PO-2607-0023"), VENDORS, DEMO_TODAY), { kind: "waiting", days: 3 });
 });
 
-test("리드타임 없는 거래처는 기한 넘김을 판단하지 않는다 — 등록 전으로만", () => {
+test("리드타임 없는 거래처는 기한 넘김을 판단하지 않는다 — 대기로만", () => {
   // 신성금속 leadTimeDays null. 「도착」은 시스템이 모른다
   assert.equal(orderStatus(order("PO-2607-0025"), VENDORS, DEMO_TODAY).kind, "waiting");
 });
 
-test("부분 입고 — 잔량을 말한다", () => {
-  assert.deepEqual(orderStatus(order("PO-2607-0024"), VENDORS, DEMO_TODAY), { kind: "partial", remaining: 3 });
+test("부분 입고도 대기 — 잔량은 상태가 아니라 입고 막대가 말한다", () => {
+  // JINYANG 리드타임 7일, 07-02 발주 → 6일. 4/7 입고
+  assert.deepEqual(orderStatus(order("PO-2607-0024"), VENDORS, DEMO_TODAY), { kind: "waiting", days: 6 });
 });
 
 test("잔량 0 이거나 마감했으면 완료", () => {
@@ -66,12 +67,28 @@ test("잔량 0 이거나 마감했으면 완료", () => {
   assert.equal(orderStatus(closed, VENDORS, DEMO_TODAY).kind, "done");
 });
 
-test("정렬은 할 일 순 — 기한 넘김 → 등록 전(경과일 큰 순) → 부분 입고 → 완료", () => {
-  const kinds = orderSort(ORDERS, VENDORS, DEMO_TODAY).map((o) => orderStatus(o, VENDORS, DEMO_TODAY).kind);
-  assert.deepEqual(kinds, ["overdue", "waiting", "waiting", "partial", "done", "done"]);
-  const waiting = orderSort(ORDERS, VENDORS, DEMO_TODAY).filter((o) => orderStatus(o, VENDORS, DEMO_TODAY).kind === "waiting");
-  // 07-05 발주(3일) 가 07-06 발주(2일) 보다 위
-  assert.deepEqual(waiting.map((o) => o.poNo), ["PO-2607-0023", "PO-2607-0025"]);
+test("발주 묶음 — 같은 관리번호 · 발주일 · 도면으로 나간 발주(한 번의 발주서 작성)는 한 줄", () => {
+  const groups = orderGroups(ORDERS, VENDORS, DEMO_TODAY);
+  // POWERTEC + JINYANG 이 26MSX-S03 OP20 · 07-02 로 함께 나갔다
+  const s03 = groups.find((g) => g.orders.some((o) => o.poNo === "PO-2607-0021"))!;
+  assert.deepEqual(s03.orders.map((o) => o.poNo), ["PO-2607-0021", "PO-2607-0022"], "묶음 안은 발주번호 순(작성 때 발주처 순)");
+  assert.deepEqual(s03.status, { kind: "overdue", days: 6 }, "묶음 상태는 가장 급한 발주를 따른다");
+  // 같은 관리번호라도 발주일이 다르면 따로
+  assert.equal(groups.filter((g) => g.orders[0].projectCode === "26MSX-S04 OP20").length, 2);
+});
+
+test("묶음 정렬은 할 일 순 — 기한 넘김 → 대기(경과일 큰 순) → 완료(최근 발주 먼저)", () => {
+  const groups = orderGroups(ORDERS, VENDORS, DEMO_TODAY);
+  assert.deepEqual(
+    groups.map((g) => [g.status.kind, g.orders.map((o) => o.poNo).join("+")]),
+    [
+      ["overdue", "PO-2607-0021+PO-2607-0022"],
+      ["waiting", "PO-2607-0024"],
+      ["waiting", "PO-2607-0023"],
+      ["waiting", "PO-2607-0025"],
+      ["done", "PO-2606-0018"],
+    ],
+  );
 });
 
 /* ───────────── 재고 ───────────── */
@@ -162,7 +179,7 @@ test("발주서 편집기 — BOM 초안 · 발주처별 묶음 · 수량 0 제�
   assert.deepEqual(orders.map((o) => o.poNo), ["PO-2607-0007", "PO-2607-0008"]);
   assert.equal(orders[0].lines[0].itemCode, "ITM-WP-0004", "사양+규격으로 품목을 맞춘다");
   assert.equal(orders[1].lines[0].note, "열처리", "태그는 조치사항 앞에 남는다");
-  assert.equal(orderStatus(orders[1], VENDORS, DEMO_TODAY).kind, "making", "자체 제작은 제작 중");
+  assert.equal(orderStatus(orders[1], VENDORS, DEMO_TODAY).kind, "waiting", "자체 제작도 대기 — 발주처 열이 「자체 제작」을 말한다");
 
   const docs = orderDocuments(edited, VENDORS, DOC_RULES);
   assert.deepEqual(docs.map((x) => x.label), ["전체", "대성정공"], "전체 1장 + 거래처별. 자체 제작은 문서 없음");

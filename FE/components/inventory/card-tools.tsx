@@ -2,8 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { IconDownload, IconSearch, IconX } from "@/components/icons";
-import { FIELD_MD, Segmented } from "@/components/ui";
-import { useInventory, type Density } from "./inventory-provider";
+import { FIELD_MD } from "@/components/ui";
 
 /**
  * 카드 헤더의 도구 자리 — 탭 줄 오른쪽에는 버튼을 두지 않는다(스펙 「공통 골격」).
@@ -16,28 +15,19 @@ import { useInventory, type Density } from "./inventory-provider";
 const TOOL_BTN =
   "inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg text-slate-600 ring-1 ring-inset ring-slate-300 transition-colors duration-200 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400";
 
-const DENSITY_OPTIONS: { value: Density; label: string }[] = [
-  { value: "simple", label: "간단" },
-  { value: "detail", label: "상세" },
-];
-
 export function CardTools({
   search,
-  density = false,
   onExport,
   children,
 }: {
   search?: { value: string; onChange: (v: string) => void; placeholder: string };
-  /** 간단/상세 세그먼트 — 값은 provider 가 쥔다(localStorage) */
-  density?: boolean;
   onExport?: () => void;
-  /** 보조 버튼(secondary) — 오른쪽 끝 */
+  /** 보조 버튼(secondary · md 36) — 오른쪽 끝. 간단/상세 전환은 없앴다(2026-09-14) — 표마다 열 한 벌 */
   children?: ReactNode;
 }) {
   return (
     <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
       {search && <SearchTool {...search} />}
-      {density && <DensityTool />}
       {onExport && (
         <button type="button" onClick={onExport} aria-label="내보내기" title="내보내기" className={TOOL_BTN}>
           <IconDownload size={16} />
@@ -46,11 +36,6 @@ export function CardTools({
       {children}
     </div>
   );
-}
-
-function DensityTool() {
-  const { density, setDensity } = useInventory();
-  return <Segmented options={DENSITY_OPTIONS} value={density} onChange={setDensity} label="표시 밀도" />;
 }
 
 function SearchTool({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
