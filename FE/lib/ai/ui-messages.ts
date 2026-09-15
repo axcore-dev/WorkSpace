@@ -115,6 +115,7 @@ export function toChatMessage(m: AxpUIMessage): ChatMessage {
   const reasoning: string[] = [];
   const trace: TraceStep[] = [];
   const approvals: ToolApproval[] = [];
+  const files: { exportId: string; fileName: string }[] = [];
   let answer: AnswerMeta = {};
   let seq: number | undefined;
 
@@ -132,15 +133,21 @@ export function toChatMessage(m: AxpUIMessage): ChatMessage {
     } else if (part.type === "data-approval") {
       approvals.push(part.data);
     } else if (isToolUIPart(part)) {
+      const output = "output" in part ? part.output : undefined;
       trace.push(
         traceFromToolPart(
           getToolName(part),
           part.state,
           part.input,
-          "output" in part ? part.output : undefined,
+          output,
           "errorText" in part ? part.errorText : undefined,
         ),
       );
+      // 문서 파일 도구의 결과는 내려받기 버튼이 된다 — 모델이 링크를 옮겨 적지 않게 화면이 직접 그린다
+      if (getToolName(part) === "export_document" && output && typeof output === "object") {
+        const o = output as { exportId?: unknown; fileName?: unknown };
+        if (typeof o.exportId === "string" && typeof o.fileName === "string") files.push({ exportId: o.exportId, fileName: o.fileName });
+      }
     }
   }
 
@@ -170,6 +177,7 @@ export function toChatMessage(m: AxpUIMessage): ChatMessage {
     durationMs: m.metadata?.durationMs,
     seq,
     approvals: approvals.length ? approvals : undefined,
+    files: files.length ? files : undefined,
   };
 }
 

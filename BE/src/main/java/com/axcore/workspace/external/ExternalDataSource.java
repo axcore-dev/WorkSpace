@@ -1,8 +1,7 @@
-package com.axcore.workspace.mes;
+package com.axcore.workspace.external;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
-import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.Optional;
@@ -10,7 +9,8 @@ import java.util.Properties;
 import javax.sql.DataSource;
 
 /**
- * 고객사 MES DB 읽기 전용 커넥션 풀 하나 — 회사 하나의 MES 다. {@link MesDataSourceRegistry} 가 회사별로 들고 있다.
+ * 외부 시스템(고객사 MES · ERP DB) 읽기 전용 커넥션 풀 하나 — {@code external_systems} 행 하나에 풀 하나.
+ * {@link ExternalDataSourceRegistry} 가 회사 · 시스템별로 들고 있다.
  *
  * <p><b>{@code DataSource} 를 그대로 빈으로 두지 않는다.</b> {@code DataSourceAutoConfiguration} 은
  * {@code @ConditionalOnMissingBean(DataSource.class)} 라 {@code DataSource} 빈을 하나라도 직접 만들면 기본
@@ -21,7 +21,7 @@ import javax.sql.DataSource;
  * SELECT 만 가진 계정을 쓴다({@code INFRA/seed/data/mes-supabase.sql} 의 {@code mes_reader}). 한 겹만 두면
  * 언젠가 뚫린다.
  */
-public final class MesDataSource implements AutoCloseable {
+public final class ExternalDataSource implements AutoCloseable {
 
     /** AI 한 턴에 조회 한두 번이다. 고객 DB 에 커넥션을 많이 잡고 있을 이유가 없다. */
     private static final int MAX_POOL_SIZE = 2;
@@ -36,21 +36,21 @@ public final class MesDataSource implements AutoCloseable {
      */
     public record Connection(long id, String host, int port, String database, String user, String sslmode, String fingerprint) {
         String jdbcUrl() {
-            return "jdbc:postgresql://%s:%d/%s?sslmode=%s&readOnly=true&ApplicationName=axcore-mes".formatted(host, port, database, sslmode);
+            return "jdbc:postgresql://%s:%d/%s?sslmode=%s&readOnly=true&ApplicationName=axcore-external".formatted(host, port, database, sslmode);
         }
     }
 
     private final HikariDataSource delegate;
     private final String fingerprint;
 
-    private MesDataSource(HikariDataSource delegate, String fingerprint) {
+    private ExternalDataSource(HikariDataSource delegate, String fingerprint) {
         this.delegate = delegate;
         this.fingerprint = fingerprint;
     }
 
-    static MesDataSource open(Connection c, String password) {
+    static ExternalDataSource open(Connection c, String password) {
         HikariConfig config = new HikariConfig();
-        config.setPoolName("axcore-mes-" + c.id());
+        config.setPoolName("axcore-external-" + c.id());
         config.setJdbcUrl(c.jdbcUrl());
         config.setUsername(c.user());
         config.setPassword(password);
@@ -61,7 +61,7 @@ public final class MesDataSource implements AutoCloseable {
         config.setIdleTimeout(IDLE_TIMEOUT_MS);
         // 여는 시점에 고객 DB 에 붙어 보지 않는다. 그쪽이 죽어 있다고 우리 요청이 여기서 터지면 안 된다
         config.setInitializationFailTimeout(-1);
-        return new MesDataSource(new HikariDataSource(config), c.fingerprint());
+        return new ExternalDataSource(new HikariDataSource(config), c.fingerprint());
     }
 
     /**
@@ -90,7 +90,7 @@ public final class MesDataSource implements AutoCloseable {
     }
 
     /**
-     * 지금 MES DB 에 붙는가 — 연동 화면의 상태 배지(ok · down)가 본다.
+     * 지금 그 DB 에 붙는가 — 연동 화면의 상태 배지(ok · down)가 본다.
      * 풀 타임아웃(5초) 안에 커넥션을 못 받거나 {@code isValid} 가 거짓이면 down 이다.
      */
     public boolean ping() {

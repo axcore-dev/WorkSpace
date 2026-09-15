@@ -222,8 +222,8 @@ export function ChatComposer({
             >
               <IconPlus size={17} />
             </button>
-            {linked.length > 0 && (
-              <>
+            {/* 연결된 앱이 없어도 보인다 — 여기서 바로 연결하고 켜고 끈다 */}
+            <>
                 <span className="mx-1 h-4 w-px bg-slate-200" aria-hidden />
                 <button
                   type="button"
@@ -260,7 +260,6 @@ export function ChatComposer({
                   )}
                 </button>
               </>
-            )}
           </div>
           <button
             type="button"

@@ -47,7 +47,7 @@ export interface Concept {
   source?: string;
   /**
    * 행 목록을 만든다. 원본 개념은 GET 한 번, 파생 개념은 여러 GET 을 합쳐 센다.
-   * `filters` 는 도구가 받은 조건 그대로다 — 외부 DB 개념은 동등 조건을 서버로 넘겨 거기서 거른다(`mesPath`).
+   * `filters` 는 도구가 받은 조건 그대로다 — 외부 개념은 동등 조건을 서버로 넘겨 거기서 거른다(`externalPath`).
    * 넘기든 말든 `applyFilters` 가 결과에 한 번 더 걸리므로 여기서 다 거르지 않아도 된다.
    */
   load: (get: Get, filters?: Filter[]) => Promise<Record<string, unknown>[]>;
@@ -56,8 +56,6 @@ export interface Concept {
 const INV = "/api/workspace/inventory";
 const DESIGN = "/api/workspace/design";
 const MGMT = "/api/workspace/management";
-/** MES 개념 7개의 출처 문구 — 도구 설명 · 결과 · 추론 과정 행에 그대로 보인다 */
-export const MES_SOURCE = "외부 MES (고객사 MES DB 연동)";
 
 const rows = <T,>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
 
@@ -97,7 +95,7 @@ export function stockRows(items: Item[], movements: Movement[], standards: ItemS
     });
 }
 
-export const ONTOLOGY: Concept[] = [
+export const BUILTIN: Concept[] = [
   {
     id: "item",
     name: "품목",
@@ -284,191 +282,67 @@ export const ONTOLOGY: Concept[] = [
       return Array.isArray(v) ? (v as Record<string, unknown>[]) : v && typeof v === "object" ? [v as Record<string, unknown>] : [];
     },
   },
-
-  /* ─────────────────────────── 외부 MES (고객사 DB · BE 커넥터 경유) ───────────────────────────
-   * BE `com.axcore.workspace.mes` 가 읽기 전용 계정으로 고객 MES DB 를 읽는다. 컬럼 이름은 BE `MesConcepts` 의
-   * SELECT 와 같아야 한다. 동등 조건은 `mesPath` 가 쿼리 파라미터로 넘겨 BE 가 WHERE 로 건다(바인딩).
-   * 데모 데이터는 `INFRA/seed/data/mes-supabase.sql` — 프레스 생산라인이고, 제품의 금형 도면 코드가 제품설계 도면번호다.
-   */
-  {
-    id: "mes_work_order",
-    source: MES_SOURCE,
-    name: "작업지시",
-    synonyms: ["생산 지시", "WO", "생산 계획", "진행률", "생산 실적"],
-    tab: "workorders",
-    description:
-      "MES 작업지시와 진행률. 어떤 제품을 얼마나 찍기로 했고 지금 몇 개 나왔는지, 지연됐는지를 물을 때. " +
-      "die_drawing_code 가 제품설계 도면번호라 「이 도면으로 찍는 작업지시」 를 이을 수 있다.",
-    attrs: {
-      wo_no: "작업지시 번호(WO-YYMM-NNN)",
-      product_code: "제품 코드",
-      product_name: "제품명(예: S03 OP20 (FO) LH)",
-      die_drawing_code: "금형 도면번호",
-      status: "상태(대기 · 진행 · 완료 · 보류)",
-      priority: "우선순위(긴급 · 보통 · 낮음)",
-      line: "라인(1라인 · 2라인)",
-      planned_qty: "계획 수량",
-      produced_qty: "생산 수량(마지막 공정 양품)",
-      defect_qty: "불량 수량",
-      progress_pct: "진행률 %",
-      planned_start: "계획 시작일",
-      planned_end: "계획 종료일",
-      actual_start: "실제 시작",
-      actual_end: "실제 종료",
-      delayed: "계획보다 늦게 끝났는가",
-    },
-    relations: [{ attr: "die_drawing_code", to: "drawing" }],
-    load: (get, filters) => mesRows(get, "work_order", filters),
-  },
-  {
-    id: "mes_equipment",
-    source: MES_SOURCE,
-    name: "설비",
-    synonyms: ["프레스", "호기", "기계", "장비", "비가동률", "가동률"],
-    tab: "monitoring",
-    description: "MES 설비 목록과 최근 30일 비가동 합계. 어떤 설비가 있고 상태가 어떤지, 비가동이 많은 설비가 무엇인지를 물을 때.",
-    attrs: {
-      code: "설비 코드(PR-03 = 3호기)",
-      name: "설비 이름",
-      kind: "종류(BL 블랭킹 · PR 프레스 · WD 용접 · INS 검사)",
-      line: "라인",
-      capacity_ton: "프레스 톤수",
-      status: "상태(가동 · 정지 · 정비중)",
-      installed_on: "설치일",
-      maker: "제조사",
-      downtime_events_30d: "최근 30일 비가동 건수",
-      downtime_minutes_30d: "최근 30일 비가동 분",
-      breakdown_minutes_30d: "그중 고장 분",
-    },
-    load: (get, filters) => mesRows(get, "equipment", filters),
-  },
-  {
-    id: "mes_production_result",
-    source: MES_SOURCE,
-    name: "공정 실적",
-    synonyms: ["실적", "양품", "생산량", "교대 실적", "작업자 실적"],
-    tab: "workorders",
-    description: "MES 공정 실적(교대마다 한 줄, 최신순). 어느 작업지시 · 공정 · 설비 · 작업자가 언제 몇 개 찍었고 불량이 몇 개였는지를 물을 때. 목록이 길다 — wo_no 나 equipment_code 로 거른다.",
-    attrs: {
-      id: "실적 id",
-      wo_no: "작업지시 번호",
-      op_seq: "공정 순번(10 블랭킹 · 20 성형 · 30 트리밍 · 40 피어싱 · 50 검사)",
-      process: "공정 이름",
-      equipment_code: "설비 코드",
-      worker_id: "작업자 id",
-      worker_name: "작업자 이름",
-      shift: "교대(주간 · 야간)",
-      recorded_at: "기록 시각",
-      good_qty: "양품 수",
-      defect_qty: "불량 수",
-      run_minutes: "가동 분",
-    },
-    relations: [{ attr: "wo_no", to: "mes_work_order" }, { attr: "equipment_code", to: "mes_equipment" }],
-    load: (get, filters) => mesRows(get, "production_result", filters),
-  },
-  {
-    id: "mes_downtime",
-    source: MES_SOURCE,
-    name: "비가동",
-    synonyms: ["정지", "고장", "다운타임", "금형 교체", "정비"],
-    tab: "monitoring",
-    description: "MES 설비 비가동 기록(최신순). 언제 어느 설비가 왜 얼마나 멈췄는지를 물을 때. equipment_code 나 reason_code 로 거른다.",
-    attrs: {
-      id: "기록 id",
-      equipment_code: "설비 코드",
-      started_at: "시작",
-      ended_at: "끝",
-      minutes: "정지 분",
-      reason_code: "사유 코드(BRK 고장 · CHG 금형교체 · MAT 자재대기 · QC 검사대기 · PM 예방정비 · PWR 정전)",
-      reason: "사유",
-      wo_no: "그때 진행 중이던 작업지시",
-      note: "비고",
-    },
-    relations: [{ attr: "equipment_code", to: "mes_equipment" }, { attr: "wo_no", to: "mes_work_order" }],
-    load: (get, filters) => mesRows(get, "downtime", filters),
-  },
-  {
-    id: "mes_sensor",
-    source: MES_SOURCE,
-    name: "설비 센서",
-    synonyms: ["진동", "온도", "부하", "PLC", "스트로크"],
-    tab: "monitoring",
-    description: "MES 프레스 센서 시간별 기록(최근 14일, 최신순). 진동 · 온도 · 부하가 어떤 추세인지를 물을 때. equipment_code 로 거른다.",
-    attrs: {
-      equipment_code: "설비 코드",
-      recorded_at: "기록 시각",
-      load_pct: "부하율 %",
-      slide_temp_c: "슬라이드 온도 ℃",
-      vibration_mm_s: "진동 mm/s",
-      strokes: "그 시간의 스트로크 수",
-    },
-    relations: [{ attr: "equipment_code", to: "mes_equipment" }],
-    load: (get, filters) => mesRows(get, "sensor", filters),
-  },
-  {
-    id: "mes_defect",
-    source: MES_SOURCE,
-    name: "불량 기록",
-    synonyms: ["불량", "NG", "크랙", "주름", "버", "폐기", "재작업"],
-    tab: "defects",
-    description: "MES 불량 기록(최신순). 어느 작업지시 · 공정 · 설비에서 어떤 불량이 몇 개 났고 어떻게 처리했는지를 물을 때. wo_no 나 defect_type 으로 거른다.",
-    attrs: {
-      id: "기록 id",
-      wo_no: "작업지시 번호",
-      op_seq: "공정 순번",
-      equipment_code: "설비 코드",
-      recorded_at: "기록 시각",
-      defect_type: "불량 유형(크랙 · 주름 · 버 · 스크래치 · 치수불량 · 소재불량 · 피어싱 누락)",
-      qty: "수량",
-      cause: "원인",
-      disposition: "처리(폐기 · 재작업 · 특채)",
-    },
-    relations: [{ attr: "wo_no", to: "mes_work_order" }, { attr: "equipment_code", to: "mes_equipment" }],
-    load: (get, filters) => mesRows(get, "defect", filters),
-  },
-  {
-    id: "mes_defect_rate",
-    source: MES_SOURCE,
-    name: "불량률",
-    synonyms: ["불량율", "수율", "공정 불량", "설비 불량"],
-    tab: "defects",
-    description: "MES 공정 · 설비별 최근 30일 불량률(높은 순). 어느 공정이나 설비의 불량률이 높은지를 물을 때.",
-    attrs: {
-      op_seq: "공정 순번",
-      process: "공정 이름",
-      equipment_code: "설비 코드",
-      good_qty: "양품 합",
-      defect_qty: "불량 합",
-      defect_rate_pct: "불량률 %",
-    },
-    formula: "불량 ÷ (양품 + 불량) × 100, 최근 30일 실적",
-    load: (get, filters) => mesRows(get, "defect_rate", filters),
-  },
 ];
 
-/* ─────────────────────────── 외부 MES 경로 ─────────────────────────── */
-
-const MES = "/api/workspace/mes";
-
-/**
- * MES 개념의 BE 경로. 동등 조건(`eq`)만 쿼리 파라미터로 넘긴다 — BE 가 허용 컬럼인지 보고 바인딩으로 WHERE 를 건다.
- * 다른 연산(contains · gt …)은 넘기지 않고 결과에 `applyFilters` 가 건다. 값은 문자열로 보낸다(BE 가 text 비교).
+/* ─────────────────────────── 외부 시스템 개념 (회사 · 시스템별 행) ───────────────────────────
+ * BE `com.axcore.workspace.external` 이 테넌트 표 `external_system_concepts` 로 관리한다. 운영 콘솔이 넣고, AI 서버는 턴마다
+ * `GET /api/workspace/external/ontology` 로 받아 `fromExternal` 로 Concept 을 조립해 내장 개념 뒤에 붙인다. SQL 은 오지 않는다.
+ * 동등 조건은 `externalPath` 가 쿼리 파라미터로 넘겨 BE 가 허용 컬럼인지 보고 바인딩으로 WHERE 를 건다.
  */
-export function mesPath(concept: string, filters: Filter[] | undefined): string {
-  const q = new URLSearchParams();
-  for (const f of filters ?? []) {
-    if (f.op === "eq" && f.value !== undefined) q.set(f.attr, String(f.value));
-  }
-  const s = q.toString();
-  return `${MES}/${concept}${s ? `?${s}` : ""}`;
+
+const EXTERNAL = "/api/workspace/external";
+
+/** BE `ExternalController.ConceptResponse` */
+export interface ExternalConceptDto {
+  systemId: number;
+  systemName: string;
+  systemKind: string;
+  conceptId: string;
+  name: string;
+  synonyms: string[];
+  tab: string;
+  description: string;
+  attrs: Record<string, string>;
+  relations: { attr: string; to: string }[];
+  formula: string | null;
+  filterColumns: string[];
 }
 
-const mesRows = async (get: Get, concept: string, filters: Filter[] | undefined) =>
-  rows<Record<string, unknown>>(await get(mesPath(concept, filters)));
+/**
+ * 외부 개념의 BE 경로. 동등 조건(`eq`)만, 그것도 BE 가 허용한 컬럼만 쿼리 파라미터로 넘긴다. 다른 연산(contains · gt …)은
+ * 넘기지 않고 결과에 `applyFilters` 가 건다. 값은 문자열로 보낸다(BE 가 text 비교).
+ */
+export function externalPath(systemId: number, conceptId: string, filterColumns: string[], filters: Filter[] | undefined): string {
+  const q = new URLSearchParams();
+  for (const f of filters ?? []) {
+    if (f.op === "eq" && f.value !== undefined && filterColumns.includes(f.attr)) q.set(f.attr, String(f.value));
+  }
+  const s = q.toString();
+  return `${EXTERNAL}/${systemId}/${encodeURIComponent(conceptId)}${s ? `?${s}` : ""}`;
+}
 
-/** 이 사람이 조회할 수 있는 개념만. 권한 밖 개념은 모델이 이름조차 보지 못한다 */
-export function conceptsFor(tabs: string[]): Concept[] {
-  return ONTOLOGY.filter((c) => tabs.includes(c.tab));
+/** 초안이 설명 끝에 남기는 운영자용 표시 — 모델에게는 보이지 않게 뗀다. 보이면 "미완성" 으로 읽고 내장 개념을 고른다 */
+const DRAFT_MARK = /\s*\[초안[^\]]*\]\s*$/;
+
+/** 행 → Concept. 출처 문구는 시스템 이름으로 — 답과 추론 행에 「외부 MES · 1공장 MES」 처럼 보인다 */
+export function fromExternal(list: ExternalConceptDto[]): Concept[] {
+  return list.map((d) => ({
+    id: d.conceptId,
+    name: d.name,
+    synonyms: d.synonyms,
+    tab: d.tab,
+    description: d.description.replace(DRAFT_MARK, ""),
+    attrs: d.attrs,
+    relations: d.relations,
+    formula: d.formula ?? undefined,
+    source: `외부 ${d.systemKind} · ${d.systemName}`,
+    load: async (get, filters) => rows<Record<string, unknown>>(await get(externalPath(d.systemId, d.conceptId, d.filterColumns, filters))),
+  }));
+}
+
+/** 이 사람이 조회할 수 있는 개념만. 권한 밖 개념은 모델이 이름조차 보지 못한다. `concepts` 는 내장 + 외부를 합친 목록 */
+export function conceptsFor(tabs: string[], concepts: Concept[] = BUILTIN): Concept[] {
+  return concepts.filter((c) => tabs.includes(c.tab));
 }
 
 /** 도구 설명에 들어가는 개념 목록. 동의어 · 속성 · 관계 · 계산식을 모델이 질문 시점에 본다 */
@@ -530,7 +404,7 @@ export function applyFilters(list: Record<string, unknown>[], filters: Filter[] 
  * 든 문서 조각이 전문 검색에 걸리게. 임베딩이 아니라 <b>전문 검색 쪽 낱말</b>에만 쓴다 — 부분 일치(word_similarity)
  * 는 질의가 길어지면 오히려 묽어진다.
  */
-export function expandSynonyms(question: string, concepts: Concept[] = ONTOLOGY): string {
+export function expandSynonyms(question: string, concepts: Concept[] = BUILTIN): string {
   const extra = new Set<string>();
   for (const c of concepts) {
     const words = [c.name, ...c.synonyms];

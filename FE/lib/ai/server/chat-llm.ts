@@ -50,10 +50,12 @@ import { withTenant } from "./db";
 import { chatModel, providerOptions } from "./models";
 import { searchQuery } from "./query-rewrite";
 import { retrieve } from "./retrieval";
+import { loadConcepts } from "./data-tools";
 import { decideApproval, hasTools, MAX_TOOL_STEPS, toolSetFor } from "./tools";
 // 도구를 레지스트리에 올린다. import 자체가 등록이다
 import "./connector-tools";
 import "./data-tools";
+import "./export-tools";
 
 export interface Turn {
   question: string;
@@ -82,7 +84,11 @@ const TURN_TIMEOUT_MS = 240_000;
 function skillInstructions(ids: string[]): string {
   const picked = SKILL_LIB.filter((s) => ids.includes(s.id));
   if (!picked.length) return "";
-  return "\n\n## 이 턴에 적용할 스킬\n" + picked.map((s) => `- ${s.name}: ${s.desc}`).join("\n");
+  // 스킬은 답의 양식 · 순서 · 금지를 정한다. 답변 범위 규칙(권한 · 근거 없으면 추측 금지)은 스킬보다 위다
+  return (
+    "\n\n## 이 턴에 적용할 스킬\n아래 스킬의 방식대로 답합니다. 스킬이 문서를 쓰라고 하면 답 자체가 그 문서입니다 — 서론 없이 문서로 시작합니다. 답변 범위 규칙이 스킬보다 우선합니다.\n" +
+    picked.map((s) => `### ${s.name}\n${s.instructions}`).join("\n\n")
+  );
 }
 
 /** 허용 모듈 slug → 화면 이름. 프롬프트와 거절 문구에 쓴다 */
@@ -257,8 +263,11 @@ export function streamAnswer(
       // ── 검색 — 선택한 문서가 있으면 그 안에서, 없으면 내 문서 전체에서. 어느 쪽이든 권한 분야만 ──
       label(turn.sources.length ? "선택한 문서에서 근거를 찾고 있어요" : "등록된 자료에서 근거를 찾고 있어요");
       // 이어지는 질문("그럼 그건 얼마야?")은 그대로는 검색되지 않는다. 앞선 턴을 보고 독립적인 검색어로 바꾼다
-      const query = await searchQuery(history, turn.question);
-      const r = await retrieve(principal, turn.sources, query);
+      // 답변 전 단계도 요청 신호와 각자의 시한을 따른다 — 여기서 멈추면 「근거를 찾고 있어요」 가 영원히 돈다
+      const query = await searchQuery(history, turn.question, signal);
+      // 이 회사의 개념 목록(내장 + 외부 시스템). 검색어 확장과 도구 설명이 같은 목록을 본다
+      const concepts = await loadConcepts(turn.accessToken);
+      const r = await retrieve(principal, turn.sources, query, concepts, signal);
       const context = r.context;
       writer.write({
         type: "data-trace",
@@ -291,7 +300,7 @@ export function streamAnswer(
       // ── 도구 · 승인 ──
       let approvals = 0;
       const tools = hasTools()
-        ? toolSetFor({ principal, conversationId: conv.id, accessToken: turn.accessToken, apps: turn.apps }, (a) => {
+        ? toolSetFor({ principal, conversationId: conv.id, accessToken: turn.accessToken, apps: turn.apps, concepts }, (a) => {
             approvals++;
             writer.write({ type: "data-approval", data: a });
           })

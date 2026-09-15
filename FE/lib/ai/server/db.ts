@@ -29,6 +29,8 @@ function getPool(): Pool {
       max: Number(process.env.AI_PG_POOL_MAX ?? 5),
       idleTimeoutMillis: 30_000,
       connectionTimeoutMillis: 5_000,
+      // 한 문장이 이보다 오래 걸리면 끊는다 — 검색 한 번이 막히면 턴이 영원히 돈다. 색인 · 대화 저장도 이 안에 끝난다
+      statement_timeout: 30_000,
       application_name: "axpoint-ai",
     });
     pool.on("error", (e) => console.error("[ai-db] 풀 오류", e));

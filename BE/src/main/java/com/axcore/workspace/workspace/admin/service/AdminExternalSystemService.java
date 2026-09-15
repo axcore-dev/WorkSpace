@@ -1,7 +1,7 @@
 package com.axcore.workspace.workspace.admin.service;
 
 import com.axcore.workspace.connector.TokenCipher;
-import com.axcore.workspace.mes.MesDataSource;
+import com.axcore.workspace.external.ExternalDataSource;
 import com.axcore.workspace.workspace.admin.dto.ExternalSystemAdminResponse;
 import com.axcore.workspace.workspace.admin.dto.ExternalSystemRequest;
 import com.axcore.workspace.workspace.admin.entity.AdminAuditAction;
@@ -26,8 +26,8 @@ import org.springframework.transaction.annotation.Transactional;
  * ({@link WorkspaceMemberReader} 와 같은 방식). 스키마 이름을 SQL 에 이어 붙이지 않는다.
  *
  * <p>비밀번호는 {@link TokenCipher} 로 잠가 저장하고 응답에는 절대 싣지 않는다. 수정 본문의 비밀번호가 비면 저장된 값을
- * 유지한다. 접속 정보가 있는 MES 는 회사당 하나다 — AI 가 어느 MES 를 읽을지 하나로 정해져야 한다
- * ({@code MesDataSourceRegistry}). 행을 바꾸면 {@code updated_at} 이 바뀌어 레지스트리가 다음 조회부터 새 풀을 연다.
+ * 유지한다. 시스템마다 풀이 따로 있으니 접속 정보가 있는 MES 가 여럿이어도 된다
+ * ({@code ExternalDataSourceRegistry}). 행을 바꾸면 {@code updated_at} 이 바뀌어 레지스트리가 다음 조회부터 새 풀을 연다.
  *
  * <p>감사 로그는 워크스페이스 {@code update} 로 남기고 무엇을 했는지는 detail 에 적는다 — 행위 종류를 늘리면 shared 의
  * CHECK 제약까지 늘려야 해서 그러지 않는다.
@@ -123,8 +123,8 @@ public class AdminExternalSystemService {
             return Optional.of("접속 정보가 없는 시스템이에요");
         }
         String enc = jdbc.queryForObject("select db_password_enc from external_systems where id = ?", String.class, id);
-        Optional<String> problem = MesDataSource.probe(
-                new MesDataSource.Connection(row.id(), row.host(), row.port(), row.dbName(), row.dbUser(), row.sslmode(), ""),
+        Optional<String> problem = ExternalDataSource.probe(
+                new ExternalDataSource.Connection(row.id(), row.host(), row.port(), row.dbName(), row.dbUser(), row.sslmode(), ""),
                 enc == null ? "" : cipher.decrypt(enc));
         // status 만 바꾸고 updated_at 은 두지 않는다 — 테스트가 풀을 다시 열게 하면 안 된다
         jdbc.update("update external_systems set status = ? where id = ?", problem.isEmpty() ? "ok" : "down", id);
@@ -158,14 +158,6 @@ public class AdminExternalSystemService {
         req.connectionProblem(hasStored).ifPresent(m -> { throw new SettingsValidationException(m); });
         if (!cipher.available() && req.linked() && req.password() != null && !req.password().isBlank()) {
             throw new SettingsValidationException("연동 토큰 키(CONNECTOR_TOKEN_KEY)가 없어 비밀번호를 저장할 수 없어요");
-        }
-        if (req.linked() && "MES".equals(req.kind())) {
-            Integer others = jdbc.queryForObject(
-                    "select count(*) from external_systems where kind = 'MES' and host is not null and id <> coalesce(?, -1)",
-                    Integer.class, exceptId);
-            if (others != null && others > 0) {
-                throw new SettingsValidationException("접속 정보가 있는 MES 는 회사당 하나예요. 기존 MES 를 수정해 주세요");
-            }
         }
     }
 

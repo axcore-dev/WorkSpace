@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 
 import type { Drawing } from "../../data/drawings";
 import type { Item, ItemStandard, Movement } from "../../data/inventory";
-import { applyFilters, bomLines, conceptsFor, describeConcepts, expandSynonyms, mesPath, MES_SOURCE, ONTOLOGY, stockRows } from "./ontology.ts";
+import { applyFilters, bomLines, BUILTIN, conceptsFor, describeConcepts, expandSynonyms, externalPath, fromExternal, stockRows, type ExternalConceptDto } from "./ontology.ts";
 
 const item = (code: string, discontinued = false): Item => ({ code, name: code, spec: "", size: "", unit: "EA", category: "", vendorIds: [], location: "", discontinued });
 const drawing = (code: string, rev: string, status: Drawing["status"], bom: { item: string; itemCode: string | null }[]): Drawing => ({
@@ -32,9 +32,9 @@ test("권한 탭이 없는 개념은 목록에 없다 — 이름조차 모델에
 });
 
 test("모든 개념의 id 는 유일하고 탭은 modules.ts 의 탭 id 형태다", () => {
-  const ids = ONTOLOGY.map((c) => c.id);
+  const ids = BUILTIN.map((c) => c.id);
   assert.equal(new Set(ids).size, ids.length);
-  for (const c of ONTOLOGY) assert.match(c.tab, /^[a-z]+$/);
+  for (const c of BUILTIN) assert.match(c.tab, /^[a-z]+$/);
 });
 
 test("미매핑 BOM — 지금 도면(최신 리비전 · 폐기 제외)의 줄만, itemCode 가 비면 mapped=false", () => {
@@ -74,31 +74,53 @@ test("filter — contains 는 대소문자 무시, 알 수 없는 op 없이 AND 
   assert.equal(applyFilters(rows, undefined).length, 2);
 });
 
-test("MES 경로 — 동등 조건만 쿼리 파라미터로, 나머지 연산은 넘기지 않는다", () => {
-  assert.equal(mesPath("downtime", undefined), "/api/workspace/mes/downtime");
+const DOWNTIME: ExternalConceptDto = {
+  systemId: 3,
+  systemName: "1공장 MES",
+  systemKind: "MES",
+  conceptId: "mes_downtime",
+  name: "비가동",
+  synonyms: ["정지", "고장"],
+  tab: "monitoring",
+  description: "MES 설비 비가동 기록",
+  attrs: { id: "기록 id", equipment_code: "설비 코드", reason_code: "사유 코드", minutes: "정지 분", wo_no: "작업지시" },
+  relations: [{ attr: "wo_no", to: "mes_work_order" }],
+  formula: null,
+  filterColumns: ["equipment_code", "reason_code", "wo_no"],
+};
+
+test("외부 경로 — 동등 조건 중 BE 가 허용한 컬럼만 쿼리 파라미터로, 나머지 연산은 넘기지 않는다", () => {
+  assert.equal(externalPath(3, "mes_downtime", DOWNTIME.filterColumns, undefined), "/api/workspace/external/3/mes_downtime");
   assert.equal(
-    mesPath("production_result", [
-      { attr: "wo_no", op: "eq", value: "WO-2609-001" },
-      { attr: "good_qty", op: "gt", value: 100 },
-      { attr: "op_seq", op: "eq", value: 20 },
+    externalPath(3, "mes_downtime", DOWNTIME.filterColumns, [
+      { attr: "equipment_code", op: "eq", value: "PR-03" },
+      { attr: "minutes", op: "gt", value: 30 },
+      { attr: "minutes", op: "eq", value: 10 }, // 허용 컬럼 밖 — 결과에 applyFilters 가 건다
     ]),
-    "/api/workspace/mes/production_result?wo_no=WO-2609-001&op_seq=20",
+    "/api/workspace/external/3/mes_downtime?equipment_code=PR-03",
   );
   // 값에 든 특수문자는 인코딩된다 — 경로가 깨지지 않는다
-  assert.ok(mesPath("defect", [{ attr: "defect_type", op: "eq", value: "피어싱 누락" }]).includes("defect_type=%ED%94%BC"));
+  assert.ok(externalPath(3, "mes_defect", ["defect_type"], [{ attr: "defect_type", op: "eq", value: "피어싱 누락" }]).includes("defect_type=%ED%94%BC"));
 });
 
-test("MES 개념은 생산 · 품질 탭에 걸리고 작업지시가 도면 개념을 가리킨다", () => {
-  const mes = ONTOLOGY.filter((c) => c.id.startsWith("mes_"));
-  assert.equal(mes.length, 7);
-  for (const c of mes) assert.ok(["workorders", "monitoring", "defects"].includes(c.tab), c.id);
-  const wo = ONTOLOGY.find((c) => c.id === "mes_work_order")!;
-  assert.deepEqual(wo.relations?.map((r) => [r.attr, r.to]), [["die_drawing_code", "drawing"]]);
-  assert.deepEqual(conceptsFor(["monitoring"]).map((c) => c.id), ["mes_equipment", "mes_downtime", "mes_sensor"]);
-  // 외부 시스템 개념은 출처가 붙어 도구 설명에 나간다 — 모델이 답에 「출처: 외부 MES …」 를 밝힐 근거다
-  for (const c of mes) assert.equal(c.source, MES_SOURCE, c.id);
-  assert.ok(describeConcepts(mes).includes(`출처: ${MES_SOURCE}`));
-  assert.ok(!describeConcepts(ONTOLOGY.filter((c) => !c.id.startsWith("mes_"))).includes("출처:"));
+test("외부 개념 — 행에서 Concept 을 조립하고 내장 개념 뒤에 붙어 탭으로 걸러진다. 출처는 시스템 이름", async () => {
+  const [c] = fromExternal([DOWNTIME]);
+  assert.equal(c.id, "mes_downtime");
+  assert.equal(c.source, "외부 MES · 1공장 MES");
+  assert.deepEqual(c.relations, [{ attr: "wo_no", to: "mes_work_order" }]);
+  const all = [...BUILTIN, ...fromExternal([DOWNTIME])];
+  assert.deepEqual(conceptsFor(["monitoring"], all).map((x) => x.id), ["mes_downtime"]);
+  assert.deepEqual(conceptsFor(["stock"], all).map((x) => x.id), ["stock"]);
+  assert.ok(describeConcepts([c]).includes("출처: 외부 MES · 1공장 MES"));
+  assert.ok(!describeConcepts(BUILTIN).includes("출처:"));
+  // 초안 표시는 운영자용 — 모델이 보면 미완성으로 읽고 내장 개념을 고르므로 뗀다
+  const [draft] = fromExternal([{ ...DOWNTIME, description: "직원 표(erp.employees). [초안 — 이름 · 설명 · 동의어를 다듬어 주세요]" }]);
+  assert.equal(draft.description, "직원 표(erp.employees).");
+  // load 는 그 시스템 경로로 GET 한다
+  const paths: string[] = [];
+  const rows = await c.load(async (p) => { paths.push(p); return [{ id: 1 }]; }, [{ attr: "reason_code", op: "eq", value: "BRK" }]);
+  assert.deepEqual(paths, ["/api/workspace/external/3/mes_downtime?reason_code=BRK"]);
+  assert.deepEqual(rows, [{ id: 1 }]);
 });
 
 test("동의어 확장 — 질문에 든 개념의 다른 말을 덧붙이고, 없는 개념은 건드리지 않는다", () => {

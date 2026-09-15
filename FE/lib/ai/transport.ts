@@ -25,6 +25,7 @@ const AI_PREFIX = AI_BASE ? `${AI_BASE}/ai` : "/ai";
 export const CHAT_ENDPOINT = `${AI_PREFIX}/chat`;
 export const SOURCES_ENDPOINT = `${AI_PREFIX}/sources`;
 export const CONVERSATIONS_ENDPOINT = `${AI_PREFIX}/conversations`;
+export const EXPORTS_ENDPOINT = `${AI_PREFIX}/exports`;
 
 /**
  * 한 턴에 함께 보내는 화면 상태.

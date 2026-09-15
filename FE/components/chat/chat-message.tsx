@@ -4,10 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AgentTrace } from "@/components/chat/agent-trace";
 import { Markdown } from "@/components/chat/markdown";
+import { downloadExport } from "@/lib/ai/exports";
 import {
   IconArrowRight,
   IconCheck,
   IconCopy,
+  IconDownload,
   IconFile,
   IconPencil,
   IconRefresh,
@@ -216,6 +218,13 @@ export function AiMessage({
         <Markdown text={msg.text} />
         {children}
       </div>
+      {msg.files && msg.files.length > 0 && (
+        <div className="agent-fade mt-2 flex flex-wrap gap-2">
+          {msg.files.map((f) => (
+            <FileChip key={f.exportId} exportId={f.exportId} fileName={f.fileName} />
+          ))}
+        </div>
+      )}
       {msg.cta && (
         <Link
           href={msg.cta.href}
@@ -279,5 +288,32 @@ export function AiMessage({
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * AI 가 만든 파일(docx · xlsx) 내려받기 칩. 누르면 인증 헤더를 붙여 받아 저장한다 — 링크가 아니라 버튼이라
+ * 대화 기록에서 며칠 뒤 눌러도 된다. 실패하면 칩 안에 이유를 잠깐 보인다.
+ */
+function FileChip({ exportId, fileName }: { exportId: string; fileName: string }) {
+  const [state, setState] = useState<"idle" | "busy" | "failed">("idle");
+  return (
+    <button
+      type="button"
+      disabled={state === "busy"}
+      onClick={() => {
+        setState("busy");
+        downloadExport(exportId, fileName)
+          .then(() => setState("idle"))
+          .catch(() => {
+            setState("failed");
+            setTimeout(() => setState("idle"), 3000);
+          });
+      }}
+      className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[13px] font-medium text-slate-700 transition-colors duration-150 hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60"
+    >
+      <IconDownload size={14} className="text-slate-400" />
+      {state === "failed" ? "내려받지 못했어요 — 다시 만들어 달라고 해 주세요" : state === "busy" ? `${fileName} 받는 중…` : fileName}
+    </button>
   );
 }
