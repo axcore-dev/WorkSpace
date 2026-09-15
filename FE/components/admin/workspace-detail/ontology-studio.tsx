@@ -23,6 +23,7 @@ import {
   type ExternalConceptInput,
   type ExternalSystemAdminDto,
 } from "@/lib/admin-api";
+import { DraftModal } from "./draft-modal";
 import { EditModal } from "./shared";
 
 /**
@@ -82,6 +83,7 @@ export function OntologyStudio({ workspaceId, systems }: { workspaceId: number; 
   const [editing, setEditing] = useState<{ systemId: number; initial: ExternalConceptAdminDto | null } | null>(null);
   const [removing, setRemoving] = useState<ExternalConceptAdminDto | null>(null);
   const [templateFor, setTemplateFor] = useState<number | null>(null);
+  const [drafting, setDrafting] = useState(false);
   const [toast, showToast] = useToast();
 
   async function reload() {
@@ -203,6 +205,11 @@ export function OntologyStudio({ workspaceId, systems }: { workspaceId: number; 
           desc="AI 가 읽는 개념. AXPoint 내장 개념은 읽기 전용이고, 외부 시스템 개념은 여기서 고쳐요."
         />
         <div className="flex gap-2">
+          {linkedSystems.length > 0 && (
+            <Button size="sm" variant="secondary" onClick={() => setDrafting(true)}>
+              DB 에서 초안 만들기
+            </Button>
+          )}
           {linkedSystems.length > 0 && templates.length > 0 && (
             <Button size="sm" variant="secondary" onClick={() => setTemplateFor(linkedSystems[0].id)}>
               템플릿 적용
@@ -436,6 +443,20 @@ export function OntologyStudio({ workspaceId, systems }: { workspaceId: number; 
             await reload();
           }}
           onError={(e) => fail(e, "저장하지 못했어요")}
+        />
+      )}
+
+      {drafting && (
+        <DraftModal
+          workspaceId={workspaceId}
+          systems={linkedSystems}
+          existingIds={nodes.map((n) => n.id)}
+          onClose={() => setDrafting(false)}
+          onDone={async (added) => {
+            setDrafting(false);
+            showToast(added > 0 ? `개념 초안 ${added}개를 넣었어요. 이름과 설명을 다듬어 주세요` : "새로 넣은 개념이 없어요 — 전부 이미 있어요");
+            await reload();
+          }}
         />
       )}
 

@@ -655,3 +655,32 @@ export const previewConceptSql = async (workspaceId: number, systemId: number, s
     rows: [],
     error: "응답이 없어요",
   };
+
+/* ─────────────────────────── DB 구조 → 개념 초안 ─────────────────────────── */
+
+export type IntrospectedColumn = { name: string; dataType: string; type: "string" | "number" | "datetime" | "boolean" | "other"; nullable: boolean; comment: string | null };
+export type IntrospectedTable = {
+  schema: string;
+  name: string;
+  view: boolean;
+  comment: string | null;
+  approxRows: number;
+  columns: IntrospectedColumn[];
+  primaryKey: string[];
+  uniqueColumns: string[];
+  foreignKeys: { column: string; refTable: string; refColumn: string }[];
+};
+export type IntrospectionDto = { schemas: string[]; schema: string | null; tables: IntrospectedTable[]; error: string | null };
+
+/** 외부 DB 의 스키마 · 표 · 컬럼 · 키. 데이터는 읽지 않는다 */
+export const introspectSystem = async (workspaceId: number, systemId: number, schema?: string) =>
+  (await apiGet<IntrospectionDto>(`${BASE}/${workspaceId}/systems/${systemId}/introspect${schema ? `?schema=${encodeURIComponent(schema)}` : ""}`)) ?? {
+    schemas: [],
+    schema: null,
+    tables: [],
+    error: "응답이 없어요",
+  };
+
+/** 고른 표를 규칙으로 개념 초안으로 넣는다. 이미 있는 id 는 건너뛴다. 넣은 수를 돌려준다 */
+export const draftConcepts = async (workspaceId: number, systemId: number, input: { schema: string; tables: string[]; prefix: string; tab: string }) =>
+  (await apiPostAuthed<{ added: number }>(`${BASE}/${workspaceId}/systems/${systemId}/concepts/draft`, input))?.added ?? 0;

@@ -6,6 +6,8 @@ import com.axcore.workspace.external.ExternalConceptTemplates;
 import com.axcore.workspace.external.ExternalDataSource;
 import com.axcore.workspace.external.ExternalDataSourceRegistry;
 import com.axcore.workspace.external.ExternalQuery;
+import com.axcore.workspace.external.OntologyDrafter;
+import com.axcore.workspace.external.SchemaIntrospector;
 import com.axcore.workspace.workspace.admin.dto.ExternalConceptAdminResponse;
 import com.axcore.workspace.workspace.admin.dto.ExternalConceptRequest;
 import com.axcore.workspace.workspace.admin.entity.AdminAuditAction;
@@ -40,16 +42,18 @@ public class AdminExternalConceptService {
     private final JdbcTemplate jdbc;
     private final ExternalConceptStore store;
     private final ExternalDataSourceRegistry registry;
+    private final SchemaIntrospector introspector;
     private final AdminAuditRecorder audit;
 
     public AdminExternalConceptService(
             WorkspaceRegistrar registrar, TenantSearchPath searchPath, JdbcTemplate jdbc, ExternalConceptStore store,
-            ExternalDataSourceRegistry registry, AdminAuditRecorder audit) {
+            ExternalDataSourceRegistry registry, SchemaIntrospector introspector, AdminAuditRecorder audit) {
         this.registrar = registrar;
         this.searchPath = searchPath;
         this.jdbc = jdbc;
         this.store = store;
         this.registry = registry;
+        this.introspector = introspector;
         this.audit = audit;
     }
 
@@ -138,6 +142,78 @@ public class AdminExternalConceptService {
 
     /** @param error 실행 실패면 DB 가 준 이유. 성공이면 null */
     public record Preview(List<String> columns, List<Map<String, Object>> rows, String error) {}
+
+    /**
+     * 외부 DB 의 구조 — 스키마 목록과 고른 스키마의 표. 「DB 에서 초안 만들기」 모달이 먼저 부른다.
+     *
+     * @param schema 비면 첫 스키마(있으면 {@code public} 보다 다른 것을 앞세운다 — Supabase 는 public 이 비어 있기 일쑤)
+     */
+    @Transactional(readOnly = true)
+    public Introspection introspect(Long workspaceId, long systemId, String schema) {
+        String tenant = open(workspaceId);
+        requireSystem(systemId);
+        ExternalDataSource ds = registry.forSystem(tenant, systemId)
+                .orElseThrow(() -> new SettingsValidationException("이 시스템에 접속 정보가 없어요. 먼저 접속 정보를 등록해 주세요"));
+        try {
+            List<String> schemas = introspector.schemas(ds);
+            if (schemas.isEmpty()) {
+                return new Introspection(List.of(), null, List.of(), null);
+            }
+            String chosen = schema != null && schemas.contains(schema) ? schema
+                    : schemas.stream().filter(s -> !s.equals("public")).findFirst().orElse(schemas.getFirst());
+            return new Introspection(schemas, chosen, introspector.tables(ds, chosen), null);
+        } catch (DataAccessException e) {
+            Throwable root = e.getMostSpecificCause();
+            return new Introspection(List.of(), null, List.of(), root.getMessage() == null ? "구조를 읽지 못했어요" : root.getMessage().strip());
+        }
+    }
+
+    /** @param error 접속 · 조회 실패면 DB 가 준 이유. 성공이면 null */
+    public record Introspection(List<String> schemas, String schema, List<SchemaIntrospector.Table> tables, String error) {}
+
+    /**
+     * 고른 표를 규칙으로 개념 초안으로 만들어 넣는다({@link OntologyDrafter}). 이미 있는 concept_id 는 건너뛴다.
+     * 관계의 상대는 같은 스키마의 표 전부에서 찾으므로, 고르지 않은 표를 가리키는 관계는 (그 개념이 없어) 캔버스에 선이 안 생긴다 —
+     * 나중에 그 표를 넣으면 선이 이어진다.
+     *
+     * @return 넣은 개념 수
+     */
+    @Transactional
+    public int draft(UUID actor, Long workspaceId, long systemId, String schema, List<String> tables, String prefix, String tab) {
+        String tenant = open(workspaceId);
+        requireSystem(systemId);
+        boolean knownTab = FeatureCatalog.modules().stream().anyMatch(m -> m.tabs().contains(tab));
+        if (!knownTab) {
+            throw new SettingsValidationException("'%s' 는 기능 탭이 아니에요".formatted(tab));
+        }
+        String p = prefix == null ? "" : prefix.strip().toLowerCase(java.util.Locale.ROOT);
+        if (!p.isEmpty() && !p.matches("[a-z][a-z0-9_]*")) {
+            throw new SettingsValidationException("접두어는 영문 소문자 · 숫자 · 밑줄만 돼요");
+        }
+        ExternalDataSource ds = registry.forSystem(tenant, systemId)
+                .orElseThrow(() -> new SettingsValidationException("이 시스템에 접속 정보가 없어요"));
+        List<SchemaIntrospector.Table> all;
+        try {
+            all = introspector.tables(ds, schema);
+        } catch (DataAccessException e) {
+            throw new SettingsValidationException("구조를 읽지 못했어요: " + e.getMostSpecificCause().getMessage());
+        }
+        List<SchemaIntrospector.Table> selected = all.stream().filter(t -> tables.contains(t.name())).toList();
+        if (selected.isEmpty()) {
+            throw new SettingsValidationException("고른 표가 없어요");
+        }
+        int added = 0;
+        for (ExternalConcept c : OntologyDrafter.draft(selected, all, p, tab, systemId)) {
+            if (store.conceptIdTaken(c.conceptId(), null)) {
+                continue;
+            }
+            ExternalQuery.problem(c.sql(), c.filterColumns(), c.orderBy()).ifPresent(m -> { throw new SettingsValidationException(c.conceptId() + ": " + m); });
+            store.insert(c);
+            added++;
+        }
+        audit.record(actor, AdminAuditAction.UPDATE, workspaceId, "개념 초안 %d개 (%s.%s)".formatted(added, schema, String.join(",", tables)));
+        return added;
+    }
 
     public List<ExternalConceptTemplates.Template> templates() {
         return ExternalConceptTemplates.all();

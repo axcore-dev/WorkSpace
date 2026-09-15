@@ -8,7 +8,10 @@ import com.axcore.workspace.workspace.admin.service.AdminExternalConceptService;
 import com.axcore.workspace.workspace.admin.service.AdminWorkspaceService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.Size;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -21,6 +24,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -101,6 +105,31 @@ public class AdminExternalConceptController {
             @AuthenticationPrincipal Jwt jwt, @PathVariable Long id, @PathVariable long systemId, @Valid @RequestBody PreviewRequest request) {
         workspaces.requireInternalAdmin(userId(jwt));
         return concepts.preview(id, systemId, request.sql());
+    }
+
+    /** 외부 DB 의 구조. 「DB 에서 초안 만들기」 모달이 스키마를 고를 때마다 부른다. 데이터는 읽지 않는다 */
+    @GetMapping("/systems/{systemId}/introspect")
+    public AdminExternalConceptService.Introspection introspect(
+            @AuthenticationPrincipal Jwt jwt, @PathVariable Long id, @PathVariable long systemId, @RequestParam(required = false) String schema) {
+        workspaces.requireInternalAdmin(userId(jwt));
+        return concepts.introspect(id, systemId, schema);
+    }
+
+    /**
+     * @param tables 초안을 만들 표 이름
+     * @param prefix 개념 id 접두어(예: {@code mes_}). 비어도 된다
+     * @param tab    초안 전부에 붙일 권한 탭
+     */
+    public record DraftRequest(
+            @NotBlank String schema, @NotEmpty List<@NotBlank String> tables, @Size(max = 20) String prefix, @NotBlank String tab) {}
+
+    /** 고른 표를 규칙으로 개념 초안으로 넣는다. 이미 있는 id 는 건너뛴다. {@code {added}} */
+    @PostMapping("/systems/{systemId}/concepts/draft")
+    public Map<String, Integer> draft(
+            @AuthenticationPrincipal Jwt jwt, @PathVariable Long id, @PathVariable long systemId, @Valid @RequestBody DraftRequest request) {
+        UUID actor = userId(jwt);
+        workspaces.requireInternalAdmin(actor);
+        return Map.of("added", concepts.draft(actor, id, systemId, request.schema(), request.tables(), request.prefix(), request.tab()));
     }
 
     private static UUID userId(Jwt jwt) {
