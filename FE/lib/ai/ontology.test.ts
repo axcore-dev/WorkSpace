@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 
 import type { Drawing } from "../../data/drawings";
 import type { Item, ItemStandard, Movement } from "../../data/inventory";
-import { applyFilters, bomLines, conceptsFor, describeConcepts, expandSynonyms, ONTOLOGY, stockRows } from "./ontology.ts";
+import { applyFilters, bomLines, conceptsFor, describeConcepts, expandSynonyms, mesPath, MES_SOURCE, ONTOLOGY, stockRows } from "./ontology.ts";
 
 const item = (code: string, discontinued = false): Item => ({ code, name: code, spec: "", size: "", unit: "EA", category: "", vendorIds: [], location: "", discontinued });
 const drawing = (code: string, rev: string, status: Drawing["status"], bom: { item: string; itemCode: string | null }[]): Drawing => ({
@@ -72,6 +72,33 @@ test("filter — contains 는 대소문자 무시, 알 수 없는 op 없이 AND 
   assert.equal(applyFilters(rows, [{ attr: "name", op: "contains", value: "608zz" }]).length, 1);
   assert.equal(applyFilters(rows, [{ attr: "code", op: "contains", value: "PRT" }, { attr: "name", op: "ne", value: "베어링 608ZZ" }]).length, 0);
   assert.equal(applyFilters(rows, undefined).length, 2);
+});
+
+test("MES 경로 — 동등 조건만 쿼리 파라미터로, 나머지 연산은 넘기지 않는다", () => {
+  assert.equal(mesPath("downtime", undefined), "/api/workspace/mes/downtime");
+  assert.equal(
+    mesPath("production_result", [
+      { attr: "wo_no", op: "eq", value: "WO-2609-001" },
+      { attr: "good_qty", op: "gt", value: 100 },
+      { attr: "op_seq", op: "eq", value: 20 },
+    ]),
+    "/api/workspace/mes/production_result?wo_no=WO-2609-001&op_seq=20",
+  );
+  // 값에 든 특수문자는 인코딩된다 — 경로가 깨지지 않는다
+  assert.ok(mesPath("defect", [{ attr: "defect_type", op: "eq", value: "피어싱 누락" }]).includes("defect_type=%ED%94%BC"));
+});
+
+test("MES 개념은 생산 · 품질 탭에 걸리고 작업지시가 도면 개념을 가리킨다", () => {
+  const mes = ONTOLOGY.filter((c) => c.id.startsWith("mes_"));
+  assert.equal(mes.length, 7);
+  for (const c of mes) assert.ok(["workorders", "monitoring", "defects"].includes(c.tab), c.id);
+  const wo = ONTOLOGY.find((c) => c.id === "mes_work_order")!;
+  assert.deepEqual(wo.relations?.map((r) => [r.attr, r.to]), [["die_drawing_code", "drawing"]]);
+  assert.deepEqual(conceptsFor(["monitoring"]).map((c) => c.id), ["mes_equipment", "mes_downtime", "mes_sensor"]);
+  // 외부 시스템 개념은 출처가 붙어 도구 설명에 나간다 — 모델이 답에 「출처: 외부 MES …」 를 밝힐 근거다
+  for (const c of mes) assert.equal(c.source, MES_SOURCE, c.id);
+  assert.ok(describeConcepts(mes).includes(`출처: ${MES_SOURCE}`));
+  assert.ok(!describeConcepts(ONTOLOGY.filter((c) => !c.id.startsWith("mes_"))).includes("출처:"));
 });
 
 test("동의어 확장 — 질문에 든 개념의 다른 말을 덧붙이고, 없는 개념은 건드리지 않는다", () => {
