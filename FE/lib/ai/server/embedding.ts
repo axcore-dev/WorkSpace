@@ -40,10 +40,19 @@ export async function embedTexts(texts: string[]): Promise<number[][] | null> {
   return embeddings;
 }
 
-export async function embedQuery(text: string): Promise<number[] | null> {
+/** 질의 임베딩 한 번의 시한. `embed` 는 timeout 옵션이 없어 신호로 건다 — 멈추면 낱말 검색으로 내려간다 */
+const QUERY_TIMEOUT_MS = 15_000;
+
+export async function embedQuery(text: string, signal?: AbortSignal): Promise<number[] | null> {
   const m = embeddingModel();
   if (!m) return null;
-  const { embedding } = await embed({ model: m, value: text, providerOptions });
+  const deadline = AbortSignal.timeout(QUERY_TIMEOUT_MS);
+  const { embedding } = await embed({
+    model: m,
+    value: text,
+    providerOptions,
+    abortSignal: signal ? AbortSignal.any([signal, deadline]) : deadline,
+  });
   return embedding;
 }
 

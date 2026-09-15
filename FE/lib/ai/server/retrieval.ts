@@ -73,10 +73,11 @@ export async function retrieve(
   names: string[],
   question: string,
   concepts: Concept[] = BUILTIN,
+  signal?: AbortSignal,
 ): Promise<Retrieval> {
   if (!question.trim()) return { hits: [], context: "", sources: [] };
 
-  const embedding = await embedQuery(question).catch((e) => {
+  const embedding = await embedQuery(question, signal).catch((e) => {
     // 임베딩 실패는 검색 실패가 아니다. 전문 검색·부분 일치로 내려간다
     console.warn("[ai-retrieve] 질의 임베딩 실패, 낱말 검색으로 대체", e);
     return null;
@@ -97,7 +98,7 @@ export async function retrieve(
   const passed = found.filter((h) => h.lexical || (h.similarity !== null && h.similarity >= MIN_SIMILARITY));
 
   // 검색은 주제가 비슷한 것을 잘 찾는다. 질문에 실제로 답하는 것을 고르는 일은 모델이 한 번 더 본다
-  const hits = await rerank(question, passed, TOP_K);
+  const hits = await rerank(question, passed, TOP_K, signal);
 
   const context = hits.map(block).join("\n\n");
 

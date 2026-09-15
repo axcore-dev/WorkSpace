@@ -19,9 +19,13 @@ const PER_MESSAGE = 400;
 /** 만들어진 검색어 상한 */
 const MAX_QUERY = 300;
 
+/** 이 안에 못 끝내면 원 질문으로 찾는다 — 답변 전 단계가 멈추면 턴 전체가 영원히 돈다 */
+const TIMEOUT_MS = 15_000;
+
 export async function searchQuery(
   history: { role: "user" | "assistant"; content: string }[],
   question: string,
+  signal?: AbortSignal,
 ): Promise<string> {
   const recent = history.slice(-TURNS);
   if (recent.length === 0 || !question.trim()) return question;
@@ -43,6 +47,8 @@ export async function searchQuery(
       prompt: `이전 대화:\n${transcript}\n\n마지막 질문: ${question}\n\n검색어:`,
       maxOutputTokens: 120,
       providerOptions: providerOptions("low"),
+      abortSignal: signal,
+      timeout: { totalMs: TIMEOUT_MS },
     });
     const out = text.trim().replace(/^["'「『]|["'」』]$/g, "").slice(0, MAX_QUERY).trim();
     return out || question;

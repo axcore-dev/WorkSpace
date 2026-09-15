@@ -18,13 +18,14 @@ import type { ChunkHit } from "./sources";
 
 /** 조각 하나를 모델에게 보일 때의 길이 — 앞부분이면 관련 여부를 가리기에 충분하다 */
 const PREVIEW = 400;
+const TIMEOUT_MS = 20_000;
 
 /**
  * @param hits 검색이 합쳐 준 후보(상위부터)
  * @param keep 남길 개수
  * @returns 관련도 높은 순서로 정렬해 `keep` 개. 모델이 없거나 실패하면 `hits` 의 앞에서 `keep` 개
  */
-export async function rerank(question: string, hits: ChunkHit[], keep: number): Promise<ChunkHit[]> {
+export async function rerank(question: string, hits: ChunkHit[], keep: number, signal?: AbortSignal): Promise<ChunkHit[]> {
   // 후보가 남길 수보다 많지 않으면 고를 것이 없다
   if (hits.length <= keep) return hits;
 
@@ -45,6 +46,9 @@ export async function rerank(question: string, hits: ChunkHit[], keep: number): 
       prompt: `질문: ${question}\n\n조각 목록:\n${list}\n\n번호:`,
       maxOutputTokens: 100,
       providerOptions: providerOptions("low"),
+      abortSignal: signal,
+      // 이 안에 못 끝내면 검색 순서를 그대로 쓴다 — 답변 전 단계가 멈추면 턴 전체가 영원히 돈다
+      timeout: { totalMs: TIMEOUT_MS },
     });
     const picked = parseRanking(text, hits.length);
     // 모델이 아무것도 못 고르면 검색 순서를 믿는다 — 근거 없음 판정은 유사도 문턱이 따로 한다
