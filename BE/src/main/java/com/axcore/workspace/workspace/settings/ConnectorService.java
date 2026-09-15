@@ -1,6 +1,7 @@
 package com.axcore.workspace.workspace.settings;
 
 import com.axcore.workspace.connector.ConnectorAccountStore;
+import com.axcore.workspace.mes.MesDataSource;
 import com.axcore.workspace.security.JwtPrincipal;
 import com.axcore.workspace.workspace.settings.dto.ConnectorsResponse;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -32,11 +33,15 @@ public class ConnectorService {
     private final TenantAccess access;
     private final ConnectorAccountStore accounts;
     private final JdbcTemplate jdbc;
+    private final MesDataSource mes;
+    /** external_systems 의 bigserial 은 1 부터라 0 은 겹치지 않는다. 화면의 목록 키로만 쓰인다 */
+    private static final long MES_SYSTEM_ID = 0L;
 
-    public ConnectorService(TenantAccess access, ConnectorAccountStore accounts, JdbcTemplate jdbc) {
+    public ConnectorService(TenantAccess access, ConnectorAccountStore accounts, JdbcTemplate jdbc, MesDataSource mes) {
         this.access = access;
         this.accounts = accounts;
         this.jdbc = jdbc;
+        this.mes = mes;
     }
 
     @Transactional(readOnly = true)
@@ -60,12 +65,23 @@ public class ConnectorService {
         return new ConnectorsResponse(systems(), services, registered, accountsOf(byProvider), true);
     }
 
+    /**
+     * 운영팀이 등록한 행({@code external_systems}) 뒤에, 서버 설정({@code MES_DB_*})으로 붙어 있는 MES 를 한 줄 더한다.
+     * 상태는 지금 실제로 붙는지 본다 — 설정만 있고 DB 가 죽어 있으면 「끊김」이다. AI 도구가 읽는 곳과 같은 풀이라
+     * 화면과 도구가 다른 답을 하지 않는다.
+     */
     private List<ConnectorsResponse.ExternalSystemResponse> systems() {
-        return jdbc.query(
+        List<ConnectorsResponse.ExternalSystemResponse> out = new ArrayList<>(jdbc.query(
                 "select id, name, vendor, kind, status from external_systems order by sort_order, id",
                 (rs, i) ->
                         new ConnectorsResponse.ExternalSystemResponse(
-                                rs.getLong("id"), rs.getString("name"), rs.getString("vendor"), rs.getString("kind"), rs.getString("status")));
+                                rs.getLong("id"), rs.getString("name"), rs.getString("vendor"), rs.getString("kind"), rs.getString("status"))));
+        // ponytail: MES 접속은 서버 전역 설정이라 모든 테넌트에 같은 줄이 보인다. 고객사별 MES 가 생기면 external_systems 행으로 옮긴다
+        if (mes.available()) {
+            out.add(new ConnectorsResponse.ExternalSystemResponse(
+                    MES_SYSTEM_ID, "생산 MES", "고객사 MES DB (읽기 전용 연동)", "MES", mes.ping() ? "ok" : "down"));
+        }
+        return out;
     }
 
     /**
