@@ -2,6 +2,7 @@ package com.axcore.workspace.workspace.settings;
 
 import com.axcore.workspace.connector.ConnectorAccountStore;
 import com.axcore.workspace.mes.MesDataSource;
+import com.axcore.workspace.mes.MesDataSourceRegistry;
 import com.axcore.workspace.security.JwtPrincipal;
 import com.axcore.workspace.workspace.settings.dto.ConnectorsResponse;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -11,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -33,11 +35,9 @@ public class ConnectorService {
     private final TenantAccess access;
     private final ConnectorAccountStore accounts;
     private final JdbcTemplate jdbc;
-    private final MesDataSource mes;
-    /** external_systems 의 bigserial 은 1 부터라 0 은 겹치지 않는다. 화면의 목록 키로만 쓰인다 */
-    private static final long MES_SYSTEM_ID = 0L;
+    private final MesDataSourceRegistry mes;
 
-    public ConnectorService(TenantAccess access, ConnectorAccountStore accounts, JdbcTemplate jdbc, MesDataSource mes) {
+    public ConnectorService(TenantAccess access, ConnectorAccountStore accounts, JdbcTemplate jdbc, MesDataSourceRegistry mes) {
         this.access = access;
         this.accounts = accounts;
         this.jdbc = jdbc;
@@ -62,27 +62,28 @@ public class ConnectorService {
         List<ConnectorsResponse.RegisteredResponse> registered = registered(ctx, byProvider);
         List<String> services = registered.stream().filter(ConnectorsResponse.RegisteredResponse::enabled)
                 .map(ConnectorsResponse.RegisteredResponse::slug).toList();
-        return new ConnectorsResponse(systems(), services, registered, accountsOf(byProvider), true);
+        return new ConnectorsResponse(systems(ctx), services, registered, accountsOf(byProvider), true);
     }
 
     /**
-     * 운영팀이 등록한 행({@code external_systems}) 뒤에, 서버 설정({@code MES_DB_*})으로 붙어 있는 MES 를 한 줄 더한다.
-     * 상태는 지금 실제로 붙는지 본다 — 설정만 있고 DB 가 죽어 있으면 「끊김」이다. AI 도구가 읽는 곳과 같은 풀이라
-     * 화면과 도구가 다른 답을 하지 않는다.
+     * 운영팀이 운영 콘솔에서 등록한 행({@code external_systems}). 접속 정보가 있는 MES 는 저장된 status 대신 <b>지금 실제로
+     * 붙는지</b>를 본다 — 설정만 있고 DB 가 죽어 있으면 「끊김」이다. AI 도구가 읽는 것과 같은 풀이라 화면과 도구가 다른
+     * 답을 하지 않는다. 접속 정보가 없는 행(표시만 하는 ERP 등)은 저장된 status 그대로다.
      */
-    private List<ConnectorsResponse.ExternalSystemResponse> systems() {
-        List<ConnectorsResponse.ExternalSystemResponse> out = new ArrayList<>(jdbc.query(
-                "select id, name, vendor, kind, status from external_systems order by sort_order, id",
-                (rs, i) ->
-                        new ConnectorsResponse.ExternalSystemResponse(
-                                rs.getLong("id"), rs.getString("name"), rs.getString("vendor"), rs.getString("kind"), rs.getString("status"))));
-        // ponytail: MES 접속은 서버 전역 설정이라 모든 테넌트에 같은 줄이 보인다. 고객사별 MES 가 생기면 external_systems 행으로 옮긴다
-        if (mes.available()) {
-            out.add(new ConnectorsResponse.ExternalSystemResponse(
-                    MES_SYSTEM_ID, "생산 MES", "고객사 MES DB (읽기 전용 연동)", "MES", mes.ping() ? "ok" : "down"));
-        }
-        return out;
+    private List<ConnectorsResponse.ExternalSystemResponse> systems(TenantContext ctx) {
+        Optional<MesDataSource> live = mes.forTenant(ctx.schemaName());
+        return jdbc.query(
+                "select id, name, vendor, kind, status, host is not null as linked from external_systems order by sort_order, id",
+                (rs, i) -> {
+                    String status = rs.getString("status");
+                    if (rs.getBoolean("linked") && "MES".equals(rs.getString("kind"))) {
+                        status = live.map(MesDataSource::ping).orElse(false) ? "ok" : "down";
+                    }
+                    return new ConnectorsResponse.ExternalSystemResponse(
+                            rs.getLong("id"), rs.getString("name"), rs.getString("vendor"), rs.getString("kind"), status);
+                });
     }
+
 
     /**
      * 등록된 앱 — {@code connected_services} 에 행이 있고(켜졌든 꺼졌든) 제공자 계정이 그 앱의 스코프를 덮는 것. 카탈로그 순서.

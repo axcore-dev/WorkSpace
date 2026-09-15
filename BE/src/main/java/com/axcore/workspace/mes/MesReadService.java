@@ -5,6 +5,7 @@ import com.axcore.workspace.security.JwtPrincipal;
 import com.axcore.workspace.workspace.settings.ModuleTabAccess;
 import com.axcore.workspace.workspace.settings.SettingsNotFoundException;
 import com.axcore.workspace.workspace.settings.SettingsValidationException;
+import com.axcore.workspace.workspace.settings.TenantContext;
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.util.List;
@@ -32,11 +33,11 @@ public class MesReadService {
     private static final int QUERY_TIMEOUT_SEC = 10;
 
     private final ModuleTabAccess access;
-    private final MesDataSource mes;
+    private final MesDataSourceRegistry registry;
 
-    public MesReadService(ModuleTabAccess access, MesDataSource mes) {
+    public MesReadService(ModuleTabAccess access, MesDataSourceRegistry registry) {
         this.access = access;
-        this.mes = mes;
+        this.registry = registry;
     }
 
     @Transactional(readOnly = true)
@@ -44,11 +45,10 @@ public class MesReadService {
         MesConcepts.Concept concept = MesConcepts.find(conceptId)
                 .orElseThrow(() -> new SettingsNotFoundException(
                         "'%s' 는 MES 에서 조회할 수 있는 자료가 아니에요. 가능한 값: %s".formatted(conceptId, String.join(", ", MesConcepts.ids()))));
-        access.openRead(principal, concept.module());
+        TenantContext ctx = access.openRead(principal, concept.module());
 
-        if (!mes.available()) {
-            throw new ConnectorUnavailableException("MES 연동이 설정되지 않았어요");
-        }
+        MesDataSource mes = registry.forTenant(ctx.schemaName()).orElseThrow(
+                () -> new ConnectorUnavailableException("이 회사에 등록된 MES 연동이 없어요. 운영팀이 운영 콘솔에서 등록해요"));
         MesConcepts.Query q;
         try {
             q = MesConcepts.build(concept, equals);
