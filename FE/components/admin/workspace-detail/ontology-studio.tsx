@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Field } from "@/components/admin/form-parts";
 import { IconPlus } from "@/components/icons";
 import { Modal } from "@/components/modal";
@@ -63,6 +63,32 @@ const GAP_Y_INNER = 56;
 const GAP_Y = 96;
 const PAD = 32;
 
+/** 자동 배치에서 사용자가 끌어 옮긴 만큼. 개념 id → (dx, dy) */
+type Offsets = Record<string, { x: number; y: number }>;
+/** 끌어 옮긴 위치는 이 브라우저에만 남는다 — 서버 표에 열을 두지 않았다. 회사마다 다른 키 */
+const layoutKey = (workspaceId: number) => `axpoint-ontology-layout:${workspaceId}`;
+/** 끌기 시작으로 볼 최소 이동. 그 안이면 클릭(선택) */
+const DRAG_THRESHOLD = 4;
+const SNAP = 8;
+
+function readOffsets(key: string): Offsets {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as Offsets) : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeOffsets(key: string, o: Offsets) {
+  try {
+    if (Object.keys(o).length) localStorage.setItem(key, JSON.stringify(o));
+    else localStorage.removeItem(key);
+  } catch {
+    // 저장 못 해도 화면은 그대로 — 새로고침하면 자동 배치로 돌아갈 뿐
+  }
+}
+
 function cardHeight(n: Node): number {
   const shown = Math.min(Object.keys(n.attrs).length, ATTRS_SHOWN);
   return CARD_HEAD + shown * ATTR_ROW + (Object.keys(n.attrs).length > ATTRS_SHOWN ? ATTR_ROW : 0) + 12;
@@ -85,6 +111,17 @@ export function OntologyStudio({ workspaceId, systems }: { workspaceId: number; 
   const [templateFor, setTemplateFor] = useState<number | null>(null);
   const [drafting, setDrafting] = useState(false);
   const [toast, showToast] = useToast();
+  /** 끌어 옮긴 카드들. 자동 배치 위에 더한다 */
+  const [offsets, setOffsets] = useState<Offsets>({});
+  const storageKey = layoutKey(workspaceId);
+  // localStorage 는 서버에 없다. 마운트 뒤 마이크로태스크로 읽어야 프리렌더 결과와 어긋나지 않는다
+  useEffect(() => {
+    queueMicrotask(() => setOffsets(readOffsets(storageKey)));
+  }, [storageKey]);
+  /** 진행 중인 끌기. ref 인 이유: 포인터가 움직일 때마다 다시 그릴 것은 offsets 뿐이다 */
+  const drag = useRef<{ id: string; startX: number; startY: number; fromX: number; fromY: number; moved: boolean } | null>(null);
+  /** 지금 끌고 있는 카드 — 그림자 · 커서만 바꾼다(렌더는 ref 를 못 읽는다) */
+  const [draggingId, setDraggingId] = useState<string | null>(null);
 
   async function reload() {
     setExternal(await listConcepts(workspaceId).catch(() => []));
@@ -161,11 +198,69 @@ export function OntologyStudio({ workspaceId, systems }: { workspaceId: number; 
     return { pos, rows, width: maxX + PAD, height: y };
   }, [nodes]);
 
+  /** 자동 배치 + 끌어 옮긴 만큼. 선과 카드가 같은 좌표를 본다. 캔버스는 옮긴 카드까지 품게 늘린다 */
+  const placed = useMemo(() => {
+    const pos = new Map<string, { x: number; y: number; w: number; h: number }>();
+    let width = layout.width;
+    let height = layout.height;
+    for (const [id, p] of layout.pos) {
+      const o = offsets[id];
+      const q = o ? { ...p, x: Math.max(PAD, p.x + o.x), y: Math.max(PAD, p.y + o.y) } : p;
+      pos.set(id, q);
+      width = Math.max(width, q.x + q.w + PAD);
+      height = Math.max(height, q.y + q.h + PAD);
+    }
+    return { pos, width, height };
+  }, [layout, offsets]);
+
   const edges = useMemo(() => {
     const out: { from: string; to: string; attr: string; key: string }[] = [];
     for (const n of nodes) for (const r of n.relations) if (layout.pos.has(r.to)) out.push({ from: n.id, to: r.to, attr: r.attr, key: `${n.id}.${r.attr}` });
     return out;
   }, [nodes, layout]);
+
+  /** 카드 끌기 — 문턱을 넘기 전에는 클릭(선택)으로 둔다. 놓을 때 8px 격자에 맞추고 브라우저에 남긴다 */
+  function onCardPointerDown(e: React.PointerEvent<HTMLButtonElement>, id: string) {
+    if (e.button !== 0) return;
+    const o = offsets[id] ?? { x: 0, y: 0 };
+    drag.current = { id, startX: e.clientX, startY: e.clientY, fromX: o.x, fromY: o.y, moved: false };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }
+  function onCardPointerMove(e: React.PointerEvent<HTMLButtonElement>) {
+    const d = drag.current;
+    if (!d) return;
+    const dx = e.clientX - d.startX;
+    const dy = e.clientY - d.startY;
+    if (!d.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+    if (!d.moved) setDraggingId(d.id);
+    d.moved = true;
+    setOffsets((prev) => ({ ...prev, [d.id]: { x: d.fromX + dx, y: d.fromY + dy } }));
+  }
+  function onCardPointerUp(e: React.PointerEvent<HTMLButtonElement>) {
+    const d = drag.current;
+    if (!d) return;
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      // pointercancel 뒤에는 이미 풀려 있다
+    }
+    if (d.moved) {
+      setOffsets((prev) => {
+        const o = prev[d.id];
+        const next = { ...prev, [d.id]: { x: Math.round(o.x / SNAP) * SNAP, y: Math.round(o.y / SNAP) * SNAP } };
+        writeOffsets(storageKey, next);
+        return next;
+      });
+    }
+    setDraggingId(null);
+    // 클릭 핸들러가 이 뒤에 온다 — 끌었으면 선택으로 치지 않게 moved 를 남겨 둔다
+    setTimeout(() => (drag.current = null), 0);
+  }
+  function resetLayout() {
+    setOffsets({});
+    writeOffsets(storageKey, {});
+  }
+  const movedCount = Object.keys(offsets).length;
 
   const current = nodes.find((n) => n.id === selected) ?? null;
   const groupsInOrder = layout.rows.map((r) => r.system);
@@ -271,21 +366,21 @@ export function OntologyStudio({ workspaceId, systems }: { workspaceId: number; 
 
         {/* ── 캔버스 ── */}
         <div className="thin-scroll relative max-h-[640px] overflow-auto" style={{ backgroundImage: "radial-gradient(#cbd5e1 0.8px, transparent 0.8px)", backgroundSize: "20px 20px" }}>
-          <div className="relative" style={{ width: layout.width, height: layout.height }}>
+          <div className="relative" style={{ width: placed.width, height: placed.height }}>
             {layout.rows.map((r) => (
               <span key={r.system} className="absolute font-mono text-[11px] text-slate-400" style={{ left: PAD, top: r.y - 18 }}>
                 {r.system}
               </span>
             ))}
-            <svg className="pointer-events-none absolute inset-0" width={layout.width} height={layout.height} aria-hidden>
+            <svg className="pointer-events-none absolute inset-0" width={placed.width} height={placed.height} aria-hidden>
               <defs>
                 <marker id="ont-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
                   <path d="M0,0 L8,4 L0,8 z" fill="#94a3b8" />
                 </marker>
               </defs>
               {edges.map((e) => {
-                const a = layout.pos.get(e.from)!;
-                const b = layout.pos.get(e.to)!;
+                const a = placed.pos.get(e.from)!;
+                const b = placed.pos.get(e.to)!;
                 // 두 카드가 옆으로 떨어져 있으면 좌우 면, 아래위로 떨어져 있으면 위아래 면에서 선을 뽑는다 — 카드를 가로지르지 않게
                 const dx = b.x + b.w / 2 - (a.x + a.w / 2);
                 const dy = b.y + b.h / 2 - (a.y + a.h / 2);
@@ -312,17 +407,26 @@ export function OntologyStudio({ workspaceId, systems }: { workspaceId: number; 
               })}
             </svg>
             {nodes.map((n) => {
-              const p = layout.pos.get(n.id)!;
+              const p = placed.pos.get(n.id)!;
               const keys = Object.keys(n.attrs);
               const active = selected === n.id;
+              const dragging = draggingId === n.id;
               return (
                 <button
                   key={n.id}
                   type="button"
-                  onClick={() => setSelected(n.id)}
-                  className={`absolute rounded-lg border bg-white text-left transition-colors duration-150 ${
-                    active ? "border-slate-900 ring-1 ring-slate-900" : "border-slate-200 hover:border-slate-400"
-                  }`}
+                  onClick={() => {
+                    if (drag.current?.moved) return;
+                    setSelected(n.id);
+                  }}
+                  onPointerDown={(e) => onCardPointerDown(e, n.id)}
+                  onPointerMove={onCardPointerMove}
+                  onPointerUp={onCardPointerUp}
+                  onPointerCancel={onCardPointerUp}
+                  title="끌어서 옮길 수 있어요"
+                  className={`absolute touch-none rounded-lg border bg-white text-left ${
+                    dragging ? "cursor-grabbing shadow-lg" : "cursor-grab transition-colors duration-150"
+                  } ${active ? "border-slate-900 ring-1 ring-slate-900" : "border-slate-200 hover:border-slate-400"}`}
                   style={{ left: p.x, top: p.y, width: p.w, height: p.h }}
                 >
                   <div className="flex items-start justify-between gap-2 px-3 pt-2.5">
@@ -423,6 +527,14 @@ export function OntologyStudio({ workspaceId, systems }: { workspaceId: number; 
         <span>엔티티 {nodes.length}</span>
         <span>관계 {edges.length}</span>
         <span>원천 {layout.rows.length}</span>
+        {movedCount > 0 && (
+          <span>
+            옮긴 카드 {movedCount} · 이 브라우저에만 남아요 ·{" "}
+            <button type="button" onClick={resetLayout} className="cursor-pointer text-slate-700 underline-offset-2 hover:underline">
+              배치 초기화
+            </button>
+          </span>
+        )}
         <span className="ml-auto">
           외부 개념 {external?.length ?? 0} · {external === null ? "불러오는 중" : "최신"}
         </span>
