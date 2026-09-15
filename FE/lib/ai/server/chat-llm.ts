@@ -55,6 +55,7 @@ import { decideApproval, hasTools, MAX_TOOL_STEPS, toolSetFor } from "./tools";
 // 도구를 레지스트리에 올린다. import 자체가 등록이다
 import "./connector-tools";
 import "./data-tools";
+import "./export-tools";
 
 export interface Turn {
   question: string;
@@ -83,7 +84,11 @@ const TURN_TIMEOUT_MS = 240_000;
 function skillInstructions(ids: string[]): string {
   const picked = SKILL_LIB.filter((s) => ids.includes(s.id));
   if (!picked.length) return "";
-  return "\n\n## 이 턴에 적용할 스킬\n" + picked.map((s) => `- ${s.name}: ${s.desc}`).join("\n");
+  // 스킬은 답의 양식 · 순서 · 금지를 정한다. 답변 범위 규칙(권한 · 근거 없으면 추측 금지)은 스킬보다 위다
+  return (
+    "\n\n## 이 턴에 적용할 스킬\n아래 스킬의 방식대로 답합니다. 스킬이 문서를 쓰라고 하면 답 자체가 그 문서입니다 — 서론 없이 문서로 시작합니다. 답변 범위 규칙이 스킬보다 우선합니다.\n" +
+    picked.map((s) => `### ${s.name}\n${s.instructions}`).join("\n\n")
+  );
 }
 
 /** 허용 모듈 slug → 화면 이름. 프롬프트와 거절 문구에 쓴다 */

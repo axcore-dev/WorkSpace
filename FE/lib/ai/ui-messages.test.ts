@@ -74,3 +74,16 @@ test("turnOf 는 data-turn 만 뽑는다", () => {
   assert.deepEqual(turnOf(msg([{ type: "text", text: "x" }, { type: "data-turn", data: turn }])), turn);
   assert.equal(turnOf(msg([{ type: "text", text: "x" }])), undefined);
 });
+
+test("문서 파일 도구의 결과는 files 가 되어 내려받기 버튼이 그려진다", () => {
+  const m = toChatMessage(
+    msg([
+      { type: "tool-export_document", toolCallId: "1", state: "output-available", input: { title: "주간 보고" }, output: { exportId: "e1", fileName: "주간 보고.docx", bytes: 10 } },
+      { type: "text", text: "여기 주간 보고서예요." },
+    ] as AxpUIMessage["parts"]),
+  );
+  assert.deepEqual(m.files, [{ exportId: "e1", fileName: "주간 보고.docx" }]);
+  assert.equal(m.process?.trace?.[0]?.text, "export_document");
+  // 파일이 없으면 키 자체가 없다 — 저장 meta 에 빈 배열이 남지 않게
+  assert.equal(toChatMessage(msg([{ type: "text", text: "x" }])).files, undefined);
+});

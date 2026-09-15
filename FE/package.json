@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start -p 8000",
     "lint": "eslint",
-    "test": "node --test lib/design-state.test.ts lib/emphasis.test.ts lib/inventory-state.test.ts lib/search.test.ts lib/ai/ui-messages.test.ts lib/ai/text.test.ts lib/ai/ontology.test.ts lib/ai/eval/metrics.test.ts data/admin.test.ts data/settings-nav.test.ts data/roles.test.ts data/invite.test.ts data/ko.test.ts data/grants.test.ts data/management.test.ts"
+    "test": "node --test lib/design-state.test.ts lib/emphasis.test.ts lib/inventory-state.test.ts lib/search.test.ts lib/ai/ui-messages.test.ts lib/ai/text.test.ts lib/ai/ontology.test.ts lib/ai/export-blocks.test.ts lib/ai/eval/metrics.test.ts data/admin.test.ts data/settings-nav.test.ts data/roles.test.ts data/invite.test.ts data/ko.test.ts data/grants.test.ts data/management.test.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.49",
@@ -16,6 +16,7 @@
     "@aws-sdk/client-s3": "^3.1127.0",
     "@aws-sdk/s3-request-presigner": "^3.1127.0",
     "ai": "^7.0.92",
+    "docx": "^9.7.1",
     "exceljs": "^4.4.0",
     "mammoth": "^1.12.2",
     "next": "16.2.10",
