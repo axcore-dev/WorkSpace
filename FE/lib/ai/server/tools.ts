@@ -19,6 +19,7 @@
  * 실제 부작용은 없다 — 안전장치가 화면까지 이어지는지 확인하는 용도다. 운영에서는 켜지 않는다.
  */
 import "server-only";
+import type { Concept } from "@/lib/ai/ontology";
 import { randomUUID } from "node:crypto";
 import { tool, type ToolSet } from "ai";
 import { z } from "zod";
@@ -32,6 +33,8 @@ const DEFAULT_TIMEOUT_MS = 15_000;
 const AUDIT_PREVIEW_CHARS = 500;
 
 export interface AiToolContext {
+  /** 이 턴의 개념 목록(내장 + 이 회사의 외부 개념). 턴 시작에 한 번 받는다(`loadConcepts`). 없으면 내장만 */
+  concepts?: Concept[];
   principal: AiPrincipal;
   conversationId: string;
   /** 사용자 access 토큰 원문. 외부 앱 도구가 BE 내부 경로를 부를 때 그대로 전달한다 */

@@ -50,6 +50,7 @@ import { withTenant } from "./db";
 import { chatModel, providerOptions } from "./models";
 import { searchQuery } from "./query-rewrite";
 import { retrieve } from "./retrieval";
+import { loadConcepts } from "./data-tools";
 import { decideApproval, hasTools, MAX_TOOL_STEPS, toolSetFor } from "./tools";
 // 도구를 레지스트리에 올린다. import 자체가 등록이다
 import "./connector-tools";
@@ -258,7 +259,9 @@ export function streamAnswer(
       label(turn.sources.length ? "선택한 문서에서 근거를 찾고 있어요" : "등록된 자료에서 근거를 찾고 있어요");
       // 이어지는 질문("그럼 그건 얼마야?")은 그대로는 검색되지 않는다. 앞선 턴을 보고 독립적인 검색어로 바꾼다
       const query = await searchQuery(history, turn.question);
-      const r = await retrieve(principal, turn.sources, query);
+      // 이 회사의 개념 목록(내장 + 외부 시스템). 검색어 확장과 도구 설명이 같은 목록을 본다
+      const concepts = await loadConcepts(turn.accessToken);
+      const r = await retrieve(principal, turn.sources, query, concepts);
       const context = r.context;
       writer.write({
         type: "data-trace",
@@ -291,7 +294,7 @@ export function streamAnswer(
       // ── 도구 · 승인 ──
       let approvals = 0;
       const tools = hasTools()
-        ? toolSetFor({ principal, conversationId: conv.id, accessToken: turn.accessToken, apps: turn.apps }, (a) => {
+        ? toolSetFor({ principal, conversationId: conv.id, accessToken: turn.accessToken, apps: turn.apps, concepts }, (a) => {
             approvals++;
             writer.write({ type: "data-approval", data: a });
           })

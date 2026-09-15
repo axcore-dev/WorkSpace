@@ -165,40 +165,47 @@ AI 가 조회할 수 있는 회사 데이터는 **개념** 단위로 온톨로�
 - **문서 검색과 어휘를 공유한다.** `retrieval.ts` 가 질문에 든 개념의 동의어를 전문 검색 낱말에 덧붙인다
   (`expandSynonyms`). 임베딩과 부분 일치에는 쓰지 않는다 — 질의가 길어지면 `word_similarity` 가 묽어진다.
 
-개념을 더할 때는 `ONTOLOGY` 배열에 한 항목을 넣는다. 규칙은 `lib/ai/ontology.test.ts` 가 `node --test` 로 본다.
+내장 개념을 더할 때는 `BUILTIN` 배열에 한 항목을 넣는다. 외부 개념은 코드가 아니라 운영 콘솔의 행이다(아래). 규칙은 `lib/ai/ontology.test.ts` 가 `node --test` 로 본다.
 
-### 외부 MES — 고객사 DB 를 링크로 읽는다 (`BE/…/mes`)
+### 외부 시스템 온톨로지 — 회사 · 시스템별 개념으로 고객사 DB 를 링크로 읽는다 (`BE/…/external`)
 
-온톨로지의 `mes_*` 개념 7개(작업지시 · 설비 · 공정 실적 · 비가동 · 센서 · 불량 · 불량률)는 우리 DB 가 아니라 **고객사 MES DB**
-에서 온다. 값을 복사해 두지 않고 질문이 올 때 읽는다(링크형).
+온톨로지는 두 층이다. **내장 개념** 8개(`lib/ai/ontology.ts` 의 `BUILTIN`)는 우리 모듈 API 를 읽고 코드에 있다. **외부 개념**은
+회사마다 테넌트 표 `external_system_concepts`(tenant V20) 의 행이고, 외부 시스템 행(`external_systems`, V19) 에 FK 로 묶여
+시스템별이다. 한 행에 **모델용 설명**(이름 · 동의어 · 탭 · attrs 라벨 · 관계)과 **실행용 정의**(SELECT · 허용 컬럼 · 정렬)를 같이 둔다 —
+두 곳에 나눠 두면 한쪽만 고쳐져 갈린다. 값은 복사해 두지 않고 질문이 올 때 읽는다(링크형).
 
 ```
+턴 시작: loadConcepts(token) → GET /api/workspace/external/ontology (SQL 없음) → [...BUILTIN, ...fromExternal(rows)]
+  → 검색어 확장(expandSynonyms) · 도구 설명(conceptsFor(tabs)) · 실행이 같은 목록을 본다
 workspace_data({ concept: "mes_downtime", filter: [{ attr: "equipment_code", op: "eq", value: "PR-03" }] })
-  → FE `mesPath` 가 동등 조건만 쿼리 파라미터로  → GET /api/workspace/mes/downtime?equipment_code=PR-03 (사용자 토큰)
-  → BE `MesReadService`: 생산관리(품질 개념은 품질검사) 모듈 읽기 권한 확인 → `MesConcepts` 의 SELECT + 바인딩 WHERE
-  → 읽기 전용 풀(`MesDataSource`, 최대 2 · 5초 · 10초 statement) 로 MES DB 조회 → 2,000행 상한
+  → FE `externalPath` 가 허용 컬럼의 동등 조건만 쿼리 파라미터로 → GET /api/workspace/external/{systemId}/downtime?equipment_code=PR-03
+  → BE `ExternalReadService`: 개념 행의 탭으로 모듈 권한 확인 → `ExternalQuery.build` = select * from (<행의 SQL>) t where cast(t.col as text) = ? order by … limit 2000
+  → 그 시스템의 읽기 전용 풀(`ExternalDataSourceRegistry.forSystem`, 최대 2 · 5초 · 10초 statement) 로 조회
   → FE 가 나머지 조건(contains · gt …) 을 `applyFilters` 로 걸고 40행만 모델에 준다
 ```
 
-- **접속 정보는 회사마다 `external_systems` 행이다(tenant V19).** 운영 콘솔 › 워크스페이스 상세 › 「연동」 탭에서 운영팀이 등록한다
-  (`AdminExternalSystemService`, `POST /api/admin/workspaces/{id}/systems`). 비밀번호는 `CONNECTOR_TOKEN_KEY` 로 잠가 저장하고
-  화면에 돌려주지 않는다. `MesDataSourceRegistry` 가 회사별 읽기 전용 풀을 처음 조회 때 열고, 행이 바뀌면(updated_at) 다시 연다.
-  접속 정보가 있는 MES 는 회사당 하나다. 고객의 설정 › 연동 「외부 시스템」은 이 행을 읽기만 하고 MES 배지는 실제 접속(ping) 결과다.
-- **답에 출처가 붙는다.** MES 개념은 온톨로지 `source`(`MES_SOURCE`) 가 있어 도구 설명 · 결과에 실리고, 모델은 답에
-  「출처: 외부 MES (고객사 MES DB 연동)」 를 적는다. 추론 과정의 도구 행 오른쪽에도 같은 문구가 보여 우리 DB 조회와 구분된다.
-- **SQL 은 BE `MesConcepts` 에 적힌 것만 나간다.** 모델도 화면도 SQL 을 짓지 않는다. 컬럼은 개념별 허용 목록, 값은 바인딩.
-  컬럼 이름은 온톨로지 `attrs` 와 같아야 한다 — 한쪽을 바꾸면 다른 쪽도 바꾼다.
-- **읽기 전용이 세 겹이다.** DB 롤(SELECT 만) · 드라이버 `readOnly=true` · 풀 `setReadOnly`.
-- **접속 정보가 없는 회사는 MES 조회만 503(`CONNECTOR_UNAVAILABLE`)이고** 다른 기능은 그대로다. 풀은 처음 조회 때 열고
-  그때도 고객 DB 에 미리 붙어 보지 않으므로 그쪽이 죽어 있어도 우리 서버는 뜬다.
+- **접속 정보와 개념은 운영 콘솔이 넣는다.** 워크스페이스 상세 › 「연동」 탭. 시스템(`AdminExternalSystemService`) 과 개념
+  (`AdminExternalConceptService`: CRUD · 「템플릿 적용」 · 「미리보기」). 고객은 보지도 고치지도 못한다 — 설정 › 연동은 읽기 전용이고
+  MES 배지는 실제 접속(ping) 결과다.
+- **템플릿** `ExternalConceptTemplates` 의 `press-mes-demo` 가 데모 프레스 MES 7개(작업지시 · 설비 · 공정 실적 · 비가동 · 센서 · 불량 ·
+  불량률)다. 「템플릿 적용」은 이미 있는 id 를 건너뛰어 여러 번 눌러도 된다. 「미리보기」는 SQL 을 그 시스템 풀로 5행 돌려 컬럼을
+  보여 준다 — attrs 키를 SELECT 컬럼과 맞추는 용도.
+- **SQL 은 운영팀만 쓴다.** 서버가 세 가지를 본다(select 로 시작 · 세미콜론 없음 · 8,000자). 실제 안전장치는 DB 롤(SELECT 만) ·
+  JDBC `readOnly` · 풀 `readOnly` · statement 타임아웃이다. WHERE 컬럼은 `filter_columns` 밖이면 400, 값은 바인딩.
+- **권한은 개념마다 탭 하나.** FE 가 사람의 탭으로 목록에서 빼고(안내), BE 가 조회 때 그 탭의 모듈 규칙으로 다시 막는다(차단).
+  내장 개념과 같은 두 겹이다.
+- **풀은 시스템당 하나.** 키는 `스키마:시스템 id`. 처음 조회 때 열고 행의 지문(id + updated_at)이 바뀌면 다시 연다. 접속 정보가 없는
+  회사는 외부 개념이 목록에 없다(503 이 아니라 아예 안 보인다). 외부 개념을 못 받으면 내장만으로 간다.
+- **답에 출처가 붙는다.** `fromExternal` 이 `source` 를 「외부 MES · 1공장 MES」 로 두고, 도구 결과에 실려 모델이 답에
+  「출처: …」 를 적는다. 추론 과정의 도구 행 오른쪽에도 같은 문구가 보인다.
 - **데모 MES** 는 `INFRA/seed/data/mes-supabase.sql` 이다(Supabase 에 올리는 법이 파일 머리에 있다). 프레스 생산라인이고
   제품의 금형 도면 코드가 제품설계 도면번호라 `mes_work_order.die_drawing_code → drawing` 으로 이어진다.
-- 고객사마다 MES 테이블이 다르면 `MesConcepts` 의 표가 회사별 매핑 테이블로 옮겨 간다. 지금은 데모 하나라 코드에 둔다.
 
 BE 환경 변수는 없다 — 접속 정보가 행에 있다. 비밀번호를 잠그는 `CONNECTOR_TOKEN_KEY` 만 있으면 된다(외부 서비스 토큰과 같은 키).
 운영 콘솔 폼의 값: 호스트(Supabase 는 Session pooler, IPv4 주소) · 포트(기본 5432) · DB 이름 · 사용자(SELECT 만 가진 롤,
 Supabase 풀러는 `롤.프로젝트ID`) · 비밀번호 · sslmode(기본 `require`). 「연결 테스트」가 저장된 값으로 한 번 붙어 보고 이유를 돌려준다.
 
+### 외부 MES — 고객사 DB 를 링크로 읽는다 (`BE/…/mes`)
 ## 환경 변수
 
 frontend 컨테이너(`docker-compose.yml`)에 들어가는 값. 로컬은 `FE/.env.local` 에 같은 이름으로 둔다. 전부 서버 전용이다.

@@ -24,7 +24,7 @@
  */
 import "server-only";
 import { z } from "zod";
-import { applyFilters, conceptsFor, describeConcepts, FILTER_OPS, type Get } from "@/lib/ai/ontology";
+import { applyFilters, BUILTIN, conceptsFor, describeConcepts, FILTER_OPS, fromExternal, type Concept, type ExternalConceptDto, type Get } from "@/lib/ai/ontology";
 import { beConfig } from "./env";
 import { registerTool, type AiToolContext } from "./tools";
 
@@ -32,6 +32,27 @@ const CALL_TIMEOUT_MS = 15_000;
 /** 한 번에 돌려주는 최대 행. 4,000자 안에 들어오는 크기다. 더 필요하면 filter 로 좁힌다 */
 const DEFAULT_LIMIT = 40;
 const MAX_LIMIT = 200;
+
+/**
+ * 이 턴의 개념 목록 — 내장 개념 + 이 회사의 외부 시스템 개념(운영 콘솔이 등록한 행). 턴 시작에 한 번 받아 검색어 확장 · 도구 설명 ·
+ * 실행이 같은 목록을 본다. 외부 개념을 못 받으면(BE 장애 · 권한) 내장만으로 간다 — 외부 시스템이 없는 회사가 지금처럼 동작해야 한다.
+ */
+export async function loadConcepts(accessToken: string): Promise<Concept[]> {
+  const { baseUrl } = beConfig();
+  try {
+    const res = await fetch(`${baseUrl}/api/workspace/external/ontology`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(CALL_TIMEOUT_MS),
+      cache: "no-store",
+    });
+    if (!res.ok) return BUILTIN;
+    const list = (await res.json()) as unknown;
+    return Array.isArray(list) ? [...BUILTIN, ...fromExternal(list as ExternalConceptDto[])] : BUILTIN;
+  } catch (e) {
+    console.warn("[ai-data] 외부 개념을 받지 못해 내장 개념만 쓴다", e);
+    return BUILTIN;
+  }
+}
 
 /** BE GET — 사용자 토큰 그대로. 권한 · 기능 꺼짐 판정과 문구는 BE 것이다(「이 기능을 볼 권한이 없습니다」) */
 function getter(ctx: AiToolContext): Get {
@@ -74,7 +95,7 @@ registerTool({
 
   /** 이번 턴에 이 사람이 볼 수 있는 개념만 적는다. 하나도 없으면 도구를 내보내지 않는다 */
   describe: (ctx: AiToolContext) => {
-    const list = conceptsFor(ctx.principal.tabs);
+    const list = conceptsFor(ctx.principal.tabs, ctx.concepts ?? BUILTIN);
     if (list.length === 0) return null;
     return (
       `${ctx.principal.workspaceName}의 업무 데이터를 읽는다. 회사의 실제 값이 필요한 질문 — 수량 · 건수 · 목록 · 금액 · 날짜 · 상태 — 에 부른다. ` +
@@ -90,7 +111,7 @@ registerTool({
   },
 
   execute: async ({ concept, filter, limit }, ctx) => {
-    const allowed = conceptsFor(ctx.principal.tabs);
+    const allowed = conceptsFor(ctx.principal.tabs, ctx.concepts ?? (await loadConcepts(ctx.accessToken)));
     // 목록에 없는 id 는 여기서 끊는다 — 모델이 이름을 지어내도 경로가 만들어지지 않는다
     const found = allowed.find((c) => c.id === concept);
     if (!found) {

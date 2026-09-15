@@ -6,7 +6,7 @@
  */
 import "server-only";
 import type { ChatSource } from "@/data/chat";
-import { expandSynonyms } from "@/lib/ai/ontology";
+import { BUILTIN, expandSynonyms, type Concept } from "@/lib/ai/ontology";
 import type { AiPrincipal } from "./auth";
 import { withTenant } from "./db";
 import { embedQuery } from "./embedding";
@@ -72,6 +72,7 @@ export async function retrieve(
   principal: AiPrincipal,
   names: string[],
   question: string,
+  concepts: Concept[] = BUILTIN,
 ): Promise<Retrieval> {
   if (!question.trim()) return { hits: [], context: "", sources: [] };
 
@@ -86,7 +87,7 @@ export async function retrieve(
       principal.userId,
       names.length ? names : null,
       // 전문 검색 낱말에 온톨로지 동의어를 덧붙인다 — "제품" 으로 물어도 "품목" 이 든 조각이 걸리게
-      { text: question, lexicalText: expandSynonyms(question), embedding, embeddingModel: embeddingModelId() },
+      { text: question, lexicalText: expandSynonyms(question, concepts), embedding, embeddingModel: embeddingModelId() },
       RERANK_POOL,
     ),
   );

@@ -21,6 +21,7 @@ import {
   type ExternalSystemAdminDto,
   type ExternalSystemInput,
 } from "@/lib/admin-api";
+import { OntologyStudio } from "./ontology-studio";
 import { EditModal } from "./shared";
 
 /**
@@ -126,6 +127,8 @@ export function IntegrationsTab({ workspaceId }: { workspaceId: number }) {
           ))}
         </AdminTable>
       )}
+
+      {rows !== null && <OntologyStudio workspaceId={workspaceId} systems={rows} />}
 
       {editing !== null && (
         <SystemForm

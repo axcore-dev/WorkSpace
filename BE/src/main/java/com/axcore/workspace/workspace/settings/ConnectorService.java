@@ -1,8 +1,8 @@
 package com.axcore.workspace.workspace.settings;
 
 import com.axcore.workspace.connector.ConnectorAccountStore;
-import com.axcore.workspace.mes.MesDataSource;
-import com.axcore.workspace.mes.MesDataSourceRegistry;
+import com.axcore.workspace.external.ExternalDataSource;
+import com.axcore.workspace.external.ExternalDataSourceRegistry;
 import com.axcore.workspace.security.JwtPrincipal;
 import com.axcore.workspace.workspace.settings.dto.ConnectorsResponse;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -12,7 +12,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -35,13 +34,13 @@ public class ConnectorService {
     private final TenantAccess access;
     private final ConnectorAccountStore accounts;
     private final JdbcTemplate jdbc;
-    private final MesDataSourceRegistry mes;
+    private final ExternalDataSourceRegistry external;
 
-    public ConnectorService(TenantAccess access, ConnectorAccountStore accounts, JdbcTemplate jdbc, MesDataSourceRegistry mes) {
+    public ConnectorService(TenantAccess access, ConnectorAccountStore accounts, JdbcTemplate jdbc, ExternalDataSourceRegistry external) {
         this.access = access;
         this.accounts = accounts;
         this.jdbc = jdbc;
-        this.mes = mes;
+        this.external = external;
     }
 
     @Transactional(readOnly = true)
@@ -71,13 +70,12 @@ public class ConnectorService {
      * 답을 하지 않는다. 접속 정보가 없는 행(표시만 하는 ERP 등)은 저장된 status 그대로다.
      */
     private List<ConnectorsResponse.ExternalSystemResponse> systems(TenantContext ctx) {
-        Optional<MesDataSource> live = mes.forTenant(ctx.schemaName());
         return jdbc.query(
                 "select id, name, vendor, kind, status, host is not null as linked from external_systems order by sort_order, id",
                 (rs, i) -> {
                     String status = rs.getString("status");
-                    if (rs.getBoolean("linked") && "MES".equals(rs.getString("kind"))) {
-                        status = live.map(MesDataSource::ping).orElse(false) ? "ok" : "down";
+                    if (rs.getBoolean("linked")) {
+                        status = external.forSystem(ctx.schemaName(), rs.getLong("id")).map(ExternalDataSource::ping).orElse(false) ? "ok" : "down";
                     }
                     return new ConnectorsResponse.ExternalSystemResponse(
                             rs.getLong("id"), rs.getString("name"), rs.getString("vendor"), rs.getString("kind"), status);
