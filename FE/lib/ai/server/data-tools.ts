@@ -47,6 +47,7 @@ export async function loadConcepts(accessToken: string): Promise<Concept[]> {
     });
     if (!res.ok) return BUILTIN;
     const list = (await res.json()) as unknown;
+    // 내장 개념이 앞 — 우리 데이터를 먼저 보고, 없을 때 외부 시스템을 본다(도구 설명의 순서 규칙과 같다)
     return Array.isArray(list) ? [...BUILTIN, ...fromExternal(list as ExternalConceptDto[])] : BUILTIN;
   } catch (e) {
     console.warn("[ai-data] 외부 개념을 받지 못해 내장 개념만 쓴다", e);
@@ -104,7 +105,10 @@ registerTool({
       "사용자의 말은 아래 괄호 안 동의어로 개념에 대응시킨다. 질문이 두 개념에 걸치면(예: 재고가 있는 품목 중 미매핑) 개념을 차례로 " +
       "조회해 itemCode 로 잇고, 어느 개념의 속성인지 분명하지 않은 말은 어떻게 읽었는지 답에 밝힌다.\n" +
       "결과의 total 은 filter 를 적용한 전체 건수, rows 는 그중 limit 개다. 「몇 건」은 total 로 답한다.\n" +
-      "결과에 source 가 있으면 우리 시스템이 아니라 그 외부 시스템에서 지금 읽어 온 값이다. 답에 「출처: <source>」 를 반드시 적어 어디서 가져왔는지 밝힌다.\n\n" +
+      "결과에 source 가 있으면 우리 시스템이 아니라 그 외부 시스템에서 지금 읽어 온 값이다. 답에 「출처: <source>」 를 반드시 적어 어디서 가져왔는지 밝힌다.\n" +
+      "조회 순서는 우리 데이터 → 외부 시스템이다. 같은 것을 뜻하는 개념이 출처 없는 것(우리 데이터)과 출처 있는 것(외부 ERP · MES) 둘 다 있으면 — 예: 직원 · 부서 · 급여 · 전표 — " +
+      "출처 없는 쪽을 먼저 조회하고, 그 결과가 비었거나 물은 대상(부서 · 사람 · 건)이 거기 없으면 반드시 출처 있는 쪽을 이어서 조회한다. " +
+      "외부까지 본 뒤에야 「없다」고 답하고, 어느 쪽에서 찾았는지 밝힌다.\n\n" +
       "concept 에 아래 id 중 하나를 준다.\n" +
       describeConcepts(list)
     );

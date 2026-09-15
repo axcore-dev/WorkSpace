@@ -113,6 +113,9 @@ test("외부 개념 — 행에서 Concept 을 조립하고 내장 개념 뒤에 
   assert.deepEqual(conceptsFor(["stock"], all).map((x) => x.id), ["stock"]);
   assert.ok(describeConcepts([c]).includes("출처: 외부 MES · 1공장 MES"));
   assert.ok(!describeConcepts(BUILTIN).includes("출처:"));
+  // 초안 표시는 운영자용 — 모델이 보면 미완성으로 읽고 내장 개념을 고르므로 뗀다
+  const [draft] = fromExternal([{ ...DOWNTIME, description: "직원 표(erp.employees). [초안 — 이름 · 설명 · 동의어를 다듬어 주세요]" }]);
+  assert.equal(draft.description, "직원 표(erp.employees).");
   // load 는 그 시스템 경로로 GET 한다
   const paths: string[] = [];
   const rows = await c.load(async (p) => { paths.push(p); return [{ id: 1 }]; }, [{ attr: "reason_code", op: "eq", value: "BRK" }]);

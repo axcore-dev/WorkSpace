@@ -321,6 +321,9 @@ export function externalPath(systemId: number, conceptId: string, filterColumns:
   return `${EXTERNAL}/${systemId}/${encodeURIComponent(conceptId)}${s ? `?${s}` : ""}`;
 }
 
+/** 초안이 설명 끝에 남기는 운영자용 표시 — 모델에게는 보이지 않게 뗀다. 보이면 "미완성" 으로 읽고 내장 개념을 고른다 */
+const DRAFT_MARK = /\s*\[초안[^\]]*\]\s*$/;
+
 /** 행 → Concept. 출처 문구는 시스템 이름으로 — 답과 추론 행에 「외부 MES · 1공장 MES」 처럼 보인다 */
 export function fromExternal(list: ExternalConceptDto[]): Concept[] {
   return list.map((d) => ({
@@ -328,7 +331,7 @@ export function fromExternal(list: ExternalConceptDto[]): Concept[] {
     name: d.name,
     synonyms: d.synonyms,
     tab: d.tab,
-    description: d.description,
+    description: d.description.replace(DRAFT_MARK, ""),
     attrs: d.attrs,
     relations: d.relations,
     formula: d.formula ?? undefined,

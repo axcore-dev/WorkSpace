@@ -55,17 +55,24 @@ public final class ExternalQuery {
      * 타임아웃이고 이것은 실수를 일찍 잡는 그물이다.
      */
     public static Optional<String> problem(String sql, List<String> filterColumns, String orderBy) {
-        String s = sql == null ? "" : sql.strip();
-        if (s.isEmpty()) return Optional.of("SQL 을 적어 주세요");
-        if (s.length() > MAX_SQL_LENGTH) return Optional.of("SQL 이 너무 길어요 (" + MAX_SQL_LENGTH + "자까지)");
-        if (!s.toLowerCase(Locale.ROOT).startsWith("select")) return Optional.of("SQL 은 select 로 시작해야 해요");
-        if (s.contains(";")) return Optional.of("SQL 에 세미콜론을 쓸 수 없어요 — 문장 하나만");
+        Optional<String> sqlProblem = sqlProblem(sql);
+        if (sqlProblem.isPresent()) return sqlProblem;
         for (String col : filterColumns) {
             if (!IDENT.matcher(col).matches()) return Optional.of("허용 컬럼 이름이 올바르지 않아요: " + col);
         }
         if (orderBy == null || !ORDER_BY.matcher(orderBy.strip()).matches()) {
             return Optional.of("정렬은 「컬럼 [asc|desc] [nulls first|last], …」 모양이어야 해요");
         }
+        return Optional.empty();
+    }
+
+    /** SQL 본문만 — 미리보기처럼 정렬 · 허용 컬럼이 아직 없는 자리에서 쓴다 */
+    public static Optional<String> sqlProblem(String sql) {
+        String s = sql == null ? "" : sql.strip();
+        if (s.isEmpty()) return Optional.of("SQL 을 적어 주세요");
+        if (s.length() > MAX_SQL_LENGTH) return Optional.of("SQL 이 너무 길어요 (" + MAX_SQL_LENGTH + "자까지)");
+        if (!s.toLowerCase(Locale.ROOT).startsWith("select")) return Optional.of("SQL 은 select 로 시작해야 해요");
+        if (s.contains(";")) return Optional.of("SQL 에 세미콜론을 쓸 수 없어요 — 문장 하나만");
         return Optional.empty();
     }
 }

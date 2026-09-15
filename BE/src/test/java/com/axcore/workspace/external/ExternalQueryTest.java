@@ -52,6 +52,9 @@ class ExternalQueryTest {
         assertTrue(ExternalQuery.problem("select 1; drop table x", List.of(), "a").orElseThrow().contains("세미콜론"));
         assertTrue(ExternalQuery.problem("select 1", List.of("bad col"), "a").orElseThrow().contains("허용 컬럼"));
         assertTrue(ExternalQuery.problem("select 1", List.of(), "a; drop").orElseThrow().contains("정렬"));
+        // 미리보기는 정렬 없이 SQL 본문만 검사한다
+        assertTrue(ExternalQuery.sqlProblem("select code from erp.accounts").isEmpty());
+        assertTrue(ExternalQuery.sqlProblem("select 1; drop table x").orElseThrow().contains("세미콜론"));
     }
 
     @Test

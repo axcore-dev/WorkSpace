@@ -123,7 +123,8 @@ public class AdminExternalConceptService {
     public Preview preview(Long workspaceId, long systemId, String sql) {
         String schema = open(workspaceId);
         requireSystem(systemId);
-        ExternalQuery.problem(sql, List.of(), "1").ifPresent(m -> { throw new SettingsValidationException(m); });
+        // 정렬 · 허용 컬럼은 아직 없다 — SQL 본문만 본다(정렬 자리에 임시값을 넣으면 정렬 규칙에 걸려 미리보기가 안 됐다)
+        ExternalQuery.sqlProblem(sql).ifPresent(m -> { throw new SettingsValidationException(m); });
         ExternalDataSource ds = registry.forSystem(schema, systemId)
                 .orElseThrow(() -> new SettingsValidationException("이 시스템에 접속 정보가 없어요. 먼저 접속 정보를 등록해 주세요"));
         JdbcTemplate ext = new JdbcTemplate(ds.dataSource());
