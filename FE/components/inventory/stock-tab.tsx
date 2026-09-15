@@ -165,6 +165,7 @@ export function StockTab() {
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Segmented
+            size="sm"
             options={PANEL_OPTIONS}
             value={panel}
             onChange={(v) => {

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { IconDownload, IconSearch, IconX } from "@/components/icons";
-import { FIELD_SM, Segmented } from "@/components/ui";
+import { FIELD_MD, Segmented } from "@/components/ui";
 import { useInventory, type Density } from "./inventory-provider";
 
 /**
@@ -12,8 +12,9 @@ import { useInventory, type Density } from "./inventory-provider";
  * 옮겨 간다. ESC 는 항상 접기(검색어도 지운다). × 는 검색어가 있으면 지우기, 비어 있으면 접기 — 그래서 두 번째 × 가 접는다.
  * 빈 채로 포커스가 나가면 접힌다. 검색어는 탭 로컬 상태다 — 탭을 바꾸면 사라진다.
  */
+// 카드 머리 한 줄 = 36 — 아이콘 버튼 · 검색 펼침 · 보조 버튼(Button md)이 같은 높이 (DESIGN.md 「높이 사다리」)
 const TOOL_BTN =
-  "inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-slate-600 ring-1 ring-inset ring-slate-300 transition-colors duration-200 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400";
+  "inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg text-slate-600 ring-1 ring-inset ring-slate-300 transition-colors duration-200 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400";
 
 const DENSITY_OPTIONS: { value: Density; label: string }[] = [
   { value: "simple", label: "간단" },
@@ -39,7 +40,7 @@ export function CardTools({
       {density && <DensityTool />}
       {onExport && (
         <button type="button" onClick={onExport} aria-label="내보내기" title="내보내기" className={TOOL_BTN}>
-          <IconDownload size={15} />
+          <IconDownload size={16} />
         </button>
       )}
       {children}
@@ -65,12 +66,12 @@ function SearchTool({ value, onChange, placeholder }: { value: string; onChange:
     setOpen(false);
   }
 
-  // 한 상자가 폭만 바뀐다 — 닫히면 아이콘 버튼(w-8), 열리면 아이콘이 안에 든 입력창(w-60)
+  // 한 상자가 폭만 바뀐다 — 닫히면 아이콘 버튼(w-9), 열리면 아이콘이 안에 든 입력창(w-60)
   return (
-    <div className={`relative h-8 shrink-0 transition-[width] duration-200 ease-out motion-reduce:transition-none ${open ? "w-60" : "w-8"}`}>
+    <div className={`relative h-9 shrink-0 transition-[width] duration-200 ease-out motion-reduce:transition-none ${open ? "w-60" : "w-9"}`}>
       {open ? (
         <>
-          <IconSearch size={15} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
+          <IconSearch size={16} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
           <input
             ref={inputRef}
             value={value}
@@ -83,7 +84,7 @@ function SearchTool({ value, onChange, placeholder }: { value: string; onChange:
             }}
             placeholder={placeholder}
             aria-label={placeholder}
-            className={`${FIELD_SM} pl-8 pr-8`}
+            className={`${FIELD_MD} pl-8 pr-8`}
           />
           <button
             type="button"
@@ -98,7 +99,7 @@ function SearchTool({ value, onChange, placeholder }: { value: string; onChange:
         </>
       ) : (
         <button type="button" onClick={() => setOpen(true)} aria-expanded={false} aria-label="검색" title="검색" className={TOOL_BTN}>
-          <IconSearch size={15} />
+          <IconSearch size={16} />
         </button>
       )}
     </div>

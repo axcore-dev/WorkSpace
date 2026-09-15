@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { IconAlertTriangle, IconDownload, IconPlus, IconX } from "@/components/icons";
 import { ConfirmModal } from "@/components/management/workbench";
-import { Modal } from "@/components/modal";
+import { Modal, SCREEN_COLUMN } from "@/components/modal";
 import { MultiPicker, type PickerOption } from "@/components/multi-picker";
 import { Button, FIELD_SM, FIELD_SM_ERROR, Segmented } from "@/components/ui";
 import { VENDOR_KIND_LABEL } from "@/data/inventory";
@@ -158,7 +158,7 @@ export function OrderEditor({ onClose }: { onClose: () => void }) {
         title="발주서 작성"
         desc={drawing ? `${drawing.code} ${drawing.rev} · ${drawing.name} · ${drawing.vehicle}` : undefined}
         footer={
-          <div className="mx-auto flex w-full max-w-[1400px] flex-wrap items-center justify-end gap-2 lg:px-3">
+          <div className={`${SCREEN_COLUMN} flex flex-wrap items-center justify-end gap-2`}>
             <Button variant="secondary" disabled={activeCount === 0} onClick={print}>
               <IconDownload size={14} />
               출력 · {docs.length}장
@@ -170,7 +170,7 @@ export function OrderEditor({ onClose }: { onClose: () => void }) {
         }
       >
         {/* 폭 상한은 이 블록이 직접 진다 — 2560 화면에서 입력 칸이 끝없이 늘어나지 않게 */}
-        <div className="mx-auto w-full max-w-[1400px] space-y-5 px-5 py-5 lg:px-8">
+        <div className={`${SCREEN_COLUMN} space-y-5 py-5`}>
           {/* 근거 · 메타 — 모든 칸 편집 */}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <div className="lg:col-span-2">

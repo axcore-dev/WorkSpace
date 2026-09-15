@@ -339,7 +339,7 @@ export function OrdersTab() {
                           ) : null}
                         </td>
                         <td className="px-3 py-2">
-                          <Segmented options={JUDGEMENT_OPTIONS} value={d.judgement} onChange={(v) => set({ judgement: v })} label={`${l.nameAtOrder} 판정`} />
+                          <Segmented size="sm" options={JUDGEMENT_OPTIONS} value={d.judgement} onChange={(v) => set({ judgement: v })} label={`${l.nameAtOrder} 판정`} />
                         </td>
                         <td className="py-2 pl-3">
                           <input
