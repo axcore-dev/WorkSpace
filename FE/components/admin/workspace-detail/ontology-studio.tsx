@@ -54,7 +54,11 @@ const CARD_W = 232;
 const CARD_HEAD = 44;
 const ATTR_ROW = 18;
 const ATTRS_SHOWN = 5;
-const GAP_X = 40;
+/** 한 띠에 접는 열 수. 넘으면 다음 줄로 — 카드가 옆으로 끝없이 늘어나지 않게 */
+const COLS = 4;
+const GAP_X = 72;
+/** 같은 원천 안의 줄 간격 · 원천(띠) 사이 간격 */
+const GAP_Y_INNER = 56;
 const GAP_Y = 96;
 const PAD = 32;
 
@@ -127,7 +131,7 @@ export function OntologyStudio({ workspaceId, systems }: { workspaceId: number; 
     return [...builtin, ...ext];
   }, [external]);
 
-  /** 시스템마다 한 줄. 카드 좌표는 여기서 한 번 정한다 */
+  /** 원천(시스템)마다 한 띠, 띠 안에서는 COLS 열로 접는다. 카드 좌표는 여기서 한 번 정한다 */
   const layout = useMemo(() => {
     const groups = new Map<string, Node[]>();
     for (const n of nodes) groups.set(n.system, [...(groups.get(n.system) ?? []), n]);
@@ -137,15 +141,19 @@ export function OntologyStudio({ workspaceId, systems }: { workspaceId: number; 
     const rows: { system: string; kind: string; y: number }[] = [];
     for (const [system, list] of groups) {
       rows.push({ system, kind: list[0].kind, y });
-      let x = PAD;
       let rowH = 0;
-      for (const n of list) {
+      list.forEach((n, i) => {
+        const col = i % COLS;
+        if (i > 0 && col === 0) {
+          y += rowH + GAP_Y_INNER;
+          rowH = 0;
+        }
         const h = cardHeight(n);
+        const x = PAD + col * (CARD_W + GAP_X);
         pos.set(n.id, { x, y, w: CARD_W, h });
-        x += CARD_W + GAP_X;
         rowH = Math.max(rowH, h);
-      }
-      maxX = Math.max(maxX, x);
+        maxX = Math.max(maxX, x + CARD_W);
+      });
       y += rowH + GAP_Y;
     }
     return { pos, rows, width: maxX + PAD, height: y };
@@ -271,22 +279,26 @@ export function OntologyStudio({ workspaceId, systems }: { workspaceId: number; 
               {edges.map((e) => {
                 const a = layout.pos.get(e.from)!;
                 const b = layout.pos.get(e.to)!;
-                const ax = a.x + a.w / 2;
-                const ay = a.y < b.y ? a.y + a.h : a.y;
-                const bx = b.x + b.w / 2;
-                const by = a.y < b.y ? b.y : b.y + b.h;
-                const sameRow = a.y === b.y;
-                const d = sameRow
-                  ? `M${a.x + a.w},${a.y + 22} C${a.x + a.w + 30},${a.y + 22} ${b.x - 30},${b.y + 22} ${b.x},${b.y + 22}`
-                  : `M${ax},${ay} C${ax},${(ay + by) / 2} ${bx},${(ay + by) / 2} ${bx},${by}`;
+                // 두 카드가 옆으로 떨어져 있으면 좌우 면, 아래위로 떨어져 있으면 위아래 면에서 선을 뽑는다 — 카드를 가로지르지 않게
+                const dx = b.x + b.w / 2 - (a.x + a.w / 2);
+                const dy = b.y + b.h / 2 - (a.y + a.h / 2);
+                const horizontal = Math.abs(dx) > a.w && Math.abs(dy) < Math.max(a.h, b.h);
+                const p1 = horizontal ? { x: dx > 0 ? a.x + a.w : a.x, y: a.y + 24 } : { x: a.x + a.w / 2, y: dy > 0 ? a.y + a.h : a.y };
+                const p2 = horizontal ? { x: dx > 0 ? b.x : b.x + b.w, y: b.y + 24 } : { x: b.x + b.w / 2, y: dy > 0 ? b.y : b.y + b.h };
+                const d = horizontal
+                  ? `M${p1.x},${p1.y} C${(p1.x + p2.x) / 2},${p1.y} ${(p1.x + p2.x) / 2},${p2.y} ${p2.x},${p2.y}`
+                  : `M${p1.x},${p1.y} C${p1.x},${(p1.y + p2.y) / 2} ${p2.x},${(p1.y + p2.y) / 2} ${p2.x},${p2.y}`;
                 const hot = selected === e.from || selected === e.to;
-                const mx = sameRow ? (a.x + a.w + b.x) / 2 : (ax + bx) / 2;
-                const my = sameRow ? a.y + 14 : (ay + by) / 2 - 6;
+                const label = `${e.attr} N:1`;
+                const mx = (p1.x + p2.x) / 2;
+                const my = (p1.y + p2.y) / 2;
+                const lw = label.length * 6.2 + 8;
                 return (
                   <g key={e.key}>
                     <path d={d} fill="none" stroke={hot ? "#0f172a" : "#94a3b8"} strokeWidth={hot ? 1.5 : 1} markerEnd="url(#ont-arrow)" />
-                    <text x={mx} y={my} textAnchor="middle" fontSize={10} fontFamily="ui-monospace, monospace" fill={hot ? "#0f172a" : "#64748b"}>
-                      {e.attr} N:1
+                    <rect x={mx - lw / 2} y={my - 8} width={lw} height={15} rx={3} fill="#ffffff" stroke={hot ? "#0f172a" : "#e2e8f0"} strokeWidth={0.5} />
+                    <text x={mx} y={my + 3} textAnchor="middle" fontSize={10} fontFamily="ui-monospace, monospace" fill={hot ? "#0f172a" : "#64748b"}>
+                      {label}
                     </text>
                   </g>
                 );
