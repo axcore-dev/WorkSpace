@@ -6,6 +6,7 @@ import { DRAWINGS } from "../data/drawings.ts";
 import {
   bomNeeds,
   buildOrders,
+  normalizeDocRules,
   draftFromBom,
   groupDraft,
   orderDocuments,
@@ -183,11 +184,11 @@ test("발주서 편집기 — BOM 초안 · 발주처별 묶음 · 수량 0 제�
 
   const docs = orderDocuments(edited, VENDORS, DOC_RULES);
   assert.deepEqual(docs.map((x) => x.label), ["전체", "대성정공"], "전체 1장 + 거래처별. 자체 제작은 문서 없음");
-  // 부품 서식(품명 · 호칭 · 규격 · 수량 · 비고) + 태그가 있어 「가공 요청」 열
-  assert.deepEqual(docs[1].rows[4], ["No.", "품명", "호칭", "규격", "수량", "비고", "가공 요청"]);
+  // 부품 서식(품목명 · 사양 · 규격 · 수량 · 비고) + 태그가 있어 「가공 요청」 열
+  assert.deepEqual(docs[1].rows[4], ["No.", "품목명", "사양", "규격", "수량", "비고", "가공 요청"]);
   assert.equal(docs[0].rows.filter((r) => /^\d+$/.test(r[0] ?? "")).length, 2, "수량 0 라인은 빠진다");
   const material = orderDocuments({ ...edited, format: "material" }, VENDORS, DOC_RULES);
-  assert.deepEqual(material[1].rows[4], ["No.", "품명", "규격", "수량", "비고", "가공 요청"], "자재 서식에는 호칭이 없다");
+  assert.deepEqual(material[1].rows[4], ["No.", "품목명", "규격", "수량", "비고", "가공 요청"], "자재 서식에는 사양이 없다");
 });
 
 test("발주서 검증 — 수량 없음 · 발주처 없음 · 미매핑 BOM", () => {
@@ -280,9 +281,14 @@ test("자동 → 수동으로 바꾸면 자동값이 담당자 값으로 굳는�
   assert.equal(next.standards.find((s) => s.itemCode === "MAT-AL-6061")!.safety, 4000);
 });
 
-test("문서 규칙: 순번 조각 · 품명/수량 열은 필수", () => {
+test("문서 규칙: 옛 열 이름(품명 · 호칭)은 품목명 · 사양으로 읽는다 — 저장된 규칙 · 서버 기본값 호환", () => {
+  const legacy = { ...DOC_RULES, formats: { material: ["품명", "규격", "수량"], parts: ["품명", "호칭", "규격", "수량", "납기"] } };
+  assert.deepEqual(normalizeDocRules(legacy).formats, { material: ["품목명", "규격", "수량"], parts: ["품목명", "사양", "규격", "수량", "납기"] });
+});
+
+test("문서 규칙: 순번 조각 · 품목명/수량 열은 필수", () => {
   assert.match(validateDocRules({ ...DOC_RULES, codeSegments: ["year", "model"] }).codeSegments, /순번/);
-  assert.match(validateDocRules({ ...DOC_RULES, formats: { ...DOC_RULES.formats, parts: ["규격"] } }).parts, /품명 · 수량/);
+  assert.match(validateDocRules({ ...DOC_RULES, formats: { ...DOC_RULES.formats, parts: ["규격"] } }).parts, /품목명 · 수량/);
   assert.deepEqual(validateDocRules(DOC_RULES), {});
 });
 

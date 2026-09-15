@@ -7,7 +7,6 @@ import { Modal, SCREEN_COLUMN } from "@/components/modal";
 import { MultiPicker, type PickerOption } from "@/components/multi-picker";
 import { Button, FIELD_SM, FIELD_SM_ERROR, Segmented } from "@/components/ui";
 import { VENDOR_KIND_LABEL } from "@/data/inventory";
-import { withJosa } from "@/data/ko";
 import { useAccountMe } from "@/lib/account-me";
 import { downloadCsv } from "@/lib/download";
 import {
@@ -26,21 +25,21 @@ import {
 } from "@/lib/inventory-state";
 import { useInventory } from "./inventory-provider";
 
-/** 문서 규칙 탭의 이름과 같게 — 「자재 / 부품」만 쓰면 무엇의 자재·부품인지 읽히지 않는다 */
-const FORMAT_OPTIONS: { value: DocFormat; label: string }[] = [
-  { value: "material", label: "자재 발주서" },
-  { value: "parts", label: "부품 발주서" },
+/** 문서 규칙 탭의 이름과 같게 — 「자재 / 부품」만 쓰면 무엇의 자재·부품인지 읽히지 않는다. `use` 는 서식을 고르는 기준 한 마디 */
+const FORMAT_OPTIONS: { value: DocFormat; label: string; use: string }[] = [
+  { value: "material", label: "자재 발주서", use: "소재를 kg · 치수로 살 때" },
+  { value: "parts", label: "부품 발주서", use: "표준 부품을 살 때" },
 ];
-/** 라인의 열 → 문서 서식의 열 이름(없으면 문서와 무관한 화면 전용 열) */
-const LINE_COLUMNS: { label: string; doc?: string; align?: "right" }[] = [
-  { label: "품명", doc: "품명" },
-  { label: "호칭", doc: "호칭" },
-  { label: "규격", doc: "규격" },
-  { label: "수량", doc: "수량", align: "right" },
-  { label: "단위", doc: "단위" },
+/** 라인의 열 — 품목 표기는 품목명 · 사양 · 규격 (DESIGN.md 「품목 표기」). 문서에 찍히는 열은 서식이 정한다 */
+const LINE_COLUMNS: { label: string; align?: "right" }[] = [
+  { label: "품목명" },
+  { label: "사양" },
+  { label: "규격" },
+  { label: "수량", align: "right" },
+  { label: "단위" },
   { label: "발주처" },
   { label: "가공 요청" },
-  { label: "비고", doc: "비고" },
+  { label: "비고" },
 ];
 const LABEL = "mb-1 block text-xs font-medium text-slate-600";
 /** 라인 안 작은 라벨 — xl 이상에서는 머리글 행이 대신한다 */
@@ -59,10 +58,10 @@ const NUM = "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-no
 /**
  * 발주서 작성 — 전폭 시트(`Modal size="screen"`) 한 화면 편집기(260827 피드백 3건: 모든 칸 편집 · 발주처 클릭 선택 · 서식 2종 + 가공 요청 태그 · 전체 1장 + 발주처별 출력).
  *
- * 도면(BOM)을 고르면 소요 − 재고로 라인이 채워지고, 도면 없이도 라인을 더해 쓸 수 있다. 품명(또는 호칭+규격)을 적고 칸을 나가면
+ * 도면(BOM)을 고르면 소요 − 재고로 라인이 채워지고, 도면 없이도 라인을 더해 쓸 수 있다. 품목명(또는 사양+규격)을 적고 칸을 나가면
  * 품목 마스터에서 찾아 단위 · 기본 거래처를 채운다. 수량 0 라인은 화면에 내림으로 남고 문서 · 등록에서 빠진다.
- * 서식에 없는 열은 「문서에 안 찍히는 열」 한 줄로 말한다(머리글 취소선은 뜻이 안 읽혔다).
- * 자체 제작 발주처 라인은 문서 없이 제작 지시(발주 목록 「제작 중」)가 된다. 초안은 로컬 상태 — 바꾼 채 닫으면 한 번 묻는다.
+ * 서식 토글 옆에는 두 서식이 **실제로 찍는 열**을 나란히 보인다 — 「단위는 안 찍혀요」 같은 부정문 대신 무엇이 나가는지를.
+ * 요청자는 로그인한 사람 — 고치는 칸이 아니다. 자체 제작 발주처 라인은 문서 없이 제작 지시가 된다. 초안은 로컬 상태 — 바꾼 채 닫으면 한 번 묻는다.
  * 닫기는 헤더의 × 하나다 — 푸터에도 [닫기] 를 두면 확인 다이얼로그까지 「닫기」가 넷이 된다.
  */
 export function OrderEditor({ onClose }: { onClose: () => void }) {
@@ -79,14 +78,15 @@ export function OrderEditor({ onClose }: { onClose: () => void }) {
   // 도면(BOM)은 제품설계에서 온다 — 폐기되지 않은 원본만, 미매핑 수와 함께
   const poDrawings = toPoDrawings(state.drawings);
   const drawing = poDrawings.find((x) => x.code === draft.drawing);
-  const docCols = state.docRules.formats[draft.format];
-  const excluded = LINE_COLUMNS.filter((c) => c.doc && !docCols.includes(c.doc)).map((c) => c.label);
+  // 요청자 = 로그인한 구성원. 계정 정보가 늦게 와도 등록 · 출력 때의 이름을 쓴다
+  const requester = account?.name ?? "";
+  const tagged = draft.lines.some((l) => l.qty > 0 && l.tags.length > 0);
   const vendorOptions: PickerOption[] = state.vendors.filter((v) => v.active).map((v) => ({ id: v.id, label: v.name, meta: VENDOR_KIND_LABEL[v.kind] }));
   const tagOptions: PickerOption[] = state.docRules.processTags.map((t) => ({ id: t, label: t }));
   const vendorOf = (id: string) => state.vendors.find((v) => v.id === id);
 
   const groups = groupDraft(draft);
-  const docs = orderDocuments(draft, state.vendors, state.docRules);
+  const docs = orderDocuments({ ...draft, requester }, state.vendors, state.docRules);
   const inhouse = groups.filter((g) => vendorOf(g.vendorId)?.kind === "inhouse");
   const activeCount = draft.lines.filter((l) => l.qty > 0).length;
 
@@ -98,7 +98,7 @@ export function OrderEditor({ onClose }: { onClose: () => void }) {
     setSeq(n);
     setDraft((d) => ({ ...d, lines: [...d.lines, blankLine(`new-${n}`)] }));
   }
-  /** 품명 · 호칭 · 규격 칸을 나갈 때 — 품목 마스터에 있으면 단위와 기본 거래처를 채운다(사람이 이미 고른 값은 두고) */
+  /** 품목명 · 사양 · 규격 칸을 나갈 때 — 품목 마스터에 있으면 단위와 기본 거래처를 채운다(사람이 이미 고른 값은 두고) */
   function autofill(id: string) {
     setDraft((d) => ({
       ...d,
@@ -133,7 +133,7 @@ export function OrderEditor({ onClose }: { onClose: () => void }) {
     const e = validateDraft(draft, poDrawings);
     setErrors(e);
     if (Object.keys(e).length > 0) return;
-    const orders = buildOrders(draft, state.items, state.orders.length);
+    const orders = buildOrders({ ...draft, requester }, state.items, state.orders.length);
     void dispatch({ type: "createOrders", orders }).then((ok) => {
       if (!ok) return;
       const docsCount = orders.length - inhouse.length;
@@ -204,7 +204,8 @@ export function OrderEditor({ onClose }: { onClose: () => void }) {
               <label htmlFor="oe-requester" className={LABEL}>
                 요청자
               </label>
-              <input id="oe-requester" value={draft.requester} onChange={(e) => set({ requester: e.target.value })} className={FIELD_SM} />
+              {/* 로그인한 구성원 이름이 자동으로 — 읽기 전용(다른 사람 이름으로 발주를 남기지 않는다) */}
+              <input id="oe-requester" readOnly value={requester} placeholder="로그인한 구성원" className={`${FIELD_SM} bg-slate-50 text-slate-600`} />
             </div>
           </div>
 
@@ -215,21 +216,38 @@ export function OrderEditor({ onClose }: { onClose: () => void }) {
             </p>
           )}
 
-          {/* 라인 머리 — 왼쪽 개수, 오른쪽 문서 서식과 그 서식에 안 찍히는 열 */}
-          <div className="flex flex-wrap items-start justify-between gap-3 border-t border-slate-200 pt-4">
-            <p className="text-sm text-slate-600">
+          {/* 라인 머리 — 왼쪽 개수, 오른쪽 서식 토글과 두 서식이 찍는 열. 고른 쪽만 진하게 */}
+          <div className="flex flex-wrap items-start justify-between gap-4 border-t border-slate-200 pt-4">
+            <p className="pt-2 text-sm text-slate-600">
               라인 <span className="font-semibold text-slate-900">{draft.lines.length}</span>
               {activeCount !== draft.lines.length && <span className="text-slate-500"> · 수량 있는 라인 {activeCount}</span>}
             </p>
-            <div className="text-right">
-              <div className="flex items-center justify-end gap-2">
-                <span className="text-xs text-slate-500">문서 서식</span>
-                <Segmented options={FORMAT_OPTIONS} value={draft.format} onChange={(v) => set({ format: v })} label="문서 서식" />
+            <div className="grid gap-2.5">
+              <div className="flex items-center gap-3">
+                <span className="text-[13px] font-semibold text-slate-900">발주서 서식</span>
+                <Segmented options={FORMAT_OPTIONS} value={draft.format} onChange={(v) => set({ format: v })} label="발주서 서식" />
               </div>
-              <p className="mt-1.5 text-xs text-slate-500">
-                {excluded.length > 0 ? `${withJosa(excluded.join(" · "), "은/는")} 이 서식의 문서에 안 찍혀요.` : "라인의 모든 열이 문서에 찍혀요."}
-                {" "}발주처 · 가공 요청은 화면 전용이에요.
-              </p>
+              <dl className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1.5 text-[13px]" aria-label="서식별로 출력되는 열">
+                {FORMAT_OPTIONS.map((f) => {
+                  const on = f.value === draft.format;
+                  // 가공 요청 태그가 붙은 라인이 있으면 출력물에 「가공 요청」 열이 붙는다(orderDocuments)
+                  const cols = [...state.docRules.formats[f.value], ...(tagged ? ["가공 요청"] : [])];
+                  return (
+                    <div key={f.value} className={`contents ${on ? "" : "[&>*]:opacity-60"}`}>
+                      <dt className={`whitespace-nowrap ${on ? "font-semibold text-slate-900" : "text-slate-500"}`}>{f.label}</dt>
+                      <dd className="flex flex-wrap items-center gap-1.5 text-slate-600">
+                        <span className="mr-1">{f.use}</span>
+                        {cols.map((c) => (
+                          <span key={c} className="rounded border border-slate-200 bg-white px-1.5 py-0.5 text-xs text-slate-700">
+                            {c}
+                          </span>
+                        ))}
+                      </dd>
+                    </div>
+                  );
+                })}
+              </dl>
+              <p className="text-[13px] text-slate-600">출력하면 발주처마다 한 장 + 전체 한 장이 고른 서식의 열로 나와요. 열은 설정 › 문서 규칙에서 바꿔요.</p>
             </div>
           </div>
 
@@ -237,7 +255,7 @@ export function OrderEditor({ onClose }: { onClose: () => void }) {
             /* 빈 상태 — 다음 행동 둘을 그대로 말한다. 도면 선택은 위 칸, 직접 추가는 여기 버튼 */
             <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center">
               <p className="text-sm text-slate-600">위에서 도면(BOM)을 고르면 소요량에서 라인이 채워져요.</p>
-              <p className="text-xs text-slate-500">도면 없이 직접 라인을 추가해도 돼요 — 품명이나 호칭 · 규격을 적으면 품목 마스터에서 단위와 기본 거래처를 채워요.</p>
+              <p className="text-xs text-slate-500">도면 없이 직접 라인을 추가해도 돼요 — 품목명이나 사양 · 규격을 적으면 품목 마스터에서 단위와 기본 거래처를 채워요.</p>
               {addButton}
             </div>
           ) : (
@@ -260,11 +278,11 @@ export function OrderEditor({ onClose }: { onClose: () => void }) {
                     <li key={l.id} className={`${LINE_GRID} fade-in py-2.5 xl:py-1.5 ${off ? "opacity-60" : ""}`}>
                       <div className="col-span-2 xl:col-span-1">
                         <label htmlFor={`${l.id}-name`} className={CELL_LABEL}>
-                          품명
+                          품목명
                         </label>
                         <div className="flex items-center gap-1.5">
-                          <input id={`${l.id}-name`} aria-label={`${who} 품명`} value={l.itemName} onChange={(e) => setLine(l.id, { itemName: e.target.value })} onBlur={() => autofill(l.id)} className={FIELD_SM} />
-                          {/* 좁은 폭의 빼기 — 품명 칸 옆. xl 에서는 마지막 열의 버튼이 대신한다 */}
+                          <input id={`${l.id}-name`} aria-label={`${who} 품목명`} value={l.itemName} onChange={(e) => setLine(l.id, { itemName: e.target.value })} onBlur={() => autofill(l.id)} className={FIELD_SM} />
+                          {/* 좁은 폭의 빼기 — 품목명 칸 옆. xl 에서는 마지막 열의 버튼이 대신한다 */}
                           <button type="button" aria-label={`${who} 빼기`} onClick={() => removeLine(l.id)} className={`${REMOVE_BTN} shrink-0 xl:hidden`}>
                             <IconX size={14} />
                           </button>
@@ -272,9 +290,9 @@ export function OrderEditor({ onClose }: { onClose: () => void }) {
                       </div>
                       <div>
                         <label htmlFor={`${l.id}-spec`} className={CELL_LABEL}>
-                          호칭
+                          사양
                         </label>
-                        <input id={`${l.id}-spec`} aria-label={`${who} 호칭`} value={l.spec} onChange={(e) => setLine(l.id, { spec: e.target.value })} onBlur={() => autofill(l.id)} className={FIELD_SM} />
+                        <input id={`${l.id}-spec`} aria-label={`${who} 사양`} value={l.spec} onChange={(e) => setLine(l.id, { spec: e.target.value })} onBlur={() => autofill(l.id)} className={FIELD_SM} />
                       </div>
                       <div>
                         <label htmlFor={`${l.id}-size`} className={CELL_LABEL}>
@@ -347,32 +365,6 @@ export function OrderEditor({ onClose }: { onClose: () => void }) {
             </div>
           )}
 
-          {/* 문서 — 무엇이 몇 장 나가는지. 수량 있는 라인이 있을 때만 뜻이 있다 */}
-          {activeCount > 0 && (
-            <p className="border-t border-slate-200 pt-3 text-sm text-slate-600">
-              <span className="font-semibold text-slate-900">문서 {docs.length}장</span>
-              <span className="text-slate-500"> · 전체 1장</span>
-              {groups.map((g) => {
-                const v = vendorOf(g.vendorId);
-                const qty = g.lines.reduce((s, l) => s + l.qty, 0);
-                const label = v?.name ?? "발주처 없음";
-                return (
-                  <span key={g.vendorId || "none"}>
-                    {" · "}
-                    {v?.kind === "inhouse" ? (
-                      <span className="text-slate-500">
-                        {label} {g.lines.length}라인 — 제작 지시(문서 없음)
-                      </span>
-                    ) : (
-                      <>
-                        {label} {g.lines.length}라인 {qty} EA
-                      </>
-                    )}
-                  </span>
-                );
-              })}
-            </p>
-          )}
         </div>
       </Modal>
 

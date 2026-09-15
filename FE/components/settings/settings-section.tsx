@@ -15,20 +15,26 @@
 export function SettingsSection({
   title,
   aside,
+  desc,
   children,
   className = "",
 }: {
   title: React.ReactNode;
   /** 제목 오른쪽 — 개수, 채널 열 머리 등 */
   aside?: React.ReactNode;
+  /** 제목 아래 한 줄 — 이 값이 어디에 쓰이는지. 뜻이 이름만으로 안 읽히는 섹션에만(문서 규칙). DESIGN.md 「보조 텍스트」 예외 */
+  desc?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
 }) {
   return (
     <section className={`mt-[30px] first:mt-6 ${className}`}>
-      <div className="flex items-baseline justify-between gap-3 border-b border-slate-200 pb-2.5">
-        <h2 className="text-[15px] font-semibold text-slate-900">{title}</h2>
-        {aside}
+      <div className="border-b border-slate-200 pb-2.5">
+        <div className="flex items-baseline justify-between gap-3">
+          <h2 className="text-[15px] font-semibold text-slate-900">{title}</h2>
+          {aside}
+        </div>
+        {desc && <p className="mt-1 max-w-[68ch] break-keep text-[13px] text-slate-600">{desc}</p>}
       </div>
       {children}
     </section>

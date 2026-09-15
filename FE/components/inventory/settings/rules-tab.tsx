@@ -5,7 +5,7 @@ import { Chip } from "@/components/multi-picker";
 import { ActionRow, SettingsRow, SettingsRows, SettingsSection } from "@/components/settings/settings-section";
 import { Button, FIELD_SM, FIELD_SM_ERROR, FIELD_SM_INLINE } from "@/components/ui";
 import type { CodeSegment, DocRules } from "@/data/inventory";
-import { previewCode, validateDocRules } from "@/lib/inventory-state";
+import { previewCode, previewParts, validateDocRules } from "@/lib/inventory-state";
 import { ChipEditor } from "../chip-editor";
 import { useInventory } from "../inventory-provider";
 
@@ -17,9 +17,9 @@ export const SEGMENT_LABEL: Record<CodeSegment, string> = {
   seq: "순번",
 };
 const ALL_SEGMENTS = Object.keys(SEGMENT_LABEL) as CodeSegment[];
-/** 발주서에 둘 수 있는 열. 품명 · 수량은 뺄 수 없다 */
-const COLUMN_POOL = ["품명", "호칭", "규격", "수량", "단위", "도면번호", "납기", "비고"];
-const REQUIRED_COLUMNS = ["품명", "수량"];
+/** 발주서에 둘 수 있는 열. 품목명 · 수량은 뺄 수 없다 */
+const COLUMN_POOL = ["품목명", "사양", "규격", "수량", "단위", "도면번호", "납기", "비고"];
+const REQUIRED_COLUMNS = ["품목명", "수량"];
 const SEPARATORS = [
   { value: "", label: "없음" },
   { value: " ", label: "공백" },
@@ -155,7 +155,7 @@ export function RulesTab() {
 
   return (
     <div className="max-w-3xl">
-      <SettingsSection title="관리번호">
+      <SettingsSection title="관리번호" desc="발주 · 입고 · 출고를 한 작업으로 묶는 번호예요. 발주서 머리와 입출고 이력의 사유에 찍혀요. 아래 조각을 순서대로 이어 붙이고 사이에 구분자를 끼워 만들어요.">
         <SettingsRows>
           <SettingsRow>
             <ActionRow name="조각 순서">
@@ -227,20 +227,36 @@ export function RulesTab() {
           </SettingsRow>
           <SettingsRow>
             <ActionRow name="미리보기">
-              <span className="font-mono text-sm text-slate-900">{previewCode(shown)}</span>
+              {/* 조각마다 이름을 아래에 — 어느 조각이 어느 글자가 되는지 보이게 */}
+              <span className="flex items-end gap-1.5 text-center">
+                {previewParts(shown).map((p, i) => (
+                  <span key={i} className="grid">
+                    <span className="whitespace-pre font-mono text-sm text-slate-900">{p.text}</span>
+                    <span className="text-[11px] text-slate-500">{"seg" in p ? SEGMENT_LABEL[p.seg] : "구분자"}</span>
+                  </span>
+                ))}
+                <span className="ml-2 pb-4 text-slate-400" aria-hidden>
+                  →
+                </span>
+                <span className="pb-4 font-mono text-sm font-semibold text-slate-900">{previewCode(shown)}</span>
+              </span>
             </ActionRow>
           </SettingsRow>
         </SettingsRows>
       </SettingsSection>
 
-      <SettingsSection title="발주서 서식">
+      <SettingsSection title="발주서 서식" desc="「발주서 출력」으로 나오는 종이의 열이에요. 소재를 kg · 치수로 사는 자재 발주서와 표준 부품을 사는 부품 발주서를 따로 둬요. 품목명 · 수량은 뺄 수 없어요.">
         <SettingsRows>
           {formatRow("material", "자재 발주서")}
           {formatRow("parts", "부품 발주서")}
         </SettingsRows>
       </SettingsSection>
 
-      <SettingsSection title="가공 요청 태그" aside={<span className="text-xs text-slate-500">{r.processTags.length}개</span>}>
+      <SettingsSection
+        title="가공 요청 태그"
+        aside={<span className="text-xs text-slate-500">{r.processTags.length}개</span>}
+        desc="발주서를 쓸 때 라인마다 붙이는 외주 가공 요청이에요. 하나라도 붙으면 출력한 발주서에 「가공 요청」 열이 생겨요. 태그를 지워도 이미 쓴 발주의 글자는 남아요."
+      >
         <SettingsRows>
           <SettingsRow>
             <div className="flex flex-wrap items-center gap-1.5" role="list" aria-label="가공 요청 태그">

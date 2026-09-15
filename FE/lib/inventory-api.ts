@@ -1,7 +1,7 @@
 import { apiDelete, apiGet, apiPostAuthed, apiPut } from "@/lib/api";
 import { getDrawingsOrNone } from "@/lib/design-api";
 import type { DocRules, Item, Movement, PurchaseOrder, SafetyStandard, ItemStandard, Vendor } from "@/data/inventory";
-import type { InventoryAction, InventoryData } from "@/lib/inventory-state";
+import { normalizeDocRules, type InventoryAction, type InventoryData } from "@/lib/inventory-state";
 
 /**
  * 재고·물류 API. 회사를 고른 토큰이어야 하고, 탭 권한이 없거나 회사가 탭을 끄면 403 이 온다.
@@ -33,7 +33,7 @@ export async function getAll(): Promise<InventoryData> {
     getDrawingsOrNone(),
   ]);
   const s = must(settings);
-  return { drawings, orders: orders ?? [], movements: movements ?? [], items: items ?? [], vendors: vendors ?? [], standards: s.standards, standard: s.standard, docRules: s.docRules };
+  return { drawings, orders: orders ?? [], movements: movements ?? [], items: items ?? [], vendors: vendors ?? [], standards: s.standards, standard: s.standard, docRules: normalizeDocRules(s.docRules) };
 }
 
 /** 동작 하나를 서버에 보낸다. 성공 뒤 호출한 쪽이 `getAll` 로 다시 받는다 — 낙관적 갱신 없음 */
