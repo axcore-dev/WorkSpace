@@ -33,14 +33,19 @@ public class SchemaIntrospector {
             String schema, String name, boolean view, String comment, long approxRows,
             List<Column> columns, List<String> primaryKey, List<String> uniqueColumns, List<ForeignKey> foreignKeys) {}
 
-    /** 접속 롤이 볼 수 있는 스키마. 시스템 스키마는 뺀다 */
+    /**
+     * 접속 롤이 볼 수 있는 스키마. Postgres 자체와 Supabase 가 만드는 관리용 스키마(extensions · auth · storage …)는 뺀다 —
+     * 고객 업무 표가 거기 있을 일이 없고, 첫 스키마를 기본으로 고르는 화면이 엉뚱한 것을 잡지 않게.
+     */
     public List<String> schemas(ExternalDataSource ds) {
         return jdbc(ds).queryForList(
                 """
                 select distinct table_schema
                   from information_schema.tables
-                 where table_schema not in ('pg_catalog', 'information_schema')
-                   and table_schema not like 'pg_%'
+                 where table_schema not in ('pg_catalog', 'information_schema', 'extensions', 'graphql', 'graphql_public', 'auth', 'storage',
+                                            'realtime', 'vault', 'net', 'cron', 'pgsodium', 'pgsodium_masks', 'supabase_functions',
+                                            'supabase_migrations', '_realtime', 'pgbouncer', 'pgmq', 'pg_stat_statements')
+                   and table_schema not like 'pg\\_%'
                  order by table_schema
                 """, String.class);
     }

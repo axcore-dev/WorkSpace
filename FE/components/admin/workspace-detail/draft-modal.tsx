@@ -10,6 +10,12 @@ import { draftConcepts, introspectSystem, type ExternalSystemAdminDto, type Intr
 
 const TAB_OPTIONS = MODULES.flatMap((m) => m.subfunctions.map((s) => ({ value: s.id, label: `${m.name} · ${s.name}` })));
 
+/** 시스템 종류(MES · ERP …)와 같은 externalSystem 을 가진 모듈의 첫 탭. 없으면 첫 탭 */
+function defaultTab(kind: string | undefined): string {
+  const m = kind ? MODULES.find((x) => x.externalSystem === kind) : undefined;
+  return m?.subfunctions[0]?.id ?? TAB_OPTIONS[0]?.value ?? "";
+}
+
 /**
  * 「DB 에서 초안 만들기」 — 외부 DB 의 표를 읽어 고른 표를 개념 초안으로 넣는다.
  *
@@ -36,7 +42,8 @@ export function DraftModal({
   const [picked, setPicked] = useState<Set<string>>(new Set());
   /** 사용자가 손댄 접두어. null 이면 시스템 종류에서 만든 기본값(mes_)을 쓴다 */
   const [prefixInput, setPrefixInput] = useState<string | null>(null);
-  const [tab, setTab] = useState(TAB_OPTIONS[0]?.value ?? "");
+  /** 사용자가 고른 탭. null 이면 시스템 종류에 맞는 모듈(MES → 생산관리)의 첫 탭 */
+  const [tabInput, setTabInput] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
 
@@ -45,6 +52,8 @@ export function DraftModal({
   const loading = systemId !== 0 && loaded?.key !== requestKey;
   const info = loaded?.key === requestKey ? loaded.info : null;
   const error = runError ?? (loaded?.key === requestKey ? (loaded.failure ?? loaded.info.error) : null);
+  const tab = tabInput ?? defaultTab(system?.kind);
+  const setTab = (v: string) => setTabInput(v);
   const prefix = prefixInput ?? (system ? `${system.kind.toLowerCase().replace(/[^a-z0-9]/g, "")}_` : "");
   const setPrefix = (v: string) => setPrefixInput(v);
 
