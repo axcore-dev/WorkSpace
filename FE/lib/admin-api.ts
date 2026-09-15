@@ -547,3 +547,56 @@ export const enterWorkspace = (id: number) =>
   apiPostAuthed<{ next: string; accessToken: string; accessTokenExpiresAt: string }>(
     `/api/auth/workspaces/${id}/select`,
   );
+
+/* ─────────────────────────── 외부 시스템 (워크스페이스 상세 › 연동) ─────────────────────────── */
+
+/** BE `ExternalSystemAdminResponse`. 비밀번호는 오지 않는다 — `hasPassword` 만. `host` 가 null 이면 표시만 하는 시스템 */
+export type ExternalSystemAdminDto = {
+  id: number;
+  name: string;
+  vendor: string;
+  kind: string;
+  status: "ok" | "delayed" | "down";
+  host: string | null;
+  port: number;
+  dbName: string | null;
+  dbUser: string | null;
+  hasPassword: boolean;
+  sslmode: string;
+  updatedAt: string | null;
+};
+
+/** BE `ExternalSystemRequest`. 수정 때 `password` 를 비우면 저장된 값을 유지한다 */
+export type ExternalSystemInput = {
+  name: string;
+  vendor: string;
+  kind: string;
+  host?: string;
+  port?: number;
+  dbName?: string;
+  dbUser?: string;
+  password?: string;
+  sslmode?: string;
+};
+
+export const EXTERNAL_SYSTEM_KINDS = ["MES", "ERP", "PLM", "QMS", "WMS", "CRM", "센서", "기타"] as const;
+export const SSL_MODES = ["require", "verify-ca", "verify-full", "disable"] as const;
+
+export const listExternalSystems = async (workspaceId: number) =>
+  (await apiGet<ExternalSystemAdminDto[]>(`${BASE}/${workspaceId}/systems`)) ?? [];
+
+export const createExternalSystem = (workspaceId: number, input: ExternalSystemInput) =>
+  apiPostAuthed<ExternalSystemAdminDto>(`${BASE}/${workspaceId}/systems`, input);
+
+export const updateExternalSystem = (workspaceId: number, systemId: number, input: ExternalSystemInput) =>
+  apiPut<ExternalSystemAdminDto>(`${BASE}/${workspaceId}/systems/${systemId}`, input);
+
+export const deleteExternalSystem = (workspaceId: number, systemId: number) =>
+  apiDelete<void>(`${BASE}/${workspaceId}/systems/${systemId}`);
+
+/** 저장된 접속 정보로 붙어 본다. 실패면 `message` 에 드라이버가 준 이유 */
+export const testExternalSystem = async (workspaceId: number, systemId: number) =>
+  (await apiPostAuthed<{ ok: boolean; message?: string }>(`${BASE}/${workspaceId}/systems/${systemId}/test`)) ?? {
+    ok: false,
+    message: "응답이 없어요",
+  };

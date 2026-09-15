@@ -90,9 +90,12 @@ function traceFromToolPart(
     return { icon: "model", text: `${name} 실패`, result: errorText };
   }
   if (state === "output-available") {
+    // 외부 시스템(MES 등)에서 읽은 결과는 행 오른쪽에 출처를 적는다 — 우리 DB 조회와 눈으로 구분된다
+    const source = typeof output === "object" && output !== null && "source" in output ? (output as { source?: unknown }).source : undefined;
     return {
       icon: "model",
       text: name,
+      result: typeof source === "string" ? source : undefined,
       input: json(input),
       output: json(output),
     };

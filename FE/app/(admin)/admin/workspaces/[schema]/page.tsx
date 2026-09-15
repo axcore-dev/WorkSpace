@@ -30,7 +30,7 @@ import {
  * 알 수 있게 배치로 나눈다 — 「읽기 전용」 라벨이나 아이콘을 붙이지 않는다
  * (문구를 늘리지 않는다: 수정요청v9 ⑤ 5-4).
  */
-const TABS = ["개요", "사용량 · 요금", "멤버", "온톨로지"] as const;
+const TABS = ["개요", "사용량 · 요금", "멤버", "연동"] as const;
 type Tab = (typeof TABS)[number];
 
 /** 이 인덱스부터 읽기 전용 — 탭 띠에 구분을 준다 */
@@ -207,7 +207,7 @@ export default function AdminWorkspaceDetailPage() {
       <div className="mt-5">
         {tab === "개요" && <OverviewTab ws={ws} onSave={save} contactChange={contactChange} />}
         {tab === "멤버" && <MembersTab ws={ws} />}
-        {tab === "온톨로지" && <IntegrationsTab />}
+        {tab === "연동" && id !== null && <IntegrationsTab workspaceId={id} />}
         {tab === "사용량 · 요금" && <UsageTab ws={ws} onSave={save} />}
       </div>
 

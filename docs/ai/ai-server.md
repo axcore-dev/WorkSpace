@@ -1,4 +1,3 @@
-# AI 서버 — FE 안의 대화·검색 백엔드
 
 AI 대화의 서버 절반(모델 호출 · 소스 문서 업로드 · RAG 검색 · 스트리밍)은 **FE(Next.js) 안의 Route
 Handler** 가 맡는다. BE(Spring)는 인증 판정과 업무 데이터의 원장으로 남는다. 2026-09-07 결정.
@@ -167,6 +166,38 @@ AI 가 조회할 수 있는 회사 데이터는 **개념** 단위로 온톨로�
   (`expandSynonyms`). 임베딩과 부분 일치에는 쓰지 않는다 — 질의가 길어지면 `word_similarity` 가 묽어진다.
 
 개념을 더할 때는 `ONTOLOGY` 배열에 한 항목을 넣는다. 규칙은 `lib/ai/ontology.test.ts` 가 `node --test` 로 본다.
+
+### 외부 MES — 고객사 DB 를 링크로 읽는다 (`BE/…/mes`)
+
+온톨로지의 `mes_*` 개념 7개(작업지시 · 설비 · 공정 실적 · 비가동 · 센서 · 불량 · 불량률)는 우리 DB 가 아니라 **고객사 MES DB**
+에서 온다. 값을 복사해 두지 않고 질문이 올 때 읽는다(링크형).
+
+```
+workspace_data({ concept: "mes_downtime", filter: [{ attr: "equipment_code", op: "eq", value: "PR-03" }] })
+  → FE `mesPath` 가 동등 조건만 쿼리 파라미터로  → GET /api/workspace/mes/downtime?equipment_code=PR-03 (사용자 토큰)
+  → BE `MesReadService`: 생산관리(품질 개념은 품질검사) 모듈 읽기 권한 확인 → `MesConcepts` 의 SELECT + 바인딩 WHERE
+  → 읽기 전용 풀(`MesDataSource`, 최대 2 · 5초 · 10초 statement) 로 MES DB 조회 → 2,000행 상한
+  → FE 가 나머지 조건(contains · gt …) 을 `applyFilters` 로 걸고 40행만 모델에 준다
+```
+
+- **접속 정보는 회사마다 `external_systems` 행이다(tenant V19).** 운영 콘솔 › 워크스페이스 상세 › 「연동」 탭에서 운영팀이 등록한다
+  (`AdminExternalSystemService`, `POST /api/admin/workspaces/{id}/systems`). 비밀번호는 `CONNECTOR_TOKEN_KEY` 로 잠가 저장하고
+  화면에 돌려주지 않는다. `MesDataSourceRegistry` 가 회사별 읽기 전용 풀을 처음 조회 때 열고, 행이 바뀌면(updated_at) 다시 연다.
+  접속 정보가 있는 MES 는 회사당 하나다. 고객의 설정 › 연동 「외부 시스템」은 이 행을 읽기만 하고 MES 배지는 실제 접속(ping) 결과다.
+- **답에 출처가 붙는다.** MES 개념은 온톨로지 `source`(`MES_SOURCE`) 가 있어 도구 설명 · 결과에 실리고, 모델은 답에
+  「출처: 외부 MES (고객사 MES DB 연동)」 를 적는다. 추론 과정의 도구 행 오른쪽에도 같은 문구가 보여 우리 DB 조회와 구분된다.
+- **SQL 은 BE `MesConcepts` 에 적힌 것만 나간다.** 모델도 화면도 SQL 을 짓지 않는다. 컬럼은 개념별 허용 목록, 값은 바인딩.
+  컬럼 이름은 온톨로지 `attrs` 와 같아야 한다 — 한쪽을 바꾸면 다른 쪽도 바꾼다.
+- **읽기 전용이 세 겹이다.** DB 롤(SELECT 만) · 드라이버 `readOnly=true` · 풀 `setReadOnly`.
+- **접속 정보가 없는 회사는 MES 조회만 503(`CONNECTOR_UNAVAILABLE`)이고** 다른 기능은 그대로다. 풀은 처음 조회 때 열고
+  그때도 고객 DB 에 미리 붙어 보지 않으므로 그쪽이 죽어 있어도 우리 서버는 뜬다.
+- **데모 MES** 는 `INFRA/seed/data/mes-supabase.sql` 이다(Supabase 에 올리는 법이 파일 머리에 있다). 프레스 생산라인이고
+  제품의 금형 도면 코드가 제품설계 도면번호라 `mes_work_order.die_drawing_code → drawing` 으로 이어진다.
+- 고객사마다 MES 테이블이 다르면 `MesConcepts` 의 표가 회사별 매핑 테이블로 옮겨 간다. 지금은 데모 하나라 코드에 둔다.
+
+BE 환경 변수는 없다 — 접속 정보가 행에 있다. 비밀번호를 잠그는 `CONNECTOR_TOKEN_KEY` 만 있으면 된다(외부 서비스 토큰과 같은 키).
+운영 콘솔 폼의 값: 호스트(Supabase 는 Session pooler, IPv4 주소) · 포트(기본 5432) · DB 이름 · 사용자(SELECT 만 가진 롤,
+Supabase 풀러는 `롤.프로젝트ID`) · 비밀번호 · sslmode(기본 `require`). 「연결 테스트」가 저장된 값으로 한 번 붙어 보고 이유를 돌려준다.
 
 ## 환경 변수
 
