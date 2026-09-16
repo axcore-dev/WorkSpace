@@ -2,17 +2,20 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-/** 토스트가 떠 있는 시간 (ms) */
+/** 토스트가 떠 있는 시간 (ms). 되돌리기 같은 행동 버튼이 있으면 읽고 누를 시간을 더 준다 */
 const TOAST_MS = 2200;
+const TOAST_ACTION_MS = 6000;
 
 export type ToastTone = "ink" | "error";
+/** 토스트 안의 행동 하나 — 「되돌리기」. 누르면 토스트는 바로 닫힌다 */
+export type ToastAction = { label: string; onClick: () => void };
 /**
  * `visible`이 따로 있는 이유: 시간이 다 되어도 **문구를 지우지 않는다.**
  *
  * 지워 버리면 요소가 그 자리에서 사라져서 나갈 때 애니메이션을 재생할 수 없다.
  * 문구는 남기고 보이기만 끈다 — 다음 토스트가 덮어쓴다.
  */
-export type ToastState = { message: string; tone: ToastTone; visible: boolean } | null;
+export type ToastState = { message: string; tone: ToastTone; visible: boolean; action?: ToastAction } | null;
 
 /**
  * 저장 피드백 토스트 상태. 표현은 `ui.tsx`의 `Toast`가 맡는다.
@@ -23,7 +26,7 @@ export type ToastState = { message: string; tone: ToastTone; visible: boolean } 
  *
  * `tone`을 받는 이유: BE 연동 시 저장 실패를 같은 자리에서 알려야 한다.
  */
-export function useToast(): [ToastState, (message: string, tone?: ToastTone) => void] {
+export function useToast(): [ToastState, (message: string, tone?: ToastTone, action?: ToastAction) => void] {
   const [toast, setToast] = useState<ToastState>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -34,14 +37,23 @@ export function useToast(): [ToastState, (message: string, tone?: ToastTone) => 
     [],
   );
 
-  const show = useCallback((message: string, tone: ToastTone = "ink") => {
+  const show = useCallback((message: string, tone: ToastTone = "ink", action?: ToastAction) => {
     if (timer.current) clearTimeout(timer.current);
-    setToast({ message, tone, visible: true });
+    const hide = () => setToast((t) => (t ? { ...t, visible: false } : t));
+    // 행동을 누르면 토스트를 먼저 닫는다 — 되돌리기를 두 번 누르는 일이 없게
+    const wrapped = action
+      ? {
+          label: action.label,
+          onClick: () => {
+            if (timer.current) clearTimeout(timer.current);
+            hide();
+            action.onClick();
+          },
+        }
+      : undefined;
+    setToast({ message, tone, visible: true, action: wrapped });
     // 문구는 남기고 보이기만 끈다 — 그래야 나가는 전환이 재생된다
-    timer.current = setTimeout(
-      () => setToast((t) => (t ? { ...t, visible: false } : t)),
-      TOAST_MS,
-    );
+    timer.current = setTimeout(hide, action ? TOAST_ACTION_MS : TOAST_MS);
   }, []);
 
   return [toast, show];

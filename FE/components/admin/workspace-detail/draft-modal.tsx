@@ -4,42 +4,39 @@ import { useEffect, useMemo, useState } from "react";
 import { Field } from "@/components/admin/form-parts";
 import { Modal } from "@/components/modal";
 import { Button, FIELD } from "@/components/ui";
-import { MODULES } from "@/data/modules";
 import { ApiRequestError } from "@/lib/api";
-import { draftConcepts, introspectSystem, type ExternalSystemAdminDto, type IntrospectionDto } from "@/lib/admin-api";
-
-const TAB_OPTIONS = MODULES.flatMap((m) => m.subfunctions.map((s) => ({ value: s.id, label: `${m.name} · ${s.name}` })));
-
-/** 시스템 종류(MES · ERP …)와 같은 externalSystem 을 가진 모듈의 첫 탭. 없으면 첫 탭 */
-function defaultTab(kind: string | undefined): string {
-  const m = kind ? MODULES.find((x) => x.externalSystem === kind) : undefined;
-  return m?.subfunctions[0]?.id ?? TAB_OPTIONS[0]?.value ?? "";
-}
+import { draftConcepts, introspectSystem, type ExternalConceptAdminDto, type ExternalSystemAdminDto, type IntrospectionDto } from "@/lib/admin-api";
+import { conceptsByTable } from "@/lib/concept-sql";
+import { TAB_OPTIONS, defaultTab } from "./concept-form";
 
 /**
  * 「DB 에서 초안 만들기」 — 외부 DB 의 표를 읽어 고른 표를 개념 초안으로 넣는다.
  *
  * 구조(속성 · 관계)는 규칙으로 맞게 나오고 말(이름 · 설명)은 컬럼 이름 그대로다. 넣은 뒤 스튜디오에서 다듬는다.
- * 이미 있는 개념 id 는 서버가 건너뛴다.
+ * 이미 있는 개념 id 는 서버가 건너뛴다. 같은 표를 읽는 개념이 이미 있으면(템플릿이 먼저 넣은 경우) 표시하고 기본 체크를 푼다(#116 1번).
  */
 export function DraftModal({
   workspaceId,
   systems,
-  existingIds,
+  existing,
   onClose,
   onDone,
 }: {
   workspaceId: number;
   systems: ExternalSystemAdminDto[];
-  existingIds: string[];
+  /** 지금 있는 외부 개념 전부 — id · 표 겹침 판정 */
+  existing: ExternalConceptAdminDto[];
   onClose: () => void;
-  onDone: (added: number) => Promise<void>;
+  /** 넣은 수와 행 id. id 는 「되돌리기」 가 지운다 */
+  onDone: (added: number, ids: number[]) => Promise<void>;
 }) {
+  const existingIds = useMemo(() => existing.map((c) => c.conceptId), [existing]);
   const [systemId, setSystemId] = useState(systems[0]?.id ?? 0);
   const [schema, setSchema] = useState<string | undefined>(undefined);
   /** 읽은 구조와 그때의 요청 키. 키가 지금 요청과 다르면 아직 읽는 중이다 — effect 안에서 setState 를 따로 부르지 않으려고 */
   const [loaded, setLoaded] = useState<{ key: string; info: IntrospectionDto; failure: string | null } | null>(null);
-  const [picked, setPicked] = useState<Set<string>>(new Set());
+  /** 사용자가 손댄 체크. 없는 표는 판정의 기본값(표는 켜짐 · 뷰 · 같은 id · 같은 표는 꺼짐)을 따른다 */
+  const [overrides, setOverrides] = useState<Record<string, boolean>>({});
   /** 사용자가 손댄 접두어. null 이면 시스템 종류에서 만든 기본값(mes_)을 쓴다 */
   const [prefixInput, setPrefixInput] = useState<string | null>(null);
   /** 사용자가 고른 탭. null 이면 시스템 종류에 맞는 모듈(MES → 생산관리)의 첫 탭 */
@@ -66,7 +63,7 @@ export function DraftModal({
       .then((r) => {
         if (!alive) return;
         setLoaded({ key, info: r, failure: null });
-        setPicked(new Set(r.tables.filter((t) => !t.view).map((t) => t.name)));
+        setOverrides({});
       })
       .catch((e: unknown) => {
         if (!alive) return;
@@ -77,27 +74,35 @@ export function DraftModal({
     };
   }, [workspaceId, systemId, schema]);
 
-  const willAdd = useMemo(() => {
-    const ids = [...picked].map((t) => `${prefix}${t.toLowerCase().replace(/[^a-z0-9_]/g, "_")}`);
-    return { total: ids.length, skipped: ids.filter((id) => existingIds.includes(id)).length };
-  }, [picked, prefix, existingIds]);
+  /** 같은 시스템에서 같은 표를 이미 읽는 개념 — 「같은 표를 읽는 개념이 있어요: 불량 기록 (mes_defect)」 */
+  const byTable = useMemo(() => conceptsByTable(existing.filter((c) => c.systemId === systemId)), [existing, systemId]);
+  const idOf = (table: string) => `${prefix}${table.toLowerCase().replace(/[^a-z0-9_]/g, "_")}`;
+  type Status = { kind: "new" } | { kind: "same-id"; id: string } | { kind: "same-table"; other: { conceptId: string; name: string } };
+  const statusOf = (t: { name: string; schema: string }): Status => {
+    const id = idOf(t.name);
+    if (existingIds.includes(id)) return { kind: "same-id", id };
+    const twin = byTable.get(`${t.schema.toLowerCase()}.${t.name.toLowerCase()}`)?.[0];
+    return twin ? { kind: "same-table", other: { conceptId: twin.conceptId, name: twin.name } } : { kind: "new" };
+  };
+  const isOn = (t: { name: string; schema: string; view: boolean }) => {
+    const s = statusOf(t);
+    if (s.kind === "same-id") return false;
+    return overrides[t.name] ?? (!t.view && s.kind === "new");
+  };
+  const chosen = (info?.tables ?? []).filter(isOn).map((t) => t.name);
+  const sameIdCount = (info?.tables ?? []).filter((t) => statusOf(t).kind === "same-id").length;
 
-  function toggle(name: string) {
-    setPicked((p) => {
-      const n = new Set(p);
-      if (n.has(name)) n.delete(name);
-      else n.add(name);
-      return n;
-    });
-  }
+  const toggle = (name: string, on: boolean) => setOverrides((p) => ({ ...p, [name]: on }));
+  const setAll = (pick: (t: { name: string; view: boolean }) => boolean) =>
+    setOverrides(Object.fromEntries((info?.tables ?? []).map((t) => [t.name, pick(t)])));
 
   async function run() {
-    if (!info?.schema) return;
+    if (!info?.schema || saving || chosen.length === 0) return;
     setSaving(true);
     setRunError(null);
     try {
-      const added = await draftConcepts(workspaceId, systemId, { schema: info.schema, tables: [...picked], prefix, tab });
-      await onDone(added);
+      const r = await draftConcepts(workspaceId, systemId, { schema: info.schema, tables: chosen, prefix, tab });
+      await onDone(r.added, r.ids);
     } catch (e) {
       setRunError(e instanceof ApiRequestError ? e.message : "초안을 넣지 못했어요");
     } finally {
@@ -114,11 +119,11 @@ export function DraftModal({
       size="lg"
       footer={
         <>
-          <Button variant="secondary" onClick={onClose}>
-            취소
+          <Button variant="secondary" onClick={onClose} disabled={saving}>
+            닫기
           </Button>
-          <Button disabled={saving || loading || picked.size === 0 || !info?.schema} onClick={() => void run()}>
-            {saving ? "넣는 중…" : `초안 ${willAdd.total - willAdd.skipped}개 넣기`}
+          <Button disabled={saving || loading || chosen.length === 0 || !info?.schema} onClick={() => void run()}>
+            {saving ? "넣는 중…" : `초안 ${chosen.length}개 넣기`}
           </Button>
         </>
       }
@@ -160,18 +165,18 @@ export function DraftModal({
 
       <div className="mt-5 flex items-center justify-between">
         <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-          표 {info?.tables.length ?? 0} · 고른 것 {picked.size}
-          {willAdd.skipped > 0 && <span className="ml-2 font-normal normal-case tracking-normal text-slate-400">이미 있는 {willAdd.skipped}개는 건너뛰어요</span>}
+          표 {info?.tables.length ?? 0} · 고른 것 {chosen.length}
+          {sameIdCount > 0 && <span className="ml-2 font-normal normal-case tracking-normal text-slate-400">같은 id 가 있는 {sameIdCount}개는 건너뛰어요</span>}
         </p>
         {info && info.tables.length > 0 && (
           <span className="flex gap-2 text-[12px]">
-            <button type="button" className="text-slate-600 hover:text-slate-900" onClick={() => setPicked(new Set(info.tables.map((t) => t.name)))}>
+            <button type="button" className="cursor-pointer text-slate-600 hover:text-slate-900" onClick={() => setAll(() => true)}>
               전부
             </button>
-            <button type="button" className="text-slate-600 hover:text-slate-900" onClick={() => setPicked(new Set(info.tables.filter((t) => !t.view).map((t) => t.name)))}>
+            <button type="button" className="cursor-pointer text-slate-600 hover:text-slate-900" onClick={() => setAll((t) => !t.view)}>
               표만
             </button>
-            <button type="button" className="text-slate-600 hover:text-slate-900" onClick={() => setPicked(new Set())}>
+            <button type="button" className="cursor-pointer text-slate-600 hover:text-slate-900" onClick={() => setAll(() => false)}>
               없음
             </button>
           </span>
@@ -184,16 +189,29 @@ export function DraftModal({
       ) : (
         <ul className="thin-scroll mt-2 max-h-80 divide-y divide-slate-100 overflow-y-auto rounded-lg border border-slate-200">
           {(info?.tables ?? []).map((t) => {
-            const id = `${prefix}${t.name.toLowerCase().replace(/[^a-z0-9_]/g, "_")}`;
-            const exists = existingIds.includes(id);
+            const s = statusOf(t);
+            const on = isOn(t);
             return (
-              <li key={t.name} className={`flex items-start gap-3 px-3 py-2 ${exists ? "opacity-55" : ""}`}>
-                <input type="checkbox" id={`d-t-${t.name}`} checked={picked.has(t.name)} onChange={() => toggle(t.name)} className="mt-1" />
+              <li key={t.name} className={`flex items-start gap-3 px-3 py-2 ${s.kind === "same-id" ? "opacity-55" : ""}`}>
+                <input
+                  type="checkbox"
+                  id={`d-t-${t.name}`}
+                  checked={on}
+                  disabled={s.kind === "same-id"}
+                  onChange={() => toggle(t.name, !on)}
+                  className="mt-1 accent-slate-900"
+                />
                 <label htmlFor={`d-t-${t.name}`} className="min-w-0 flex-1 cursor-pointer">
-                  <span className="flex items-center gap-2">
+                  <span className="flex flex-wrap items-center gap-2">
                     <span className="font-mono text-[13px] text-slate-900">{t.name}</span>
                     {t.view && <span className="rounded border border-slate-200 px-1 font-mono text-[10px] text-slate-500">view</span>}
-                    {exists && <span className="text-[11px] text-slate-500">이미 {id}</span>}
+                    <span className="font-mono text-[11px] text-slate-400">→ {idOf(t.name)}</span>
+                    {s.kind === "same-id" && <span className="text-[11px] text-amber-700">같은 id 가 있어요 — 건너뛰어요</span>}
+                    {s.kind === "same-table" && (
+                      <span className="text-[11px] text-amber-700">
+                        같은 표를 읽는 개념이 있어요: {s.other.name} ({s.other.conceptId})
+                      </span>
+                    )}
                   </span>
                   <span className="block text-[12px] text-slate-500">
                     {t.comment ? `${t.comment} · ` : ""}컬럼 {t.columns.length}
