@@ -88,6 +88,9 @@ export const getSessions = async () => (await apiGet<SessionDto[]>(`${BASE}/sess
 
 export const revokeSession = (id: string) => apiDelete<void>(`${BASE}/sessions/${id}`);
 
+/** 지금 기기만 남기고 전부 끊는다 — 한 번의 요청. 실제로 끊은 수를 돌려준다 */
+export const revokeOtherSessions = async () => (await apiDelete<{ revoked: number }>(`${BASE}/sessions`))?.revoked ?? 0;
+
 /* ──────────────────────────── 비밀번호 ──────────────────────────── */
 
 /**

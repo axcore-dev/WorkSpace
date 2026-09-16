@@ -37,6 +37,22 @@ public interface UserSessionRepository extends JpaRepository<UserSession, UUID> 
     int revokeAllByUserId(@Param("userId") UUID userId, @Param("at") Instant at);
 
     /**
+     * 지금 세션만 남기고 전부 폐기한다 — 「다른 기기 모두 로그아웃」.
+     *
+     * @return 실제로 폐기된 행 수
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(
+            """
+            update UserSession s
+               set s.revokedAt = :at
+             where s.user.id = :userId
+               and s.id <> :keep
+               and s.revokedAt is null
+            """)
+    int revokeAllByUserIdExcept(@Param("userId") UUID userId, @Param("keep") UUID keep, @Param("at") Instant at);
+
+    /**
      * 만료됐거나 취소된 지 오래된 행을 지운다. 스케줄러를 붙이기 전까지는 호출부가 없다.
      *
      * @return 삭제된 행 수

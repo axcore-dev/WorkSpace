@@ -192,15 +192,17 @@ public class SecurityConfig {
      * 고전적인 우회가 열린다. 발급자(iss)도 함께 검증한다.
      */
     @Bean
-    JwtDecoder jwtDecoder(JwtProperties properties) {
+    JwtDecoder jwtDecoder(JwtProperties properties, RevokedSessionRegistry revokedSessions) {
         NimbusJwtDecoder decoder =
                 NimbusJwtDecoder.withSecretKey(secretKey(properties))
                         .macAlgorithm(MacAlgorithm.HS256)
                         .build();
+        // 끊긴 세션(sid)의 토큰은 만료 전이라도 401 — 세션을 끊는 즉시 모든 API 가 막힌다
         decoder.setJwtValidator(
                 new DelegatingOAuth2TokenValidator<>(
                         JwtValidators.createDefault(),
-                        new JwtIssuerValidator(properties.issuer())));
+                        new JwtIssuerValidator(properties.issuer()),
+                        revokedSessions));
         return decoder;
     }
 

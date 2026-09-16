@@ -1,11 +1,14 @@
 package com.axcore.workspace.user.service;
 
+import com.axcore.workspace.security.RevokedSessionRegistry;
+import com.axcore.workspace.user.entity.UserSession;
 import com.axcore.workspace.user.repository.UserSessionRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -18,15 +21,18 @@ import java.util.UUID;
  * <p>{@code REQUIRES_NEW} 는 프록시를 거쳐야 적용되므로 같은 빈 안에서 자기 메서드를 부르면
  * 아무 효과가 없다. 그래서 호출되는 쪽이 별도 빈이어야 한다.
  *
- * <p>비밀번호 변경 시의 "모든 기기에서 다시 로그인" 도 같은 경로를 쓴다.
+ * <p>비밀번호 변경 시의 "모든 기기에서 다시 로그인" 도 같은 경로를 쓴다. 끊은 세션의 access 토큰은
+ * {@link RevokedSessionRegistry} 에 넣어 만료 전이라도 즉시 막는다.
  */
 @Service
 public class SessionRevoker {
 
     private final UserSessionRepository sessionRepository;
+    private final RevokedSessionRegistry revoked;
 
-    public SessionRevoker(UserSessionRepository sessionRepository) {
+    public SessionRevoker(UserSessionRepository sessionRepository, RevokedSessionRegistry revoked) {
         this.sessionRepository = sessionRepository;
+        this.revoked = revoked;
     }
 
     /**
@@ -34,6 +40,10 @@ public class SessionRevoker {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public int revokeAll(UUID userId, Instant at) {
-        return sessionRepository.revokeAllByUserId(userId, at);
+        // 벌크 UPDATE 는 어느 행이 바뀌었는지 돌려주지 않는다 — 먼저 살아 있는 id 를 받아 둔다
+        List<UUID> ids = sessionRepository.findActiveByUserId(userId, at).stream().map(UserSession::getId).toList();
+        int count = sessionRepository.revokeAllByUserId(userId, at);
+        revoked.revokeAll(ids, at);
+        return count;
     }
 }

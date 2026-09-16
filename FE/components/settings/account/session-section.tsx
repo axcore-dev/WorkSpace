@@ -7,7 +7,7 @@ import {
 } from "@/components/settings/settings-section";
 import { IconLaptop } from "@/components/icons";
 import { Badge, Button } from "@/components/ui";
-import { getSessions, revokeSession, type SessionDto } from "@/lib/account-api";
+import { getSessions, revokeOtherSessions, revokeSession, type SessionDto } from "@/lib/account-api";
 
 /**
  * 계정 › 기기 — 살아 있는 세션 (`GET /api/auth/sessions`).
@@ -19,9 +19,8 @@ import { getSessions, revokeSession, type SessionDto } from "@/lib/account-api";
  * 이름은 그 문자열에서 OS·브라우저만 뽑아 만들고, 위치 자리에는 IP 를 그대로 둔다 — 지역으로
  * 바꾸려면 GeoIP 가 필요하고 그건 서버 몫이다. 알아볼 수 없는 문자열은 「알 수 없는 기기」다.
  *
- * **「다른 기기 모두 로그아웃」은 한 번에 지우는 경로가 없다.** 남은 세션마다 DELETE 를 보낸다.
- * 하나가 실패해도 나머지는 끊고, 끝에 실제로 끊긴 수를 알린다 — 다 끊긴 것처럼 말해 두고
- * 하나가 살아 있으면 그게 가장 나쁘다.
+ * **「다른 기기 모두 로그아웃」은 한 번의 요청이다** (`DELETE /api/auth/sessions`, 지금 세션만 남기고 한 UPDATE).
+ * 기기마다 따로 보내던 때는 하나가 실패하면 반쯤 끊긴 채 「다 끊었다」 고 믿게 됐다. 서버가 돌려준 실제로 끊은 수를 알린다.
  */
 export function SessionSection({
   onSaved,
@@ -81,14 +80,14 @@ export function SessionSection({
 
   async function logoutOthers() {
     setBusy(true);
-    const results = await Promise.allSettled(rest.map((s) => revokeSession(s.id)));
-    const goneIds = rest.filter((_, i) => results[i].status === "fulfilled").map((s) => s.id);
-    setSessions((prev) => (prev ?? []).filter((s) => !goneIds.includes(s.id)));
-    setBusy(false);
-    if (goneIds.length === rest.length) {
-      onSaved(`${goneIds.length}개 기기에서 로그아웃했어요`);
-    } else {
-      onSaved(`${goneIds.length}개만 로그아웃했어요. 나머지는 다시 시도해 주세요`, "error");
+    try {
+      const revoked = await revokeOtherSessions();
+      setSessions((prev) => (prev ?? []).filter((s) => s.current));
+      onSaved(`${revoked}개 기기에서 로그아웃했어요`);
+    } catch (e: unknown) {
+      onSaved(e instanceof Error && e.message ? e.message : "끊지 못했어요. 다시 시도해 주세요", "error");
+    } finally {
+      setBusy(false);
     }
   }
 

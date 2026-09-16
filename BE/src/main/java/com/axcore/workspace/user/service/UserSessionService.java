@@ -1,5 +1,6 @@
 package com.axcore.workspace.user.service;
 
+import com.axcore.workspace.security.RevokedSessionRegistry;
 import com.axcore.workspace.user.entity.UserSession;
 import com.axcore.workspace.user.repository.UserSessionRepository;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -21,9 +22,11 @@ import java.util.UUID;
 public class UserSessionService {
 
     private final UserSessionRepository sessionRepository;
+    private final RevokedSessionRegistry revoked;
 
-    public UserSessionService(UserSessionRepository sessionRepository) {
+    public UserSessionService(UserSessionRepository sessionRepository, RevokedSessionRegistry revoked) {
         this.sessionRepository = sessionRepository;
+        this.revoked = revoked;
     }
 
     @Transactional(readOnly = true)
@@ -53,6 +56,31 @@ public class UserSessionService {
     @Transactional
     public void revoke(UUID userId, UUID sessionId, Instant now) {
         requireOwned(userId, sessionId).revoke(now);
+        revoked.revoke(sessionId, now);
+    }
+
+    /**
+     * 지금 세션만 남기고 이 사용자의 세션을 전부 끊는다 — 「다른 기기 모두 로그아웃」.
+     *
+     * <p>한 트랜잭션의 UPDATE 하나다. 화면이 기기마다 DELETE 를 따로 보내던 것을 대신한다 — 그 방식은 하나가 실패하면
+     * 반쯤 끊긴 상태가 되고, 사용자는 「전부 끊었다」 고 믿는다. 끊긴 세션의 access 토큰은 만료(15분)까지 일반 API 를
+     * 통과한다 — 로그아웃 · 비밀번호 변경과 같은 규칙이다.
+     *
+     * <p>지금 세션이 살아 있는지 먼저 본다. 이미 끊긴 세션의 토큰으로 남의 기기를 끊을 수는 없다.
+     *
+     * @return 실제로 폐기된 세션 수
+     */
+    @Transactional
+    public int revokeOthers(UUID userId, UUID currentSessionId, Instant now) {
+        requireActive(userId, currentSessionId, now);
+        // 벌크 UPDATE 는 어느 행이 바뀌었는지 돌려주지 않는다 — 먼저 살아 있는 id 를 받아 두고, 끊은 뒤 그 토큰들을 즉시 막는다
+        List<UUID> others = sessionRepository.findActiveByUserId(userId, now).stream()
+                .map(UserSession::getId)
+                .filter(id -> !currentSessionId.equals(id))
+                .toList();
+        int count = sessionRepository.revokeAllByUserIdExcept(userId, currentSessionId, now);
+        revoked.revokeAll(others, now);
+        return count;
     }
 
     /**
