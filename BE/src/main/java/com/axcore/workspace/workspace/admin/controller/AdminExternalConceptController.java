@@ -76,6 +76,16 @@ public class AdminExternalConceptController {
         return ResponseEntity.noContent().build();
     }
 
+    /**
+     * 「AI 로 다듬기」 의 재료 — 개념 · 표 구조 · 값 프로파일 · 통계 규칙 제안. AI 서버가 사용자 토큰으로 부른다.
+     * 관리자 판정은 여기 한 곳이다 — AI 서버는 이 응답을 못 받으면 아무것도 못 한다.
+     */
+    @GetMapping("/concepts/{conceptId}/refine-input")
+    public AdminExternalConceptService.RefineInput refineInput(@AuthenticationPrincipal Jwt jwt, @PathVariable Long id, @PathVariable long conceptId) {
+        workspaces.requireInternalAdmin(userId(jwt));
+        return concepts.refineInput(id, conceptId);
+    }
+
     /** 쓸 수 있는 템플릿. 화면의 「템플릿 적용」 메뉴가 이걸 그린다 */
     public record TemplateResponse(String key, String name, String kind, int conceptCount) {}
 

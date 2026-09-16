@@ -127,6 +127,12 @@ public class WorkspaceRegistrar {
         return require(id).getSchemaName();
     }
 
+    /** 회사 이름 — 프롬프트 · 문구에 쓴다 */
+    @Transactional(readOnly = true)
+    public String companyNameOf(Long id) {
+        return require(id).getName();
+    }
+
     /**
      * 구성원까지 담은 상세.
      *
