@@ -45,6 +45,20 @@ public class SessionController {
                 .toList();
     }
 
+    /** 「다른 기기 모두 로그아웃」 응답 — 실제로 끊은 수. 0 이면 다른 기기가 없었다 */
+    public record RevokedResponse(int revoked) {}
+
+    /**
+     * 지금 세션만 남기고 전부 끊는다 — 「다른 기기 모두 로그아웃」. 한 번의 UPDATE 라 반쯤 끊긴 상태가 없다.
+     *
+     * <p>지금 브라우저는 그대로라 쿠키를 건드리지 않는다. 이 기기까지 끊으려면 이어서 {@code POST /api/auth/logout}.
+     */
+    @DeleteMapping
+    public RevokedResponse revokeOthers(@AuthenticationPrincipal Jwt jwt) {
+        JwtPrincipal principal = JwtPrincipal.of(jwt);
+        return new RevokedResponse(sessionService.revokeOthers(principal.userId(), principal.sessionId(), Instant.now()));
+    }
+
     /**
      * 지목한 세션을 끊는다.
      *

@@ -53,6 +53,7 @@ Subject : [AXpoint] 로그인 확인 코드
 | POST | `/api/auth/password/reset` | **없음** | 204 |
 | GET | `/api/auth/sessions` | Bearer | 200 배열 |
 | DELETE | `/api/auth/sessions/{sessionId}` | Bearer | 204 |
+| DELETE | `/api/auth/sessions` | Bearer | 200 `{revoked}` — 지금 세션만 남기고 전부 |
 | PATCH | `/api/auth/profile` | Bearer | 200 `UserResponse` |
 | GET | `/api/auth/identities` | Bearer | 200 배열 |
 | POST | `/api/auth/profile/photo` (multipart) | Bearer | 200 `UserResponse` |
@@ -321,6 +322,17 @@ GET /api/auth/sessions → []
 
 `POST /api/auth/logout` 과의 차이: 저쪽은 **쿠키로** 지목하고 이쪽은 **id 로** 지목한다.
 "다른 기기에서 로그아웃"은 그 기기의 토큰을 모르는 채로 끊어야 하는 조작이다.
+
+### 6-3. DELETE /api/auth/sessions
+
+**200** `{"revoked": 2}` — 지금 세션(access 토큰의 `sid`)만 남기고 이 사용자의 살아 있는 세션을 전부 폐기한다.
+한 번의 UPDATE 라 반쯤 끊긴 상태가 없다. 설정 › 기기의 「다른 기기 N대 모두 로그아웃」 이 이것이다.
+
+- 지금 브라우저는 그대로라 쿠키를 건드리지 않는다. 이 기기까지 끊으려면 이어서 `POST /api/auth/logout`.
+- 지금 세션이 이미 끊긴 토큰이면 **401** — 끊긴 세션으로 남의 기기를 끊을 수 없다.
+- 끊긴 기기의 access 토큰은 **즉시** 401 이다. 끊는 순간 `sid` 를 서버 메모리(`RevokedSessionRegistry`)에 넣고 JWT 검증기가
+  대조한다. 항목은 토큰 수명(15분 + 60초)이 지나면 빠진다. 로그아웃 · 개별 끊기 · 비밀번호 변경 · MFA 해제 · 재사용 감지도 같다.
+  서버가 한 대일 때 정확하다(여러 대가 되면 Redis/DB 로 옮긴다). 서버 재시작 직후에는 그 순간 살아 있던 끊긴 토큰이 만료까지 통과한다.
 
 ---
 

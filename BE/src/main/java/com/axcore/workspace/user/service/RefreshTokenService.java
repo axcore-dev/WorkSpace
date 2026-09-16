@@ -1,6 +1,7 @@
 package com.axcore.workspace.user.service;
 
 import com.axcore.workspace.security.JwtProperties;
+import com.axcore.workspace.security.RevokedSessionRegistry;
 import com.axcore.workspace.security.SecureTokens;
 import com.axcore.workspace.user.entity.User;
 import com.axcore.workspace.user.entity.UserSession;
@@ -34,13 +35,17 @@ public class RefreshTokenService {
     private final SessionRevoker sessionRevoker;
     private final JwtProperties jwtProperties;
 
+    private final RevokedSessionRegistry revoked;
+
     public RefreshTokenService(
             UserSessionRepository sessionRepository,
             SessionRevoker sessionRevoker,
-            JwtProperties jwtProperties) {
+            JwtProperties jwtProperties,
+            RevokedSessionRegistry revoked) {
         this.sessionRepository = sessionRepository;
         this.sessionRevoker = sessionRevoker;
         this.jwtProperties = jwtProperties;
+        this.revoked = revoked;
     }
 
     @Transactional
@@ -119,7 +124,11 @@ public class RefreshTokenService {
         }
         sessionRepository
                 .findByTokenHashWithUser(SecureTokens.hash(rawToken))
-                .ifPresent(session -> session.revoke(now));
+                .ifPresent(session -> {
+                    session.revoke(now);
+                    // 로그아웃한 기기의 access 토큰도 만료 전이라도 바로 막는다
+                    revoked.revoke(session.getId(), now);
+                });
     }
 
     /**

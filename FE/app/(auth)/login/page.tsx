@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AuthPrimaryButton, AuthSplit, SocialAuthButtons } from "@/components/auth-shell";
@@ -26,6 +26,12 @@ type LoginResult = MfaLoginResult & { mfaToken?: string | null };
 export default function LoginPage() {
   const router = useRouter();
   const [step, setStep] = useState<"login" | "mfa" | "await">("login");
+  /** `/login?reason=signed-out` — 다른 기기에서 끊겼거나 세션이 끝나 앱이 보낸 경우. 서버 렌더에서는 false, 붙은 뒤 URL 로 판단 */
+  const signedOut = useSyncExternalStore(
+    () => () => {},
+    () => new URLSearchParams(window.location.search).get("reason") === "signed-out",
+    () => false,
+  );
   /** 2단계 챌린지 토큰. `MFA_REQUIRED` 응답에만 있고, 코드와 함께 내야 통과한다 */
   const [mfaToken, setMfaToken] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -178,6 +184,11 @@ export default function LoginPage() {
           <h2 className="mt-2.5 text-[31px] font-bold leading-[1.25] tracking-tight text-slate-900">
             다시 오신 것을 환영합니다
           </h2>
+          {signedOut && (
+            <p role="status" className="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-relaxed text-slate-700">
+              다른 기기에서 로그아웃됐거나 세션이 끝났어요. 다시 로그인해 주세요.
+            </p>
+          )}
           <p className="mt-2.5 text-[15px] text-slate-500">
             계정이 없으신가요?{" "}
             <Link href="/signup" className="font-semibold text-primary-600 transition-colors hover:text-primary-700">

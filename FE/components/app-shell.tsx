@@ -25,7 +25,7 @@ import { useSidebarCollapsed } from "@/components/use-sidebar-collapsed";
 import { useModules } from "@/components/module-provider";
 import { useAccountMe } from "@/lib/account-me";
 import { ApiRequestError, apiGet, apiPostAuthed } from "@/lib/api";
-import { setAccessToken } from "@/lib/session";
+import { ensureAccessToken, SESSION_CHANGED, setAccessToken } from "@/lib/session";
 import { useWorkspaceMe } from "@/lib/workspace-me";
 import { MODULES } from "@/data/modules";
 import { EXTERNAL_SYSTEMS } from "@/data/org";
@@ -143,6 +143,41 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [memberships, setMemberships] = useState<Membership[]>([]);
   const [switching, setSwitching] = useState<number | null>(null);
   const [switchError, setSwitchError] = useState<string | null>(null);
+
+  /**
+   * 세션이 끝났으면(다른 기기에서 끊김 · 만료) 로그인으로 보낸다. 재발급이 401 로 떨어지면 `clearSession` 이 토큰을 비우고
+   * SESSION_CHANGED 를 낸다 — 그때와 처음 열 때(새로고침) 둘 다 본다. 비운 채 두면 화면마다 요청이 실패한 채로 남는다.
+   */
+  useEffect(() => {
+    let alive = true;
+    const check = () => {
+      void ensureAccessToken().then((token) => {
+        if (alive && !token) router.replace("/login?reason=signed-out");
+      });
+    };
+    // 서버에 물어본다 — 메모리의 access 토큰은 멀쩡해 보여도 서버가 그 세션을 끊었을 수 있다(다른 기기에서 「모두 로그아웃」).
+    // 401 이면 api 가 재발급을 시도하고, 그것도 실패하면 세션을 비우며 SESSION_CHANGED 를 내 위 check 가 로그인으로 보낸다
+    const probe = () => {
+      if (document.visibilityState !== "visible") return;
+      void apiGet<unknown>("/api/auth/me").catch(() => undefined);
+    };
+    // 같은 브라우저의 다른 창이 로그아웃하면 localStorage 의 사용자 키가 지워진다 — 그 신호가 이 창에도 온다
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "axpoint-user" && e.newValue === null) probe();
+    };
+    check();
+    window.addEventListener(SESSION_CHANGED, check);
+    window.addEventListener("storage", onStorage);
+    document.addEventListener("visibilitychange", probe);
+    window.addEventListener("focus", probe);
+    return () => {
+      alive = false;
+      window.removeEventListener(SESSION_CHANGED, check);
+      window.removeEventListener("storage", onStorage);
+      document.removeEventListener("visibilitychange", probe);
+      window.removeEventListener("focus", probe);
+    };
+  }, [router]);
 
   useEffect(() => {
     let alive = true;
