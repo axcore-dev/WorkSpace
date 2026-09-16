@@ -121,7 +121,7 @@ export default function AdminAuditPage() {
         <div className="mt-4">
           <AdminTable columns={["시각", "운영자", "동작", "대상", "변경"]} minWidth={720}>
             {rows.map((e) => (
-              <tr key={`${e.at}-${e.targetSchema}-${e.action}`} className={TR}>
+              <tr key={e.id} className={TR}>
                 <td className={`${TD_KEY} tabular-nums`}>{e.at}</td>
                 <td className={TD}>{e.operator}</td>
                 <td className={TD}>{AUDIT_ACTION_LABEL[e.action]}</td>
