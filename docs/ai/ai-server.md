@@ -188,7 +188,10 @@ workspace_data({ concept: "mes_downtime", filter: [{ attr: "equipment_code", op:
   (`AdminExternalConceptService`: CRUD · 「템플릿 적용」 · 「미리보기」). 고객은 보지도 고치지도 못한다 — 설정 › 연동은 읽기 전용이고
   MES 배지는 실제 접속(ping) 결과다.
 - **템플릿** `ExternalConceptTemplates` 의 `press-mes-demo` 가 데모 프레스 MES 7개(작업지시 · 설비 · 공정 실적 · 비가동 · 센서 · 불량 ·
-  불량률)다. 「템플릿 적용」은 이미 있는 id 를 건너뛰어 여러 번 눌러도 된다. 「미리보기」는 SQL 을 그 시스템 풀로 5행 돌려 컬럼을
+  불량률)다. 「템플릿 적용」은 DB 초안 모달처럼 확인 목록을 거친다 — 개념마다 「새로 넣어요 / 같은 id 가 있어요 / 같은 표를 읽는 개념이
+  있어요」(FROM 표 판정, `lib/concept-sql.ts`)를 보이고 고른 것만 넣는다. 넣은 뒤 토스트의 「되돌리기」가 그 묶음만 지운다
+  (`POST …/concepts/delete-batch`). 개념 id 는 수정으로 바꿀 수 없다 — 다른 개념의 관계가 id 로 이어져 있어 BE 가 400 을 준다(#116).
+  「미리보기」는 SQL 을 그 시스템 풀로 5행 돌려 컬럼을
   보여 준다 — attrs 키를 SELECT 컬럼과 맞추는 용도.
 - **SQL 은 운영팀만 쓴다.** 서버가 세 가지를 본다(select 로 시작 · 세미콜론 없음 · 8,000자). 실제 안전장치는 DB 롤(SELECT 만) ·
   JDBC `readOnlyMode=always`(자동 커밋에서도 세션을 READ ONLY 로 — 기본 `transaction` 은 드라이버가 트랜잭션을 열 때만 걸려 우리
