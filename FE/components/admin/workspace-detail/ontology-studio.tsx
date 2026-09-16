@@ -23,7 +23,9 @@ import {
   type ExternalConceptInput,
   type ExternalSystemAdminDto,
 } from "@/lib/admin-api";
+import { isDraft } from "@/lib/ai/refine-types";
 import { DraftModal } from "./draft-modal";
+import { RefinePanel } from "./refine-panel";
 import { EditModal } from "./shared";
 
 /**
@@ -48,6 +50,8 @@ type Node = {
   relations: { attr: string; to: string }[];
   formula?: string;
   synonyms: string[];
+  /** 「DB 에서 초안 만들기」 가 넣고 아직 다듬지 않은 것 — 설명 끝 `[초안 — …]` 로 판별한다(#116 「정하지 않은 것」: 상태 필드는 나중에) */
+  draft: boolean;
   external?: ExternalConceptAdminDto;
 };
 
@@ -94,6 +98,11 @@ function cardHeight(n: Node): number {
   return CARD_HEAD + shown * ATTR_ROW + (Object.keys(n.attrs).length > ATTRS_SHOWN ? ATTR_ROW : 0) + 12;
 }
 
+/** 「초안」 외곽선 태그 — 카드 · 탐색기 줄 · 속성 패널 머리. 점선 테두리로 「아직 정해지지 않았다」 를 말한다 */
+function DraftTag() {
+  return <span className="shrink-0 rounded border border-dashed border-amber-700 px-1 font-sans text-[10px] font-medium leading-4 text-amber-700">초안</span>;
+}
+
 function tabLabel(tab: string): string {
   for (const m of MODULES) {
     const s = m.subfunctions.find((x) => x.id === tab);
@@ -110,6 +119,13 @@ export function OntologyStudio({ workspaceId, systems }: { workspaceId: number; 
   const [removing, setRemoving] = useState<ExternalConceptAdminDto | null>(null);
   const [templateFor, setTemplateFor] = useState<number | null>(null);
   const [drafting, setDrafting] = useState(false);
+  /** 「AI 로 다듬기」 대상 — 초안 넣기 직후 · 헤더 버튼 · 속성 패널 버튼에서 연다 */
+  const [refining, setRefining] = useState<{ rowId: number; conceptId: string; name: string }[] | null>(null);
+  /** 개념 목록을 못 불러온 이유. 있으면 캔버스에 「다시 불러오기」 — 빈 목록과 장애를 구분한다(#116 3번) */
+  const [loadError, setLoadError] = useState<string | null>(null);
+  /** 카드 좌표가 잡힌 다음 렌더에서 이 개념으로 스크롤한다 — 초안을 넣거나 다듬은 뒤 캔버스 아래에 생긴 카드를 보여 주려고(#116 4번) */
+  const pendingScroll = useRef<string | null>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
   const [toast, showToast] = useToast();
   /** 끌어 옮긴 카드들. 자동 배치 위에 더한다 */
   const [offsets, setOffsets] = useState<Offsets>({});
@@ -123,16 +139,35 @@ export function OntologyStudio({ workspaceId, systems }: { workspaceId: number; 
   /** 지금 끌고 있는 카드 — 그림자 · 커서만 바꾼다(렌더는 ref 를 못 읽는다) */
   const [draggingId, setDraggingId] = useState<string | null>(null);
 
-  async function reload() {
-    setExternal(await listConcepts(workspaceId).catch(() => []));
+  /** 목록을 다시 읽는다. 실패하면 null — 삼키지 않고 캔버스에 이유를 보인다. 마지막으로 읽은 목록은 그대로 둔다 */
+  async function reload(): Promise<ExternalConceptAdminDto[] | null> {
+    try {
+      const list = await listConcepts(workspaceId);
+      setExternal(list);
+      setLoadError(null);
+      return list;
+    } catch (e) {
+      setLoadError(e instanceof ApiRequestError ? e.message : "개념을 불러오지 못했어요");
+      return null;
+    }
   }
+
+  const drafts = (external ?? []).filter((d) => isDraft(d.description));
+  const asTargets = (list: ExternalConceptAdminDto[]) => list.map((d) => ({ rowId: d.id, conceptId: d.conceptId, name: d.name }));
   useEffect(() => {
     let alive = true;
-    Promise.all([listConcepts(workspaceId).catch(() => []), listConceptTemplates(workspaceId).catch(() => [])]).then(([c, t]) => {
-      if (!alive) return;
-      setExternal(c);
-      setTemplates(t);
-    });
+    Promise.all([listConcepts(workspaceId), listConceptTemplates(workspaceId).catch(() => [])])
+      .then(([c, t]) => {
+        if (!alive) return;
+        setExternal(c);
+        setTemplates(t);
+        setLoadError(null);
+      })
+      .catch((e: unknown) => {
+        if (!alive) return;
+        setExternal([]);
+        setLoadError(e instanceof ApiRequestError ? e.message : "개념을 불러오지 못했어요");
+      });
     return () => {
       alive = false;
     };
@@ -153,6 +188,7 @@ export function OntologyStudio({ workspaceId, systems }: { workspaceId: number; 
       relations: c.relations ?? [],
       formula: c.formula,
       synonyms: c.synonyms,
+      draft: false,
     }));
     const ext: Node[] = (external ?? []).map((d) => ({
       id: d.conceptId,
@@ -165,6 +201,7 @@ export function OntologyStudio({ workspaceId, systems }: { workspaceId: number; 
       relations: d.relations,
       formula: d.formula ?? undefined,
       synonyms: d.synonyms,
+      draft: isDraft(d.description),
       external: d,
     }));
     return [...builtin, ...ext];
@@ -265,6 +302,29 @@ export function OntologyStudio({ workspaceId, systems }: { workspaceId: number; 
   const current = nodes.find((n) => n.id === selected) ?? null;
   const groupsInOrder = layout.rows.map((r) => r.system);
 
+  /** 선택하고, 배치가 잡히는 다음 렌더에서 그 카드로 스크롤한다 */
+  const focus = (id: string) => {
+    setSelected(id);
+    pendingScroll.current = id;
+  };
+  /** 스크롤은 DOM 일이라 효과에서. 목록을 다시 읽은 직후에는 아직 배치가 없으니 좌표가 생길 때까지 기다린다 */
+  useEffect(() => {
+    const id = pendingScroll.current;
+    if (!id) return;
+    const p = placed.pos.get(id);
+    if (!p) return;
+    pendingScroll.current = null;
+    canvasRef.current?.scrollTo({ left: Math.max(0, p.x - PAD), top: Math.max(0, p.y - PAD - 18), behavior: "smooth" });
+  }, [placed, selected]);
+
+  /** 현재 다음의 초안 — 속성 패널 「다음 초안 ›」. 마지막이면 처음으로 돈다 */
+  const nextDraftAfter = (id: string | null): Node | null => {
+    const list = nodes.filter((n) => n.draft);
+    if (list.length === 0) return null;
+    const i = list.findIndex((n) => n.id === id);
+    return list[(i + 1) % list.length];
+  };
+
   async function remove(d: ExternalConceptAdminDto) {
     try {
       await deleteConcept(workspaceId, d.id);
@@ -281,10 +341,10 @@ export function OntologyStudio({ workspaceId, systems }: { workspaceId: number; 
     try {
       const before = external?.length ?? 0;
       await applyConceptTemplate(workspaceId, systemId, key);
-      await reload();
-      const after = (await listConcepts(workspaceId).catch(() => [])).length;
-      showToast(after > before ? `개념 ${after - before}개를 넣었어요` : "이미 전부 들어 있어요");
       setTemplateFor(null);
+      const list = await reload();
+      if (list === null) showToast("템플릿은 넣었지만 목록을 다시 불러오지 못했어요", "error");
+      else showToast(list.length > before ? `개념 ${list.length - before}개를 넣었어요` : "이미 전부 들어 있어요");
     } catch (e) {
       fail(e, "템플릿을 적용하지 못했어요");
     }
@@ -300,6 +360,11 @@ export function OntologyStudio({ workspaceId, systems }: { workspaceId: number; 
           desc="AI 가 읽는 개념. AXPoint 내장 개념은 읽기 전용이고, 외부 시스템 개념은 여기서 고쳐요."
         />
         <div className="flex gap-2">
+          {drafts.length > 0 && (
+            <Button size="sm" variant="secondary" onClick={() => setRefining(asTargets(drafts))}>
+              AI 로 다듬기 (초안 {drafts.length})
+            </Button>
+          )}
           {linkedSystems.length > 0 && (
             <Button size="sm" variant="secondary" onClick={() => setDrafting(true)}>
               DB 에서 초안 만들기
@@ -329,31 +394,35 @@ export function OntologyStudio({ workspaceId, systems }: { workspaceId: number; 
         {/* ── 탐색기 ── */}
         <aside className="thin-scroll max-h-[640px] overflow-y-auto border-b border-slate-200 bg-slate-50/60 p-4 text-[13px] lg:border-b-0 lg:border-r">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">모델 탐색기</p>
-          {groupsInOrder.map((system) => (
-            <div key={system} className="mb-4">
-              <p className="mb-1 flex items-center gap-1.5 font-mono text-[11px] text-slate-500">
-                {system}
-                <span className="text-slate-400">· {nodes.filter((n) => n.system === system).length}</span>
-              </p>
-              <ul className="space-y-0.5">
-                {nodes
-                  .filter((n) => n.system === system)
-                  .map((n) => (
+          {groupsInOrder.map((system) => {
+            const inGroup = nodes.filter((n) => n.system === system);
+            const draftCount = inGroup.filter((n) => n.draft).length;
+            return (
+              <div key={system} className="mb-4">
+                <p className="mb-1 flex items-center gap-1.5 font-mono text-[11px] text-slate-500">
+                  {system}
+                  <span className="text-slate-400">· {inGroup.length}</span>
+                  {draftCount > 0 && <span className="text-amber-700">· 다듬을 초안 {draftCount}</span>}
+                </p>
+                <ul className="space-y-0.5">
+                  {inGroup.map((n) => (
                     <li key={n.id}>
                       <button
                         type="button"
                         onClick={() => setSelected(n.id)}
-                        className={`w-full rounded-md px-2 py-1 text-left font-mono text-[12px] transition-colors duration-150 ${
+                        className={`flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left font-mono text-[12px] transition-colors duration-150 ${
                           selected === n.id ? "bg-white text-slate-900 ring-1 ring-slate-200" : "text-slate-600 hover:bg-white/70"
                         }`}
                       >
-                        {n.id}
+                        <span className="min-w-0 truncate">{n.id}</span>
+                        {n.draft && <DraftTag />}
                       </button>
                     </li>
                   ))}
-              </ul>
-            </div>
-          ))}
+                </ul>
+              </div>
+            );
+          })}
           <p className="mb-1 mt-6 text-xs font-semibold uppercase tracking-wider text-slate-500">관계 {edges.length}</p>
           <ul className="space-y-0.5 font-mono text-[11px] text-slate-500">
             {edges.map((e) => (
@@ -365,13 +434,25 @@ export function OntologyStudio({ workspaceId, systems }: { workspaceId: number; 
         </aside>
 
         {/* ── 캔버스 ── */}
-        <div className="thin-scroll relative max-h-[640px] overflow-auto" style={{ backgroundImage: "radial-gradient(#cbd5e1 0.8px, transparent 0.8px)", backgroundSize: "20px 20px" }}>
+        <div ref={canvasRef} className="thin-scroll relative max-h-[640px] overflow-auto" style={{ backgroundImage: "radial-gradient(#cbd5e1 0.8px, transparent 0.8px)", backgroundSize: "20px 20px" }}>
+          {loadError && (
+            <div role="alert" className="sticky left-0 top-0 z-10 flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-red-200 bg-red-50 px-4 py-2 text-[13px] text-red-700">
+              <span>외부 개념을 불러오지 못했어요 — {loadError}</span>
+              <button type="button" onClick={() => void reload()} className="cursor-pointer font-medium underline-offset-2 hover:underline">
+                다시 불러오기
+              </button>
+            </div>
+          )}
           <div className="relative" style={{ width: placed.width, height: placed.height }}>
-            {layout.rows.map((r) => (
-              <span key={r.system} className="absolute font-mono text-[11px] text-slate-400" style={{ left: PAD, top: r.y - 18 }}>
-                {r.system}
-              </span>
-            ))}
+            {layout.rows.map((r) => {
+              const draftCount = nodes.filter((n) => n.system === r.system && n.draft).length;
+              return (
+                <span key={r.system} className="absolute whitespace-nowrap font-mono text-[11px] text-slate-400" style={{ left: PAD, top: r.y - 18 }}>
+                  {r.system}
+                  {draftCount > 0 && <span className="ml-2 text-amber-700">다듬을 초안 {draftCount}</span>}
+                </span>
+              );
+            })}
             <svg className="pointer-events-none absolute inset-0" width={placed.width} height={placed.height} aria-hidden>
               <defs>
                 <marker id="ont-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -434,7 +515,10 @@ export function OntologyStudio({ workspaceId, systems }: { workspaceId: number; 
                       <p className="truncate text-[13px] font-semibold text-slate-900">{n.name}</p>
                       <p className="truncate font-mono text-[11px] text-slate-500">{n.id}</p>
                     </div>
-                    <span className="shrink-0 rounded border border-slate-200 px-1.5 font-mono text-[10px] text-slate-500">{n.kind}</span>
+                    <span className="flex shrink-0 gap-1">
+                      {n.draft && <DraftTag />}
+                      <span className="rounded border border-slate-200 px-1.5 font-mono text-[10px] text-slate-500">{n.kind}</span>
+                    </span>
                   </div>
                   <ul className="mt-1.5 px-3 font-mono text-[11px] leading-[18px] text-slate-600">
                     {keys.slice(0, ATTRS_SHOWN).map((k) => (
@@ -457,8 +541,25 @@ export function OntologyStudio({ workspaceId, systems }: { workspaceId: number; 
             <p className="text-slate-500">개념을 누르면 속성 · 원천 · 관계가 여기 보여요.</p>
           ) : (
             <>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">엔티티 속성</p>
-              <h4 className="mt-1 text-[15px] font-semibold text-slate-900">{current.name}</h4>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">엔티티 속성</p>
+                {current.draft && nodes.filter((n) => n.draft).length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = nextDraftAfter(current.id);
+                      if (next) focus(next.id);
+                    }}
+                    className="cursor-pointer text-[12px] text-slate-700 underline-offset-2 hover:underline"
+                  >
+                    다음 초안 ›
+                  </button>
+                )}
+              </div>
+              <h4 className="mt-1 flex items-center gap-2 text-[15px] font-semibold text-slate-900">
+                {current.name}
+                {current.draft && <DraftTag />}
+              </h4>
               <p className="font-mono text-[12px] text-slate-500">{current.id}</p>
               <p className="mt-2 text-slate-600">{current.description}</p>
               <dl className="mt-3 grid grid-cols-[64px_1fr] gap-y-1 text-[12px]">
@@ -511,6 +612,9 @@ export function OntologyStudio({ workspaceId, systems }: { workspaceId: number; 
                     <Button size="sm" variant="secondary" onClick={() => setEditing({ systemId: current.external!.systemId, initial: current.external! })}>
                       수정
                     </Button>
+                    <Button size="sm" variant="secondary" onClick={() => setRefining(asTargets([current.external!]))}>
+                      AI 로 다듬기
+                    </Button>
                     <Button size="sm" variant="ghost" onClick={() => setRemoving(current.external!)}>
                       삭제
                     </Button>
@@ -536,7 +640,7 @@ export function OntologyStudio({ workspaceId, systems }: { workspaceId: number; 
           </span>
         )}
         <span className="ml-auto">
-          외부 개념 {external?.length ?? 0} · {external === null ? "불러오는 중" : "최신"}
+          외부 개념 {external?.length ?? 0} · {external === null ? "불러오는 중" : loadError ? <span className="text-red-600">불러오지 못했어요</span> : "최신"}
         </span>
       </div>
 
@@ -566,8 +670,38 @@ export function OntologyStudio({ workspaceId, systems }: { workspaceId: number; 
           onClose={() => setDrafting(false)}
           onDone={async (added) => {
             setDrafting(false);
-            showToast(added > 0 ? `개념 초안 ${added}개를 넣었어요. 이름과 설명을 다듬어 주세요` : "새로 넣은 개념이 없어요 — 전부 이미 있어요");
-            await reload();
+            const list = await reload();
+            if (list === null) {
+              // 넣긴 했는데 목록을 못 읽었다 — 캔버스의 「다시 불러오기」 로 보낸다. 조용히 「초안 0」 으로 보이지 않게
+              showToast(added > 0 ? `초안 ${added}개를 넣었지만 목록을 다시 불러오지 못했어요` : "목록을 다시 불러오지 못했어요", "error");
+            } else if (added > 0) {
+              // 방금 넣은 초안을 바로 다듬기로 넘긴다 — 초안 표시가 남은 것 전부
+              showToast(`개념 초안 ${added}개를 넣었어요`);
+              setRefining(asTargets(list.filter((d) => isDraft(d.description))));
+            } else {
+              showToast("새로 넣은 개념이 없어요 — 전부 이미 있어요");
+            }
+          }}
+        />
+      )}
+      {refining && refining.length > 0 && (
+        <RefinePanel
+          workspaceId={workspaceId}
+          targets={refining}
+          onClose={() => {
+            // 저장 없이 닫았다 — 초안이 남아 있으면 그 첫 카드로 스크롤 · 선택해서 손으로 다듬을 자리를 보여 준다
+            const firstDraft = refining.find((t) => drafts.some((d) => d.id === t.rowId));
+            setRefining(null);
+            if (firstDraft) focus(firstDraft.conceptId);
+          }}
+          onApplied={async ({ updated, created, deleted }) => {
+            const first = refining[0];
+            setRefining(null);
+            showToast(`개념 ${updated}개를 고치고 ${created}개를 만들고 ${deleted}개를 지웠어요`);
+            const list = await reload();
+            // 다듬은 첫 개념을 보여 준다. 지웠으면 남은 초안 중 첫 것으로
+            const target = list?.find((d) => d.id === first.rowId) ?? list?.find((d) => isDraft(d.description));
+            if (target) focus(target.conceptId);
           }}
         />
       )}

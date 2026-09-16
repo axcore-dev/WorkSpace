@@ -36,7 +36,9 @@ public final class ExternalDataSource implements AutoCloseable {
      */
     public record Connection(long id, String host, int port, String database, String user, String sslmode, String fingerprint) {
         String jdbcUrl() {
-            return "jdbc:postgresql://%s:%d/%s?sslmode=%s&readOnly=true&ApplicationName=axcore-external".formatted(host, port, database, sslmode);
+            // readOnlyMode=always: 자동 커밋에서도 접속 직후 SESSION READ ONLY 를 걸어 서버가 쓰기를 거절한다.
+            // 기본값(transaction)은 드라이버가 트랜잭션을 열 때만 적용돼 우리 JdbcTemplate(자동 커밋)에는 효과가 없었다
+            return "jdbc:postgresql://%s:%d/%s?sslmode=%s&readOnly=true&readOnlyMode=always&ApplicationName=axcore-external".formatted(host, port, database, sslmode);
         }
     }
 

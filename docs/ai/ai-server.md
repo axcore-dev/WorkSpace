@@ -191,7 +191,19 @@ workspace_data({ concept: "mes_downtime", filter: [{ attr: "equipment_code", op:
   불량률)다. 「템플릿 적용」은 이미 있는 id 를 건너뛰어 여러 번 눌러도 된다. 「미리보기」는 SQL 을 그 시스템 풀로 5행 돌려 컬럼을
   보여 준다 — attrs 키를 SELECT 컬럼과 맞추는 용도.
 - **SQL 은 운영팀만 쓴다.** 서버가 세 가지를 본다(select 로 시작 · 세미콜론 없음 · 8,000자). 실제 안전장치는 DB 롤(SELECT 만) ·
-  JDBC `readOnly` · 풀 `readOnly` · statement 타임아웃이다. WHERE 컬럼은 `filter_columns` 밖이면 400, 값은 바인딩.
+  JDBC `readOnlyMode=always`(자동 커밋에서도 세션을 READ ONLY 로 — 기본 `transaction` 은 드라이버가 트랜잭션을 열 때만 걸려 우리
+  JdbcTemplate 에는 효과가 없다) · statement 타임아웃이다. WHERE 컬럼은 `filter_columns` 밖이면 400, 값은 바인딩.
+- **「AI 로 다듬기」** — 초안(「DB 에서 초안 만들기」)의 이름 · 동의어 · 설명 · 라벨 · 필터 · 관계 · 집계를 제안하고 사람이 필드마다 체크한 것만
+  저장한다. 규칙 문서: 「온톨로지 AI 다듬기 규칙」 아티팩트(2026-09-15). 흐름:
+  `RefinePanel` → `POST /ai/ontology/refine`(AI 서버, `lib/ai/server/ontology-refine.ts`) → 사용자 토큰으로 BE
+  `GET /api/admin/workspaces/{id}/concepts/{rowId}/refine-input`(관리자 판정은 BE 한 곳 — `TableProfiler` 가 표마다 `limit 2000` 한 번으로
+  값 분포를 재고 `OntologyRules` 가 필터 추가/제거 · 값 겹침 관계 · 버릴 표 · 정렬을 정한다) → `generateObject`(zod) → 검증(컬럼 · 개념 id
+  범위, 집계 SQL 은 BE 미리보기로 실제 5행) → 제안. **모델로 나가는 값은 고유값 ≤ 30 컬럼의 값 목록과 숫자 · 날짜 컬럼의 최솟값 · 최댓값**이고,
+  이름(연락처 · 식별번호 · 비밀 · 사람 이름 · 급여, `TableProfiler.MASKED_NAMES`) · 값 모양이 개인정보인 컬럼과 긴 글은 값이 없다.
+  표본 · PK 값 쿼리의 식별자는 카탈로그에서 읽은 것을 따옴표로 감싸 넣는다. 「구조만 보내기」 면 그것도 없다. 표본은 BE 메모리에서 세고 버린다. 저장하면 설명 끝 `[초안 — …]` 가 빠진다.
+  **같은 표를 읽는 개념이 둘이면**(템플릿 + DB 초안, #116 1번) BE 가 `duplicates` 로 알려 준다 — 개념 SQL 의 `from 스키마.표` 를
+  `OntologyRules.fromTable` 로 읽어 비교한다. 쌍둥이는 형제 · 관계 후보 · 관계 상대에서 빠지고, 검토 패널이 경고와 함께 「표 삭제」 를
+  꺼진 채로 내놓는다. 저장 오류는 토스트가 아니라 패널 바닥에 보이고, 중간에 막히면 이미 저장된 개념은 건너뛰고 이어서 저장한다.
 - **권한은 개념마다 탭 하나.** FE 가 사람의 탭으로 목록에서 빼고(안내), BE 가 조회 때 그 탭의 모듈 규칙으로 다시 막는다(차단).
   내장 개념과 같은 두 겹이다.
 - **풀은 시스템당 하나.** 키는 `스키마:시스템 id`. 처음 조회 때 열고 행의 지문(id + updated_at)이 바뀌면 다시 연다. 접속 정보가 없는

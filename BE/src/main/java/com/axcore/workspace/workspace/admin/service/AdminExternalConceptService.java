@@ -7,7 +7,10 @@ import com.axcore.workspace.external.ExternalDataSource;
 import com.axcore.workspace.external.ExternalDataSourceRegistry;
 import com.axcore.workspace.external.ExternalQuery;
 import com.axcore.workspace.external.OntologyDrafter;
+import com.axcore.workspace.external.OntologyRules;
 import com.axcore.workspace.external.SchemaIntrospector;
+import com.axcore.workspace.external.TableProfile;
+import com.axcore.workspace.external.TableProfiler;
 import com.axcore.workspace.workspace.admin.dto.ExternalConceptAdminResponse;
 import com.axcore.workspace.workspace.admin.dto.ExternalConceptRequest;
 import com.axcore.workspace.workspace.admin.entity.AdminAuditAction;
@@ -16,6 +19,8 @@ import com.axcore.workspace.workspace.provisioning.TenantSearchPath;
 import com.axcore.workspace.workspace.settings.FeatureCatalog;
 import com.axcore.workspace.workspace.settings.SettingsNotFoundException;
 import com.axcore.workspace.workspace.settings.SettingsValidationException;
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -43,17 +48,19 @@ public class AdminExternalConceptService {
     private final ExternalConceptStore store;
     private final ExternalDataSourceRegistry registry;
     private final SchemaIntrospector introspector;
+    private final TableProfiler profiler;
     private final AdminAuditRecorder audit;
 
     public AdminExternalConceptService(
             WorkspaceRegistrar registrar, TenantSearchPath searchPath, JdbcTemplate jdbc, ExternalConceptStore store,
-            ExternalDataSourceRegistry registry, SchemaIntrospector introspector, AdminAuditRecorder audit) {
+            ExternalDataSourceRegistry registry, SchemaIntrospector introspector, TableProfiler profiler, AdminAuditRecorder audit) {
         this.registrar = registrar;
         this.searchPath = searchPath;
         this.jdbc = jdbc;
         this.store = store;
         this.registry = registry;
         this.introspector = introspector;
+        this.profiler = profiler;
         this.audit = audit;
     }
 
@@ -218,6 +225,90 @@ public class AdminExternalConceptService {
 
     public List<ExternalConceptTemplates.Template> templates() {
         return ExternalConceptTemplates.all();
+    }
+
+    // ── AI 로 다듬기 ─────────────────────────────────────────────────────────
+
+    /** 관계 후보를 찾을 때 PK 값을 읽을 표의 상한 — 표마다 쿼리 하나라 묶어 둔다 */
+    private static final int RELATION_TARGETS_MAX = 12;
+
+    /**
+     * 「AI 로 다듬기」 의 재료 한 벌 — 개념 · 표 구조 · 값 프로파일 · 통계 규칙 제안 · 형제 개념. AI 서버가 이걸 받아 모델에 묻는다.
+     * 고객 데이터 값은 {@link TableProfile} 의 규칙대로만 실린다. 관계 추정에 쓴 PK 값 집합은 여기서 끝나고 응답에 없다.
+     *
+     * @param system     말투 · 업종 용어를 맞추려고 주는 시스템 종류 · 이름 · 회사 이름
+     * @param table      개념이 읽는 표의 구조(컬럼 · 키 · 주석)
+     * @param siblings   같은 시스템의 다른 개념 (id · 이름) — 동의어가 겹치지 않게. 같은 표를 읽는 쌍둥이는 뺀다
+     * @param duplicates 같은 시스템에서 <b>같은 표를 읽는</b> 다른 개념 — 템플릿과 DB 초안이 한 표를 두 id 로 넣은 것.
+     *                   관계 후보 · 관계 상대에서 빼고, 검토 화면이 경고를 보인다. 둘 중 하나는 지워야 AI 답이 흔들리지 않는다
+     * @param conceptIds 회사의 외부 개념 id 전부 — 집계 id 충돌 검사용. 관계 상대는 AI 서버가 여기서 duplicates 를 빼고 내장 개념을 더한다
+     */
+    public record RefineInput(
+            SystemInfo system, ExternalConceptAdminResponse concept, SchemaIntrospector.Table table, TableProfile profile,
+            OntologyRules.Suggestion rules, List<Sibling> siblings, List<Sibling> duplicates, List<String> conceptIds, int conceptCount) {}
+
+    public record SystemInfo(String kind, String name, String company) {}
+
+    public record Sibling(String id, String name) {}
+
+    @Transactional(readOnly = true)
+    public RefineInput refineInput(Long workspaceId, long id) {
+        String tenant = open(workspaceId);
+        ExternalConcept c = store.byId(id).orElseThrow(() -> new SettingsNotFoundException("개념을 찾지 못했어요"));
+        OntologyRules.FromTable from = OntologyRules.fromTable(c.sql())
+                .orElseThrow(() -> new SettingsValidationException("이 개념의 SQL 에서 표를 찾지 못했어요 — 「스키마.표」 를 읽는 SELECT 에만 AI 다듬기를 쓸 수 있어요"));
+        String schema = from.schema();
+        String tableName = from.table();
+        ExternalDataSource ds = registry.forSystem(tenant, c.systemId())
+                .orElseThrow(() -> new SettingsValidationException("이 시스템에 접속 정보가 없어요"));
+
+        List<SchemaIntrospector.Table> all;
+        TableProfiler.Profiled profiled;
+        try {
+            all = introspector.tables(ds, schema);
+        } catch (DataAccessException e) {
+            throw new SettingsValidationException("구조를 읽지 못했어요: " + e.getMostSpecificCause().getMessage());
+        }
+        SchemaIntrospector.Table table = all.stream().filter(t -> t.name().equals(tableName)).findFirst()
+                .orElseThrow(() -> new SettingsValidationException("표 %s.%s 를 지금 DB 에서 찾지 못했어요".formatted(schema, tableName)));
+        try {
+            profiled = profiler.profile(ds, table);
+        } catch (DataAccessException e) {
+            throw new SettingsValidationException("표본을 읽지 못했어요: " + e.getMostSpecificCause().getMessage());
+        }
+
+        // 같은 시스템의 다른 개념. 같은 표를 읽는 쌍둥이(템플릿 + DB 초안)는 형제 · 관계 후보 어디에도 넣지 않고 따로 알린다
+        List<ExternalConcept> others = store.ofSystem(c.systemId()).stream().filter(o -> o.id() != c.id()).toList();
+        List<ExternalConcept> duplicates = others.stream()
+                .filter(o -> OntologyRules.fromTable(o.sql()).map(from::equals).orElse(false))
+                .toList();
+        List<ExternalConcept> siblings = others.stream().filter(o -> !duplicates.contains(o)).toList();
+
+        // 형제 개념이 읽는 표 → 관계 후보. 표마다 PK 값 한 번씩만 읽는다
+        List<OntologyRules.Target> targets = new ArrayList<>();
+        for (ExternalConcept o : siblings) {
+            if (targets.size() >= RELATION_TARGETS_MAX) break;
+            OntologyRules.FromTable of = OntologyRules.fromTable(o.sql()).orElse(null);
+            if (of == null || !of.schema().equals(schema)) continue;
+            String otherName = of.table();
+            SchemaIntrospector.Table ot = all.stream().filter(t -> t.name().equals(otherName)).findFirst().orElse(null);
+            if (ot == null || ot.primaryKey().size() != 1) continue;
+            try {
+                targets.add(new OntologyRules.Target(ot.name(), o.conceptId(), ot.primaryKey().getFirst(), profiler.pkValues(ds, ot)));
+            } catch (DataAccessException e) {
+                // 한 표의 키를 못 읽어도 나머지 제안은 낸다
+            }
+        }
+        OntologyRules.Suggestion rules = OntologyRules.suggest(c, profiled, table, targets, LocalDate.now());
+
+        String company = registrar.companyNameOf(workspaceId);
+        return new RefineInput(
+                new SystemInfo(c.systemKind(), c.systemName(), company),
+                ExternalConceptAdminResponse.of(c), table, profiled.profile(), rules,
+                siblings.stream().map(o -> new Sibling(o.conceptId(), o.name())).toList(),
+                duplicates.stream().map(o -> new Sibling(o.conceptId(), o.name())).toList(),
+                store.all().stream().map(ExternalConcept::conceptId).toList(),
+                store.all().size());
     }
 
     // ── 안쪽 ────────────────────────────────────────────────────────────────
