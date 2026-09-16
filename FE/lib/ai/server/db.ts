@@ -51,13 +51,23 @@ export async function withTenant<T>(
   if (!SCHEMA_RE.test(schemaName)) {
     throw new Error("허용되지 않는 스키마 이름입니다");
   }
+  // 테넌트 뒤에 shared — 테넌트 테이블이 shared.users 를 참조하고, 이름이 겹치면 테넌트가 이긴다.
+  return withSearchPath(`${schemaName}, shared`, fn);
+}
+
+/**
+ * 공유 스키마만 보는 트랜잭션 — 회사와 무관한 표(`shared.ai_refine_jobs`)를 읽고 쓸 때. AI 역할은 shared 에서 그 표만
+ * 권한이 있다(shared V22). 테넌트 표에는 닿지 않는다.
+ */
+export function withShared<T>(fn: (db: Db) => Promise<T>): Promise<T> {
+  return withSearchPath("shared", fn);
+}
+
+async function withSearchPath<T>(searchPath: string, fn: (db: Db) => Promise<T>): Promise<T> {
   const client = await getPool().connect();
   try {
     await client.query("BEGIN");
-    // 테넌트 뒤에 shared — 테넌트 테이블이 shared.users 를 참조하고, 이름이 겹치면 테넌트가 이긴다.
-    await client.query("SELECT set_config('search_path', $1, true)", [
-      `${schemaName}, shared`,
-    ]);
+    await client.query("SELECT set_config('search_path', $1, true)", [searchPath]);
     const result = await fn(client);
     await client.query("COMMIT");
     return result;

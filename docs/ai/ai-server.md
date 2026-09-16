@@ -203,7 +203,11 @@ workspace_data({ concept: "mes_downtime", filter: [{ attr: "equipment_code", op:
   JdbcTemplate 에는 효과가 없다) · statement 타임아웃이다. WHERE 컬럼은 `filter_columns` 밖이면 400, 값은 바인딩.
 - **「AI 로 다듬기」** — 초안(「DB 에서 초안 만들기」)의 이름 · 동의어 · 설명 · 라벨 · 필터 · 관계 · 집계를 제안하고 사람이 필드마다 체크한 것만
   저장한다. 규칙 문서: 「온톨로지 AI 다듬기 규칙」 아티팩트(2026-09-15). 흐름:
-  `RefinePanel` → `POST /ai/ontology/refine`(AI 서버, `lib/ai/server/ontology-refine.ts`) → 사용자 토큰으로 BE
+  `RefinePanel` → `POST /ai/ontology/refine/jobs`(AI 서버가 작업을 `shared.ai_refine_jobs`(shared V22) 에 만들고 백그라운드로 개념을 하나씩,
+  동시 3개 돌린다 — `lib/ai/server/refine-jobs.ts`. 화면은 `GET …/jobs` 를 폴링해 진행률 · 사이드바 배지를 그리고, 검토를 끝내면 `DELETE …/jobs/:id`.
+  운영자 판정은 BE `/api/auth/me` 의 internalAdmin. 회사당 작업 하나. 서버가 재시작되면 그 작업은 5분 뒤 failed 로 보이고 다시 시작한다. 운영자 토큰(15분)이 끝나기 전에 남은 개념은
+  돌리지 않고 failed 로 멈춘다 — 한 작업은 30개까지. 목록에는 결과가 없고 검토 패널이 `GET …/jobs/:id` 로 한 번 받는다) → 개념마다
+  `refineOne`(`lib/ai/server/ontology-refine.ts`) → 사용자 토큰으로 BE
   `GET /api/admin/workspaces/{id}/concepts/{rowId}/refine-input`(관리자 판정은 BE 한 곳 — `TableProfiler` 가 표마다 `limit 2000` 한 번으로
   값 분포를 재고 `OntologyRules` 가 필터 추가/제거 · 값 겹침 관계 · 버릴 표 · 정렬을 정한다) → `generateObject`(zod) → 검증(컬럼 · 개념 id
   범위, 집계 SQL 은 BE 미리보기로 실제 5행) → 제안. **모델로 나가는 값은 고유값 ≤ 30 컬럼의 값 목록과 숫자 · 날짜 컬럼의 최솟값 · 최댓값**이고,
