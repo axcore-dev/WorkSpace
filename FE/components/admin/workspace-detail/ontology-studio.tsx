@@ -18,6 +18,7 @@ import {
   type ExternalSystemAdminDto,
 } from "@/lib/admin-api";
 import { isDraft } from "@/lib/ai/refine-types";
+import { useRefineJobFor } from "@/lib/admin/refine-job";
 import { routeEdges, type Route } from "@/lib/ontology-route";
 import { ConceptForm } from "./concept-form";
 import { DraftModal } from "./draft-modal";
@@ -124,6 +125,16 @@ export function OntologyStudio({ workspaceId, systems }: { workspaceId: number; 
   const pendingScroll = useRef<string | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const [toast, showToast] = useToast();
+  /** 모달 밖에서 도는 「AI 로 다듬기」 작업 — 헤더 버튼이 진행 · 완료를 보이고, 끝나는 순간 토스트로 알린다 */
+  const refineJob = useRefineJobFor(workspaceId);
+  const refineStatusSeen = useRef<string | null>(null);
+  useEffect(() => {
+    const status = refineJob?.status ?? null;
+    if (refineStatusSeen.current === "running" && status === "done" && refineJob) {
+      showToast("AI 다듬기가 끝났어요. 검토해 주세요", "ink", { label: "검토", onClick: () => setRefining(refineJob.targets) });
+    }
+    refineStatusSeen.current = status;
+  }, [refineJob, showToast]);
   /** 끌어 옮긴 카드들. 자동 배치 위에 더한다 — 끄는 동안 매 포인터 이동마다 바뀐다 */
   const [offsets, setOffsets] = useState<Offsets>({});
   /** 놓았을 때의 위치. 관계 선 경로는 이것으로만 계산한다 — 끄는 동안 A* 를 매번 돌리지 않으려고 */
@@ -398,10 +409,16 @@ export function OntologyStudio({ workspaceId, systems }: { workspaceId: number; 
           desc="AI 가 읽는 개념. AXPoint 내장 개념은 읽기 전용이고, 외부 시스템 개념은 여기서 고쳐요."
         />
         <div className="flex gap-2">
-          {drafts.length > 0 && (
-            <Button size="sm" variant="secondary" onClick={() => setRefining(asTargets(drafts))}>
-              AI 로 다듬기 (초안 {drafts.length})
+          {refineJob ? (
+            <Button size="sm" variant={refineJob.status === "done" ? "primary" : "secondary"} onClick={() => setRefining(refineJob.targets)}>
+              {refineJob.status === "done" ? "다듬기 완료 · 검토하기" : `다듬는 중 ${refineJob.done} / ${refineJob.targets.length}`}
             </Button>
+          ) : (
+            drafts.length > 0 && (
+              <Button size="sm" variant="secondary" onClick={() => setRefining(asTargets(drafts))}>
+                AI 로 다듬기 (초안 {drafts.length})
+              </Button>
+            )
           )}
           {linkedSystems.length > 0 && (
             <Button size="sm" variant={firstUse ? "primary" : "secondary"} onClick={() => setDrafting(true)}>

@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { Logo } from "@/components/logo";
 import { AdminNav } from "@/components/admin/admin-nav";
+import { RefineJobBadge } from "@/components/admin/refine-job-badge";
 import { AccessDenied } from "@/components/admin/access-denied";
 import { useAdminSession } from "@/components/admin/use-admin-session";
 import { useSidebarCollapsed } from "@/components/use-sidebar-collapsed";
@@ -81,8 +82,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </button>
         </div>
         <AdminNav collapsed={collapsed} />
+        <div className="mt-auto">
+          <RefineJobBadge collapsed={collapsed} />
+        </div>
         <div
-          className={`mt-auto border-t border-slate-100 px-5 py-4 text-xs leading-relaxed text-slate-500 ${
+          className={`border-t border-slate-100 px-5 py-4 text-xs leading-relaxed text-slate-500 ${
             collapsed ? "lg:flex lg:justify-center" : ""
           }`}
         >
