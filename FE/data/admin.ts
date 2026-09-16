@@ -665,6 +665,8 @@ export const AUDIT_ACTION_LABEL: Record<AuditAction, string> = {
 };
 
 export type AuditEntry = {
+  /** 감사 로그 행 id — 표의 행 키. 시각은 분 단위라 같은 분에 두 건이면 겹친다 */
+  id: number;
   /** "2026-09-01 14:20" — 저장된 문자열이다. 렌더에서 `new Date()`로 만들지 않는다 */
   at: string;
   operator: string;
@@ -675,36 +677,6 @@ export type AuditEntry = {
   /** 무엇이 어떻게 바뀌었는지 한 줄. 없으면 "—" */
   detail: string;
 };
-
-/**
- * 시각 내림차순으로 저장한다. `at`이 "YYYY-MM-DD HH:MM" 고정 폭이라
- * 문자열 비교가 곳 시각 비교다 — 화면에서도 `localeCompare`로 정렬한다.
- *
- * 상태 변화는 더미의 현재 상태와 앞뒤가 맞다:
- * ax_00004 금호식품은 08-21 활성화 뒤 08-31 비활성화(현재 suspended),
- * ax_00005 남양정밀은 08-26 비활성화 뒤 08-28 활성화(현재 active).
- */
-export const AUDIT_LOG: AuditEntry[] = [
-  { at: "2026-09-01 14:20", operator: "김운영", action: "update", targetSchema: "ax_00001", targetName: "한빛제철 주식회사", detail: "요금제 Growth → Enterprise" },
-  { at: "2026-09-01 11:05", operator: "박운영", action: "update", targetSchema: "ax_00006", targetName: "태양전자 주식회사", detail: "세금계산서 수신 주소 변경" },
-  { at: "2026-09-01 09:40", operator: "이운영", action: "update", targetSchema: "ax_00005", targetName: "남양정밀 주식회사", detail: "운영자 메모 수정" },
-  { at: "2026-08-31 17:40", operator: "김운영", action: "deactivate", targetSchema: "ax_00004", targetName: "금호식품 주식회사", detail: "—" },
-  { at: "2026-08-31 16:12", operator: "박운영", action: "update", targetSchema: "ax_00002", targetName: "대성화학 주식회사", detail: "담당자 이메일 변경" },
-  { at: "2026-08-31 10:05", operator: "이운영", action: "update", targetSchema: "ax_00003", targetName: "서진모빌리티 주식회사", detail: "본사 주소 수정" },
-  { at: "2026-08-29 15:33", operator: "김운영", action: "update", targetSchema: "ax_00001", targetName: "한빛제철 주식회사", detail: "운영자 메모 수정" },
-  { at: "2026-08-28 13:47", operator: "박운영", action: "activate", targetSchema: "ax_00005", targetName: "남양정밀 주식회사", detail: "—" },
-  { at: "2026-08-28 11:20", operator: "이운영", action: "update", targetSchema: "ax_00007", targetName: "신흥포장 주식회사", detail: "세금계산서 수신 추가" },
-  { at: "2026-08-27 16:58", operator: "김운영", action: "create", targetSchema: "ax_00007", targetName: "신흥포장 주식회사", detail: "—" },
-  { at: "2026-08-27 09:15", operator: "박운영", action: "update", targetSchema: "ax_00006", targetName: "태양전자 주식회사", detail: "참조 수신 1명 추가" },
-  { at: "2026-08-26 14:02", operator: "이운영", action: "deactivate", targetSchema: "ax_00005", targetName: "남양정밀 주식회사", detail: "—" },
-  { at: "2026-08-25 17:22", operator: "김운영", action: "create", targetSchema: "ax_00003", targetName: "서진모빌리티 주식회사", detail: "—" },
-  { at: "2026-08-25 10:41", operator: "박운영", action: "update", targetSchema: "ax_00002", targetName: "대성화학 주식회사", detail: "요금제 Starter → Growth" },
-  { at: "2026-08-24 15:09", operator: "이운영", action: "update", targetSchema: "ax_00004", targetName: "금호식품 주식회사", detail: "운영자 메모 수정" },
-  { at: "2026-08-22 11:37", operator: "김운영", action: "update", targetSchema: "ax_00001", targetName: "한빛제철 주식회사", detail: "법인등록번호 수정" },
-  { at: "2026-08-21 16:44", operator: "박운영", action: "activate", targetSchema: "ax_00004", targetName: "금호식품 주식회사", detail: "—" },
-  { at: "2026-08-20 09:58", operator: "이운영", action: "update", targetSchema: "ax_00006", targetName: "태양전자 주식회사", detail: "담당자 연락처 수정" },
-];
-
 
 /* ────────────────────────── CSV 내려받기 ────────────────────────── */
 

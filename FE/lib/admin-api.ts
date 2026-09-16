@@ -325,6 +325,7 @@ export function toAdminWorkspace(dto: WorkspaceDto): AdminWorkspace {
 
 export function toAuditEntry(dto: AuditLogDto): AuditEntry {
   return {
+    id: dto.id,
     at: toDateTimeText(dto.occurredAt),
     operator: dto.actorName,
     action: dto.action as AuditEntry["action"],
