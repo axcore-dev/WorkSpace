@@ -84,6 +84,7 @@ public class TokenIntrospectionService {
         List<String> tabs =
                 moduleAccess.allowedTabs(
                         workspace.getSchemaName(), user.getId(), user.isInternalAdmin());
+        boolean admin = moduleAccess.isAdmin(workspace.getSchemaName(), user.getId(), user.isInternalAdmin());
 
         return new IntrospectionResponse(
                 user.getId(),
@@ -95,6 +96,7 @@ public class TokenIntrospectionService {
                 workspace.getSchemaName(),
                 modules,
                 tabs,
+                admin,
                 tokenExpiresAt);
     }
 

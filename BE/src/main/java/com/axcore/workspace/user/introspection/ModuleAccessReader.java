@@ -196,6 +196,27 @@ public class ModuleAccessReader {
         return orderedTabs(role);
     }
 
+    /**
+     * 회사 설정을 다룰 수 있는가 — 설정 API 의 {@code TenantContext.admin} 과 같은 판정이다: 직급의 {@code is_admin},
+     * 소유자, 그리고 구성원 행이 없는 서버 운영자. 구성원인 서버 운영자는 그 회사가 준 직급이 우선이다.
+     *
+     * <p><b>트랜잭션 안에서 불러야 한다.</b> {@link #allowedModules} 와 같은 전제다.
+     */
+    public boolean isAdmin(String schemaName, UUID userId, boolean internalAdmin) {
+        searchPath.bind(schemaName);
+        List<Boolean> flags =
+                jdbc.query(
+                        """
+                        select coalesce(r.is_admin, false) or coalesce(r.code = 'owner', false)
+                          from members m
+                          left join roles r on r.id = m.role_id
+                         where m.user_id = ? and m.status = 'active'
+                        """,
+                        (rs, i) -> rs.getBoolean(1),
+                        userId);
+        return flags.isEmpty() ? internalAdmin : flags.get(0);
+    }
+
     /** 알려진 slug 만, 화면 순서대로. */
     private static List<String> ordered(Set<String> slugs) {
         return ALL_MODULES.stream().filter(slugs::contains).toList();

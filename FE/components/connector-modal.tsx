@@ -11,7 +11,7 @@ import {
   IconSearch,
   IconX,
 } from "@/components/icons";
-import { CONNECTOR_CATEGORIES, CONNECTOR_LIB, SKILL_LIB } from "@/data/chat";
+import { CONNECTOR_CATEGORIES, CONNECTOR_LIB } from "@/data/chat";
 
 type Connector = (typeof CONNECTOR_LIB)[number];
 
@@ -289,89 +289,3 @@ export function ConnectorModal({
   );
 }
 
-/** 스킬 추가 팝업 */
-export function SkillModal({
-  open,
-  onClose,
-  selected,
-  onToggle,
-}: {
-  open: boolean;
-  onClose: () => void;
-  /** 이 턴에 물린 스킬 id */
-  selected: string[];
-  onToggle: (id: string) => void;
-}) {
-  const [q, setQ] = useState("");
-  const needle = q.trim().toLowerCase();
-  const list = SKILL_LIB.filter(
-    (s) =>
-      !needle ||
-      s.name.toLowerCase().includes(needle) ||
-      s.desc.toLowerCase().includes(needle) ||
-      s.id.includes(needle),
-  );
-
-  return (
-    <Modal open={open} onClose={onClose} size="md" title="스킬 사용">
-      <div className="border-b border-slate-100 px-4 py-3">
-        <label htmlFor="skill-search" className="sr-only">
-          스킬 검색
-        </label>
-        <div className="flex items-center gap-2 rounded-lg border border-slate-200 px-2.5 py-2 focus-within:border-slate-400">
-          <IconSearch size={15} className="shrink-0 text-slate-400" />
-          <input
-            id="skill-search"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="스킬 검색"
-            className="w-full border-none bg-transparent text-[15px] text-slate-900 placeholder:text-slate-400 focus:outline-none"
-          />
-        </div>
-      </div>
-      <ul className="divide-y divide-slate-100 p-2">
-        {list.length === 0 && (
-          <li className="px-3 py-8 text-center text-[15px] text-slate-400">
-            찾는 스킬이 없어요.
-          </li>
-        )}
-        {list.map((s) => {
-          const on = selected.includes(s.id);
-          return (
-            <li
-              key={s.id}
-              className="flex items-center justify-between gap-3 px-3 py-3"
-            >
-              <div className="min-w-0">
-                <p className="flex items-center gap-1.5 text-[15px] font-semibold text-slate-900">
-                  {s.name}
-                  {s.official && (
-                    <span className="rounded border border-slate-200 px-1.5 text-[13px] font-normal text-slate-400">
-                      기본 제공
-                    </span>
-                  )}
-                </p>
-                <p className="mt-0.5 text-[13px] leading-relaxed text-slate-500">
-                  {s.desc}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => onToggle(s.id)}
-                aria-pressed={on}
-                className={`inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-colors ${
-                  on
-                    ? "bg-slate-800 text-white hover:bg-slate-700"
-                    : "border border-slate-200 text-slate-600 hover:bg-slate-50"
-                }`}
-              >
-                {on ? <IconCheck size={13} /> : <IconPlus size={13} />}
-                {on ? "사용 중" : "사용"}
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-    </Modal>
-  );
-}

@@ -12,7 +12,7 @@ import {
 } from "@/components/icons";
 import { BrandIcon } from "@/components/brand-icons";
 import { Toggle } from "@/components/ui";
-import { CONNECTOR_LIB, SKILL_LIB } from "@/data/chat";
+import { CONNECTOR_LIB, SKILL_LIB, type Skill } from "@/data/chat";
 
 /** 겹친 스택에 얼굴을 내미는 앱 수 — 나머지는 +n으로 접는다 */
 const STACK_MAX = 3;
@@ -54,6 +54,7 @@ export function ChatComposer({
   onOpenSkills,
   menuBelow = false,
   skills = [],
+  skillLib = SKILL_LIB,
   onRemoveSkill,
   linkedApps,
   enabledApps,
@@ -70,6 +71,8 @@ export function ChatComposer({
   menuBelow?: boolean;
   /** 이 턴에 물린 스킬 id */
   skills?: string[];
+  /** 칩 이름 · 설명을 찾을 목록(기본 + 회사). 없으면 기본 스킬만 */
+  skillLib?: Skill[];
   onRemoveSkill?: (id: string) => void;
   /** 연결된 앱 slug — 계정이 연동된 앱. 커넥터 팝업에서 바뀐다 */
   linkedApps: string[];
@@ -107,7 +110,7 @@ export function ChatComposer({
   }, [menu]);
 
   const picked = skills
-    .map((id) => SKILL_LIB.find((s) => s.id === id))
+    .map((id) => skillLib.find((s) => s.id === id))
     .filter((s) => s !== undefined);
   // 목록에서 빠진 칩의 예고는 저절로 무효가 된다 — 상태를 따로 정리하지 않는다
   const armedId = armed && skills.includes(armed) ? armed : null;

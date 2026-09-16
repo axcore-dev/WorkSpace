@@ -27,6 +27,7 @@ export const SOURCES_ENDPOINT = `${AI_PREFIX}/sources`;
 export const CONVERSATIONS_ENDPOINT = `${AI_PREFIX}/conversations`;
 export const EXPORTS_ENDPOINT = `${AI_PREFIX}/exports`;
 export const ONTOLOGY_REFINE_ENDPOINT = `${AI_PREFIX}/ontology/refine`;
+export const SKILLS_ENDPOINT = `${AI_PREFIX}/skills`;
 
 /**
  * 한 턴에 함께 보내는 화면 상태.

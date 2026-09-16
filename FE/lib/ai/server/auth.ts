@@ -39,6 +39,11 @@ export interface AiPrincipal {
    * 업무 데이터 조회(`data-tools.ts`)가 이 값으로 목록을 거른다. 비어 있으면 조회할 수 있는 것이 없다.
    */
   tabs: string[];
+  /**
+   * 회사 설정을 다룰 수 있는 사람인가(직급 is_admin · 소유자 · 서버 운영자). 회사 전체에 영향 주는 쓰기(회사 스킬)만 이 값으로
+   * 연다. BE 설정 API 의 관리자 판정과 같은 규칙이다
+   */
+  admin: boolean;
   /** access 토큰 만료. 캐시 상한 */
   tokenExpiresAt: string;
 }
@@ -121,6 +126,8 @@ async function introspect(token: string): Promise<AiPrincipal> {
   p.tabs = Array.isArray(p.tabs)
     ? p.tabs.filter((t): t is string => typeof t === "string" && /^[a-z]{1,30}$/.test(t))
     : [];
+  // 옛 BE 는 이 값을 주지 않는다 — 그때는 아무도 관리자가 아니다(쓰기만 닫히고 읽기는 그대로)
+  p.admin = p.admin === true;
   return p;
 }
 

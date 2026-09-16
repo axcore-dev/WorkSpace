@@ -12,6 +12,8 @@ import java.util.UUID;
  *
  * @param modules 이 사용자가 쓸 수 있는 기능(모듈) slug. AI 는 이 분야의 자료·질문에만 답한다
  *                ({@link ModuleAccessReader}). 비어 있으면 어떤 분야도 열리지 않는다.
+ * @param admin 회사 설정을 다룰 수 있는가({@code roles.is_admin} · 소유자 · 소속 없는 서버 운영자). AI 서버가 회사 스킬처럼
+ *              회사 전체에 영향 주는 쓰기를 열 때 본다. 설정 API 의 {@code TenantContext.requireAdmin} 과 같은 판정이다
  * @param tokenExpiresAt access 토큰의 exp. AI 서버가 판정을 캐시할 때 상한으로 쓴다
  */
 public record IntrospectionResponse(
@@ -24,5 +26,6 @@ public record IntrospectionResponse(
         String schemaName,
         List<String> modules,
         List<String> tabs,
+        boolean admin,
         Instant tokenExpiresAt) {
 }
