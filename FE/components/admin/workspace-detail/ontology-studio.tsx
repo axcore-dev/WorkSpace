@@ -133,6 +133,9 @@ export function OntologyStudio({ workspaceId, systems }: { workspaceId: number; 
     if (refineStatusSeen.current === "running" && status === "done" && refineJob) {
       showToast("AI 다듬기가 끝났어요. 검토해 주세요", "ink", { label: "검토", onClick: () => setRefining(refineJob.targets) });
     }
+    if (refineStatusSeen.current === "running" && status === "failed" && refineJob) {
+      showToast(refineJob.error ?? "AI 다듬기가 멈췄어요", "error", { label: "보기", onClick: () => setRefining(refineJob.targets) });
+    }
     refineStatusSeen.current = status;
   }, [refineJob, showToast]);
   /** 끌어 옮긴 카드들. 자동 배치 위에 더한다 — 끄는 동안 매 포인터 이동마다 바뀐다 */
@@ -411,7 +414,11 @@ export function OntologyStudio({ workspaceId, systems }: { workspaceId: number; 
         <div className="flex gap-2">
           {refineJob ? (
             <Button size="sm" variant={refineJob.status === "done" ? "primary" : "secondary"} onClick={() => setRefining(refineJob.targets)}>
-              {refineJob.status === "done" ? "다듬기 완료 · 검토하기" : `다듬는 중 ${refineJob.done} / ${refineJob.targets.length}`}
+              {refineJob.status === "done"
+                ? "다듬기 완료 · 검토하기"
+                : refineJob.status === "failed"
+                  ? "다듬기 실패 · 보기"
+                  : `다듬는 중 ${refineJob.done} / ${refineJob.targets.length}`}
             </Button>
           ) : (
             drafts.length > 0 && (

@@ -87,14 +87,28 @@ export type RefineItem = { conceptRowId: number; conceptId: string; name: string
   | { ok: false; error: string }
 );
 
-export type RefineRequest = {
-  workspaceId: number;
-  conceptRowIds: number[];
-  /** 값을 한 개도 보내지 않는다 — 컬럼 이름 · 타입 · 주석 · 모양만 */
-  structureOnly: boolean;
-};
+export type RefineTarget = { rowId: number; conceptId: string; name: string };
 
-export type RefineResult = { items: RefineItem[] };
+/** 작업 하나에 담는 개념 상한. 운영자 토큰이 15분이라 그 안에 끝날 크기다(3개씩 · 하나 30초~2.5분) */
+export const REFINE_MAX_TARGETS = 30;
+
+/** 서버가 드는 「AI 로 다듬기」 작업(`shared.ai_refine_jobs`). 화면은 이것을 폴링한다 */
+export type RefineJob = {
+  id: string;
+  workspaceId: number;
+  status: "running" | "done" | "failed";
+  structureOnly: boolean;
+  targets: RefineTarget[];
+  done: number;
+  /** 지금 도는 개념 이름(최대 3) */
+  current: string[];
+  doneIds: number[];
+  /** 끝난 개념부터 쌓인다. done 이면 targets 와 같은 길이 */
+  items: RefineItem[];
+  /** failed 일 때 이유 */
+  error: string | null;
+  updatedAt: string;
+};
 
 /** 초안이 설명 끝에 남기는 표시. 저장하면 뗀다 — 그것이 「검토 완료」 */
 export const DRAFT_MARK = /\s*\[초안[^\]]*\]\s*$/;

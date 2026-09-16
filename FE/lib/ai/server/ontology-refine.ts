@@ -245,16 +245,3 @@ export async function refineOne(workspaceId: number, conceptRowId: number, struc
   }
 }
 
-/** 여러 개념을 동시에 `parallel` 개씩 */
-export async function refineMany(workspaceId: number, ids: number[], structureOnly: boolean, token: string, parallel = 3): Promise<RefineItem[]> {
-  const out: RefineItem[] = new Array(ids.length);
-  let next = 0;
-  async function worker() {
-    while (next < ids.length) {
-      const i = next++;
-      out[i] = await refineOne(workspaceId, ids[i], structureOnly, token);
-    }
-  }
-  await Promise.all(Array.from({ length: Math.min(parallel, ids.length) }, worker));
-  return out;
-}

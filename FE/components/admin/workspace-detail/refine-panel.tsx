@@ -4,8 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/modal";
 import { Button, ProgressBar } from "@/components/ui";
 import { createConcept, deleteConcept, updateConcept, type ExternalConceptInput } from "@/lib/admin-api";
-import { DRAFT_MARK, type RefineItem } from "@/lib/ai/refine-types";
-import { clearRefine, startRefine, useRefineJobFor, type RefineTarget } from "@/lib/admin/refine-job";
+import { DRAFT_MARK, REFINE_MAX_TARGETS, type RefineItem, type RefineJob } from "@/lib/ai/refine-types";
+import { clearRefine, loadJob, startRefine, useRefineJobFor, type RefineTarget } from "@/lib/admin/refine-job";
 import { ApiRequestError } from "@/lib/api";
 
 /**
@@ -41,7 +41,7 @@ export function RefinePanel({
   const [applyError, setApplyError] = useState<string | null>(null);
   /** 체크 상태. 키는 rowId:필드. 어느 작업의 체크인지 checkedFor 로 묶는다 */
   const [checked, setChecked] = useState<Record<string, boolean>>({});
-  const checkedFor = useRef<number | null>(null);
+  const checkedFor = useRef<string | null>(null);
   /** 이미 저장이 끝난 개념(행 id)과 누적 개수 — 실패 뒤 다시 누르면 이어서 간다 */
   const done = useRef<{ rows: Set<number>; updatedRows: Set<number>; updated: number; created: number; deleted: number }>({
     rows: new Set(),
@@ -51,20 +51,45 @@ export function RefinePanel({
     deleted: 0,
   });
 
-  const items = job?.status === "done" ? job.items : [];
-  // 작업이 끝나는 순간(또는 끝난 작업을 다시 열었을 때) 기본 체크를 한 번 채운다
+  /** 끝난 작업의 결과(items). 폴링 목록에는 없어서 끝난 작업을 열 때 한 번 받는다 */
+  const [full, setFull] = useState<RefineJob | null>(null);
+  const items = full && full.id === job?.id ? full.items : [];
+  // 작업이 끝나는 순간(또는 끝난 작업을 다시 열었을 때) 결과를 받고 기본 체크를 한 번 채운다
   useEffect(() => {
-    if (job?.status === "done" && checkedFor.current !== job.id) {
-      checkedFor.current = job.id;
-      setChecked(defaultChecks(job.items));
-      done.current = { rows: new Set(), updatedRows: new Set(), updated: 0, created: 0, deleted: 0 };
-      setApplyError(null);
-    }
+    if (job?.status !== "done" || checkedFor.current === job.id) return;
+    checkedFor.current = job.id;
+    let alive = true;
+    loadJob(job.id)
+      .then((j) => {
+        if (!alive) return;
+        setFull(j);
+        setChecked(defaultChecks(j.items));
+        done.current = { rows: new Set(), updatedRows: new Set(), updated: 0, created: 0, deleted: 0 };
+        setApplyError(null);
+      })
+      .catch((e: unknown) => {
+        if (!alive) return;
+        checkedFor.current = null;
+        setRunError(e instanceof ApiRequestError ? e.message : "제안을 받지 못했어요");
+      });
+    return () => {
+      alive = false;
+    };
   }, [job]);
 
-  function run() {
+  const [starting, setStarting] = useState(false);
+  async function run() {
     setRunError(null);
-    if (!startRefine(workspaceId, targets, structureOnly)) setRunError("다른 다듬기가 아직 돌고 있어요. 끝나면 다시 눌러 주세요");
+    setStarting(true);
+    try {
+      // 실패한 작업을 다시 시도하면 그 작업의 대상으로. 화면이 보이는 목록과 같아야 한다
+      const list = (job?.status === "failed" ? job.targets : targets).slice(0, REFINE_MAX_TARGETS);
+      if (!(await startRefine(workspaceId, list, structureOnly))) setRunError("다른 다듬기가 아직 돌고 있어요. 끝나면 다시 눌러 주세요");
+    } catch (e) {
+      setRunError(e instanceof ApiRequestError ? e.message : "제안을 받지 못했어요");
+    } finally {
+      setStarting(false);
+    }
   }
 
   const toggle = (key: string) => setChecked((p) => ({ ...p, [key]: !p[key] }));
@@ -117,7 +142,7 @@ export function RefinePanel({
         }
         d.rows.add(it.conceptRowId);
       }
-      clearRefine();
+      void clearRefine(workspaceId);
       await onApplied({ updated: d.updated, created: d.created, deleted: d.deleted });
     } catch (e) {
       const why = e instanceof ApiRequestError ? e.message : "저장하지 못했어요";
@@ -131,9 +156,18 @@ export function RefinePanel({
   const title = "AI 로 다듬기";
   const okItems = items.filter((i) => i.ok);
   const running = job?.status === "running";
-  const shown = job ? job.targets : targets;
+  const shown = (job ? job.targets : targets).slice(0, REFINE_MAX_TARGETS);
+  const overCap = (job ? job.targets : targets).length - shown.length;
+  const dismiss = () => {
+    // 저장 없이 닫는다 — 끝났거나 실패한 작업은 검토를 버리는 것이라 비운다. 도는 작업은 그대로 둔다
+    void clearRefine(workspaceId);
+    onClose();
+  };
+  // 서버가 failed 로 남긴 작업(서버 재시작 · 전부 실패)은 안내 화면에 이유를 보이고, 「다시 시도」 가 새 작업을 만든다
+  const shownError = runError ?? (job?.status === "failed" ? job.error : null);
 
-  if (job?.status !== "done") {
+  if (!(job?.status === "done" && full && full.id === job.id)) {
+    const loadingResult = job?.status === "done";
     const pct = job && shown.length ? (job.done / shown.length) * 100 : 0;
     return (
       <Modal
@@ -149,20 +183,24 @@ export function RefinePanel({
         footer={
           <div className="flex items-center gap-2">
             {running && <span className="mr-auto text-[13px] text-slate-500">개념마다 30초 안팎 · 3개씩 같이 가요</span>}
-            <Button variant="secondary" onClick={onClose}>
-              {running ? "닫기" : "취소"}
+            <Button variant="secondary" onClick={running || loadingResult ? onClose : dismiss}>
+              {running || loadingResult ? "닫기" : "취소"}
             </Button>
-            {!running && <Button onClick={run}>제안 받기</Button>}
+            {!running && !loadingResult && (
+              <Button onClick={() => void run()} disabled={starting}>
+                {starting ? "시작하는 중…" : job?.status === "failed" ? "다시 시도" : "제안 받기"}
+              </Button>
+            )}
           </div>
         }
       >
         <div className="space-y-5 px-5 py-5">
-          {running && job ? (
+          {(running || loadingResult) && job ? (
             <section role="status" aria-live="polite" className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-4">
               <div className="flex items-center gap-3">
                 <span className="spinner" aria-hidden />
                 <p className="text-[15px] font-semibold text-slate-900">
-                  {job.done} / {shown.length} 다듬는 중
+                  {loadingResult ? "결과를 불러오는 중…" : `${job.done} / ${shown.length} 다듬는 중`}
                 </p>
                 <span className="ml-auto text-[13px] tabular-nums text-slate-500">{Math.round(pct)}%</span>
               </div>
@@ -207,7 +245,10 @@ export function RefinePanel({
           )}
 
           <section>
-            <p className="mb-2 text-[13px] font-semibold text-slate-500">다듬을 개념 {shown.length}개</p>
+            <p className="mb-2 text-[13px] font-semibold text-slate-500">
+              다듬을 개념 {shown.length}개
+              {overCap > 0 && <span className="ml-2 font-normal text-slate-400">한 번에 {REFINE_MAX_TARGETS}개까지 — 나머지 {overCap}개는 다음에</span>}
+            </p>
             <ul className="thin-scroll max-h-56 divide-y divide-slate-100 overflow-y-auto rounded-lg border border-slate-200">
               {shown.map((t) => {
                 const isDone = job?.doneIds.includes(t.rowId) ?? false;
@@ -225,21 +266,15 @@ export function RefinePanel({
             </ul>
           </section>
 
-          {runError && (
+          {shownError && (
             <p role="alert" className="text-sm text-red-600">
-              {runError}
+              {shownError}
             </p>
           )}
         </div>
       </Modal>
     );
   }
-
-  const dismiss = () => {
-    // 저장 없이 닫는다 — 검토를 버리는 것이라 작업도 비운다. 다시 누르면 처음부터 제안을 받는다
-    clearRefine();
-    onClose();
-  };
 
   return (
     <Modal

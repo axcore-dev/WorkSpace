@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getRefineJob } from "@/lib/admin/refine-job";
+import { consumePendingOpen, getRefineJob } from "@/lib/admin/refine-job";
 import { useParams } from "next/navigation";
 import { Breadcrumb } from "@/components/admin/breadcrumb";
 import { STATUS_TONE } from "@/components/admin/workspace-detail/shared";
@@ -118,7 +118,7 @@ export default function AdminWorkspaceDetailPage() {
   }
 
   // 이 회사의 「AI 로 다듬기」 가 돌고 있거나 끝나 있으면(사이드바 배지로 돌아온 경우) 연동 탭에서 시작한다
-  const [tab, setTab] = useState<Tab>(() => (id !== null && getRefineJob()?.workspaceId === id ? "연동" : "개요"));
+  const [tab, setTab] = useState<Tab>(() => (id !== null && (consumePendingOpen() === id || getRefineJob(id)) ? "연동" : "개요"));
   /** 중지·재개는 데모라 화면 안에서만 바뀐다 */
   const [status, setStatus] = useState<WsStatus | null>(null);
   const [confirmSuspend, setConfirmSuspend] = useState(false);
