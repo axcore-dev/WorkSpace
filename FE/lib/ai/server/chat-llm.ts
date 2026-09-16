@@ -32,7 +32,7 @@ import {
   type UIMessageStreamOnEndCallback,
   type UIMessageStreamWriter,
 } from "ai";
-import { SKILL_LIB, type ToolApproval, type TraceStep } from "@/data/chat";
+import type { Skill, ToolApproval, TraceStep } from "@/data/chat";
 import { MODULES } from "@/data/modules";
 import { toChatMessage, type AnswerMeta, type AxpUIMessage } from "@/lib/ai/ui-messages";
 import type { AiPrincipal } from "./auth";
@@ -51,6 +51,7 @@ import { chatModel, providerOptions } from "./models";
 import { searchQuery } from "./query-rewrite";
 import { retrieve } from "./retrieval";
 import { loadConcepts } from "./data-tools";
+import { allSkills } from "./skills";
 import { decideApproval, hasTools, MAX_TOOL_STEPS, toolSetFor } from "./tools";
 // 도구를 레지스트리에 올린다. import 자체가 등록이다
 import "./connector-tools";
@@ -81,8 +82,7 @@ const TURN_TIMEOUT_MS = 240_000;
  * 스킬은 "업무 절차·양식을 가르치는 지침 패키지" 다. 지금은 카탈로그의 설명문을 지침으로 쓴다.
  * 스킬마다 본문(양식·규칙)이 생기면 이 표가 스킬 저장소 조회로 바뀐다.
  */
-function skillInstructions(ids: string[]): string {
-  const picked = SKILL_LIB.filter((s) => ids.includes(s.id));
+function skillInstructions(picked: Skill[]): string {
   if (!picked.length) return "";
   // 스킬은 답의 양식 · 순서 · 금지를 정한다. 답변 범위 규칙(권한 · 근거 없으면 추측 금지)은 스킬보다 위다
   return (
@@ -113,7 +113,7 @@ export function outOfScopeMessage(principal: AiPrincipal): string {
  * 다른 테넌트의 자료는 여기까지 오지 못한다(스키마 격리) — 프롬프트가 막는 것은 모델의 일반 지식으로 타사 얘기를
  * 하는 것이다.
  */
-function systemPrompt(principal: AiPrincipal, hasContext: boolean, skills: string[], tools: boolean): string {
+function systemPrompt(principal: AiPrincipal, hasContext: boolean, skills: Skill[], tools: boolean): string {
   const company = principal.workspaceName;
   const scope = moduleNames(principal.modules);
   return (
@@ -267,6 +267,10 @@ export function streamAnswer(
       const query = await searchQuery(history, turn.question, signal);
       // 이 회사의 개념 목록(내장 + 외부 시스템). 검색어 확장과 도구 설명이 같은 목록을 본다
       const concepts = await loadConcepts(turn.accessToken);
+      // 이 턴에 적용할 스킬 — 기본(코드) + 회사(ai_skills 표). 목록에 없는 id 는 조용히 빠진다(지워진 회사 스킬)
+      const skills = turn.skills.length
+        ? (await withTenant(principal.schemaName, allSkills)).filter((s) => turn.skills.includes(s.id))
+        : [];
       const r = await retrieve(principal, turn.sources, query, concepts, signal);
       const context = r.context;
       writer.write({
@@ -291,9 +295,8 @@ export function streamAnswer(
         tools: ["RAG 검색"],
         summary: `${turn.sources.length ? `문서 ${turn.sources.length}개` : "등록 자료 전체"} 검색됨, 근거 조각 ${r.hits.length}개 인용됨`,
       };
-      if (turn.skills.length) {
-        const names = SKILL_LIB.filter((s) => turn.skills.includes(s.id)).map((s) => s.name);
-        writer.write({ type: "data-trace", data: { icon: "model", text: `스킬 적용 — ${names.join(", ")}` } });
+      if (skills.length) {
+        writer.write({ type: "data-trace", data: { icon: "model", text: `스킬 적용 — ${skills.map((s) => s.name).join(", ")}` } });
       }
       label("답변을 정리하고 있어요");
 
@@ -316,7 +319,7 @@ export function streamAnswer(
       ];
       const result = streamText({
         model,
-        instructions: systemPrompt(principal, context.length > 0, turn.skills, !!tools),
+        instructions: systemPrompt(principal, context.length > 0, skills, !!tools),
         messages,
         tools,
         stopWhen: isStepCount(MAX_TOOL_STEPS),

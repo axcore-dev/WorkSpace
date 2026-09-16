@@ -188,17 +188,32 @@ export const CONNECTOR_LIB: {
  * 문서를 만드는 스킬은 **답 자체가 문서**다 — 마크다운 제목 · 표 · 목록으로 바로 복사해 쓸 수 있게 쓴다. 수치는 지어내지
  * 않고 업무 데이터 도구로 조회해 출처를 적는다. 파일(docx · xlsx)이 필요하면 `export_document` 도구가 만든다(`server/export-tools.ts`).
  */
-export const SKILL_LIB: {
+/** 스킬 분야 — 모달이 이 순서로 묶어 보인다. slug 는 `ai_skills.category` 에 그대로 저장된다 */
+export const SKILL_CATEGORIES = [
+  { id: "doc", name: "문서 작성" },
+  { id: "data", name: "데이터 정리" },
+  { id: "production", name: "생산 · 품질" },
+  { id: "purchase", name: "구매 · 경영" },
+  { id: "other", name: "기타" },
+] as const;
+export type SkillCategory = (typeof SKILL_CATEGORIES)[number]["id"];
+
+export interface Skill {
+  /** 기본 제공은 코드의 slug, 회사 스킬은 `co-<행 id>` (`lib/ai/skills.ts`) */
   id: string;
   name: string;
   desc: string;
-  /** 워크스페이스가 기본 제공하는 스킬 — 사용자가 만든 스킬과 구분해 배지를 붙인다 */
+  category: SkillCategory;
+  /** 워크스페이스가 기본 제공하는 스킬 — 회사가 만든 스킬(`ai_skills` 행)과 구분해 배지를 붙인다 */
   official?: boolean;
   /** 모델에게 주는 작업 방식. 양식 · 순서 · 하지 말 것 */
   instructions: string;
-}[] = [
+}
+
+export const SKILL_LIB: Skill[] = [
   {
     id: "doc-report",
+    category: "doc",
     name: "업무 보고서 작성",
     desc: "주간·월간·현황 보고서를 사내 양식으로. 수치는 업무 데이터에서 조회해 출처를 적는 스킬",
     official: true,
@@ -209,6 +224,7 @@ export const SKILL_LIB: {
   },
   {
     id: "doc-official",
+    category: "doc",
     name: "공문·협조전 작성",
     desc: "수신·참조·제목·본문·붙임·발신 순의 공문 양식으로 대외 문서나 부서 간 협조전을 작성하는 스킬",
     official: true,
@@ -218,6 +234,7 @@ export const SKILL_LIB: {
   },
   {
     id: "doc-email",
+    category: "doc",
     name: "거래처 메일 작성",
     desc: "발주 · 납기 · 품질 문의 등 거래처에 보내는 메일을 제목부터 마무리까지 쓰는 스킬",
     official: true,
@@ -227,6 +244,7 @@ export const SKILL_LIB: {
   },
   {
     id: "data-table",
+    category: "data",
     name: "데이터 요약표",
     desc: "업무 데이터를 조회해 표로 정리하고 합계 · 평균 · 상위 항목을 덧붙이는 스킬",
     official: true,
@@ -236,6 +254,7 @@ export const SKILL_LIB: {
   },
   {
     id: "daily-report",
+    category: "production",
     name: "일일 생산보고 작성",
     desc: "사내 보고 양식과 결재선 규칙대로 일일 생산·품질 보고서를 작성하는 스킬",
     official: true,
@@ -245,6 +264,7 @@ export const SKILL_LIB: {
   },
   {
     id: "rca",
+    category: "production",
     name: "불량 원인 분석(RCA)",
     desc: "5Why·특성요인도 절차에 따라 근본 원인을 도출하고 시정조치를 제안하는 스킬",
     official: true,
@@ -254,6 +274,7 @@ export const SKILL_LIB: {
   },
   {
     id: "po-draft",
+    category: "purchase",
     name: "구매 기안 작성",
     desc: "품의 규정·승인 한도에 맞춰 구매 기안 문서를 작성하는 스킬",
     official: true,
@@ -263,6 +284,7 @@ export const SKILL_LIB: {
   },
   {
     id: "sop-answer",
+    category: "production",
     name: "작업표준 안내",
     desc: "작업표준서(SOP) 해당 조항을 인용해 현장 질문에 답변하는 스킬",
     official: true,
@@ -271,6 +293,7 @@ export const SKILL_LIB: {
   },
   {
     id: "meeting",
+    category: "doc",
     name: "회의록 정리",
     desc: "회의 내용을 사내 회의록 양식으로 요약하고 액션 아이템을 추출하는 스킬",
     official: true,

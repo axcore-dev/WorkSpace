@@ -113,6 +113,11 @@ POST /ai/sources (multipart files[])
   `gpt-5.6-luna`). 스캔 PDF·이미지 옮겨 적기도 같은 모델을 쓴다. 모델 키가 없으면 인증을 거친 뒤
   `503 MODEL_UNAVAILABLE` 로 거절한다 — 대본(mock)으로 내려가던 경로는 2026-09-09 에 없앴다.
 - 파트 순서: `data-label`(의도 파악 → 문서 검색 → 정리) → `data-trace`(검색 결과 · 스킬) → 본문 → `data-answer` → `finish`.
+- 스킬: 기본 9개는 코드(`data/chat.ts` SKILL_LIB), 회사 스킬은 테넌트 표 `ai_skills`(tenant V21, 2026-09-16). `GET /ai/skills` 가
+  둘을 합쳐 주고(id 는 `co-<행 id>`), `POST · PUT · DELETE /ai/skills[/id]` 는 회사 관리자만(`AiPrincipal.admin` — BE introspect 가
+  직급 `is_admin` · 소유자 · 서버 운영자로 판정). 턴마다 같은 목록에서 고른 스킬의 `instructions` 를 시스템 프롬프트에 붙인다.
+  화면은 스킬 모달(`components/skill-modal.tsx`)에서 만들고 고치고 지운다. 분야(`SKILL_CATEGORIES` slug, `ai_skills.category`
+  tenant V23)별로 묶어 보이고 칩으로 거른다.
 - 히스토리: 서버 저장본에서 최근 12턴 · 1만 6천 자 예산 안의 메시지를 모델에 넣는다(`historyForModel`). 화면은 마지막 질문 하나만 보낸다.
 - 아직 없는 것: 제안 승인(`approve-proposal`) 의 실제 반영, 사내 데이터 도구, 긴 히스토리 요약. 외부 앱 도구는
   2026-09-09 에 붙었다(구글 캘린더 · Gmail · Drive · Sheets, `lib/ai/server/connector-tools.ts`).
@@ -266,4 +271,4 @@ BE(app 컨테이너)에는 `AUTH_INTERNAL_TOKEN` 과 `AI_DB_PASSWORD`(부팅 때
   테넌트 표(`ai_ontology_terms`)로 빼고 관리자 온톨로지 탭에서 고치기 · 색인 때 조각 안의 품목 코드를 개념에 링크하기 ·
   업무 데이터 질문용 평가 세트(지금 `eval` 은 문서 검색만 잰다).
 - 커넥터 MCP — 레지스트리(`tools.ts`)에 등록하면 안전장치가 그대로 적용된다.
-- 팀·전사 범위, 스킬 저장소, 문서 분야 태그 수동 수정 UI, 권한 부여 화면(지금은 grants 테이블이 비어 있어 관리자 외에는 분야가 없다).
+- 팀·전사 범위, (완료 2026-09-16) 스킬 저장소 — 회사 스킬 `ai_skills` · 분야별 묶음 · 남은 것: 스킬별 예시 질문 · 권한 탭 연동, 문서 분야 태그 수동 수정 UI, 권한 부여 화면(지금은 grants 테이블이 비어 있어 관리자 외에는 분야가 없다).

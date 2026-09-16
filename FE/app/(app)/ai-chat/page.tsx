@@ -12,8 +12,12 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { IconPlus } from "@/components/icons";
-import { ConnectorModal, SkillModal } from "@/components/connector-modal";
+import { ConnectorModal } from "@/components/connector-modal";
+import { SkillModal } from "@/components/skill-modal";
 import { Button } from "@/components/ui";
+import { SKILL_LIB, type Skill } from "@/data/chat";
+import { listSkills } from "@/lib/ai/skills";
+import { useWorkspaceMe } from "@/lib/workspace-me";
 import { AgentTrace } from "@/components/chat/agent-trace";
 import { AiBackdrop } from "@/components/chat/ai-backdrop";
 import { ChatComposer } from "@/components/chat/chat-composer";
@@ -37,6 +41,14 @@ export default function AiChatPage() {
   const [skillOpen, setSkillOpen] = useState(false);
   /** 이 턴에 물린 스킬 id — 전송하면 비운다 */
   const [skills, setSkills] = useState<string[]>([]);
+  /** 고를 수 있는 스킬 — 기본(코드)으로 시작해 서버에서 회사 스킬을 합친 목록으로 바꾼다. 못 받으면 기본만 */
+  const [skillLib, setSkillLib] = useState<Skill[]>(SKILL_LIB);
+  const loadSkills = useCallback(() => {
+    listSkills().then(setSkillLib).catch(() => {});
+  }, []);
+  useEffect(loadSkills, [loadSkills]);
+  const { me } = useWorkspaceMe();
+  const canEditSkills = !!me && (me.member.admin || me.member.owner);
   /**
    * 이 대화에서 **꺼 둔** 앱 slug. 연결된 앱은 기본으로 켜져 있고, 칩을 끄면 여기 들어온다.
    * 켜진 목록이 아니라 끈 목록을 드는 이유: 연결 상태는 서버에서 비동기로 오고 설정 화면에서도 바뀐다.
@@ -305,6 +317,7 @@ export default function AiChatPage() {
                   onOpenSkills={() => setSkillOpen(true)}
                   menuBelow={empty}
                   skills={skills}
+                  skillLib={skillLib}
                   onRemoveSkill={(id) => setSkills((prev) => prev.filter((x) => x !== id))}
                   linkedApps={linkedApps}
                   enabledApps={enabledApps}
@@ -352,6 +365,9 @@ export default function AiChatPage() {
         onToggle={(id) =>
           setSkills((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
         }
+        skills={skillLib}
+        canEdit={canEditSkills}
+        onChanged={loadSkills}
       />
     </div>
   );
