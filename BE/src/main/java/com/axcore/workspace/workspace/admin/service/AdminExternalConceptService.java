@@ -82,10 +82,17 @@ public class AdminExternalConceptService {
         return ExternalConceptAdminResponse.of(store.byId(id).orElseThrow());
     }
 
+    /**
+     * 전체 교체. 단 <b>개념 id 는 못 바꾼다</b> — 다른 개념의 관계({@code relations[].to})가 id 문자열로 이어져 있어, 바꾸면 그 선이 조용히
+     * 끊긴다(#116 3번). 화면도 수정 폼에서 id 를 읽기 전용으로 두지만, 막는 곳은 여기다.
+     */
     @Transactional
     public ExternalConceptAdminResponse update(UUID actor, Long workspaceId, long id, ExternalConceptRequest req) {
         open(workspaceId);
         ExternalConcept before = store.byId(id).orElseThrow(() -> new SettingsNotFoundException("개념을 찾지 못했어요"));
+        if (!before.conceptId().equals(req.conceptId())) {
+            throw new SettingsValidationException("개념 id 는 바꿀 수 없어요 — 다른 개념의 관계가 이 id 로 이어져 있어요. 지우고 새로 만들어 주세요");
+        }
         ExternalConcept c = req.toConcept(id, before.systemId());
         validate(c, id);
         store.update(id, c);
@@ -101,24 +108,51 @@ public class AdminExternalConceptService {
         audit.record(actor, AdminAuditAction.UPDATE, workspaceId, "개념 삭제: " + before.conceptId());
     }
 
-    /** 템플릿의 개념을 이 시스템에 넣는다. 이미 있는 concept_id 는 건너뛴다 — 여러 번 눌러도 된다 */
+    /**
+     * 방금 넣은 묶음(템플릿 · DB 초안)을 한 번에 지운다 — 토스트의 「되돌리기」. 이 회사에 없는 id 는 조용히 건너뛴다(사람이 그새 손으로
+     * 지웠을 수 있다). 감사 기록은 한 줄로 남긴다.
+     *
+     * @return 실제로 지운 수
+     */
     @Transactional
-    public List<ExternalConceptAdminResponse> applyTemplate(UUID actor, Long workspaceId, long systemId, String templateKey) {
+    public int deleteBatch(UUID actor, Long workspaceId, List<Long> ids) {
+        open(workspaceId);
+        List<String> deleted = new ArrayList<>();
+        for (Long id : ids) {
+            ExternalConcept c = store.byId(id).orElse(null);
+            if (c == null) continue;
+            store.delete(id);
+            deleted.add(c.conceptId());
+        }
+        if (!deleted.isEmpty()) {
+            audit.record(actor, AdminAuditAction.UPDATE, workspaceId, "개념 %d개 삭제(되돌리기): %s".formatted(deleted.size(), String.join(", ", deleted)));
+        }
+        return deleted.size();
+    }
+
+    /**
+     * 템플릿의 개념을 이 시스템에 넣는다. 이미 있는 concept_id 는 건너뛴다 — 여러 번 눌러도 된다.
+     *
+     * @param conceptIds 넣을 개념 id. 비면 템플릿 전부. 화면의 확인 목록에서 체크한 것만 온다
+     * @return <b>이번에 넣은</b> 개념만 — 화면이 행 id 를 받아 「되돌리기」({@link #deleteBatch}) 에 쓴다
+     */
+    @Transactional
+    public List<ExternalConceptAdminResponse> applyTemplate(UUID actor, Long workspaceId, long systemId, String templateKey, List<String> conceptIds) {
         open(workspaceId);
         requireSystem(systemId);
         ExternalConceptTemplates.Template t = ExternalConceptTemplates.find(templateKey)
                 .orElseThrow(() -> new SettingsNotFoundException("템플릿을 찾지 못했어요: " + templateKey));
-        int added = 0;
+        boolean all = conceptIds == null || conceptIds.isEmpty();
+        List<ExternalConceptAdminResponse> inserted = new ArrayList<>();
         for (ExternalConcept c : t.concepts()) {
-            if (store.conceptIdTaken(c.conceptId(), null)) {
-                continue;
-            }
-            store.insert(new ExternalConcept(0, systemId, null, null, c.conceptId(), c.name(), c.synonyms(), c.tab(), c.description(),
+            if (!all && !conceptIds.contains(c.conceptId())) continue;
+            if (store.conceptIdTaken(c.conceptId(), null)) continue;
+            long id = store.insert(new ExternalConcept(0, systemId, null, null, c.conceptId(), c.name(), c.synonyms(), c.tab(), c.description(),
                     c.attrs(), c.relations(), c.formula(), c.sql(), c.filterColumns(), c.orderBy(), c.sortOrder()));
-            added++;
+            store.byId(id).map(ExternalConceptAdminResponse::of).ifPresent(inserted::add);
         }
-        audit.record(actor, AdminAuditAction.UPDATE, workspaceId, "개념 템플릿 적용: %s (%d개)".formatted(t.name(), added));
-        return store.ofSystem(systemId).stream().map(ExternalConceptAdminResponse::of).toList();
+        audit.record(actor, AdminAuditAction.UPDATE, workspaceId, "개념 템플릿 적용: %s (%d개)".formatted(t.name(), inserted.size()));
+        return inserted;
     }
 
     /**
@@ -184,10 +218,10 @@ public class AdminExternalConceptService {
      * 관계의 상대는 같은 스키마의 표 전부에서 찾으므로, 고르지 않은 표를 가리키는 관계는 (그 개념이 없어) 캔버스에 선이 안 생긴다 —
      * 나중에 그 표를 넣으면 선이 이어진다.
      *
-     * @return 넣은 개념 수
+     * @return 넣은 개념의 행 id — 화면이 「되돌리기」({@link #deleteBatch}) 에 쓴다
      */
     @Transactional
-    public int draft(UUID actor, Long workspaceId, long systemId, String schema, List<String> tables, String prefix, String tab) {
+    public List<Long> draft(UUID actor, Long workspaceId, long systemId, String schema, List<String> tables, String prefix, String tab) {
         String tenant = open(workspaceId);
         requireSystem(systemId);
         boolean knownTab = FeatureCatalog.modules().stream().anyMatch(m -> m.tabs().contains(tab));
@@ -210,17 +244,16 @@ public class AdminExternalConceptService {
         if (selected.isEmpty()) {
             throw new SettingsValidationException("고른 표가 없어요");
         }
-        int added = 0;
+        List<Long> ids = new ArrayList<>();
         for (ExternalConcept c : OntologyDrafter.draft(selected, all, p, tab, systemId)) {
             if (store.conceptIdTaken(c.conceptId(), null)) {
                 continue;
             }
             ExternalQuery.problem(c.sql(), c.filterColumns(), c.orderBy()).ifPresent(m -> { throw new SettingsValidationException(c.conceptId() + ": " + m); });
-            store.insert(c);
-            added++;
+            ids.add(store.insert(c));
         }
-        audit.record(actor, AdminAuditAction.UPDATE, workspaceId, "개념 초안 %d개 (%s.%s)".formatted(added, schema, String.join(",", tables)));
-        return added;
+        audit.record(actor, AdminAuditAction.UPDATE, workspaceId, "개념 초안 %d개 (%s.%s)".formatted(ids.size(), schema, String.join(",", tables)));
+        return List.copyOf(ids);
     }
 
     public List<ExternalConceptTemplates.Template> templates() {

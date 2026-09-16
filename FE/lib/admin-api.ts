@@ -626,7 +626,14 @@ export type ExternalConceptAdminDto = {
 /** BE `ExternalConceptRequest`. 전체 교체 */
 export type ExternalConceptInput = Omit<ExternalConceptAdminDto, "id" | "systemId" | "systemName" | "systemKind">;
 
-export type ConceptTemplateDto = { key: string; name: string; kind: string; conceptCount: number };
+/** 템플릿 하나. `concepts[].table` 은 그 개념 SQL 이 읽는 `스키마.표` — 「같은 표를 읽는 개념이 있어요」 판정에 쓴다(#116 1번) */
+export type ConceptTemplateDto = {
+  key: string;
+  name: string;
+  kind: string;
+  conceptCount: number;
+  concepts: { conceptId: string; name: string; table: string | null }[];
+};
 export type ConceptPreviewDto = { columns: string[]; rows: Record<string, string | null>[]; error: string | null };
 
 export const listConcepts = async (workspaceId: number) =>
@@ -644,9 +651,13 @@ export const deleteConcept = (workspaceId: number, conceptRowId: number) =>
 export const listConceptTemplates = async (workspaceId: number) =>
   (await apiGet<ConceptTemplateDto[]>(`${BASE}/${workspaceId}/concept-templates`)) ?? [];
 
-/** 템플릿의 개념을 시스템에 넣는다. 이미 있는 id 는 건너뛴다 */
-export const applyConceptTemplate = async (workspaceId: number, systemId: number, template: string) =>
-  (await apiPostAuthed<ExternalConceptAdminDto[]>(`${BASE}/${workspaceId}/systems/${systemId}/concepts/template`, { template })) ?? [];
+/** 템플릿의 개념 중 고른 것을 시스템에 넣는다(비우면 전부). 이미 있는 id 는 건너뛴다. 이번에 넣은 행만 돌려준다 — 「되돌리기」 가 그 id 로 지운다 */
+export const applyConceptTemplate = async (workspaceId: number, systemId: number, template: string, conceptIds?: string[]) =>
+  (await apiPostAuthed<ExternalConceptAdminDto[]>(`${BASE}/${workspaceId}/systems/${systemId}/concepts/template`, { template, conceptIds: conceptIds ?? null })) ?? [];
+
+/** 방금 넣은 묶음을 한 번에 지운다 — 토스트의 「되돌리기」. 이미 없는 id 는 건너뛴다 */
+export const deleteConcepts = async (workspaceId: number, ids: number[]) =>
+  (await apiPostAuthed<{ deleted: number }>(`${BASE}/${workspaceId}/concepts/delete-batch`, { ids }))?.deleted ?? 0;
 
 /** SQL 을 그 시스템의 읽기 전용 풀로 5행 돌려 본다 */
 export const previewConceptSql = async (workspaceId: number, systemId: number, sql: string) =>
@@ -681,6 +692,6 @@ export const introspectSystem = async (workspaceId: number, systemId: number, sc
     error: "응답이 없어요",
   };
 
-/** 고른 표를 규칙으로 개념 초안으로 넣는다. 이미 있는 id 는 건너뛴다. 넣은 수를 돌려준다 */
+/** 고른 표를 규칙으로 개념 초안으로 넣는다. 이미 있는 id 는 건너뛴다. 넣은 수와 행 id 를 돌려준다 — id 는 「되돌리기」 용 */
 export const draftConcepts = async (workspaceId: number, systemId: number, input: { schema: string; tables: string[]; prefix: string; tab: string }) =>
-  (await apiPostAuthed<{ added: number }>(`${BASE}/${workspaceId}/systems/${systemId}/concepts/draft`, input))?.added ?? 0;
+  (await apiPostAuthed<{ added: number; ids: number[] }>(`${BASE}/${workspaceId}/systems/${systemId}/concepts/draft`, input)) ?? { added: 0, ids: [] };

@@ -769,16 +769,17 @@ export function TableSkeleton({ rows = 5, cols = 6, label = "불러오는 중" }
 export function Toast({
   toast,
 }: {
-  toast: { message: string; tone?: "ink" | "error"; visible?: boolean } | null;
+  toast: { message: string; tone?: "ink" | "error"; visible?: boolean; action?: { label: string; onClick: () => void } } | null;
 }) {
   const error = toast?.tone === "error";
   // `visible`을 안 주는 호출부가 있어도 보이던 대로 둔다
   const on = toast ? toast.visible !== false : false;
   return (
+    // z-[60]: 모달(z-50) 위. 모달 안에서 저장하다 실패한 토스트가 배경 아래 깔려 흐리게 보였다(#116 3번). 행동 버튼만 클릭을 받는다
     <div
       role="status"
       aria-live="polite"
-      className="pointer-events-none fixed bottom-6 left-1/2 z-50 -translate-x-1/2"
+      className="pointer-events-none fixed bottom-6 left-1/2 z-[60] -translate-x-1/2"
     >
       {toast && (
         <div
@@ -788,6 +789,17 @@ export function Toast({
         >
           {error ? <IconAlertCircle size={16} /> : <IconCheck size={16} />}
           {toast.message}
+          {toast.action && on && (
+            <button
+              type="button"
+              onClick={toast.action.onClick}
+              className={`pointer-events-auto ml-1 cursor-pointer rounded-md px-2 py-0.5 text-[13px] font-semibold underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 ${
+                error ? "text-red-700 focus-visible:outline-red-400" : "text-white focus-visible:outline-white"
+              }`}
+            >
+              {toast.action.label}
+            </button>
+          )}
         </div>
       )}
     </div>

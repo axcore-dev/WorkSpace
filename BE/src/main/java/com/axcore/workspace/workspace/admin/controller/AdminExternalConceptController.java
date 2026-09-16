@@ -1,6 +1,7 @@
 package com.axcore.workspace.workspace.admin.controller;
 
 import com.axcore.workspace.external.ExternalConceptTemplates;
+import com.axcore.workspace.external.OntologyRules;
 import com.axcore.workspace.security.JwtPrincipal;
 import com.axcore.workspace.workspace.admin.dto.ExternalConceptAdminResponse;
 import com.axcore.workspace.workspace.admin.dto.ExternalConceptRequest;
@@ -11,7 +12,6 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -86,25 +86,53 @@ public class AdminExternalConceptController {
         return concepts.refineInput(id, conceptId);
     }
 
-    /** 쓸 수 있는 템플릿. 화면의 「템플릿 적용」 메뉴가 이걸 그린다 */
-    public record TemplateResponse(String key, String name, String kind, int conceptCount) {}
+    /**
+     * 템플릿 안의 개념 하나 — 확인 목록의 한 줄.
+     *
+     * @param table 이 개념이 읽는 표({@code 스키마.표}, 소문자). 화면이 「같은 표를 읽는 개념이 있어요」 를 판정한다. SQL 에서 못 잡으면 null
+     */
+    public record TemplateConcept(String conceptId, String name, String table) {}
+
+    /** 쓸 수 있는 템플릿. 화면의 「템플릿 적용」 메뉴가 이걸 그리고, 「넣기」 전에 개념마다 확인 목록을 보인다 */
+    public record TemplateResponse(String key, String name, String kind, int conceptCount, List<TemplateConcept> concepts) {}
 
     @GetMapping("/concept-templates")
     public List<TemplateResponse> templates(@AuthenticationPrincipal Jwt jwt, @PathVariable Long id) {
         workspaces.requireInternalAdmin(userId(jwt));
         return concepts.templates().stream()
-                .map(t -> new TemplateResponse(t.key(), t.name(), t.kind(), t.concepts().size())).toList();
+                .map(t -> new TemplateResponse(t.key(), t.name(), t.kind(), t.concepts().size(),
+                        t.concepts().stream()
+                                .map(c -> new TemplateConcept(c.conceptId(), c.name(),
+                                        OntologyRules.fromTable(c.sql()).map(f -> f.schema() + "." + f.table()).orElse(null)))
+                                .toList()))
+                .toList();
     }
 
-    public record TemplateApplyRequest(@NotBlank String template) {}
+    /** @param conceptIds 넣을 개념 id. 비면 템플릿 전부 */
+    public record TemplateApplyRequest(@NotBlank String template, List<@NotBlank String> conceptIds) {}
 
-    /** 템플릿의 개념을 이 시스템에 넣는다. 이미 있는 id 는 건너뛴다. 그 시스템의 개념 전부를 돌려준다 */
+    /**
+     * 템플릿의 개념(체크한 것만)을 이 시스템에 넣는다. 이미 있는 id 는 건너뛴다.
+     * <b>이번에 넣은 개념만</b> 돌려준다 — 화면이 행 id 를 받아 토스트의 「되돌리기」({@link #deleteBatch}) 에 쓴다.
+     */
     @PostMapping("/systems/{systemId}/concepts/template")
     public List<ExternalConceptAdminResponse> applyTemplate(
             @AuthenticationPrincipal Jwt jwt, @PathVariable Long id, @PathVariable long systemId, @Valid @RequestBody TemplateApplyRequest request) {
         UUID actor = userId(jwt);
         workspaces.requireInternalAdmin(actor);
-        return concepts.applyTemplate(actor, id, systemId, request.template());
+        return concepts.applyTemplate(actor, id, systemId, request.template(), request.conceptIds());
+    }
+
+    public record DeleteBatchRequest(@NotEmpty @Size(max = 200) List<Long> ids) {}
+
+    public record DeleteBatchResponse(int deleted) {}
+
+    /** 방금 넣은 묶음(템플릿 · DB 초안)을 한 번에 지운다 — 토스트의 「되돌리기」. 이미 없는 id 는 건너뛴다 */
+    @PostMapping("/concepts/delete-batch")
+    public DeleteBatchResponse deleteBatch(@AuthenticationPrincipal Jwt jwt, @PathVariable Long id, @Valid @RequestBody DeleteBatchRequest request) {
+        UUID actor = userId(jwt);
+        workspaces.requireInternalAdmin(actor);
+        return new DeleteBatchResponse(concepts.deleteBatch(actor, id, request.ids()));
     }
 
     public record PreviewRequest(@NotBlank String sql) {}
@@ -133,13 +161,17 @@ public class AdminExternalConceptController {
     public record DraftRequest(
             @NotBlank String schema, @NotEmpty List<@NotBlank String> tables, @Size(max = 20) String prefix, @NotBlank String tab) {}
 
-    /** 고른 표를 규칙으로 개념 초안으로 넣는다. 이미 있는 id 는 건너뛴다. {@code {added}} */
+    /** @param ids 넣은 개념의 행 id — 「되돌리기」({@link #deleteBatch}) 에 그대로 보낸다 */
+    public record DraftResponse(int added, List<Long> ids) {}
+
+    /** 고른 표를 규칙으로 개념 초안으로 넣는다. 이미 있는 id 는 건너뛴다 */
     @PostMapping("/systems/{systemId}/concepts/draft")
-    public Map<String, Integer> draft(
+    public DraftResponse draft(
             @AuthenticationPrincipal Jwt jwt, @PathVariable Long id, @PathVariable long systemId, @Valid @RequestBody DraftRequest request) {
         UUID actor = userId(jwt);
         workspaces.requireInternalAdmin(actor);
-        return Map.of("added", concepts.draft(actor, id, systemId, request.schema(), request.tables(), request.prefix(), request.tab()));
+        List<Long> ids = concepts.draft(actor, id, systemId, request.schema(), request.tables(), request.prefix(), request.tab());
+        return new DraftResponse(ids.size(), ids);
     }
 
     private static UUID userId(Jwt jwt) {
