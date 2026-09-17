@@ -140,7 +140,7 @@ export function TemplateModal({
                 <span className="flex flex-wrap items-baseline gap-x-2">
                   <span className="text-[13px] font-medium text-slate-900">{c.name}</span>
                   <span className="font-mono text-[11px] text-slate-500">{c.conceptId}</span>
-                  {c.table && <span className="font-mono text-[11px] text-slate-400">← {c.table}</span>}
+                  {c.table && <span className="font-mono text-[11px] text-slate-500">← {c.table}</span>}
                 </span>
                 <span className={`block text-[12px] ${s.kind === "new" ? "text-slate-500" : "text-amber-700"}`}>
                   {s.kind === "new" && "새로 넣어요"}

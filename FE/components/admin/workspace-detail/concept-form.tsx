@@ -339,7 +339,7 @@ export function ConceptForm({
         </div>
 
         <p className="mb-1 mt-6 text-xs font-semibold uppercase tracking-wider text-slate-500">
-          속성 {attrKeys.length} <span className="font-normal normal-case tracking-normal text-slate-400">— 컬럼 이름 · 모델에게 보일 라벨 · 조건으로 쓰기 · 가리키는 개념</span>
+          속성 {attrKeys.length} <span className="font-normal normal-case tracking-normal text-slate-500">— 컬럼 이름 · 모델에게 보일 라벨 · 조건으로 쓰기 · 가리키는 개념</span>
         </p>
         <div className={`rounded-lg border ${errors.attrs ? "border-red-300" : "border-slate-200"}`}>
           {attrKeys.length === 0 ? (
