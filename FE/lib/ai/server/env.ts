@@ -31,6 +31,14 @@ export function beConfig() {
 }
 
 /**
+ * hwp 변환기(`INFRA/hwp-converter`). compose 안에서는 내부 네트워크의 서비스명, 로컬 개발은
+ * `docker run -p 127.0.0.1:8100:8100 axcore/hwp-converter:local` 로 띄운 8100 이 기본이다.
+ */
+export function hwpConverterConfig() {
+  return { baseUrl: optional("HWP_CONVERTER_URL", "http://localhost:8100").replace(/\/$/, "") };
+}
+
+/**
  * 네이버 클라우드 Object Storage. S3 호환 API 라 AWS SDK 로 붙는다.
  * 엔드포인트·리전은 네이버가 고정해 둔 값이 기본이다.
  */

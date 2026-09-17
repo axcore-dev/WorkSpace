@@ -17,7 +17,8 @@ Handler** 가 맡는다. BE(Spring)는 인증 판정과 업무 데이터의 원�
   다시 구현할 일이 없다. Spring 으로 가면 Java 로 같은 와이어 포맷을 다시 만들어야 한다.
 - nginx 가 `/ai/` 를 이미 FE 로 보내고 SSE 설정(`proxy_buffering off`, 300초)도 그 블록에 있다.
 - 임베딩·OCR 은 로컬 연산이 아니라 외부 API 호출이라 Node 와 Python 의 차이가 없다. 문서 파싱(pdf·docx·xlsx)은
-  Node 라이브러리로 충분하다.
+  Node 라이브러리로 충분하다. 예외가 옛 바이너리 hwp 다 — JS 파서가 없어 `INFRA/hwp-converter`(pyhwp, Python)
+  컨테이너가 평문으로 바꿔 주고, AI 서버는 그 결과만 받는다(`extract.ts` `fromHwp`).
 - 서버가 한 대(2vCPU/8GB)라 런타임을 하나 더 띄우지 않는 편이 낫다. 부하가 커지면 `app/ai/*` 만 별도 Next
   인스턴스로 떼어내고 nginx `/ai/` 의 upstream 만 바꾸면 된다(`NEXT_PUBLIC_AI_API_BASE`).
 
@@ -84,7 +85,7 @@ shared V16 이 `axcore_ai` 역할과 `shared.set_ai_role_password(text)` 를 만
 
 ```
 POST /ai/sources (multipart files[])
-  검증(10개 · 20MB · pdf/png/jpg/jpeg/xlsx/docx · 파일명 정제)
+  검증(10개 · 20MB · pdf/png/jpg/jpeg/xlsx/docx/hwp · 파일명 정제)
   → Object Storage 저장 → ai_source_docs 행(status=indexing) → 응답 SourceDoc[]
   → after(): 내려받기 → 텍스트 추출 → 조각(≈1,000자, 겹침 150) → 임베딩(1536) → ai_source_chunks → ready | failed
 ```

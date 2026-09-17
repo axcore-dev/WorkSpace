@@ -6,6 +6,7 @@
  *   보고 모델에 옮겨 적기를 맡긴다.
  * - DOCX: `mammoth` 의 raw text.
  * - XLSX: `exceljs`. 시트마다 한 쪽으로 치고 행을 ` | ` 로 이어 표 구조를 남긴다.
+ * - HWP: `INFRA/hwp-converter` 컨테이너(pyhwp)가 평문으로 바꿔 준다. 표는 xlsx 와 같은 ` | ` 표기.
  * - PNG/JPG: 텍스트 층이 없으니 모델(비전)로 옮겨 적는다. 키가 없으면 색인할 수 없어 실패로 남긴다.
  */
 import "server-only";
@@ -14,6 +15,7 @@ import { extractText as pdfExtract } from "unpdf";
 import mammoth from "mammoth";
 import ExcelJS from "exceljs";
 import type { ExtractedPage } from "./chunk";
+import { hwpConverterConfig } from "./env";
 import { contentTypeOf } from "./files";
 import { chatModel, providerOptions } from "./models";
 
@@ -33,6 +35,35 @@ async function fromPdf(buf: Buffer): Promise<ExtractedPage[]> {
 async function fromDocx(buf: Buffer): Promise<ExtractedPage[]> {
   const { value } = await mammoth.extractRawText({ buffer: buf });
   return [{ text: value }];
+}
+
+/** 변환기 응답 대기. 변환기 자체 상한(30초)보다 조금 길게 — 그쪽이 먼저 504 를 준다 */
+const HWP_TIMEOUT_MS = 40_000;
+
+/**
+ * 옛 바이너리 한글(HWP 5.0). JS 파서가 없어 `INFRA/hwp-converter` 컨테이너(pyhwp)에 바이트를 보내고 평문을 받는다.
+ * 표는 행마다 셀이 ` | ` 로 이어져 온다 — xlsx 추출과 같은 표기. 쪽 구분은 없어 docx 처럼 한 쪽으로 친다.
+ * 변환기가 꺼져 있으면 여기서 실패해 문서가 `failed` 로 남고, 사용자에게는 hwpx · PDF 로 다시 올리라고 안내한다.
+ */
+async function fromHwp(buf: Buffer): Promise<ExtractedPage[]> {
+  const { baseUrl } = hwpConverterConfig();
+  let res: Response;
+  try {
+    res = await fetch(`${baseUrl}/text`, {
+      method: "POST",
+      headers: { "Content-Type": "application/octet-stream" },
+      body: new Uint8Array(buf),
+      signal: AbortSignal.timeout(HWP_TIMEOUT_MS),
+      cache: "no-store",
+    });
+  } catch (e) {
+    throw new ExtractError(`hwp 변환기에 연결하지 못했어요 (${e instanceof Error ? e.message : String(e)}). PDF 로 저장해 올려 주세요`);
+  }
+  if (!res.ok) {
+    const reason = (await res.text().catch(() => "")).slice(0, 200);
+    throw new ExtractError(`hwp 를 읽지 못했어요 (${res.status}${reason ? ` · ${reason}` : ""}). 한글에서 PDF 로 저장해 올려 주세요`);
+  }
+  return [{ text: await res.text() }];
 }
 
 async function fromXlsx(buf: Buffer): Promise<ExtractedPage[]> {
@@ -112,6 +143,8 @@ export async function extractPages(buf: Buffer, type: string): Promise<Extracted
       return fromDocx(buf);
     case "xlsx":
       return fromXlsx(buf);
+    case "hwp":
+      return fromHwp(buf);
     case "png":
     case "jpg":
     case "jpeg":
