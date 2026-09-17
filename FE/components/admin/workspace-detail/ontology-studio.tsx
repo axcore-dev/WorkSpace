@@ -525,7 +525,12 @@ export function OntologyStudio({ workspaceId, systems }: { workspaceId: number; 
           )}
           {firstUse && (
             <div className="sticky left-0 top-0 z-10 flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-slate-200 bg-white/95 px-4 py-2 text-[13px] text-slate-700">
-              <span>외부 개념이 아직 없어요. 위의 「DB 에서 초안 만들기」 로 표를 읽어 시작해요 — 아래는 AXPoint 내장 개념이에요.</span>
+              <span>
+                {linkedSystems.length === 0
+                  ? // 접속 정보가 있는 시스템이 없으면 머리의 버튼 세 개가 아예 없다 — 없는 버튼을 누르라고 하지 않는다
+                    "외부 개념이 아직 없어요. 위 「외부 시스템」 에 MES 접속 정보를 먼저 등록하면 그 DB 를 읽어 개념을 만들 수 있어요 — 아래는 AXPoint 내장 개념이에요."
+                  : "외부 개념이 아직 없어요. 위의 「DB 에서 초안 만들기」 로 표를 읽어 시작해요 — 아래는 AXPoint 내장 개념이에요."}
+              </span>
             </div>
           )}
           <div className="relative" style={{ width: placed.width, height: placed.height }}>
