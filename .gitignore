@@ -84,3 +84,9 @@ FE/mock/
 FE/CLAUDE.md
 
 /BE/docs
+
+# 부하 테스트 — 로컬 전용. PUBLIC 저장소에 서버 상한 · 테스트 계정 패턴 같은 공격 단서를 남기지 않는다
+INFRA/loadtest/
+
+# AI 정확도 검수 질문 세트 — 내부 검수용, 저장소에 두지 않는다
+docs/ai/ai-question-set.md
