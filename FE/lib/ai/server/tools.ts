@@ -290,20 +290,30 @@ export function hasTools(): boolean {
   return registry.size > 0;
 }
 
+/* ─────────────────────────── 현재 시각 ─────────────────────────── */
+
+/**
+ * 오늘 날짜는 시스템 프롬프트에 요청마다 들어간다(`chat-llm.ts` `todayLine`). 이 도구는 그보다 정밀한 「지금 시각」이
+ * 필요할 때만 — 「30분 뒤 일정 등록」 같은 경우다. 데모 게이트 밖에 두는 이유: 운영에서 「이번 달 일정」을 물으면
+ * 모델이 오늘을 몰라 월을 되물었다(2026-09-17). 읽기 전용이라 승인이 필요 없다.
+ */
+registerTool({
+  name: "now",
+  label: "현재 시각 조회",
+  description:
+    "지금 시각(Asia/Seoul)을 돌려준다. 오늘 날짜는 이미 알고 있으므로 날짜만 필요하면 부르지 않는다. " +
+    "분 단위 현재 시각이 필요할 때(지금부터 N 분 뒤 · 지금까지 경과 시간)만 부른다.",
+  inputSchema: z.object({}),
+  needsApproval: false,
+  execute: async () => ({
+    iso: new Date().toISOString(),
+    local: new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul" }),
+  }),
+});
+
 /* ─────────────────────────── 데모 도구 ─────────────────────────── */
 
 if (process.env.AI_DEMO_TOOLS === "1") {
-  registerTool({
-    name: "now",
-    label: "현재 시각 조회",
-    description: "지금 시각(Asia/Seoul)을 돌려준다. 날짜·요일·시간 계산이 필요할 때 부른다.",
-    inputSchema: z.object({}),
-    needsApproval: false,
-    execute: async () => ({
-      iso: new Date().toISOString(),
-      local: new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul" }),
-    }),
-  });
   registerTool({
     name: "draft_note",
     label: "업무 메모 남기기",
@@ -323,5 +333,5 @@ if (process.env.AI_DEMO_TOOLS === "1") {
       savedAt: new Date().toISOString(),
     }),
   });
-  console.info("[ai-tool] 데모 도구 켜짐: now, draft_note");
+  console.info("[ai-tool] 데모 도구 켜짐: draft_note");
 }

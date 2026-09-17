@@ -53,7 +53,8 @@ registerTool({
   label: "구글 캘린더 일정 조회",
   connector: "googlecalendar",
   description:
-    "회사가 연결한 Google Calendar 의 다가오는 일정을 읽는다. 기간을 주지 않으면 지금부터 7일이다. " +
+    "회사가 연결한 Google Calendar 의 일정을 읽는다. 기간을 주지 않으면 지금부터 7일이다. " +
+    "「이번 달 · 다음 주 · 오늘」 같은 상대 기간은 시스템 프롬프트의 오늘 날짜로 from/to 를 직접 계산해 넣는다(예: 이번 달 = 이달 1일 00:00 ~ 다음 달 1일 00:00, Asia/Seoul 은 +09:00). 사용자에게 월이나 날짜를 되묻지 않는다. " +
     "정비·점검·회의 일정을 물을 때 부른다. 결과의 start/end 는 ISO 8601 이고 Asia/Seoul 로 바꿔 말한다.",
   inputSchema: z.object({
     from: isoInstant.optional().describe("조회 시작 시각(ISO 8601). 없으면 지금"),
