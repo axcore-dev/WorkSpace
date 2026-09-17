@@ -195,6 +195,8 @@ services:
     security_opt:
       - no-new-privileges:true
     mem_limit: 512m
+    # 2 vCPU 서버에서 변환이 다른 서비스를 밀어내지 않게. 안에서도 동시 2건까지만 돈다(server.py).
+    cpus: "1.0"
     restart: unless-stopped
 
   nginx:

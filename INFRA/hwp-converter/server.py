@@ -16,12 +16,18 @@ import os
 import re
 import subprocess
 import tempfile
+import threading
 import xml.etree.ElementTree as ET
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 MAX_BYTES = 20 * 1024 * 1024
 TIMEOUT_SEC = 30
 PORT = 8100
+# 결과 평문 상한. 20 MB 압축 파일이 수백 MB 텍스트로 부풀 수 있다(압축 폭탄) — 그 뒤는 잘라내고 표시를 남긴다.
+MAX_TEXT_BYTES = 4 * 1024 * 1024
+# 동시에 도는 hwp5html 수. 서버가 2 vCPU 라 그 이상은 서로 느려질 뿐이다. 넘치면 기다린다(FE 쪽 대기 40초 안에 끝난다).
+CONCURRENCY = 2
+_slots = threading.BoundedSemaphore(CONCURRENCY)
 
 BLOCK = {"p", "h1", "h2", "h3", "h4", "h5", "h6", "li", "pre"}
 
@@ -69,20 +75,24 @@ def convert(data: bytes) -> bytes:
     try:
         with os.fdopen(fd, "wb") as f:
             f.write(data)
-        proc = subprocess.run(
-            ["hwp5html", "--html", path],
-            capture_output=True,
-            timeout=TIMEOUT_SEC,
-            check=False,
-        )
+        with _slots:
+            proc = subprocess.run(
+                ["hwp5html", "--html", path],
+                capture_output=True,
+                timeout=TIMEOUT_SEC,
+                check=False,
+            )
         xhtml = proc.stdout
         if not xhtml.strip():
             lines = proc.stderr.decode("utf-8", "replace").strip().splitlines()
             raise ValueError(lines[-1][:300] if lines else "빈 결과")
         try:
-            return xhtml_to_text(xhtml).encode("utf-8")
+            text = xhtml_to_text(xhtml).encode("utf-8")
         except ET.ParseError as e:
             raise ValueError(f"XHTML 해석 실패: {e}") from e
+        if len(text) > MAX_TEXT_BYTES:
+            text = text[:MAX_TEXT_BYTES].decode("utf-8", "ignore").encode("utf-8") + "\n[이하 생략 — 문서가 너무 길어 앞부분만 읽었어요]\n".encode("utf-8")
+        return text
     finally:
         try:
             os.unlink(path)
