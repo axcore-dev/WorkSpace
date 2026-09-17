@@ -7,6 +7,7 @@ import { IconPlus } from "@/components/icons";
 import { Modal } from "@/components/modal";
 import { Badge, Button, Card, FIELD, SectionHeader, Toast } from "@/components/ui";
 import { useToast } from "@/components/use-toast";
+import { withJosa } from "@/data/ko";
 import type { Tone } from "@/data/types";
 import { ApiRequestError } from "@/lib/api";
 import {
@@ -71,7 +72,7 @@ export function IntegrationsTab({ workspaceId }: { workspaceId: number }) {
   async function remove(row: ExternalSystemAdminDto) {
     try {
       await deleteExternalSystem(workspaceId, row.id);
-      showToast(`${row.name}을 삭제했어요`);
+      showToast(`${withJosa(row.name, "을/를")} 삭제했어요`);
       setRemoving(null);
       await reload();
     } catch (e) {
@@ -147,13 +148,14 @@ export function IntegrationsTab({ workspaceId }: { workspaceId: number }) {
       <Modal
         open={removing !== null}
         onClose={() => setRemoving(null)}
-        title="외부 시스템을 삭제할까요?"
-        desc={removing ? `${removing.name}의 접속 정보가 지워지고 AI 가 더는 이 시스템을 읽지 못해요.` : undefined}
+        title="외부 시스템을 삭제하시겠습니까?"
+        desc={removing ? `${removing.name}의 접속 정보가 지워지고 AI 가 더는 이 시스템을 읽지 못합니다.` : undefined}
         size="sm"
+        closeButton={false}
         footer={
           <>
             <Button variant="secondary" onClick={() => setRemoving(null)}>
-              취소
+              연결 유지
             </Button>
             <Button variant="danger" onClick={() => removing && void remove(removing)}>
               삭제

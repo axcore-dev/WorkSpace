@@ -5,6 +5,7 @@ import { IconPlus, IconSearch } from "@/components/icons";
 import { Modal } from "@/components/modal";
 import { Button, Card, FIELD_SM, SectionHeader, Toast } from "@/components/ui";
 import { useToast } from "@/components/use-toast";
+import { withJosa } from "@/data/ko";
 import { MODULES } from "@/data/modules";
 import { BUILTIN, type Concept } from "@/lib/ai/ontology";
 import { ApiRequestError } from "@/lib/api";
@@ -98,7 +99,7 @@ function cardHeight(n: Node): number {
 
 /** 「초안」 외곽선 태그 — 카드 · 탐색기 줄 · 속성 패널 머리. 점선 테두리로 「아직 정해지지 않았다」 를 말한다 */
 function DraftTag() {
-  return <span className="shrink-0 rounded border border-dashed border-amber-700 px-1 font-sans text-[10px] font-medium leading-4 text-amber-700">초안</span>;
+  return <span className="shrink-0 rounded border border-dashed border-amber-700 px-1 font-sans text-[11px] font-medium leading-4 text-amber-700">초안</span>;
 }
 
 function tabLabel(tab: string): string {
@@ -372,7 +373,7 @@ export function OntologyStudio({ workspaceId, systems }: { workspaceId: number; 
   async function remove(d: ExternalConceptAdminDto) {
     try {
       await deleteConcept(workspaceId, d.id);
-      showToast(`${d.name}을 삭제했어요`);
+      showToast(`${withJosa(d.name, "을/를")} 삭제했어요`);
       setRemoving(null);
       if (selected === d.conceptId) setSelected(null);
       await reload();
@@ -477,7 +478,7 @@ export function OntologyStudio({ workspaceId, systems }: { workspaceId: number; 
               <div key={system} className="mb-4">
                 <p className="mb-1 flex items-center gap-1.5 font-mono text-[11px] text-slate-500">
                   {system}
-                  <span className="text-slate-400">· {q ? `${shown.length}/${inGroup.length}` : inGroup.length}</span>
+                  <span className="text-slate-500">· {q ? `${shown.length}/${inGroup.length}` : inGroup.length}</span>
                   {draftCount > 0 && <span className="text-amber-700">· 다듬을 초안 {draftCount}</span>}
                 </p>
                 <ul className="space-y-0.5">
@@ -492,7 +493,7 @@ export function OntologyStudio({ workspaceId, systems }: { workspaceId: number; 
                       >
                         <span className="min-w-0 flex-1 truncate">
                           <span className="text-[12px]">{n.name}</span>
-                          <span className="ml-1.5 font-mono text-[10px] text-slate-400">{n.id}</span>
+                          <span className="ml-1.5 font-mono text-[11px] text-slate-500">{n.id}</span>
                         </span>
                         {n.draft && <DraftTag />}
                       </button>
@@ -525,14 +526,19 @@ export function OntologyStudio({ workspaceId, systems }: { workspaceId: number; 
           )}
           {firstUse && (
             <div className="sticky left-0 top-0 z-10 flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-slate-200 bg-white/95 px-4 py-2 text-[13px] text-slate-700">
-              <span>외부 개념이 아직 없어요. 위의 「DB 에서 초안 만들기」 로 표를 읽어 시작해요 — 아래는 AXPoint 내장 개념이에요.</span>
+              <span>
+                {linkedSystems.length === 0
+                  ? // 접속 정보가 있는 시스템이 없으면 머리의 버튼 세 개가 아예 없다 — 없는 버튼을 누르라고 하지 않는다
+                    "외부 개념이 아직 없어요. 위 「외부 시스템」 에 MES 접속 정보를 먼저 등록하면 그 DB 를 읽어 개념을 만들 수 있어요 — 아래는 AXPoint 내장 개념이에요."
+                  : "외부 개념이 아직 없어요. 위의 「DB 에서 초안 만들기」 로 표를 읽어 시작해요 — 아래는 AXPoint 내장 개념이에요."}
+              </span>
             </div>
           )}
           <div className="relative" style={{ width: placed.width, height: placed.height }}>
             {layout.rows.map((r) => {
               const draftCount = nodes.filter((n) => n.system === r.system && n.draft).length;
               return (
-                <span key={r.system} className="absolute whitespace-nowrap font-mono text-[11px] text-slate-400" style={{ left: PAD, top: r.y - 18 }}>
+                <span key={r.system} className="absolute whitespace-nowrap font-mono text-[11px] text-slate-500" style={{ left: PAD, top: r.y - 18 }}>
                   {r.system}
                   {draftCount > 0 && <span className="ml-2 text-amber-700">다듬을 초안 {draftCount}</span>}
                 </span>
@@ -585,7 +591,7 @@ export function OntologyStudio({ workspaceId, systems }: { workspaceId: number; 
                   return (
                     <span
                       key={`lbl-${e.key}`}
-                      className="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded border border-slate-900 bg-white px-1.5 font-mono text-[10px] leading-4 text-slate-900"
+                      className="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded border border-slate-900 bg-white px-1.5 font-mono text-[11px] leading-4 text-slate-900"
                       style={{ left: at.x, top: at.y }}
                     >
                       {e.attr} → {e.to}
@@ -622,17 +628,17 @@ export function OntologyStudio({ workspaceId, systems }: { workspaceId: number; 
                     </div>
                     <span className="flex shrink-0 gap-1">
                       {n.draft && <DraftTag />}
-                      <span className="rounded border border-slate-200 px-1.5 font-mono text-[10px] text-slate-500">{n.kind}</span>
+                      <span className="rounded border border-slate-200 px-1.5 font-mono text-[11px] text-slate-500">{n.kind}</span>
                     </span>
                   </div>
                   <ul className="mt-1.5 px-3 font-mono text-[11px] leading-[18px] text-slate-600">
                     {keys.slice(0, ATTRS_SHOWN).map((k) => (
                       <li key={k} className="flex justify-between gap-2">
                         <span className="truncate">{k}</span>
-                        <span className="shrink-0 text-slate-400">{n.relations.some((r) => r.attr === k) ? "FK" : ""}</span>
+                        <span className="shrink-0 text-slate-500">{n.relations.some((r) => r.attr === k) ? "FK" : ""}</span>
                       </li>
                     ))}
-                    {keys.length > ATTRS_SHOWN && <li className="text-slate-400">+{keys.length - ATTRS_SHOWN}</li>}
+                    {keys.length > ATTRS_SHOWN && <li className="text-slate-500">+{keys.length - ATTRS_SHOWN}</li>}
                   </ul>
                 </button>
               );
@@ -661,10 +667,10 @@ export function OntologyStudio({ workspaceId, systems }: { workspaceId: number; 
                   </button>
                 )}
               </div>
-              <h4 className="mt-1 flex items-center gap-2 text-[15px] font-semibold text-slate-900">
+              <h3 className="mt-1 flex items-center gap-2 text-[15px] font-semibold text-slate-900">
                 {current.name}
                 {current.draft && <DraftTag />}
-              </h4>
+              </h3>
               <p className="font-mono text-[12px] text-slate-500">{current.id}</p>
               <p className="mt-2 text-slate-600">{current.description}</p>
               <dl className="mt-3 grid grid-cols-[64px_1fr] gap-y-1 text-[12px]">
@@ -695,7 +701,7 @@ export function OntologyStudio({ workspaceId, systems }: { workspaceId: number; 
                     <li key={k} className="px-2.5 py-1.5">
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-mono text-[12px] text-slate-900">{k}</span>
-                        <span className="flex gap-1 text-[10px] text-slate-500">
+                        <span className="flex gap-1 text-[11px] text-slate-500">
                           {filterable && <span className="rounded border border-slate-200 px-1">조건</span>}
                           {rel && <span className="rounded border border-slate-200 px-1">→ {rel.to}</span>}
                         </span>
@@ -838,13 +844,14 @@ export function OntologyStudio({ workspaceId, systems }: { workspaceId: number; 
       <Modal
         open={removing !== null}
         onClose={() => setRemoving(null)}
-        title="개념을 삭제할까요?"
-        desc={removing ? `${removing.name}(${removing.conceptId})을 지우면 AI 가 더는 이 자료를 읽지 못해요.` : undefined}
+        title="개념을 삭제하시겠습니까?"
+        desc={removing ? `${removing.name}(${removing.conceptId}) 개념을 지우면 AI 가 더는 이 자료를 읽지 못합니다.` : undefined}
         size="sm"
+        closeButton={false}
         footer={
           <>
             <Button variant="secondary" onClick={() => setRemoving(null)}>
-              취소
+              유지
             </Button>
             <Button variant="danger" onClick={() => removing && void remove(removing)}>
               삭제
@@ -852,7 +859,7 @@ export function OntologyStudio({ workspaceId, systems }: { workspaceId: number; 
           </>
         }
       >
-        <p className="text-sm text-slate-500">다른 개념이 이 개념을 가리키는 관계는 그대로 남아요. 필요하면 그쪽도 고쳐 주세요.</p>
+        <p className="text-sm text-slate-500">다른 개념이 이 개념을 가리키는 관계는 그대로 남습니다. 필요하면 그쪽도 고쳐 주세요.</p>
       </Modal>
 
       <Toast toast={toast} />

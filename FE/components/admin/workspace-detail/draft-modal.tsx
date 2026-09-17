@@ -166,7 +166,7 @@ export function DraftModal({
       <div className="mt-5 flex items-center justify-between">
         <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
           표 {info?.tables.length ?? 0} · 고른 것 {chosen.length}
-          {sameIdCount > 0 && <span className="ml-2 font-normal normal-case tracking-normal text-slate-400">같은 id 가 있는 {sameIdCount}개는 건너뛰어요</span>}
+          {sameIdCount > 0 && <span className="ml-2 font-normal normal-case tracking-normal text-slate-500">같은 id 가 있는 {sameIdCount}개는 건너뛰어요</span>}
         </p>
         {info && info.tables.length > 0 && (
           <span className="flex gap-2 text-[12px]">
@@ -204,8 +204,8 @@ export function DraftModal({
                 <label htmlFor={`d-t-${t.name}`} className="min-w-0 flex-1 cursor-pointer">
                   <span className="flex flex-wrap items-center gap-2">
                     <span className="font-mono text-[13px] text-slate-900">{t.name}</span>
-                    {t.view && <span className="rounded border border-slate-200 px-1 font-mono text-[10px] text-slate-500">view</span>}
-                    <span className="font-mono text-[11px] text-slate-400">→ {idOf(t.name)}</span>
+                    {t.view && <span className="rounded border border-slate-200 px-1 font-mono text-[11px] text-slate-500">view</span>}
+                    <span className="font-mono text-[11px] text-slate-500">→ {idOf(t.name)}</span>
                     {s.kind === "same-id" && <span className="text-[11px] text-amber-700">같은 id 가 있어요 — 건너뛰어요</span>}
                     {s.kind === "same-table" && (
                       <span className="text-[11px] text-amber-700">
