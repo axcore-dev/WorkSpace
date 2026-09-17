@@ -113,13 +113,37 @@ export function outOfScopeMessage(principal: AiPrincipal): string {
  * 다른 테넌트의 자료는 여기까지 오지 못한다(스키마 격리) — 프롬프트가 막는 것은 모델의 일반 지식으로 타사 얘기를
  * 하는 것이다.
  */
+/**
+ * 오늘 날짜 한 줄. 요청마다 서버 시각으로 새로 만든다 — 모델은 오늘이 언제인지 모르기 때문에(학습 시점 근처를 짐작한다),
+ * 「이번 달 일정」 처럼 상대 기간을 도구 인자(from/to)로 바꿔야 하는 질문에서 월을 되묻는 일이 있었다.
+ *
+ * 날짜와 요일까지만 넣고 시각은 넣지 않는다. 시각을 넣으면 요청마다 프롬프트가 달라져 프롬프트 캐시가 깨진다.
+ * 분 단위가 필요한 경우는 `now` 도구가 맡는다.
+ */
+function todayLine(now = new Date()): string {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("ko-KR", {
+      timeZone: "Asia/Seoul",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      weekday: "short",
+    })
+      .formatToParts(now)
+      .map((p) => [p.type, p.value]),
+  );
+  const date = `${parts.year}-${parts.month}-${parts.day} (${parts.weekday})`;
+  return `오늘은 ${date} (Asia/Seoul) 입니다. "오늘 · 이번 주 · 이번 달 · 다음 주" 같은 상대 기간은 이 날짜를 기준으로 직접 계산해 쓰고, 사용자에게 날짜를 되묻지 않습니다.`;
+}
+
 function systemPrompt(principal: AiPrincipal, hasContext: boolean, skills: Skill[], tools: boolean): string {
   const company = principal.workspaceName;
   const scope = moduleNames(principal.modules);
   return (
     `당신은 ${company}의 업무를 돕는 AI 어시스턴트 AXPoint입니다. ` +
     "한국어로, 담당자가 바로 쓸 수 있게 간결하고 구체적으로 답합니다. 수치는 단위와 기간을 함께 적습니다. " +
-    "이전 대화 내용을 기억하고 이어서 답합니다.\n\n" +
+    "이전 대화 내용을 기억하고 이어서 답합니다.\n" +
+    `${todayLine()}\n\n` +
     "## 답변 범위 (가장 중요)\n" +
     `- 이 사용자가 권한을 가진 업무 분야: ${scope}. 당신은 ${company}의 이 분야 업무와 이 회사에 등록된 자료` +
     "(참고 문서 · 대화 · 도구 결과)에 대해서만 답합니다.\n" +
