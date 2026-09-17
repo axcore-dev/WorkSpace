@@ -17,6 +17,8 @@ const CONTENT_TYPES: Record<string, string> = {
   jpeg: "image/jpeg",
   xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  // 옛 바이너리 한글 문서(HWP 5.0). 본문은 hwp-converter 컨테이너가 뽑는다(extract.ts)
+  hwp: "application/x-hwp",
 };
 
 /** 확장자 위조 방지 — 마지막 점 뒤만 본다 */

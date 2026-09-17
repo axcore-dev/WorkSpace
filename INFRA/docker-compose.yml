@@ -130,6 +130,10 @@ services:
     container_name: axcore-fe
     ports:
       - "127.0.0.1:${FE_PORT}:8000"
+    # default(axcore-net) 에 더해 hwp 변환기와만 통하는 내부 네트워크에도 붙는다
+    networks:
+      - default
+      - converter
     environment:
       TZ: Asia/Seoul
 
@@ -144,6 +148,8 @@ services:
       # 슈퍼유저가 아니라 ai_* 테이블만 허용된 역할(shared V16 · tenant V6)로 붙는다. 비밀번호는 BE 가 부팅 때 맞춘다.
       PGUSER: ${AI_DB_USER:-axcore_ai}
       PGPASSWORD: ${AI_DB_PASSWORD:?INFRA/.env 에 AI_DB_PASSWORD 를 설정하세요}
+      # 옛 바이너리 hwp 본문 추출. 아래 hwp-converter 서비스이고 converter 네트워크로만 닿는다.
+      HWP_CONVERTER_URL: http://hwp-converter:8100
       # 네이버 클라우드 Object Storage (S3 호환). 버킷은 비공개여야 한다 — 접근은 presigned URL 로만.
       NCP_OBJECT_STORAGE_ENDPOINT: ${NCP_OBJECT_STORAGE_ENDPOINT:-https://kr.object.ncloudstorage.com}
       NCP_OBJECT_STORAGE_REGION: ${NCP_OBJECT_STORAGE_REGION:-kr-standard}
@@ -166,6 +172,29 @@ services:
       timeout: 3s
       retries: 5
       start_period: 15s
+    restart: unless-stopped
+
+  # 옛 바이너리 hwp → 평문. AI 소스 색인이 부른다(FE `extract.ts`). 포트를 밖으로 열지 않고, 외부로 나가는 길도 없는
+  # 내부 네트워크(converter)에만 있다 — hwp 는 국내에서 악성 첨부로 자주 쓰여 파싱을 앱 밖에서 격리해 돌린다.
+  # 파일시스템은 읽기 전용, /tmp 만 tmpfs. 5 MB 문서 하나에 3초 · 40 MB 쯤 쓴다.
+  hwp-converter:
+    build:
+      context: ./hwp-converter
+      dockerfile: Dockerfile
+    image: axcore/hwp-converter:local
+    container_name: axcore-hwp-converter
+    environment:
+      TZ: Asia/Seoul
+    networks:
+      - converter
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 512m
     restart: unless-stopped
 
   nginx:
@@ -227,3 +256,6 @@ networks:
   default:
     name: axcore-net
     external: true
+  # frontend ↔ hwp-converter 만. internal 이라 이 네트워크에서는 바깥으로 나갈 수 없다(변환기 격리).
+  converter:
+    internal: true

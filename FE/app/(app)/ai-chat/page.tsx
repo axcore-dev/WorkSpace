@@ -147,7 +147,7 @@ export default function AiChatPage() {
         ref={fileRef}
         type="file"
         multiple
-        accept=".pdf,.png,.jpg,.jpeg,.xlsx,.docx"
+        accept=".pdf,.png,.jpg,.jpeg,.xlsx,.docx,.hwp"
         className="hidden"
         aria-hidden
         tabIndex={-1}

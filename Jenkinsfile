@@ -16,7 +16,9 @@ def applyTarget(boolean be, boolean fe, boolean nginx) {
   env.BUILD_FE = fe.toString()
   def services = []
   if (be)    services << 'app'
-  if (fe)    services << 'frontend'
+  // hwp 변환기는 frontend(AI 서버)가 부르는 한 묶음이라 같이 만든다. 이미지가 작고 레이어가 캐시돼 몇 초면 끝난다.
+  // INFRA/hwp-converter/ 만 바뀌어도 INFRA 변경 → fe=true 로 잡혀 여기로 온다.
+  if (fe)    services << 'frontend' << 'hwp-converter'
   // nginx 와 certbot 은 TLS 볼륨을 공유하는 한 묶음이라 같이 다시 만든다.
   if (nginx) services << 'nginx' << 'certbot'
   env.APP_SERVICES = services.join(' ')
