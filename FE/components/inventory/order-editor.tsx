@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { IconAlertTriangle, IconDownload, IconPlus, IconX } from "@/components/icons";
 import { ConfirmModal } from "@/components/management/workbench";
-import { Modal, SCREEN_COLUMN } from "@/components/modal";
+import { Modal } from "@/components/modal";
 import { MultiPicker, type PickerOption } from "@/components/multi-picker";
 import { Button, FIELD_SM, FIELD_SM_ERROR, Segmented } from "@/components/ui";
 import { VENDOR_KIND_LABEL } from "@/data/inventory";
@@ -56,7 +56,7 @@ const REMOVE_BTN = "cursor-pointer rounded p-1.5 text-slate-500 transition-color
 const NUM = "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
 
 /**
- * 발주서 작성 — 전폭 시트(`Modal size="screen"`) 한 화면 편집기(260827 피드백 3건: 모든 칸 편집 · 발주처 클릭 선택 · 서식 2종 + 가공 요청 태그 · 전체 1장 + 발주처별 출력).
+ * 발주서 작성 — 팝업(`Modal size="2xl"`) 한 화면 편집기(260827 피드백 3건: 모든 칸 편집 · 발주처 클릭 선택 · 서식 2종 + 가공 요청 태그 · 전체 1장 + 발주처별 출력).
  *
  * 도면(BOM)을 고르면 소요 − 재고로 라인이 채워지고, 도면 없이도 라인을 더해 쓸 수 있다. 품목명(또는 사양+규격)을 적고 칸을 나가면
  * 품목 마스터에서 찾아 단위 · 기본 거래처를 채운다. 수량 0 라인은 화면에 내림으로 남고 문서 · 등록에서 빠진다.
@@ -154,11 +154,11 @@ export function OrderEditor({ onClose }: { onClose: () => void }) {
       <Modal
         open
         onClose={close}
-        size="screen"
+        size="2xl"
         title="발주서 작성"
         desc={drawing ? `${drawing.code} ${drawing.rev} · ${drawing.name} · ${drawing.vehicle}` : undefined}
         footer={
-          <div className={`${SCREEN_COLUMN} flex flex-wrap items-center justify-end gap-2`}>
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <Button variant="secondary" disabled={activeCount === 0} onClick={print}>
               <IconDownload size={14} />
               출력 · {docs.length}장
@@ -169,8 +169,7 @@ export function OrderEditor({ onClose }: { onClose: () => void }) {
           </div>
         }
       >
-        {/* 폭 상한은 이 블록이 직접 진다 — 2560 화면에서 입력 칸이 끝없이 늘어나지 않게 */}
-        <div className={`${SCREEN_COLUMN} space-y-5 py-5`}>
+        <div className="space-y-5 px-5 py-5">
           {/* 근거 · 메타 — 모든 칸 편집 */}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <div className="lg:col-span-2">
