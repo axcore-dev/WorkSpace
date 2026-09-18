@@ -9,12 +9,9 @@ const SIZES = {
   md: "max-w-lg",
   lg: "max-w-2xl",
   xl: "max-w-4xl",
-  /** 전폭 시트 — 화면을 덮는 편집 화면. 열이 많은 폼(발주서 작성)이 팝업 폭에 갇혀 가로 스크롤이 생기던 자리 */
-  screen: "",
+  /** 열이 많은 편집 폼(발주서 작성) — 화면을 덮지 않으면서 라인 한 줄이 들어가는 가장 큰 팝업 */
+  "2xl": "max-w-6xl",
 } as const;
-
-/** 전폭 시트의 내용 기둥 — 머리 · 본문 · 바닥이 같은 클래스를 써야 왼쪽 · 오른쪽 끝이 한 줄에 선다. 패딩까지 기둥 안에 둔다 */
-export const SCREEN_COLUMN = "mx-auto w-full max-w-[1400px] px-5 lg:px-8";
 
 /** Tab 이 도는 범위 — 비활성 컨트롤과 `tabindex="-1"` 은 뺀다 */
 const FOCUSABLE =
@@ -90,16 +87,12 @@ export function Modal({
 
   if (!open) return null;
 
-  // 클래스를 조건으로 갈라 쓴다 — `max-h-none` 을 덧붙이는 식은 문자열 순서가 우선순위를 정하지 않아 안 먹는다
-  const screen = size === "screen";
-  const shell = screen
-    ? "h-full w-full"
-    : `max-h-[88vh] w-full ${SIZES[size]} rounded-2xl border border-slate-200 shadow-2xl`;
+  const shell = `max-h-[88vh] w-full ${SIZES[size]} rounded-2xl border border-slate-200 shadow-2xl`;
 
   // body 로 포털 — 부모에 transform 이 남아 있으면(탭 전환 `.fade-in` 의 translateY) `fixed` 가 화면이 아니라 그 부모에 갇힌다.
-  // 전폭 시트가 탭 영역 안에서 배경 없이 잘려 열리던 원인이다(2026-09-14)
+  // 모달이 탭 영역 안에서 배경 없이 잘려 열리던 원인이다(2026-09-14)
   return createPortal(
-    <div className={`fixed inset-0 z-50 flex items-center justify-center ${screen ? "" : "p-4"}`}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="backdrop-in absolute inset-0 bg-slate-900/40 backdrop-blur-[1px]" onClick={onClose} aria-hidden />
       <div
         ref={panelRef}
@@ -111,9 +104,8 @@ export function Modal({
         className={`modal-in relative flex ${shell} flex-col overflow-hidden bg-white focus:outline-none`}
       >
         {(title || desc) && (
-          <div className={`border-b border-slate-100 py-4 ${screen ? "" : "px-5"}`}>
-          {/* 전폭 시트는 머리도 본문과 같은 기둥(`SCREEN_COLUMN`) — 넓은 화면에서 제목은 왼쪽 끝, × 는 오른쪽 끝으로 흩어지던 자리 */}
-          <div className={`flex items-start justify-between gap-4 ${screen ? SCREEN_COLUMN : ""}`}>
+          <div className="border-b border-slate-100 px-5 py-4">
+          <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               {title && (
                 <h2 id={titleId} className="text-base font-bold text-slate-900">
@@ -139,7 +131,7 @@ export function Modal({
           </div>
         )}
         <div className="thin-scroll flex-1 overflow-y-auto">{children}</div>
-        {footer && <div className={`border-t border-slate-100 py-4 ${screen ? "" : "px-5"}`}>{footer}</div>}
+        {footer && <div className="border-t border-slate-100 px-5 py-4">{footer}</div>}
       </div>
     </div>,
     document.body,
